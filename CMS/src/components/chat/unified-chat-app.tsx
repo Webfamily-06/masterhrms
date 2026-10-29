@@ -58,6 +58,9 @@ import {
   VideoOff,
   Mic,
   MicOff,
+  Camera,
+  FlipHorizontal,
+  ScreenShare,
   Info as InfoIcon,
   MoreVertical,
   Paperclip,
@@ -742,6 +745,38 @@ export function UnifiedChatApp({
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [selectedAddMemberId, setSelectedAddMemberId] = useState("");
+  const [selectedAddMemberIds, setSelectedAddMemberIds] = useState<string[]>([]);
+  const [addMemberSearch, setAddMemberSearch] = useState("");
+
+  // Pre-Call Permission & Device Check Modal State
+  const [preCallModalOpen, setPreCallModalOpen] = useState(false);
+  const [preCallType, setPreCallType] = useState<"audio" | "video">("audio");
+  const [preCallTarget, setPreCallTarget] = useState<{
+    targetUserId: string;
+    name: string;
+    phone?: string;
+    email?: string;
+  } | null>(null);
+  const [preCallPermissionState, setPreCallPermissionState] = useState<"checking" | "granted" | "denied">("checking");
+  const [preCallMicMuted, setPreCallMicMuted] = useState(false);
+  const [preCallVideoOff, setPreCallVideoOff] = useState(false);
+  const [preCallStream, setPreCallStream] = useState<MediaStream | null>(null);
+  const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [videoInputDevices, setVideoInputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioInputId, setSelectedAudioInputId] = useState("");
+  const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState("");
+  const preCallVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Screen Sharing & Camera Switch State
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+
+  // Web Audio API Ringtone Refs
+  const ringtoneContextRef = useRef<AudioContext | null>(null);
+  const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Message Actions: Reply, Edit, Forward, Delete
   const [replyingToMessage, setReplyingToMessage] = useState<ChatMessageItem | null>(null);
@@ -865,6 +900,79 @@ export function UnifiedChatApp({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+
+  // Synthesize standard telephone ringtone via Web Audio API (440Hz + 480Hz dual tone)
+  const startRingtone = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      if (!ringtoneContextRef.current || ringtoneContextRef.current.state === "closed") {
+        ringtoneContextRef.current = new AudioCtx();
+      }
+      const ctx = ringtoneContextRef.current;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+
+      const ringBurst = () => {
+        if (!ringtoneContextRef.current || ringtoneContextRef.current.state === "closed") return;
+        try {
+          const now = ctx.currentTime;
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          const gain = ctx.createGain();
+
+          osc1.type = "sine";
+          osc1.frequency.setValueAtTime(440, now);
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(480, now);
+
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.2, now + 0.05);
+          gain.gain.setValueAtTime(0.2, now + 1.8);
+          gain.gain.linearRampToValueAtTime(0, now + 2.0);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 2.0);
+          osc2.stop(now + 2.0);
+        } catch {}
+      };
+
+      ringBurst();
+      if (ringtoneIntervalRef.current) clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = setInterval(ringBurst, 4000);
+    } catch {}
+  }, []);
+
+  const stopRingtone = useCallback(() => {
+    if (ringtoneIntervalRef.current) {
+      clearInterval(ringtoneIntervalRef.current);
+      ringtoneIntervalRef.current = null;
+    }
+    if (ringtoneContextRef.current && ringtoneContextRef.current.state !== "closed") {
+      try {
+        ringtoneContextRef.current.close().catch(() => {});
+      } catch {}
+      ringtoneContextRef.current = null;
+    }
+  }, []);
+
+  // Manage incoming call ringtone lifecycle
+  useEffect(() => {
+    if (incomingCall) {
+      startRingtone();
+    } else {
+      stopRingtone();
+    }
+    return () => {
+      stopRingtone();
+    };
+  }, [incomingCall, startRingtone, stopRingtone]);
 
   // Call History view filters, server pagination & modals
   const [callTypeFilter, setCallTypeFilter] = useState("all");
@@ -1204,6 +1312,17 @@ export function UnifiedChatApp({
     setEditingMessage(null);
   }, [activeThreadId]);
 
+  // Sync active threadId to URL search params to preserve conversation thread state
+  useEffect(() => {
+    if (typeof window !== "undefined" && activeThreadId) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("threadId") !== activeThreadId) {
+        url.searchParams.set("threadId", activeThreadId);
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+  }, [activeThreadId]);
+
   // Auto-resolve otherParticipantId if direct thread is active without activeTargetUserId
   useEffect(() => {
     if (activeThreadId?.startsWith("direct_") && !activeTargetUserId) {
@@ -1332,18 +1451,50 @@ export function UnifiedChatApp({
       clearTimeout(incomingCallTimerRef.current);
       incomingCallTimerRef.current = null;
     }
+    stopRingtone();
+    iceCandidateQueueRef.current = [];
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = null;
+    }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach((track) => track.stop());
+      remoteStreamRef.current = null;
+    }
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      try {
+        peerConnectionRef.current.close();
+      } catch {}
       peerConnectionRef.current = null;
     }
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-  }, []);
+    setIsScreenSharing(false);
+  }, [stopRingtone]);
+
+  // Video element stream binding hook (ensures tracks are connected after DOM mounts)
+  useEffect(() => {
+    if (activeCallModalOpen) {
+      if (localStreamRef.current && localVideoRef.current && !isVideoOff) {
+        if (localVideoRef.current.srcObject !== localStreamRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+      }
+      if (remoteStreamRef.current) {
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        }
+        if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        }
+      }
+    }
+  }, [activeCallModalOpen, isVideoOff, callStatus]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2. REAL-TIME SUBSCRIPTION LAYER (Socket.io & WebRTC Signaling)
@@ -1374,18 +1525,18 @@ export function UnifiedChatApp({
 
         const formatted = formatMessageItem(msg, currentUserId);
         queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
-          console.log("[SET_QUERY_DATA] old count:", old?.messages?.length, "new id:", formatted.id);
-          if (!old || !old.messages) return { messages: [formatted], hasMore: false };
-          const exists = old.messages.some((m: any) => m.id === formatted.id);
+          if (!old) return { messages: [formatted], hasMore: false };
+          const list = Array.isArray(old.messages) ? old.messages : [];
+          const exists = list.some((m: any) => m.id === formatted.id);
           if (exists) {
             return {
               ...old,
-              messages: old.messages.map((m: any) => (m.id === formatted.id ? formatted : m)),
+              messages: list.map((m: any) => (m.id === formatted.id ? formatted : m)),
             };
           }
           return {
             ...old,
-            messages: [...old.messages, formatted],
+            messages: [...list, formatted],
           };
         });
 
@@ -1594,7 +1745,7 @@ export function UnifiedChatApp({
       // Auto-reject on callee side after 30 seconds without answer
       incomingCallTimerRef.current = setTimeout(() => {
         handleRejectIncomingCall("timeout");
-      }, 30000);
+      }, 60000);
 
       setIncomingCall({
         callId: data.callId,
@@ -1698,6 +1849,17 @@ export function UnifiedChatApp({
       try {
         if (signal.type === "offer") {
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          // Drain candidate queue
+          while (iceCandidateQueueRef.current.length > 0) {
+            const cand = iceCandidateQueueRef.current.shift();
+            if (cand) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.warn("Failed to drain ICE candidate:", e);
+              }
+            }
+          }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           socket.emit("call:signal", {
@@ -1707,8 +1869,23 @@ export function UnifiedChatApp({
           });
         } else if (signal.type === "answer") {
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          // Drain candidate queue
+          while (iceCandidateQueueRef.current.length > 0) {
+            const cand = iceCandidateQueueRef.current.shift();
+            if (cand) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.warn("Failed to drain ICE candidate:", e);
+              }
+            }
+          }
         } else if (signal.type === "candidate" && signal.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } else {
+            iceCandidateQueueRef.current.push(signal.candidate);
+          }
         }
       } catch (err) {
         console.error("Error processing WebRTC signal:", err);
@@ -1989,23 +2166,32 @@ export function UnifiedChatApp({
     },
   });
 
-  // Add Member to Group
+  // Add Member to Group (supports single and batch additions)
   const addGroupMemberMutation = useMutation({
-    mutationFn: async (data: { groupId: string; userId: string }) => {
+    mutationFn: async (data: { groupId: string; userId?: string; memberIds?: string[] }) => {
+      const ids = Array.isArray(data.memberIds) && data.memberIds.length > 0 ? data.memberIds : data.userId ? [data.userId] : [];
       const res: any = await api.post(`/api/chat/groups/${data.groupId}/members`, {
-        userId: data.userId,
+        memberIds: ids,
+        userId: ids[0],
       });
       return res;
     },
-    onSuccess: () => {
-      toast.success("Colleague added to group");
+    onSuccess: (res: any) => {
+      const count = res?.addedCount || (res?.addedMemberIds ? res.addedMemberIds.length : 1);
+      toast.success(count > 1 ? `Added ${count} members to group` : "Colleague added to group");
       setAddMemberOpen(false);
       setSelectedAddMemberId("");
+      setSelectedAddMemberIds([]);
+      setAddMemberSearch("");
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
       queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "group_activity"] });
+      if (activeGroup?.id) {
+        queryClient.invalidateQueries({ queryKey: ["chat", "group_activity", activeGroup.id] });
+      }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.error || err?.message || "Failed to add member");
+      toast.error(err?.response?.data?.error || err?.message || "Failed to add member(s)");
     },
   });
 
@@ -2046,88 +2232,230 @@ export function UnifiedChatApp({
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // WebRTC CALL HANDLERS (Real Audio & Video)
+  // WebRTC CALL HANDLERS (Pre-Call Permission, Negotiation, Media Streams)
   // ──────────────────────────────────────────────────────────────────────────
-  const handleInitiateCall = async (
+
+  // Open Pre-Call Device & Permission Setup Screen
+  const openPreCallModal = async (
     type: "audio" | "video",
     targetUserId: string,
     name: string,
     phone = "",
     email = ""
   ) => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast.error("Your browser does not support WebRTC media capture.");
-      return;
+    let resolvedTargetId = targetUserId;
+    if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
+      const parts = activeThreadId.slice("direct_".length).split("_");
+      resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
     }
+    setPreCallType(type);
+    setPreCallTarget({ targetUserId: resolvedTargetId, name, phone, email });
+    setPreCallModalOpen(true);
+    setPreCallPermissionState("checking");
+    setPreCallMicMuted(false);
+    setPreCallVideoOff(false);
 
     try {
-      // Request media permission on user action
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: true,
         video: type === "video",
       });
+      setPreCallStream(stream);
+      setPreCallPermissionState("granted");
+
+      if (navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audios = devices.filter((d) => d.kind === "audioinput");
+        const videos = devices.filter((d) => d.kind === "videoinput");
+        setAudioInputDevices(audios);
+        setVideoInputDevices(videos);
+        if (audios[0]) setSelectedAudioInputId(audios[0].deviceId);
+        if (videos[0]) setSelectedVideoDeviceId(videos[0].deviceId);
+      }
+    } catch (err: any) {
+      console.warn("Pre-call media acquisition error:", err);
+      setPreCallPermissionState("denied");
+    }
+  };
+
+  const closePreCallModal = () => {
+    if (preCallStream) {
+      preCallStream.getTracks().forEach((t) => t.stop());
+      setPreCallStream(null);
+    }
+    setPreCallModalOpen(false);
+    setPreCallTarget(null);
+  };
+
+  const retryPreCallPermission = async () => {
+    setPreCallPermissionState("checking");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: preCallType === "video",
+      });
+      setPreCallStream(stream);
+      setPreCallPermissionState("granted");
+      if (navigator.mediaDevices.enumerateDevices) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        setAudioInputDevices(devices.filter((d) => d.kind === "audioinput"));
+        setVideoInputDevices(devices.filter((d) => d.kind === "videoinput"));
+      }
+    } catch {
+      setPreCallPermissionState("denied");
+      toast.error("Permission still denied. Please check your browser address bar.");
+    }
+  };
+
+  const togglePreCallMic = () => {
+    if (preCallStream) {
+      const at = preCallStream.getAudioTracks()[0];
+      if (at) {
+        at.enabled = !at.enabled;
+        setPreCallMicMuted(!at.enabled);
+      }
+    }
+  };
+
+  const togglePreCallVideo = () => {
+    if (preCallStream) {
+      const vt = preCallStream.getVideoTracks()[0];
+      if (vt) {
+        vt.enabled = !vt.enabled;
+        setPreCallVideoOff(!vt.enabled);
+      }
+    }
+  };
+
+  // Pre-Call Live Video Preview Hook
+  useEffect(() => {
+    if (preCallModalOpen && preCallStream && preCallVideoRef.current && preCallType === "video" && !preCallVideoOff) {
+      preCallVideoRef.current.srcObject = preCallStream;
+    }
+  }, [preCallModalOpen, preCallStream, preCallType, preCallVideoOff]);
+
+  // Main Call Initiation Entrypoint (routes via Pre-Call screen)
+  const handleInitiateCall = (
+    type: "audio" | "video",
+    targetUserId: string,
+    name: string,
+    phone = "",
+    email = ""
+  ) => {
+    let resolvedTargetId = targetUserId;
+    if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
+      const parts = activeThreadId.slice("direct_".length).split("_");
+      resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
+    }
+    openPreCallModal(type, resolvedTargetId, name, phone, email);
+  };
+
+  // Actual Dialing after Pre-Call Confirmation
+  const startActualCall = async (
+    type: "audio" | "video",
+    targetUserId: string,
+    name: string,
+    phone = "",
+    email = "",
+    passedStream?: MediaStream | null,
+    initialMicMuted = false,
+    initialVideoOff = false
+  ) => {
+    try {
+      let resolvedTargetId = targetUserId;
+      if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
+        const parts = activeThreadId.slice("direct_".length).split("_");
+        resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
+      }
+
+      let stream = passedStream;
+      if (!stream || stream.getTracks().length === 0) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: type === "video",
+        });
+      }
 
       localStreamRef.current = stream;
       setActiveCallType(type);
       setActiveCallTargetName(name);
       setActiveCallTargetPhone(phone);
       setActiveCallTargetEmail(email);
-      setActiveCallTargetId(targetUserId);
+      setActiveCallTargetId(resolvedTargetId);
       setActiveCallRole("caller");
       setCallStatus("calling");
       setCallDurationSeconds(0);
-      setIsMuted(false);
-      setIsVideoOff(false);
+      setIsMuted(initialMicMuted);
+      setIsVideoOff(initialVideoOff);
       setActiveCallModalOpen(true);
 
-      // Create WebRTC Peer Connection
+      if (initialMicMuted) {
+        const at = stream.getAudioTracks()[0];
+        if (at) at.enabled = false;
+      }
+      if (initialVideoOff) {
+        const vt = stream.getVideoTracks()[0];
+        if (vt) vt.enabled = false;
+      }
+
+      // Create WebRTC Peer Connection with STUN
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
       peerConnectionRef.current = pc;
 
-      // Add local tracks to peer connection
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      // Add local media tracks
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream!));
 
-      // Attach local stream to preview video
-      if (type === "video" && localVideoRef.current) {
+      if (type === "video" && localVideoRef.current && !initialVideoOff) {
         localVideoRef.current.srcObject = stream;
       }
 
-      // Handle ICE candidates
       const socket = getSocketClient();
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
           socket.emit("call:signal", {
-            toUserId: targetUserId,
-            targetUserId: targetUserId,
+            toUserId: resolvedTargetId,
+            targetUserId: resolvedTargetId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
       };
 
-      // Handle remote media track
       pc.ontrack = (event) => {
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        event.streams[0]?.getTracks().forEach((track) => {
+          if (!remoteStreamRef.current!.getTracks().some((t) => t.id === track.id)) {
+            remoteStreamRef.current!.addTrack(track);
+          }
+        });
         if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
         }
         if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
         }
       };
 
-      // Emit call invite via socket
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setCallStatus("connected");
+        }
+      };
+
       const callId = `call_${Date.now()}`;
       setActiveCallId(callId);
 
-      // 30-second ringing timeout
+      // Server-authoritative 60-second ringing timeout
       if (callTimeoutTimerRef.current) clearTimeout(callTimeoutTimerRef.current);
       callTimeoutTimerRef.current = setTimeout(() => {
         const s = getSocketClient();
-        if (s && targetUserId) {
+        if (s && resolvedTargetId) {
           s.emit("call:timeout", {
-            toUserId: targetUserId,
-            targetUserId: targetUserId,
+            toUserId: resolvedTargetId,
+            targetUserId: resolvedTargetId,
             callId,
             callType: type,
           });
@@ -2137,12 +2465,12 @@ export function UnifiedChatApp({
         setActiveCallModalOpen(false);
         setCallStatus("ended");
         queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
-      }, 30000);
+      }, 60000);
 
       if (socket) {
         socket.emit("call:invite", {
-          toUserId: targetUserId,
-          targetUserId: targetUserId,
+          toUserId: resolvedTargetId,
+          targetUserId: resolvedTargetId,
           callId,
           type,
           callType: type,
@@ -2155,7 +2483,7 @@ export function UnifiedChatApp({
       }
     } catch (err: any) {
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-        toast.error("Microphone/Camera permission denied. Please allow access in browser permissions and retry.");
+        toast.error("Microphone/Camera permission denied.");
       } else {
         toast.error(`Media device error: ${err.message || "Failed to access devices"}`);
       }
@@ -2163,9 +2491,123 @@ export function UnifiedChatApp({
     }
   };
 
+  // Screen Sharing Toggle
+  const toggleScreenShare = async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc) return;
+
+    if (isScreenSharing) {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+      if (originalVideoTrackRef.current && localStreamRef.current) {
+        const senders = pc.getSenders();
+        const vs = senders.find((s) => s.track?.kind === "video");
+        if (vs) {
+          await vs.replaceTrack(originalVideoTrackRef.current);
+        }
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+      }
+      setIsScreenSharing(false);
+      toast.info("Screen sharing ended");
+    } else {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          toast.error("Screen sharing not supported on this browser.");
+          return;
+        }
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) return;
+
+        screenStreamRef.current = screenStream;
+        const senders = pc.getSenders();
+        const vs = senders.find((s) => s.track?.kind === "video");
+        if (vs) {
+          if (!originalVideoTrackRef.current) {
+            originalVideoTrackRef.current = vs.track;
+          }
+          await vs.replaceTrack(screenTrack);
+        }
+
+        screenTrack.onended = async () => {
+          if (originalVideoTrackRef.current && pc.signalingState !== "closed") {
+            const curSenders = pc.getSenders();
+            const curVs = curSenders.find((s) => s.track?.kind === "video");
+            if (curVs) {
+              await curVs.replaceTrack(originalVideoTrackRef.current);
+            }
+            if (localVideoRef.current && localStreamRef.current) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+            }
+          }
+          setIsScreenSharing(false);
+          screenStreamRef.current = null;
+        };
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+        }
+        setIsScreenSharing(true);
+        toast.success("Screen sharing started");
+      } catch (err: any) {
+        if (err.name !== "NotAllowedError") {
+          toast.error("Screen sharing error: " + (err.message || "Failed"));
+        }
+      }
+    }
+  };
+
+  // Switch Camera Device
+  const switchCamera = async () => {
+    if (!localStreamRef.current || videoInputDevices.length < 2) {
+      toast.info("No alternate camera available.");
+      return;
+    }
+    const pc = peerConnectionRef.current;
+    const curIdx = videoInputDevices.findIndex((d) => d.deviceId === selectedVideoDeviceId);
+    const nextDev = videoInputDevices[(curIdx + 1) % videoInputDevices.length];
+
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: nextDev.deviceId } },
+      });
+      const newTrack = newStream.getVideoTracks()[0];
+      if (newTrack) {
+        const oldTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldTrack) {
+          localStreamRef.current.removeTrack(oldTrack);
+          oldTrack.stop();
+        }
+        localStreamRef.current.addTrack(newTrack);
+        if (pc) {
+          const vs = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (vs) {
+            await vs.replaceTrack(newTrack);
+          }
+        }
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+        setSelectedVideoDeviceId(nextDev.deviceId);
+        toast.success(`Switched to ${nextDev.label || "alternate camera"}`);
+      }
+    } catch (err: any) {
+      toast.error("Camera switch error: " + err.message);
+    }
+  };
+
   // Accept Incoming Call (Callee)
   const handleAcceptIncomingCall = async () => {
     if (!incomingCall) return;
+    stopRingtone();
+    if (incomingCallTimerRef.current) {
+      clearTimeout(incomingCallTimerRef.current);
+      incomingCallTimerRef.current = null;
+    }
 
     try {
       const isVideoCall = incomingCall.type === "video";
@@ -2204,17 +2646,32 @@ export function UnifiedChatApp({
         if (event.candidate && socket) {
           socket.emit("call:signal", {
             toUserId: incomingCall.fromUserId,
+            targetUserId: incomingCall.fromUserId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
       };
 
       pc.ontrack = (event) => {
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        event.streams[0]?.getTracks().forEach((t) => {
+          if (!remoteStreamRef.current!.getTracks().some((tr) => tr.id === t.id)) {
+            remoteStreamRef.current!.addTrack(t);
+          }
+        });
         if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
         }
         if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = event.streams[0];
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setCallStatus("connected");
         }
       };
 
@@ -2235,12 +2692,18 @@ export function UnifiedChatApp({
 
   // Reject Incoming Call
   const handleRejectIncomingCall = (reason = "declined") => {
+    stopRingtone();
+    if (incomingCallTimerRef.current) {
+      clearTimeout(incomingCallTimerRef.current);
+      incomingCallTimerRef.current = null;
+    }
     if (!incomingCall) return;
     try {
       const socket = getSocketClient();
       if (socket) {
         socket.emit("call:reject", {
           toUserId: incomingCall.fromUserId,
+          targetUserId: incomingCall.fromUserId,
           callId: incomingCall.callId,
           reason,
         });
@@ -2535,22 +2998,24 @@ export function UnifiedChatApp({
       );
 
       // Instant cache update
+      const formattedCanonical = formatMessageItem(canonicalMsg, currentUserId);
       queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
-        if (!old || !old.messages) return old;
-        const exists = old.messages.some((m: any) => m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId));
+        if (!old) return { messages: [formattedCanonical], hasMore: false };
+        const list = Array.isArray(old.messages) ? old.messages : [];
+        const exists = list.some((m: any) => m.id === formattedCanonical.id || (formattedCanonical.clientTempId && m.clientTempId === formattedCanonical.clientTempId));
         if (exists) {
           return {
             ...old,
-            messages: old.messages.map((m: any) =>
-              m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId)
-                ? canonicalMsg
+            messages: list.map((m: any) =>
+              m.id === formattedCanonical.id || (formattedCanonical.clientTempId && m.clientTempId === formattedCanonical.clientTempId)
+                ? formattedCanonical
                 : m
             ),
           };
         }
         return {
           ...old,
-          messages: [...old.messages, canonicalMsg],
+          messages: [...list, formattedCanonical],
         };
       });
       scrollToBottom(true);
@@ -4588,6 +5053,7 @@ export function UnifiedChatApp({
                         </div>
                       ) : (
                         <div
+                          data-message-id={msg.id || msg.clientTempId}
                           className={cn(
                             "group flex items-end gap-2.5 max-w-[85%]",
                             isSent ? "ml-auto flex-row-reverse" : "mr-auto"
@@ -6483,75 +6949,370 @@ export function UnifiedChatApp({
         </DialogContent>
       </Dialog>
 
-      {/* 3. ADD MEMBER TO GROUP DIALOG */}
-      <Dialog open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+      {/* 3. ADD MEMBERS TO GROUP DIALOG (MULTI-SELECTION & BATCH ADD) */}
+      <Dialog
+        open={addMemberOpen}
+        onOpenChange={(open) => {
+          setAddMemberOpen(open);
+          if (!open) {
+            setSelectedAddMemberIds([]);
+            setSelectedAddMemberId("");
+            setAddMemberSearch("");
+          }
+        }}
+      >
         <DialogContent
-          className="sm:max-w-[400px] font-sans"
+          className="sm:max-w-[460px] font-sans"
           style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
         >
           <DialogHeader>
-            <DialogTitle className="font-sans">Add Member to Group</DialogTitle>
-            <DialogDescription className="font-sans">
-              Select a colleague to invite into &quot;{activeGroup?.name}&quot;.
+            <DialogTitle className="font-sans flex items-center justify-between">
+              <span>Add Members to Group</span>
+              {selectedAddMemberIds.length > 0 && (
+                <Badge variant="secondary" className="bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-200">
+                  {selectedAddMemberIds.length} selected
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Select one or multiple colleagues to add to &quot;{activeGroup?.name}&quot;.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-2 font-sans">
-            <Label className="text-xs block font-semibold">Choose Colleague</Label>
-            <div className="max-h-[220px] overflow-y-auto space-y-1.5 border border-border rounded-md p-2">
-              {contacts
-                .filter(
-                  (c) =>
-                    !activeGroup?.members?.some(
-                      (m) => m.userId === (c.userId || c.id) || m.id === c.id
-                    )
-                )
-                .map((contact) => (
-                  <div
-                    key={contact.id}
-                    onClick={() => setSelectedAddMemberId(contact.userId || contact.id)}
-                    className={cn(
-                      "p-2 rounded flex items-center justify-between cursor-pointer text-xs transition-colors",
-                      selectedAddMemberId === (contact.userId || contact.id)
-                        ? "bg-teal-50 dark:bg-teal-950/60 font-semibold text-teal-800 dark:text-teal-200 border border-teal-200"
-                        : "hover:bg-muted"
-                    )}
-                  >
+
+          <div className="py-2 space-y-3 font-sans">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search colleagues by name or department..."
+                value={addMemberSearch}
+                onChange={(e) => setAddMemberSearch(e.target.value)}
+                className="pl-8 text-xs h-9 font-sans"
+              />
+              {addMemberSearch && (
+                <button
+                  onClick={() => setAddMemberSearch("")}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Selection Toolbar */}
+            {(() => {
+              const eligibleContacts = contacts.filter((c) => {
+                const isMember = activeGroup?.members?.some(
+                  (m) => m.userId === (c.userId || c.id) || m.id === c.id
+                );
+                if (isMember) return false;
+                if (!addMemberSearch.trim()) return true;
+                const q = addMemberSearch.toLowerCase();
+                return (
+                  c.name?.toLowerCase().includes(q) ||
+                  c.department?.toLowerCase().includes(q) ||
+                  c.email?.toLowerCase().includes(q)
+                );
+              });
+
+              const allEligibleSelected =
+                eligibleContacts.length > 0 &&
+                eligibleContacts.every((c) => selectedAddMemberIds.includes(c.userId || c.id));
+
+              return (
+                <>
+                  <div className="flex items-center justify-between px-1 text-xs">
+                    <span className="text-muted-foreground text-[11px]">
+                      {eligibleContacts.length} colleague(s) available
+                    </span>
                     <div className="flex items-center gap-2">
-                      <div
-                        className={cn(
-                          "size-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white",
-                          contact.avatarColor
-                        )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[11px] text-teal-700 hover:text-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                        onClick={() => {
+                          if (allEligibleSelected) {
+                            setSelectedAddMemberIds([]);
+                          } else {
+                            setSelectedAddMemberIds(eligibleContacts.map((c) => c.userId || c.id));
+                          }
+                        }}
                       >
-                        {contact.avatarLetter}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-xs">{contact.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{contact.department}</p>
-                      </div>
+                        {allEligibleSelected ? "Clear Selection" : "Select All"}
+                      </Button>
+                      {selectedAddMemberIds.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          onClick={() => setSelectedAddMemberIds([])}
+                        >
+                          Reset
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
-            </div>
+
+                  <div className="max-h-[260px] overflow-y-auto space-y-1 border border-border rounded-md p-1.5">
+                    {eligibleContacts.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-muted-foreground">
+                        {addMemberSearch ? "No colleagues match your search." : "All colleagues are already in this group."}
+                      </div>
+                    ) : (
+                      eligibleContacts.map((contact) => {
+                        const contactId = contact.userId || contact.id;
+                        const isSelected = selectedAddMemberIds.includes(contactId);
+
+                        return (
+                          <div
+                            key={contact.id}
+                            onClick={() => {
+                              setSelectedAddMemberIds((prev) =>
+                                prev.includes(contactId)
+                                  ? prev.filter((id) => id !== contactId)
+                                  : [...prev, contactId]
+                              );
+                              setSelectedAddMemberId(contactId);
+                            }}
+                            className={cn(
+                              "p-2 rounded-md flex items-center justify-between cursor-pointer text-xs transition-colors select-none",
+                              isSelected
+                                ? "bg-teal-50 dark:bg-teal-950/60 font-medium text-teal-900 dark:text-teal-100 border border-teal-200 dark:border-teal-800"
+                                : "hover:bg-muted/80 border border-transparent"
+                            )}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => {
+                                  setSelectedAddMemberIds((prev) =>
+                                    prev.includes(contactId)
+                                      ? prev.filter((id) => id !== contactId)
+                                      : [...prev, contactId]
+                                  );
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                              />
+                              <div
+                                className={cn(
+                                  "size-8 rounded-full flex items-center justify-center font-bold text-[11px] text-white shrink-0 shadow-xs",
+                                  contact.avatarColor
+                                )}
+                              >
+                                {contact.avatarLetter}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-xs truncate">{contact.name}</p>
+                                <p className="text-[10px] text-muted-foreground truncate">
+                                  {contact.department || contact.email || "Employee"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
-          <DialogFooter className="font-sans">
-            <Button variant="outline" size="sm" onClick={() => setAddMemberOpen(false)}>
+
+          <DialogFooter className="font-sans flex items-center justify-between sm:justify-between pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAddMemberOpen(false);
+                setSelectedAddMemberIds([]);
+                setAddMemberSearch("");
+              }}
+            >
               Cancel
             </Button>
             <Button
               size="sm"
               className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
-              disabled={!selectedAddMemberId || addGroupMemberMutation.isPending}
+              disabled={selectedAddMemberIds.length === 0 || addGroupMemberMutation.isPending}
               onClick={() => {
-                if (activeGroup && selectedAddMemberId) {
+                if (activeGroup && selectedAddMemberIds.length > 0) {
                   addGroupMemberMutation.mutate({
                     groupId: activeGroup.id,
-                    userId: selectedAddMemberId,
+                    memberIds: selectedAddMemberIds,
                   });
                 }
               }}
             >
-              {addGroupMemberMutation.isPending ? "Adding..." : "Add to Group"}
+              {addGroupMemberMutation.isPending
+                ? "Adding..."
+                : `Add ${selectedAddMemberIds.length > 0 ? `(${selectedAddMemberIds.length})` : ""} to Group`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PRE-CALL DEVICE & PERMISSION MODAL */}
+      <Dialog open={preCallModalOpen} onOpenChange={(open) => !open && closePreCallModal()}>
+        <DialogContent
+          className="sm:max-w-md font-sans text-center"
+          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-sans flex items-center justify-center gap-2">
+              {preCallType === "video" ? <Video className="size-5 text-teal-600" /> : <Phone className="size-5 text-teal-600" />}
+              <span>{preCallType === "video" ? "Video Call Setup" : "Voice Call Setup"}</span>
+            </DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Calling &quot;{preCallTarget?.name || "Colleague"}&quot; &bull; Check your camera and microphone
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 flex flex-col items-center font-sans space-y-3">
+            {preCallPermissionState === "denied" ? (
+              <div className="w-full p-4 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 text-xs text-left space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-red-900 dark:text-red-100">
+                  <AlertCircle className="size-4 shrink-0" />
+                  <span>Microphone or Camera Permission Blocked</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  Your browser has blocked media device access. Please click the permissions icon (padlock) in your browser address bar, set Camera and Microphone to &quot;Allow&quot;, and retry.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 mt-1 border-red-300 text-red-800 hover:bg-red-100 dark:hover:bg-red-900/50"
+                  onClick={retryPreCallPermission}
+                >
+                  <RefreshCw className="size-3 mr-1" /> Retry Permissions
+                </Button>
+              </div>
+            ) : preCallType === "video" ? (
+              <div className="w-full h-52 bg-slate-950 rounded-xl relative overflow-hidden flex items-center justify-center border border-border">
+                {preCallVideoOff ? (
+                  <div className="flex flex-col items-center justify-center text-slate-400 text-xs">
+                    <VideoOff className="size-8 mb-2 opacity-60" />
+                    <span>Camera is turned off</span>
+                  </div>
+                ) : (
+                  <video
+                    ref={preCallVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1.5">
+                  <span className={cn("size-2 rounded-full", preCallMicMuted ? "bg-amber-400" : "bg-emerald-400 animate-pulse")} />
+                  <span>{preCallMicMuted ? "Mic Muted" : "Mic Live"}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full py-6 px-4 rounded-xl bg-muted/40 border border-border flex flex-col items-center justify-center gap-3">
+                <div className="size-16 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-2xl shadow-md">
+                  {preCallTarget?.name?.charAt(0) || "C"}
+                </div>
+                <div className="text-center">
+                  <p className="font-semibold text-xs text-foreground">{preCallTarget?.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{preCallTarget?.phone || preCallTarget?.email || "Internal Call"}</p>
+                </div>
+                <Badge variant="outline" className="text-[10px] text-teal-700 bg-teal-50 dark:bg-teal-950/40 border-teal-200">
+                  {preCallMicMuted ? "Microphone Muted" : "Microphone Ready"}
+                </Badge>
+              </div>
+            )}
+
+            {/* Pre-Call Media Toggles */}
+            <div className="flex items-center gap-3 pt-1">
+              <Button
+                type="button"
+                variant={preCallMicMuted ? "destructive" : "outline"}
+                size="sm"
+                className="h-8 px-3 text-xs flex items-center gap-1.5"
+                onClick={togglePreCallMic}
+              >
+                {preCallMicMuted ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+                <span>{preCallMicMuted ? "Unmute Mic" : "Mute Mic"}</span>
+              </Button>
+
+              {preCallType === "video" && (
+                <Button
+                  type="button"
+                  variant={preCallVideoOff ? "destructive" : "outline"}
+                  size="sm"
+                  className="h-8 px-3 text-xs flex items-center gap-1.5"
+                  onClick={togglePreCallVideo}
+                >
+                  {preCallVideoOff ? <VideoOff className="size-3.5" /> : <Video className="size-3.5" />}
+                  <span>{preCallVideoOff ? "Turn Cam On" : "Turn Cam Off"}</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Device Selectors if multiple */}
+            {(audioInputDevices.length > 1 || (preCallType === "video" && videoInputDevices.length > 1)) && (
+              <div className="w-full space-y-1.5 text-left pt-2 border-t text-[11px]">
+                {audioInputDevices.length > 1 && (
+                  <div>
+                    <label className="text-muted-foreground block text-[10px]">Microphone</label>
+                    <select
+                      value={selectedAudioInputId}
+                      onChange={(e) => setSelectedAudioInputId(e.target.value)}
+                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs"
+                    >
+                      {audioInputDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || `Microphone ${d.deviceId.slice(0, 5)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {preCallType === "video" && videoInputDevices.length > 1 && (
+                  <div>
+                    <label className="text-muted-foreground block text-[10px]">Camera</label>
+                    <select
+                      value={selectedVideoDeviceId}
+                      onChange={(e) => setSelectedVideoDeviceId(e.target.value)}
+                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs"
+                    >
+                      {videoInputDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label || `Camera ${d.deviceId.slice(0, 5)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="font-sans flex items-center justify-between sm:justify-between pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={closePreCallModal}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-sans flex items-center gap-1.5"
+              disabled={preCallPermissionState === "denied"}
+              onClick={() => {
+                if (preCallTarget) {
+                  const target = preCallTarget;
+                  const type = preCallType;
+                  const stream = preCallStream;
+                  const muted = preCallMicMuted;
+                  const vidOff = preCallVideoOff;
+                  setPreCallModalOpen(false);
+                  setPreCallStream(null);
+                  startActualCall(type, target.targetUserId, target.name, target.phone || "", target.email || "", stream, muted, vidOff);
+                }
+              }}
+            >
+              <Phone className="size-3.5" />
+              <span>Start {preCallType === "video" ? "Video" : "Voice"} Call</span>
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -6632,7 +7393,7 @@ export function UnifiedChatApp({
             )}
 
             {/* In-Call Controls */}
-            <div className="flex items-center gap-4 mt-2">
+            <div className="flex items-center gap-3 mt-2">
               <Button
                 variant={isMuted ? "destructive" : "outline"}
                 size="icon"
@@ -6644,15 +7405,42 @@ export function UnifiedChatApp({
               </Button>
 
               {activeCallType === "video" && (
-                <Button
-                  variant={isVideoOff ? "destructive" : "outline"}
-                  size="icon"
-                  className="rounded-full size-10 cursor-pointer"
-                  title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
-                  onClick={toggleVideo}
-                >
-                  {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
-                </Button>
+                <>
+                  <Button
+                    variant={isVideoOff ? "destructive" : "outline"}
+                    size="icon"
+                    className="rounded-full size-10 cursor-pointer"
+                    title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
+                    onClick={toggleVideo}
+                  >
+                    {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
+                  </Button>
+
+                  <Button
+                    variant={isScreenSharing ? "default" : "outline"}
+                    size="icon"
+                    className={cn(
+                      "rounded-full size-10 cursor-pointer",
+                      isScreenSharing && "bg-teal-600 text-white hover:bg-teal-700"
+                    )}
+                    title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+                    onClick={toggleScreenShare}
+                  >
+                    <ScreenShare className="size-4" />
+                  </Button>
+
+                  {videoInputDevices.length > 1 && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="rounded-full size-10 cursor-pointer"
+                      title="Switch Camera"
+                      onClick={switchCamera}
+                    >
+                      <FlipHorizontal className="size-4" />
+                    </Button>
+                  )}
+                </>
               )}
 
               <Button
@@ -6673,40 +7461,55 @@ export function UnifiedChatApp({
       {incomingCall && (
         <Dialog open={!!incomingCall} onOpenChange={() => handleRejectIncomingCall("dismissed")}>
           <DialogContent
-            className="sm:max-w-sm font-sans text-center"
+            className="sm:max-w-sm font-sans text-center z-[10000] border-2 border-teal-500/40 shadow-2xl"
             style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
           >
-            <div className="py-6 flex flex-col items-center font-sans space-y-3">
-              <div className="size-20 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-xl animate-bounce">
-                {incomingCall.callerName.charAt(0).toUpperCase()}
+            <div className="py-6 flex flex-col items-center font-sans space-y-4">
+              <div className="relative">
+                <div className="size-24 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-xl ring-8 ring-teal-500/20 animate-pulse">
+                  {incomingCall.callerName.charAt(0).toUpperCase()}
+                </div>
+                <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-teal-700 text-white shadow-md">
+                  {incomingCall.type === "video" ? <Video className="size-4" /> : <Phone className="size-4" />}
+                </div>
               </div>
 
               <div>
-                <h3 className="font-bold text-lg text-foreground">{incomingCall.callerName}</h3>
-                <p className="text-xs text-teal-600 font-semibold animate-pulse mt-0.5">
-                  Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call...
+                <h3 className="font-bold text-xl text-foreground">{incomingCall.callerName}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {incomingCall.callerEmail || incomingCall.callerPhone || "Colleague"}
                 </p>
+                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 text-xs font-semibold">
+                  <span className="size-2 rounded-full bg-teal-600 animate-ping" />
+                  <span>Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call...</span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-6 pt-4">
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="rounded-full size-14 shadow-lg bg-red-600 hover:bg-red-700"
-                  onClick={() => handleRejectIncomingCall("declined")}
-                  title="Decline"
-                >
-                  <PhoneOff className="size-6" />
-                </Button>
+              <div className="flex items-center gap-8 pt-4">
+                <div className="flex flex-col items-center gap-1.5">
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="rounded-full size-14 shadow-xl bg-red-600 hover:bg-red-700 cursor-pointer"
+                    onClick={() => handleRejectIncomingCall("declined")}
+                    title="Decline Call"
+                  >
+                    <PhoneOff className="size-6" />
+                  </Button>
+                  <span className="text-[11px] font-medium text-muted-foreground">Decline</span>
+                </div>
 
-                <Button
-                  size="icon"
-                  className="rounded-full size-14 shadow-lg bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={handleAcceptIncomingCall}
-                  title="Accept"
-                >
-                  <Phone className="size-6" />
-                </Button>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Button
+                    size="icon"
+                    className="rounded-full size-14 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer ring-4 ring-emerald-500/30 animate-pulse"
+                    onClick={handleAcceptIncomingCall}
+                    title="Accept Call"
+                  >
+                    <Phone className="size-6" />
+                  </Button>
+                  <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Accept</span>
+                </div>
               </div>
             </div>
           </DialogContent>

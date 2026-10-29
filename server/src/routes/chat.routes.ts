@@ -887,7 +887,7 @@ chatRouter.patch("/groups/:id", requireAuth, async (req: AuthRequest, res: Respo
     const requesterMember = group.members.find((m) => m.userId === currentUserId);
     const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
     const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
 
     if (!isGroupAdmin && !isTenantAdmin) {
       return res.status(403).json({
@@ -971,7 +971,7 @@ chatRouter.post("/groups/:id/members", requireAuth, async (req: AuthRequest, res
     const requesterMember = group.members.find((m) => m.userId === currentUserId);
     const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
     const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
 
     if (!isGroupAdmin && !isTenantAdmin) {
       return res.status(403).json({
@@ -980,7 +980,21 @@ chatRouter.post("/groups/:id/members", requireAuth, async (req: AuthRequest, res
       });
     }
 
-    const newMembers = rawIds.filter((uid: string) => !group.members.some((m) => m.userId === uid));
+    // Validate that submitted users belong to this tenant (prevent cross-tenant additions)
+    const validTenantProfiles = await prisma.profile.findMany({
+      where: { userId: { in: rawIds }, tenantId },
+      select: { userId: true, fullName: true },
+    });
+    const validTenantUserIds = new Set(validTenantProfiles.map((p) => p.userId));
+    const tenantApprovedIds = rawIds.filter((uid: string) => validTenantUserIds.has(uid));
+
+    if (tenantApprovedIds.length === 0) {
+      return res.status(400).json({ error: "No eligible organization members found in the submission." });
+    }
+
+    const uniqueApprovedIds = Array.from(new Set(tenantApprovedIds));
+    const newMembers = uniqueApprovedIds.filter((uid: string) => !group.members.some((m) => m.userId === uid));
+
     if (newMembers.length > 0) {
       await prisma.chatGroupMember.createMany({
         data: newMembers.map((uid: string) => ({
@@ -1023,7 +1037,13 @@ chatRouter.post("/groups/:id/members", requireAuth, async (req: AuthRequest, res
       include: { members: true },
     });
 
-    return res.json(updated);
+    return res.json({
+      ...(updated || {}),
+      success: true,
+      addedCount: newMembers.length,
+      addedMemberIds: newMembers,
+      group: updated,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -1055,7 +1075,7 @@ chatRouter.delete("/groups/:id/members/:userId", requireAuth, async (req: AuthRe
 
     const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
     const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
 
     if (!isSelf && !isGroupAdmin && !isTenantAdmin) {
       return res.status(403).json({
@@ -1149,7 +1169,7 @@ chatRouter.patch("/groups/:id/members/:userId/role", requireAuth, async (req: Au
     }
 
     const isRequesterOwner = group.ownerId === currentUserId || requesterMember?.role === "owner";
-    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
     const isRequesterAdmin = requesterMember?.role === "admin";
 
     // Non-admin cannot change roles
@@ -1256,7 +1276,7 @@ chatRouter.post("/groups/:id/transfer-ownership", requireAuth, async (req: AuthR
     }
 
     const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
-    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+    const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
 
     if (!isOwner && !isTenantAdmin) {
       return res.status(403).json({

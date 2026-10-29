@@ -23,6 +23,7 @@ interface ActiveCallSession {
   threadId?: string;
   startedAt: Date;
   status: "ringing" | "connected" | "ended";
+  timeoutTimer?: NodeJS.Timeout | null;
 }
 const activeCalls = new Map<string, ActiveCallSession>();
 
@@ -210,7 +211,11 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const callId = payload?.callId || `call_${Date.now()}`;
       const tenantId = socket.data.tenantId;
 
-      if (!targetUserId || !tenantId) return;
+      console.log(`[SOCKET_CALL_INVITE] from: ${socket.data.userId}, target: ${targetUserId}, tenant: ${tenantId}, callId: ${callId}`);
+      if (!targetUserId || !tenantId) {
+        console.warn(`[SOCKET_CALL_INVITE_REJECT] Missing targetUserId (${targetUserId}) or tenantId (${tenantId})`);
+        return;
+      }
 
       // Prevent calling self
       if (targetUserId === socket.data.userId) {
@@ -257,8 +262,8 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetAvatar = targetUser.profile?.avatarUrl || null;
       const threadId = payload?.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
 
-      // Save in active calls registry
-      activeCalls.set(callId, {
+      // Save in active calls registry with authoritative 60-second ringing timeout
+      const callSession: ActiveCallSession = {
         callId,
         tenantId,
         callerId: socket.data.userId,
@@ -271,7 +276,15 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         threadId,
         startedAt: new Date(),
         status: "ringing",
-      });
+        timeoutTimer: setTimeout(async () => {
+          const current = activeCalls.get(callId);
+          if (current && current.status === "ringing") {
+            console.log(`[CALL_TIMEOUT_60S] Server-authoritative 60s timeout for call: ${callId}`);
+            await handleCallCancelOrTimeout({ callId, targetUserId, toUserId: targetUserId }, true);
+          }
+        }, 60000), // Exactly 60 seconds
+      };
+      activeCalls.set(callId, callSession);
 
       // Deliver incoming call signal to recipient with normalized contract aliases
       ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", {
@@ -298,6 +311,10 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
       const session = activeCalls.get(callId);
       if (session) {
+        if (session.timeoutTimer) {
+          clearTimeout(session.timeoutTimer);
+          session.timeoutTimer = null;
+        }
         session.status = "connected";
       }
 
@@ -312,9 +329,17 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetUserId = payload?.targetUserId || payload?.toUserId || payload?.fromUserId;
       const callId = payload?.callId;
       const tenantId = socket.data.tenantId;
-      if (!targetUserId || !tenantId) return;
+      console.log(`[SOCKET_CALL_INVITE] from: ${socket.data.userId}, target: ${targetUserId}, tenant: ${tenantId}, callId: ${callId}`);
+      if (!targetUserId || !tenantId) {
+        console.warn(`[SOCKET_CALL_INVITE_REJECT] Missing targetUserId (${targetUserId}) or tenantId (${tenantId})`);
+        return;
+      }
 
       const session = activeCalls.get(callId);
+      if (session?.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
       const callType = session?.callType || payload?.callType || payload?.type || "audio";
       const threadId = session?.threadId || payload?.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
 
@@ -376,42 +401,70 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       if (callId) activeCalls.delete(callId);
     });
 
-    // 4. CANCEL / TIMEOUT CALL (Caller cancels or 30s ringing timeout)
+    // 4. CANCEL / TIMEOUT CALL (Caller cancels or 60s ringing timeout)
     const handleCallCancelOrTimeout = async (payload: any, isTimeout = false) => {
       const targetUserId = payload?.targetUserId || payload?.toUserId;
       const callId = payload?.callId;
-      const tenantId = socket.data.tenantId;
-      if (!targetUserId || !tenantId) return;
+      const tenantId = socket.data.tenantId || payload?.tenantId;
+      console.log(`[SOCKET_CALL_INVITE] from: ${socket.data.userId}, target: ${targetUserId}, tenant: ${tenantId}, callId: ${callId}`);
+      if (!targetUserId || !tenantId) {
+        console.warn(`[SOCKET_CALL_INVITE_REJECT] Missing targetUserId (${targetUserId}) or tenantId (${tenantId})`);
+        return;
+      }
 
       const session = activeCalls.get(callId);
-      const callType = session?.callType || payload?.callType || payload?.type || "audio";
-      const threadId = session?.threadId || payload?.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
+      if (session?.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
 
+      const callType = session?.callType || payload?.callType || payload?.type || "audio";
+      const callerId = session?.callerId || socket.data.userId;
+      const threadId = session?.threadId || payload?.threadId || `direct_${[callerId, targetUserId].sort().join("_")}`;
+
+      // Emit event to both parties
       ioInstance?.to(`user:${targetUserId}`).emit(isTimeout ? "call:timeout" : "call:cancelled", {
         callId,
         cancelledBy: socket.data.userId,
       });
 
-      // Persist missed call record for both parties
+      if (isTimeout && callerId && callerId !== socket.data.userId) {
+        ioInstance?.to(`user:${callerId}`).emit("call:timeout", {
+          callId,
+          cancelledBy: "system",
+        });
+      }
+
+      // Persist missed call record for both parties (idempotent by callSessionId)
       try {
         await runWithTenantContext(
           {
             tenantId,
-            userId: socket.data.userId,
+            userId: callerId,
             roles: [],
             status: "ACTIVE",
             tenancyStrategy: "SHARED_SCHEMA",
             db: rawPrisma,
           },
           async () => {
+            if (callId) {
+              const existing = await prisma.callHistoryRecord.findFirst({
+                where: { tenantId, callSessionId: callId },
+              });
+              if (existing) {
+                if (callId) activeCalls.delete(callId);
+                return;
+              }
+            }
+
             await prisma.callHistoryRecord.create({
               data: {
                 tenantId,
                 callSessionId: callId || `call_missed_${Date.now()}`,
-                callerId: socket.data.userId,
-                callerName: socket.data.name || session?.callerName || "Colleague",
+                callerId,
+                callerName: session?.callerName || socket.data.name || "Colleague",
                 callerPhone: "Internal Call",
-                callerAvatarUrl: socket.data.avatar || session?.callerAvatar || null,
+                callerAvatarUrl: session?.callerAvatar || socket.data.avatar || null,
                 receiverId: targetUserId,
                 receiverName: session?.targetName || payload?.targetName || "Colleague",
                 receiverAvatarUrl: session?.targetAvatar || null,
@@ -422,7 +475,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
                 callTime: new Date(),
                 startedAt: session?.startedAt || new Date(),
                 endedAt: new Date(),
-                notes: isTimeout ? "Call timed out with no answer." : "Caller cancelled before answer.",
+                notes: isTimeout ? "Call timed out after 60 seconds with no answer." : "Caller cancelled before answer.",
               },
             });
 
@@ -431,17 +484,17 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
               tenantId,
               recipientUserId: targetUserId,
               title: `Missed ${callType === "video" ? "Video" : "Audio"} Call`,
-              message: `You missed a ${callType} call from ${socket.data.name || "a colleague"}.`,
+              message: `You missed a ${callType} call from ${session?.callerName || socket.data.name || "a colleague"}.`,
               type: "chat_missed_call",
               actionUrl: `/chat?thread=${threadId}`,
-              metadata: { callId, callerId: socket.data.userId, callType },
+              metadata: { callId, callerId, callType },
             });
 
             // Record chat system event in direct conversation
             await recordSystemEvent(
               tenantId,
               threadId,
-              socket.data.userId,
+              callerId,
               "call_event",
               `Missed ${callType === "video" ? "video" : "audio"} call.`,
               { callType, status: "missed", durationSeconds: 0 }
@@ -476,10 +529,19 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetUserId = payload?.targetUserId || payload?.toUserId;
       const callId = payload?.callId;
       const tenantId = socket.data.tenantId;
-      if (!targetUserId || !tenantId) return;
+      console.log(`[SOCKET_CALL_INVITE] from: ${socket.data.userId}, target: ${targetUserId}, tenant: ${tenantId}, callId: ${callId}`);
+      if (!targetUserId || !tenantId) {
+        console.warn(`[SOCKET_CALL_INVITE_REJECT] Missing targetUserId (${targetUserId}) or tenantId (${tenantId})`);
+        return;
+      }
+
+      const session = activeCalls.get(callId);
+      if (session?.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
 
       const durationSeconds = Math.max(0, Math.round(Number(payload?.durationSeconds) || 0));
-      const session = activeCalls.get(callId);
       const callType = session?.callType || payload?.callType || payload?.type || "audio";
       const threadId = session?.threadId || payload?.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
 
@@ -505,6 +567,24 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
             db: rawPrisma,
           },
           async () => {
+            if (callId) {
+              const existing = await prisma.callHistoryRecord.findFirst({
+                where: { tenantId, callSessionId: callId },
+              });
+              if (existing) {
+                await prisma.callHistoryRecord.update({
+                  where: { id: existing.id },
+                  data: {
+                    status: "completed",
+                    durationSeconds: Math.max(existing.durationSeconds, durationSeconds),
+                    endedAt: new Date(),
+                    notes: `${callType === "video" ? "Video conference" : "Voice call"} session concluded.`,
+                  },
+                });
+                return;
+              }
+            }
+
             await prisma.callHistoryRecord.create({
               data: {
                 tenantId,

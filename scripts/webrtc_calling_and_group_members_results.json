@@ -1,0 +1,109 @@
+{
+  "timestamp": "2026-10-29T09:41:27.336Z",
+  "totalCount": 17,
+  "passedCount": 17,
+  "results": [
+    {
+      "suite": "Multi-Member Group",
+      "check": "API POST /api/chat/groups/:id/members batch addition contract validated",
+      "passed": true,
+      "details": "Candidates already present"
+    },
+    {
+      "suite": "Multi-Member Group",
+      "check": "Cross-tenant member addition rejected",
+      "passed": true,
+      "details": "Status 400: No eligible organization members found in the submission."
+    },
+    {
+      "suite": "Multi-Member Group",
+      "check": "Add Member dialog displays multi-select interface",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Multi-Member Group",
+      "check": "Select All action button is visible and active",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "History Retention",
+      "check": "Earlier conversation messages remain visible when sending/receiving replies (no disappearances)",
+      "passed": true,
+      "details": "initialCount: 24, afterCount: 26, seedVisible: true"
+    },
+    {
+      "suite": "History Retention",
+      "check": "URL search param threadId is automatically synchronized with active thread",
+      "passed": true,
+      "details": "currentUrl: http://localhost:3000/hr/chat?threadId=direct_user-emp-001_user-hr-001"
+    },
+    {
+      "suite": "Pre-Call Modal",
+      "check": "Pre-Call Setup Modal opens with target colleague information",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Pre-Call Modal",
+      "check": "Live local video preview is acquired and rendered",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Pre-Call Modal",
+      "check": "Pre-call device controls (Mute Mic, Turn Cam Off, Start Call) are active",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Incoming Call Screen",
+      "check": "Prominent high-z-index incoming call modal displayed on callee side",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Incoming Call Screen",
+      "check": "Accept and Decline action controls rendered with clear visual hierarchy",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Web Audio Ringtone",
+      "check": "Web Audio API dual-frequency telephone ringtone engine active",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "WebRTC Connection",
+      "check": "Both caller and callee transitioned into active call modal",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Call Controls",
+      "check": "Active call controls (Screen Share, Mic Mute, Hang Up) accessible",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Call Lifecycle",
+      "check": "Hang Up successfully terminates call on both sides and cleans up media streams",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "suite": "Call Persistence",
+      "check": "Completed call session persisted in CallHistoryRecord with participants and duration",
+      "passed": true,
+      "details": "id: 0863b5a0-e72a-49e0-898b-1a84c8e1947f, status: completed, durationSeconds: 6"
+    },
+    {
+      "suite": "Timeout & Deduplication",
+      "check": "Server-authoritative missed-call records deduplicated by callSessionId (no duplicates created)",
+      "passed": true,
+      "details": "session: call_test_timeout_1793266886923"
+    }
+  ]
+}

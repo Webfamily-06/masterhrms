@@ -774,7 +774,7 @@ exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => 
         const requesterMember = group.members.find((m) => m.userId === currentUserId);
         const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
         const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         if (!isGroupAdmin && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only group administrators or owners can edit group profile.",
@@ -841,14 +841,25 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
         const requesterMember = group.members.find((m) => m.userId === currentUserId);
         const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
         const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         if (!isGroupAdmin && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only group admins or tenant admins can add members.",
                 code: "CHAT_GROUP_ADMIN_REQUIRED",
             });
         }
-        const newMembers = rawIds.filter((uid) => !group.members.some((m) => m.userId === uid));
+        // Validate that submitted users belong to this tenant (prevent cross-tenant additions)
+        const validTenantProfiles = await prisma_1.prisma.profile.findMany({
+            where: { userId: { in: rawIds }, tenantId },
+            select: { userId: true, fullName: true },
+        });
+        const validTenantUserIds = new Set(validTenantProfiles.map((p) => p.userId));
+        const tenantApprovedIds = rawIds.filter((uid) => validTenantUserIds.has(uid));
+        if (tenantApprovedIds.length === 0) {
+            return res.status(400).json({ error: "No eligible organization members found in the submission." });
+        }
+        const uniqueApprovedIds = Array.from(new Set(tenantApprovedIds));
+        const newMembers = uniqueApprovedIds.filter((uid) => !group.members.some((m) => m.userId === uid));
         if (newMembers.length > 0) {
             await prisma_1.prisma.chatGroupMember.createMany({
                 data: newMembers.map((uid) => ({
@@ -878,7 +889,13 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
             where: { id },
             include: { members: true },
         });
-        return res.json(updated);
+        return res.json({
+            ...(updated || {}),
+            success: true,
+            addedCount: newMembers.length,
+            addedMemberIds: newMembers,
+            group: updated,
+        });
     }
     catch (err) {
         return res.status(500).json({ error: err.message });
@@ -905,7 +922,7 @@ exports.chatRouter.delete("/groups/:id/members/:userId", auth_1.requireAuth, asy
         }
         const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
         const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
-        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         if (!isSelf && !isGroupAdmin && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only group admins can remove other members.",
@@ -974,7 +991,7 @@ exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth,
             return res.status(404).json({ error: "User is not a member of this group." });
         }
         const isRequesterOwner = group.ownerId === currentUserId || requesterMember?.role === "owner";
-        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         const isRequesterAdmin = requesterMember?.role === "admin";
         // Non-admin cannot change roles
         if (!isRequesterOwner && !isRequesterAdmin && !isTenantAdmin) {
@@ -1058,7 +1075,7 @@ exports.chatRouter.post("/groups/:id/transfer-ownership", auth_1.requireAuth, as
             return res.status(404).json({ error: "Group not found." });
         }
         const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
-        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         if (!isOwner && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only the group owner can transfer ownership.",
