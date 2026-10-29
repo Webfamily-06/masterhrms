@@ -455,8 +455,7 @@ async function runAudit() {
       "WebRTC Media Environment",
       "Media Device Telemetry Enumeration",
       "VERIFIED",
-      `Devices found: ${deviceTelemetry.devices?.length || 0}. Environment Mode: ${
-        isSimulatedMedia ? "Chromium Simulated/Synthetic Device Engine" : "Physical Hardware Attached"
+      `Devices found: ${deviceTelemetry.devices?.length || 0}. Environment Mode: ${isSimulatedMedia ? "Chromium Simulated/Synthetic Device Engine" : "Physical Hardware Attached"
       }`
     );
 
@@ -574,7 +573,7 @@ async function runAudit() {
         await inCallMute.click(); // restore
       }
 
-      const inCallCam = pageA.locator('button[title*="Turn Video Off"], button[title*="Turn Video On"], button[title*="Turn Cam Off"], button[title*="Turn Cam On"]').first();
+      const inCallCam = pageA.locator('button[title*="Turn Cam Off"], button[title*="Turn Cam On"]').first();
       let camInCallWorking = false;
       if (await inCallCam.isVisible()) {
         const text1 = await inCallCam.getAttribute("title");
@@ -770,4 +769,3 @@ async function runAudit() {
 }
 
 runAudit();
-

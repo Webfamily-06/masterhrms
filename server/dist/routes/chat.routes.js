@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.profileMemoryCache = exports.RESTRICTED_EXTENSIONS = exports.chatRouter = void 0;
 exports.invalidateChatProfileCache = invalidateChatProfileCache;
+exports.cleanPersonName = cleanPersonName;
+exports.formatNaturalList = formatNaturalList;
 const recentClientTempIds = new Map();
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
@@ -42,6 +44,24 @@ function invalidateChatProfileCache(userId, tenantId) {
             exports.profileMemoryCache.delete(key);
         }
     }
+}
+function cleanPersonName(name) {
+    if (!name)
+        return "User";
+    return name
+        .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function formatNaturalList(names) {
+    const cleaned = names.map(cleanPersonName).filter(Boolean);
+    if (cleaned.length === 0)
+        return "members";
+    if (cleaned.length === 1)
+        return cleaned[0];
+    if (cleaned.length === 2)
+        return `${cleaned[0]} and ${cleaned[1]}`;
+    return `${cleaned.slice(0, -1).join(", ")}, and ${cleaned[cleaned.length - 1]}`;
 }
 function validateFileSecurity(attachments) {
     if (!attachments || !Array.isArray(attachments))
@@ -684,7 +704,7 @@ exports.chatRouter.post("/groups", auth_1.requireAuth, async (req, res) => {
                 select: { fullName: true },
             });
             const creatorName = creatorProfile?.fullName || req.user?.email?.split("@")[0] || "User";
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${created.id}`, currentUserId, "group_created", `${creatorName} created the group "${name.trim()}".`, { groupName: name.trim() }, tx);
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${created.id}`, currentUserId, "group_created", `${creatorName} created the group "${name.trim()}"`, { groupName: name.trim() }, tx);
             return created;
         });
         const fullGroup = await prisma_1.prisma.chatGroup.findUnique({
@@ -811,7 +831,7 @@ exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => 
             changes.push(`updated group description`);
         }
         const changeDesc = changes.length > 0 ? changes.join(" and ") : "updated the group profile";
-        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_profile_updated", `${actorName} ${changeDesc}.`, { updatedFields: Object.keys(updatedData) });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_profile_updated", `${cleanPersonName(actorName)} ${changeDesc}`, { updatedFields: Object.keys(updatedData) });
         (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, group: updated });
         await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, group: updated }).catch(() => { });
         return res.json(updated);
@@ -880,8 +900,8 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
                 where: { userId: { in: newMembers }, tenantId },
                 select: { fullName: true },
             });
-            const addedNames = addedProfiles.map((p) => p.fullName).filter(Boolean).join(", ") || `${newMembers.length} member(s)`;
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "member_added", `${actorName} added ${addedNames}.`, { addedMemberIds: newMembers, addedNames });
+            const addedNames = formatNaturalList(addedProfiles.map((p) => p.fullName)) || `${newMembers.length} member(s)`;
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "member_added", `${cleanPersonName(actorName)} added ${addedNames}`, { addedMemberIds: newMembers, addedNames });
             (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, addedMemberIds: newMembers });
             await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, addedMemberIds: newMembers }).catch(() => { });
         }
@@ -956,7 +976,7 @@ exports.chatRouter.delete("/groups/:id/members/:userId", auth_1.requireAuth, asy
             select: { fullName: true },
         });
         const targetName = targetProf?.fullName || "Member";
-        const eventContent = isSelf ? `${actorName} left the group.` : `${actorName} removed ${targetName}.`;
+        const eventContent = isSelf ? `${cleanPersonName(actorName)} left the group` : `${cleanPersonName(actorName)} removed ${cleanPersonName(targetName)}`;
         const eventType = isSelf ? "member_left" : "member_removed";
         await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, eventType, eventContent, { affectedUserId: userId, affectedUserName: targetName });
         (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, removedMemberId: userId });
@@ -1041,13 +1061,15 @@ exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth,
             select: { fullName: true },
         });
         const targetName = targetProf?.fullName || "Member";
-        let roleEventText = `${actorName} changed ${targetName}'s role to ${role}.`;
+        const cActor = cleanPersonName(actorName);
+        const cTarget = cleanPersonName(targetName);
+        let roleEventText = `${cActor} changed ${cTarget}'s role to ${role}`;
         if (role === "admin")
-            roleEventText = `${actorName} made ${targetName} a group admin.`;
+            roleEventText = `${cActor} made ${cTarget} a group admin`;
         else if (role === "moderator")
-            roleEventText = `${actorName} made ${targetName} a group moderator.`;
+            roleEventText = `${cActor} made ${cTarget} a group moderator`;
         else if (role === "member")
-            roleEventText = `${actorName} removed ${targetName}'s admin privileges.`;
+            roleEventText = `${cActor} removed ${cTarget}'s admin privileges`;
         await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "role_changed", roleEventText, { affectedUserId: userId, affectedUserName: targetName, newRole: role });
         (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, userId, role });
         await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, userId, role }).catch(() => { });
@@ -1116,7 +1138,7 @@ exports.chatRouter.post("/groups/:id/transfer-ownership", auth_1.requireAuth, as
                 select: { fullName: true },
             });
             const targetName = targetProf?.fullName || "New Owner";
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "ownership_transferred", `${actorName} transferred group ownership to ${targetName}.`, { oldOwnerId: currentUserId, newOwnerId, oldOwnerName: actorName, newOwnerName: targetName }, tx);
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "ownership_transferred", `${cleanPersonName(actorName)} transferred group ownership to ${cleanPersonName(targetName)}`, { oldOwnerId: currentUserId, newOwnerId, oldOwnerName: actorName, newOwnerName: targetName }, tx);
         });
         (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, newOwnerId });
         await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, newOwnerId }).catch(() => { });
@@ -1950,6 +1972,90 @@ exports.chatRouter.patch("/messages/:id", auth_1.requireAuth, async (req, res) =
             message: updated,
         });
         return res.json(updated);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/chat/messages/forward-batch - Forward a message to multiple direct or group conversations
+exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { messageId, targetThreadIds } = req.body;
+        if (!messageId || !Array.isArray(targetThreadIds) || targetThreadIds.length === 0) {
+            return res.status(400).json({ error: "messageId and targetThreadIds array are required" });
+        }
+        // 1. Fetch and verify original message
+        const originalMessage = await prisma_1.prisma.chatMessage.findFirst({
+            where: { id: messageId, tenantId },
+        });
+        if (!originalMessage) {
+            return res.status(404).json({ error: "Original message not found" });
+        }
+        // Verify source thread access
+        const sourceAuth = await checkThreadAuthorization(originalMessage.threadId, tenantId, currentUserId, req.user?.roles);
+        if (!sourceAuth.authorized) {
+            return res.status(403).json({ error: "Not authorized to access or forward this message" });
+        }
+        const senderProfile = await prisma_1.prisma.profile.findFirst({
+            where: { userId: currentUserId, tenantId },
+            select: { fullName: true, avatarUrl: true },
+        });
+        const senderName = cleanPersonName(senderProfile?.fullName || req.user?.email?.split("@")[0] || "User");
+        const senderAvatar = senderProfile?.avatarUrl || null;
+        const forwardedMessages = [];
+        const failedThreads = [];
+        const uniqueTargets = Array.from(new Set(targetThreadIds));
+        for (const targetThreadId of uniqueTargets) {
+            try {
+                const destAuth = await checkThreadAuthorization(targetThreadId, tenantId, currentUserId, req.user?.roles);
+                if (!destAuth.authorized) {
+                    failedThreads.push({ threadId: targetThreadId, reason: "Access denied to destination conversation" });
+                    continue;
+                }
+                const newMsg = await prisma_1.prisma.chatMessage.create({
+                    data: {
+                        tenantId,
+                        threadId: targetThreadId,
+                        senderId: currentUserId,
+                        senderName,
+                        senderAvatar,
+                        content: originalMessage.content,
+                        attachments: originalMessage.attachments ? JSON.parse(JSON.stringify(originalMessage.attachments)) : null,
+                        voiceNote: originalMessage.voiceNote ? JSON.parse(JSON.stringify(originalMessage.voiceNote)) : null,
+                        poll: originalMessage.poll ? JSON.parse(JSON.stringify(originalMessage.poll)) : null,
+                        urlPreviews: originalMessage.urlPreviews ? JSON.parse(JSON.stringify(originalMessage.urlPreviews)) : null,
+                        deliveryStatus: "delivered",
+                        eventMetadata: {
+                            isForwarded: true,
+                            forwardedFromId: originalMessage.id,
+                            forwardedFromSender: originalMessage.senderName,
+                        },
+                    },
+                });
+                forwardedMessages.push(newMsg);
+                // Realtime notification to destination conversation
+                (0, socket_1.broadcastToTenant)(tenantId, "chat:message", {
+                    threadId: targetThreadId,
+                    message: newMsg,
+                });
+                await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message", {
+                    threadId: targetThreadId,
+                    message: newMsg,
+                }).catch(() => { });
+            }
+            catch (destErr) {
+                failedThreads.push({ threadId: targetThreadId, reason: destErr.message });
+            }
+        }
+        return res.json({
+            success: true,
+            forwardedCount: forwardedMessages.length,
+            failedCount: failedThreads.length,
+            messages: forwardedMessages,
+            failedThreads,
+        });
     }
     catch (err) {
         return res.status(500).json({ error: err.message });

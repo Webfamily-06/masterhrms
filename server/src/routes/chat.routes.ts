@@ -46,6 +46,23 @@ export function invalidateChatProfileCache(userId?: string, tenantId?: string) {
   }
 }
 
+export function cleanPersonName(name: string): string {
+  if (!name) return "User";
+  return name
+    .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function formatNaturalList(names: string[]): string {
+  const cleaned = names.map(cleanPersonName).filter(Boolean);
+  if (cleaned.length === 0) return "members";
+  if (cleaned.length === 1) return cleaned[0];
+  if (cleaned.length === 2) return `${cleaned[0]} and ${cleaned[1]}`;
+  return `${cleaned.slice(0, -1).join(", ")}, and ${cleaned[cleaned.length - 1]}`;
+}
+
+
 function validateFileSecurity(attachments: any[]): { isAllowed: boolean; blockedFile?: string; reason?: string } {
   if (!attachments || !Array.isArray(attachments)) return { isAllowed: true };
   for (const att of attachments) {
@@ -778,7 +795,7 @@ chatRouter.post("/groups", requireAuth, async (req: AuthRequest, res: Response) 
         `group_${created.id}`,
         currentUserId,
         "group_created",
-        `${creatorName} created the group "${name.trim()}".`,
+        `${creatorName} created the group "${name.trim()}"`,
         { groupName: name.trim() },
         tx
       );
@@ -933,7 +950,7 @@ chatRouter.patch("/groups/:id", requireAuth, async (req: AuthRequest, res: Respo
       `group_${id}`,
       currentUserId,
       "group_profile_updated",
-      `${actorName} ${changeDesc}.`,
+      `${cleanPersonName(actorName)} ${changeDesc}`,
       { updatedFields: Object.keys(updatedData) }
     );
 
@@ -1017,14 +1034,14 @@ chatRouter.post("/groups/:id/members", requireAuth, async (req: AuthRequest, res
         where: { userId: { in: newMembers }, tenantId },
         select: { fullName: true },
       });
-      const addedNames = addedProfiles.map((p) => p.fullName).filter(Boolean).join(", ") || `${newMembers.length} member(s)`;
+      const addedNames = formatNaturalList(addedProfiles.map((p) => p.fullName)) || `${newMembers.length} member(s)`;
 
       await recordSystemEvent(
         tenantId,
         `group_${id}`,
         currentUserId,
         "member_added",
-        `${actorName} added ${addedNames}.`,
+        `${cleanPersonName(actorName)} added ${addedNames}`,
         { addedMemberIds: newMembers, addedNames }
       );
 
@@ -1118,7 +1135,7 @@ chatRouter.delete("/groups/:id/members/:userId", requireAuth, async (req: AuthRe
     });
     const targetName = targetProf?.fullName || "Member";
 
-    const eventContent = isSelf ? `${actorName} left the group.` : `${actorName} removed ${targetName}.`;
+    const eventContent = isSelf ? `${cleanPersonName(actorName)} left the group` : `${cleanPersonName(actorName)} removed ${cleanPersonName(targetName)}`;
     const eventType = isSelf ? "member_left" : "member_removed";
 
     await recordSystemEvent(
@@ -1231,10 +1248,12 @@ chatRouter.patch("/groups/:id/members/:userId/role", requireAuth, async (req: Au
     });
     const targetName = targetProf?.fullName || "Member";
 
-    let roleEventText = `${actorName} changed ${targetName}'s role to ${role}.`;
-    if (role === "admin") roleEventText = `${actorName} made ${targetName} a group admin.`;
-    else if (role === "moderator") roleEventText = `${actorName} made ${targetName} a group moderator.`;
-    else if (role === "member") roleEventText = `${actorName} removed ${targetName}'s admin privileges.`;
+    const cActor = cleanPersonName(actorName);
+    const cTarget = cleanPersonName(targetName);
+    let roleEventText = `${cActor} changed ${cTarget}'s role to ${role}`;
+    if (role === "admin") roleEventText = `${cActor} made ${cTarget} a group admin`;
+    else if (role === "moderator") roleEventText = `${cActor} made ${cTarget} a group moderator`;
+    else if (role === "member") roleEventText = `${cActor} removed ${cTarget}'s admin privileges`;
 
     await recordSystemEvent(
       tenantId,
@@ -1330,7 +1349,7 @@ chatRouter.post("/groups/:id/transfer-ownership", requireAuth, async (req: AuthR
         `group_${id}`,
         currentUserId,
         "ownership_transferred",
-        `${actorName} transferred group ownership to ${targetName}.`,
+        `${cleanPersonName(actorName)} transferred group ownership to ${cleanPersonName(targetName)}`,
         { oldOwnerId: currentUserId, newOwnerId, oldOwnerName: actorName, newOwnerName: targetName },
         tx
       );
@@ -2287,6 +2306,101 @@ chatRouter.patch("/messages/:id", requireAuth, async (req: AuthRequest, res: Res
     });
 
     return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
+// POST /api/chat/messages/forward-batch - Forward a message to multiple direct or group conversations
+chatRouter.post("/messages/forward-batch", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const currentUserId = req.user?.userId || "";
+    const { messageId, targetThreadIds } = req.body;
+
+    if (!messageId || !Array.isArray(targetThreadIds) || targetThreadIds.length === 0) {
+      return res.status(400).json({ error: "messageId and targetThreadIds array are required" });
+    }
+
+    // 1. Fetch and verify original message
+    const originalMessage = await prisma.chatMessage.findFirst({
+      where: { id: messageId, tenantId },
+    });
+
+    if (!originalMessage) {
+      return res.status(404).json({ error: "Original message not found" });
+    }
+
+    // Verify source thread access
+    const sourceAuth = await checkThreadAuthorization(originalMessage.threadId, tenantId, currentUserId, req.user?.roles);
+    if (!sourceAuth.authorized) {
+      return res.status(403).json({ error: "Not authorized to access or forward this message" });
+    }
+
+    const senderProfile = await prisma.profile.findFirst({
+      where: { userId: currentUserId, tenantId },
+      select: { fullName: true, avatarUrl: true },
+    });
+    const senderName = cleanPersonName(senderProfile?.fullName || req.user?.email?.split("@")[0] || "User");
+    const senderAvatar = senderProfile?.avatarUrl || null;
+
+    const forwardedMessages: any[] = [];
+    const failedThreads: { threadId: string; reason: string }[] = [];
+    const uniqueTargets = Array.from(new Set(targetThreadIds));
+
+    for (const targetThreadId of uniqueTargets) {
+      try {
+        const destAuth = await checkThreadAuthorization(targetThreadId, tenantId, currentUserId, req.user?.roles);
+        if (!destAuth.authorized) {
+          failedThreads.push({ threadId: targetThreadId, reason: "Access denied to destination conversation" });
+          continue;
+        }
+
+        const newMsg = await prisma.chatMessage.create({
+          data: {
+            tenantId,
+            threadId: targetThreadId,
+            senderId: currentUserId,
+            senderName,
+            senderAvatar,
+            content: originalMessage.content,
+            attachments: originalMessage.attachments ? JSON.parse(JSON.stringify(originalMessage.attachments)) : null,
+            voiceNote: originalMessage.voiceNote ? JSON.parse(JSON.stringify(originalMessage.voiceNote)) : null,
+            poll: originalMessage.poll ? JSON.parse(JSON.stringify(originalMessage.poll)) : null,
+            urlPreviews: originalMessage.urlPreviews ? JSON.parse(JSON.stringify(originalMessage.urlPreviews)) : null,
+            deliveryStatus: "delivered",
+            eventMetadata: {
+              isForwarded: true,
+              forwardedFromId: originalMessage.id,
+              forwardedFromSender: originalMessage.senderName,
+            },
+          },
+        });
+
+        forwardedMessages.push(newMsg);
+
+        // Realtime notification to destination conversation
+        broadcastToTenant(tenantId, "chat:message", {
+          threadId: targetThreadId,
+          message: newMsg,
+        });
+        await PusherService.triggerTenantEvent(tenantId, "chat:message", {
+          threadId: targetThreadId,
+          message: newMsg,
+        }).catch(() => {});
+      } catch (destErr: any) {
+        failedThreads.push({ threadId: targetThreadId, reason: destErr.message });
+      }
+    }
+
+    return res.json({
+      success: true,
+      forwardedCount: forwardedMessages.length,
+      failedCount: failedThreads.length,
+      messages: forwardedMessages,
+      failedThreads,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

@@ -1,5 +1,23 @@
 "use client";
 
+export function cleanPersonName(name: string): string {
+  if (!name) return "User";
+  return name
+    .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function cleanSystemEventContent(content: string): string {
+  if (!content) return "";
+  return content
+    .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
+    .replace(/\s*\(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM)?\)/gi, "")
+    .replace(/\s*\.\s*$/, "")
+    .trim();
+}
+
+
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -222,6 +240,8 @@ export interface ChatMessageItem {
   isEdited?: boolean;
   editedAt?: string;
   isDeletedForEveryone?: boolean;
+  isForwarded?: boolean;
+  forwardedFromSender?: string | null;
   reactions?: Record<string, string[]>;
   urlPreviews?: ChatMessageUrlPreview[];
   voiceNote?: ChatMessageVoiceNote;
@@ -452,6 +472,8 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     isEdited: m.isEdited || false,
     editedAt: m.editedAt,
     isDeletedForEveryone: isDeleted,
+    isForwarded: Boolean(m.isForwarded || m.eventMetadata?.isForwarded || m.replyTo?.isForwarded),
+    forwardedFromSender: m.forwardedFromSender || m.eventMetadata?.forwardedFromSender || null,
     reactions: isDeleted ? {} : (rawReactions || {}),
     urlPreviews: isDeleted ? [] : (m.urlPreviews || []),
     voiceNote: isDeleted ? undefined : rawVoiceNote,
@@ -784,6 +806,11 @@ export function UnifiedChatApp({
   const [editingContent, setEditingContent] = useState("");
   const [forwardMessage, setForwardMessage] = useState<ChatMessageItem | null>(null);
   const [forwardTargetThreadId, setForwardTargetThreadId] = useState("");
+  const [forwardTab, setForwardTab] = useState<"personal" | "group">("personal");
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [selectedForwardThreadIds, setSelectedForwardThreadIds] = useState<string[]>([]);
+  const [isForwarding, setIsForwarding] = useState(false);
+  const isInitialScrollDoneRef = useRef<{ [threadId: string]: boolean }>({});
 
   // File Attachments & Drag-and-Drop & Media Library Integration
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -1377,6 +1404,28 @@ export function UnifiedChatApp({
       setActiveGroupId(first.groupId || "");
     }
   }, [conversations, activeThreadId, mode]);
+
+  
+  // Auto-scroll to latest message on thread open and message load
+  useEffect(() => {
+    if (!activeThreadId) return;
+    if (!isInitialScrollDoneRef.current[activeThreadId] && serverMessages.length > 0 && !isMessagesLoading) {
+      const scrollToBottomImmediate = () => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+      };
+
+      scrollToBottomImmediate();
+      const rafId = requestAnimationFrame(() => {
+        scrollToBottomImmediate();
+        setTimeout(scrollToBottomImmediate, 80);
+        setTimeout(scrollToBottomImmediate, 250);
+      });
+      isInitialScrollDoneRef.current[activeThreadId] = true;
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [activeThreadId, serverMessages.length, isMessagesLoading]);
 
   // Cursor-based infinite scroll: load older 25 messages
   const loadOlderMessages = useCallback(async () => {
@@ -3614,6 +3663,32 @@ export function UnifiedChatApp({
     }
   };
 
+  
+  const handleBatchForwardMessage = async () => {
+    if (!forwardMessage || selectedForwardThreadIds.length === 0 || isForwarding) return;
+    setIsForwarding(true);
+    try {
+      const res: any = await api.post("/api/chat/messages/forward-batch", {
+        messageId: forwardMessage.id,
+        targetThreadIds: selectedForwardThreadIds,
+      });
+      if (res?.success) {
+        toast.success(`Message forwarded to ${res.forwardedCount} conversation${res.forwardedCount > 1 ? "s" : ""}`);
+        setForwardMessage(null);
+        setSelectedForwardThreadIds([]);
+        setForwardSearch("");
+        queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+      } else {
+        toast.error(res?.error || "Failed to forward message");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Failed to forward message");
+    } finally {
+      setIsForwarding(false);
+    }
+  };
+
   const handleForwardMessage = async () => {
     if (!forwardMessage || !forwardTargetThreadId) return;
     try {
@@ -3815,6 +3890,33 @@ export function UnifiedChatApp({
     return files;
   }, [serverMessages, sharedFilesSearch]);
 
+  
+  // Filtered Personal Conversations (Direct only)
+  const personalConversations = useMemo(() => {
+    return conversations
+      .filter((c) => c.type === "direct")
+      .map((c) => ({
+        ...c,
+        title: cleanPersonName(c.title),
+      }));
+  }, [conversations]);
+
+  const filteredPersonalConversations = useMemo(() => {
+    return personalConversations.filter((c) => {
+      const matchSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchFilter = filterFilter === "unread" ? c.unreadCount > 0 : true;
+      return matchSearch && matchFilter;
+    });
+  }, [personalConversations, searchQuery, filterFilter]);
+
+  // Clean group names
+  const cleanGroups = useMemo(() => {
+    return groups.map((g) => ({
+      ...g,
+      name: cleanPersonName(g.name),
+    }));
+  }, [groups]);
+
   // Filtered Lists
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
@@ -3888,85 +3990,89 @@ export function UnifiedChatApp({
       {/* LEFT COLUMN: LISTS (CHATS / GROUPS / CONTACTS / CALLS)              */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <aside className="w-[320px] flex-shrink-0 border-r border-border flex flex-col bg-card">
-        {/* Top Header / Mode Switcher */}
-        <div className="p-3.5 border-b border-border flex items-center justify-between">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 font-bold text-lg text-foreground hover:text-primary transition-colors cursor-pointer">
-                <span>
-                  {mode === "chats"
-                    ? "Personal Chat"
-                    : mode === "groups"
-                    ? "Chat Groups"
-                    : mode === "contacts"
-                    ? "Chat Contacts"
-                    : "Call History"}
-                </span>
-                <ChevronDown className="size-4 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-48 font-sans">
-              <DropdownMenuItem
-                onClick={() => handleModeSelect("chats")}
-                className={cn("cursor-pointer", mode === "chats" && "font-semibold bg-muted")}
-              >
-                <MessageSquare className="size-4 mr-2" /> Personal Chat
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleModeSelect("groups")}
-                className={cn("cursor-pointer", mode === "groups" && "font-semibold bg-muted")}
-              >
-                <Users className="size-4 mr-2" /> Chat Groups
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleModeSelect("contacts")}
-                className={cn("cursor-pointer", mode === "contacts" && "font-semibold bg-muted")}
-              >
-                <User className="size-4 mr-2" /> Chat Contacts
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleModeSelect("calls")}
-                className={cn("cursor-pointer", mode === "calls" && "font-semibold bg-muted")}
-              >
-                <PhoneCall className="size-4 mr-2" /> Call History
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {/* Segmented Top Navigation: Personal / Group / Call Logs */}
+        <div className="p-3 border-b border-border bg-card">
+          <div className="flex items-center justify-between mb-2.5">
+            <h2 className="text-base font-bold text-foreground font-sans">
+              {mode === "chats" ? "Personal Chats" : mode === "groups" ? "Group Chats" : "Call Logs"}
+            </h2>
+            <div className="flex items-center gap-1">
+              {mode === "chats" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setNewChatOpen(true)}
+                  className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="New Chat"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              )}
+              {mode === "groups" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCreateGroupOpen(true)}
+                  className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="Create Group"
+                >
+                  <Plus className="size-4" />
+                </Button>
+              )}
+              {mode === "calls" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setScheduleMeetingOpen(true)}
+                  className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                  title="Schedule Meeting"
+                >
+                  <CalendarPlus className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
 
-          <div className="flex items-center gap-1">
-            {mode === "chats" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setNewChatOpen(true)}
-                className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-                title="New Chat"
-              >
-                <Plus className="size-4" />
-              </Button>
-            )}
-            {mode === "groups" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setCreateGroupOpen(true)}
-                className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-                title="Create Group"
-              >
-                <Plus className="size-4" />
-              </Button>
-            )}
-            {mode === "calls" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setScheduleMeetingOpen(true)}
-                className="size-8 rounded-full text-muted-foreground hover:text-foreground"
-                title="Schedule Meeting"
-              >
-                <CalendarPlus className="size-4" />
-              </Button>
-            )}
+          <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border border-border/40">
+            <button
+              type="button"
+              onClick={() => handleModeSelect("chats")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                mode === "chats"
+                  ? "bg-background text-foreground shadow-xs font-bold border border-border/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <MessageSquare className="size-3.5" />
+              <span>Personal</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSelect("groups")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                mode === "groups"
+                  ? "bg-background text-foreground shadow-xs font-bold border border-border/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Users className="size-3.5" />
+              <span>Group</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSelect("calls")}
+              className={cn(
+                "flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                mode === "calls"
+                  ? "bg-background text-foreground shadow-xs font-bold border border-border/30"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <PhoneCall className="size-3.5" />
+              <span>Call Logs</span>
+            </button>
           </div>
         </div>
 
@@ -4044,14 +4150,14 @@ export function UnifiedChatApp({
                     Retry
                   </Button>
                 </div>
-              ) : filteredConversations.length === 0 ? (
+              ) : filteredPersonalConversations.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
                   <MessageSquare className="size-8 mx-auto text-muted-foreground/40" />
                   <p className="font-semibold text-foreground">No conversations yet</p>
                   <p className="text-[11px]">Click + to start communicating with colleagues.</p>
                 </div>
               ) : (
-                filteredConversations.map((item) => {
+                filteredPersonalConversations.map((item) => {
                   const isSelected = activeThreadId === item.threadId;
                   return (
                     <div
@@ -4159,7 +4265,7 @@ export function UnifiedChatApp({
                   </Button>
                 </div>
               ) : (
-                filteredGroups.map((group) => {
+                cleanGroups.filter((g) => g.name.toLowerCase().includes(searchQuery.toLowerCase())).map((group) => {
                   const threadId = `group_${group.id}`;
                   const isSelected = activeThreadId === threadId;
                   return (
@@ -5085,6 +5191,14 @@ export function UnifiedChatApp({
                               <p className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 pl-1 select-none">
                                 {msg.senderName}
                               </p>
+                            )}
+
+                            {/* Forwarded message indicator */}
+                            {msg.isForwarded && (
+                              <div className="flex items-center gap-1 text-[10px] italic text-muted-foreground/80 mb-0.5 select-none pl-0.5">
+                                <Share2 className="size-3 flex-shrink-0 text-teal-600" />
+                                <span>Forwarded{msg.forwardedFromSender ? ` from ${cleanPersonName(msg.forwardedFromSender)}` : ""}</span>
+                              </div>
                             )}
 
                             {/* Reply reference preview */}
@@ -7641,49 +7755,269 @@ export function UnifiedChatApp({
         </DialogContent>
       </Dialog>
 
-      {/* 8. FORWARD MESSAGE DIALOG */}
-      <Dialog open={!!forwardMessage} onOpenChange={() => setForwardMessage(null)}>
+      {/* 8. FORWARD MESSAGE DIALOG (SEPARATE PERSONAL AND GROUP SECTIONS) */}
+      <Dialog
+        open={!!forwardMessage}
+        onOpenChange={() => {
+          setForwardMessage(null);
+          setSelectedForwardThreadIds([]);
+          setForwardSearch("");
+        }}
+      >
         <DialogContent
-          className="sm:max-w-md font-sans"
+          className="sm:max-w-lg font-sans"
           style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
         >
           <DialogHeader>
-            <DialogTitle className="font-sans">Forward Message</DialogTitle>
+            <DialogTitle className="font-sans flex items-center justify-between">
+              <span>Forward Message</span>
+              {selectedForwardThreadIds.length > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200">
+                  {selectedForwardThreadIds.length} selected
+                </span>
+              )}
+            </DialogTitle>
             <DialogDescription className="font-sans">
-              Choose a recipient or group conversation to forward this message to.
+              Select one or multiple personal and group recipients to forward this message to.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2 space-y-2">
-            <Label className="text-xs font-semibold">Select Target Thread</Label>
-            <div className="max-h-56 overflow-y-auto space-y-1 border rounded p-1">
-              {conversations.map((c) => (
-                <div
-                  key={c.threadId}
-                  onClick={() => setForwardTargetThreadId(c.threadId)}
-                  className={cn(
-                    "p-2 rounded cursor-pointer text-xs flex items-center justify-between",
-                    forwardTargetThreadId === c.threadId
-                      ? "bg-teal-50 dark:bg-teal-950/60 font-semibold text-teal-800 border border-teal-200"
-                      : "hover:bg-muted"
-                  )}
-                >
-                  <span>{c.title}</span>
-                  <span className="text-[10px] text-muted-foreground capitalize">{c.type}</span>
-                </div>
-              ))}
+
+          {/* Forward Preview Snippet */}
+          {forwardMessage && (
+            <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 text-xs flex items-start gap-2">
+              <Share2 className="size-4 text-teal-600 flex-shrink-0 mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground truncate">
+                  From: {cleanPersonName(forwardMessage.senderName)}
+                </p>
+                <p className="text-muted-foreground truncate">{forwardMessage.content || "[Attachment/Media]"}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Recipient Category Tabs: Personal Chats vs Group Chats */}
+          <div className="grid grid-cols-2 gap-1 p-1 bg-muted/70 rounded-lg border border-border/50 text-xs">
+            <button
+              type="button"
+              onClick={() => setForwardTab("personal")}
+              className={cn(
+                "py-1.5 rounded-md font-semibold text-center transition-all cursor-pointer",
+                forwardTab === "personal"
+                  ? "bg-background text-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Personal Chats ({conversations.filter((c) => c.type === "direct").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setForwardTab("group")}
+              className={cn(
+                "py-1.5 rounded-md font-semibold text-center transition-all cursor-pointer",
+                forwardTab === "group"
+                  ? "bg-background text-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Group Chats ({groups.length})
+            </button>
+          </div>
+
+          {/* Search & Select All Bar */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={forwardSearch}
+                  onChange={(e) => setForwardSearch(e.target.value)}
+                  placeholder={forwardTab === "personal" ? "Search personal contacts..." : "Search groups..."}
+                  className="pl-8 text-xs h-8 bg-muted/40 font-sans"
+                />
+              </div>
+
+              {/* Select All / Clear Selection for filtered view */}
+              {(() => {
+                const candidateThreadIds =
+                  forwardTab === "personal"
+                    ? conversations
+                        .filter((c) => c.type === "direct")
+                        .filter((c) => cleanPersonName(c.title).toLowerCase().includes(forwardSearch.toLowerCase()))
+                        .map((c) => c.threadId)
+                    : groups
+                        .filter((g) => cleanPersonName(g.name).toLowerCase().includes(forwardSearch.toLowerCase()))
+                        .map((g) => `group_${g.id}`);
+
+                const allSelected =
+                  candidateThreadIds.length > 0 &&
+                  candidateThreadIds.every((tid) => selectedForwardThreadIds.includes(tid));
+
+                return (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-sans whitespace-nowrap"
+                    onClick={() => {
+                      if (allSelected) {
+                        setSelectedForwardThreadIds((prev) =>
+                          prev.filter((tid) => !candidateThreadIds.includes(tid))
+                        );
+                      } else {
+                        setSelectedForwardThreadIds((prev) =>
+                          Array.from(new Set([...prev, ...candidateThreadIds]))
+                        );
+                      }
+                    }}
+                  >
+                    {allSelected ? "Clear Filtered" : "Select All"}
+                  </Button>
+                );
+              })()}
+            </div>
+
+            {/* Recipient Selection List with Checkboxes */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 border border-border/80 rounded-lg p-2 bg-background">
+              {forwardTab === "personal" ? (
+                (() => {
+                  const directList = conversations
+                    .filter((c) => c.type === "direct")
+                    .filter((c) => cleanPersonName(c.title).toLowerCase().includes(forwardSearch.toLowerCase()));
+
+                  if (directList.length === 0) {
+                    return (
+                      <p className="text-center text-xs text-muted-foreground py-6">
+                        No personal conversations found.
+                      </p>
+                    );
+                  }
+
+                  return directList.map((c) => {
+                    const isChecked = selectedForwardThreadIds.includes(c.threadId);
+                    return (
+                      <div
+                        key={c.threadId}
+                        onClick={() => {
+                          setSelectedForwardThreadIds((prev) =>
+                            isChecked ? prev.filter((id) => id !== c.threadId) : [...prev, c.threadId]
+                          );
+                        }}
+                        className={cn(
+                          "p-2 rounded-lg cursor-pointer text-xs flex items-center justify-between border transition-all",
+                          isChecked
+                            ? "bg-teal-50 dark:bg-teal-950/60 border-teal-500/50 text-foreground font-semibold"
+                            : "border-transparent hover:bg-muted/60"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // handled by parent onClick
+                            className="size-4 rounded border-border text-teal-600 focus:ring-teal-500 cursor-pointer"
+                          />
+                          <Avatar className="size-7 flex-shrink-0">
+                            {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt={c.title} />}
+                            <AvatarFallback className="text-[10px] font-bold bg-teal-700 text-white">
+                              {c.avatarLetter}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="truncate">{cleanPersonName(c.title)}</span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground capitalize">
+                          Personal
+                        </Badge>
+                      </div>
+                    );
+                  });
+                })()
+              ) : (
+                (() => {
+                  const groupList = groups.filter((g) =>
+                    cleanPersonName(g.name).toLowerCase().includes(forwardSearch.toLowerCase())
+                  );
+
+                  if (groupList.length === 0) {
+                    return (
+                      <p className="text-center text-xs text-muted-foreground py-6">
+                        No group conversations found.
+                      </p>
+                    );
+                  }
+
+                  return groupList.map((g) => {
+                    const threadId = `group_${g.id}`;
+                    const isChecked = selectedForwardThreadIds.includes(threadId);
+                    return (
+                      <div
+                        key={g.id}
+                        onClick={() => {
+                          setSelectedForwardThreadIds((prev) =>
+                            isChecked ? prev.filter((id) => id !== threadId) : [...prev, threadId]
+                          );
+                        }}
+                        className={cn(
+                          "p-2 rounded-lg cursor-pointer text-xs flex items-center justify-between border transition-all",
+                          isChecked
+                            ? "bg-teal-50 dark:bg-teal-950/60 border-teal-500/50 text-foreground font-semibold"
+                            : "border-transparent hover:bg-muted/60"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="size-4 rounded border-border text-teal-600 focus:ring-teal-500 cursor-pointer"
+                          />
+                          <Avatar className="size-7 flex-shrink-0">
+                            {g.avatarUrl && <AvatarImage src={g.avatarUrl} alt={g.name} />}
+                            <AvatarFallback className="text-[10px] font-bold bg-teal-800 text-white">
+                              {g.avatarLetter}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <span className="truncate block">{cleanPersonName(g.name)}</span>
+                            <span className="text-[10px] text-muted-foreground block">{g.memberCount} members</span>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground capitalize">
+                          Group
+                        </Badge>
+                      </div>
+                    );
+                  });
+                })()
+              )}
             </div>
           </div>
-          <DialogFooter className="font-sans">
-            <Button variant="outline" size="sm" onClick={() => setForwardMessage(null)}>
+
+          <DialogFooter className="font-sans flex items-center justify-between sm:justify-between pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setForwardMessage(null);
+                setSelectedForwardThreadIds([]);
+                setForwardSearch("");
+              }}
+            >
               Cancel
             </Button>
             <Button
               size="sm"
-              disabled={!forwardTargetThreadId}
-              onClick={handleForwardMessage}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
+              disabled={selectedForwardThreadIds.length === 0 || isForwarding}
+              onClick={handleBatchForwardMessage}
+              className="bg-teal-700 hover:bg-teal-800 text-white font-sans flex items-center gap-1.5"
             >
-              Forward Now
+              <Share2 className="size-3.5" />
+              <span>
+                {isForwarding
+                  ? "Forwarding..."
+                  : selectedForwardThreadIds.length > 0
+                  ? `Forward (${selectedForwardThreadIds.length})`
+                  : "Select Recipients"}
+              </span>
             </Button>
           </DialogFooter>
         </DialogContent>
