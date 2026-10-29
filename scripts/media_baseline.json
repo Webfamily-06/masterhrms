@@ -1,0 +1,124 @@
+{
+  "timestamp": "2026-10-29T13:22:15.442Z",
+  "mediaCount": 149,
+  "usageCount": 76,
+  "companyDocCount": 5,
+  "chatMsgsWithMedia": 64,
+  "brandingSettingsCount": 44,
+  "folders": [
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "addons/icons"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Chat/Audio"
+    },
+    {
+      "_count": {
+        "id": 61
+      },
+      "folder": "workspace/branding"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/9eb214a8-fa9e-4eb3-a6de-a3a7c02e674f/Profile"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/a58e876b-9370-4239-8b26-b4325620f89d/Profile"
+    },
+    {
+      "_count": {
+        "id": 2
+      },
+      "folder": "Employees/EMP-0001/Profile"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/EMP-REP-1792070271292/Profile"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/55f8f079-2059-4a15-a12a-2e3427133009/Profile"
+    },
+    {
+      "_count": {
+        "id": 3
+      },
+      "folder": "branding"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/590ef257-2e81-44e2-94ab-22d24cbd7869/Profile"
+    },
+    {
+      "_count": {
+        "id": 2
+      },
+      "folder": "documents/employee"
+    },
+    {
+      "_count": {
+        "id": 51
+      },
+      "folder": "system/branding"
+    },
+    {
+      "_count": {
+        "id": 9
+      },
+      "folder": "Chat/Documents"
+    },
+    {
+      "_count": {
+        "id": 7
+      },
+      "folder": "Chat/Images"
+    },
+    {
+      "_count": {
+        "id": 2
+      },
+      "folder": "platform/branding"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "general/picker"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/d919412c-e222-47f1-8837-dfb033c02995/Profile"
+    },
+    {
+      "_count": {
+        "id": 1
+      },
+      "folder": "Employees/76f511d8-67af-4b9e-9d0b-27fdcaaf052e/Profile"
+    },
+    {
+      "_count": {
+        "id": 2
+      },
+      "folder": "documents"
+    }
+  ]
+}

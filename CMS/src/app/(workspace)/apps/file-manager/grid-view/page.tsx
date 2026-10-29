@@ -1,7 +1,7 @@
 "use client";
 
-import { ClassicFileManagerApp } from "@/components/apps/file-manager/classic-file-manager-app";
+import { UnifiedFileManager } from "@/components/apps/file-manager/unified-file-manager";
 
 export default function FileManagerGridPage() {
-  return <ClassicFileManagerApp initialView="grid" />;
+  return <UnifiedFileManager initialView="grid" baseRoute="/apps/file-manager/grid-view" />;
 }

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ClassicFileManagerApp } from "@/components/apps/file-manager/classic-file-manager-app";
+import { UnifiedFileManager } from "@/components/apps/file-manager/unified-file-manager";
 
 export const Route = createFileRoute("/_authenticated/_app/apps/file-manager/list-view")({
   component: FileManagerListPage,
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authenticated/_app/apps/file-manager/lis
 });
 
 export function FileManagerListPage() {
-  return <ClassicFileManagerApp initialView="list" />;
+  return <UnifiedFileManager initialView="list" baseRoute="/apps/file-manager/list-view" />;
 }
 
 export default FileManagerListPage;

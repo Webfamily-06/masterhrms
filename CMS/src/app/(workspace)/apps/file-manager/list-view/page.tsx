@@ -1,7 +1,7 @@
 "use client";
 
-import { ClassicFileManagerApp } from "@/components/apps/file-manager/classic-file-manager-app";
+import { UnifiedFileManager } from "@/components/apps/file-manager/unified-file-manager";
 
 export default function FileManagerListPage() {
-  return <ClassicFileManagerApp initialView="list" />;
+  return <UnifiedFileManager initialView="list" baseRoute="/apps/file-manager/list-view" />;
 }

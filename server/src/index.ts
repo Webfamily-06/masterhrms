@@ -5,7 +5,6 @@ import crypto from "crypto";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
 dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
-dotenv.config(); // cwd fallback
 
 // Global process error logging (ensures crashes appear in Vercel runtime logs without secret leakage)
 process.on("unhandledRejection", (reason: any) => {
@@ -110,6 +109,7 @@ import { commerceRouter } from "./routes/commerce.routes";
 import { timesheetsRouter } from "./routes/timesheets.routes";
 import { settingsRouter } from "./routes/settings.routes";
 import { mediaRouter } from "./routes/media.routes";
+import { filesRouter } from "./routes/files.routes";
 import { appConfigRouter } from "./routes/app-config.routes";
 import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes";
 import { companyProfileRouter } from "./routes/company-profile.routes";
@@ -140,8 +140,6 @@ import { runBiometricAutoSync } from "./cron/biometric-sync";
 import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
 import { runSubscriptionExpiryRemindersCron } from "./cron/subscription-reminder.cron";
 import { CalendarReminderScheduler } from "./services/calendar-reminder.scheduler";
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -395,6 +393,8 @@ app.use("/api", requireActiveSubscription);
 app.use("/api/v1/settings", settingsRouter);
 app.use("/api/v1/media", mediaRouter);
 app.use("/api/media", mediaRouter);
+app.use("/api/v1/files", filesRouter);
+app.use("/api/files", filesRouter);
 app.use("/api/v1/public", appConfigRouter);
 app.use("/api/public", appConfigRouter);
 app.use("/api", appConfigRouter);

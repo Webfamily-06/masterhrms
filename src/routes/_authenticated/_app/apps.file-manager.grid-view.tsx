@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ClassicFileManagerApp } from "@/components/apps/file-manager/classic-file-manager-app";
+import { UnifiedFileManager } from "@/components/apps/file-manager/unified-file-manager";
 
 export const Route = createFileRoute("/_authenticated/_app/apps/file-manager/grid-view")({
   component: FileManagerGridPage,
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/_authenticated/_app/apps/file-manager/gri
 });
 
 export function FileManagerGridPage() {
-  return <ClassicFileManagerApp initialView="grid" />;
+  return <UnifiedFileManager initialView="grid" baseRoute="/apps/file-manager/grid-view" />;
 }
 
 export default FileManagerGridPage;
