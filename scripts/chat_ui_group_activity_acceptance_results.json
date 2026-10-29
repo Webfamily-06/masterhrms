@@ -1,0 +1,142 @@
+[
+  {
+    "check": "Account A: Sent message is visible in chat",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account A: Outgoing message is aligned to the RIGHT",
+    "passed": true,
+    "details": "group flex items-end gap-2.5 max-w-[85%] ml-auto flex-row-reverse"
+  },
+  {
+    "check": "Account A: No avatar rendered beside outgoing message bubble",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account B: Received message is visible in recipient chat",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account B: Incoming message is aligned to the LEFT",
+    "passed": true,
+    "details": "group flex items-end gap-2.5 max-w-[85%] mr-auto"
+  },
+  {
+    "check": "Account B: Sender avatar/initials rendered next to incoming message",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account B: Outgoing reply is aligned to the RIGHT",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account A: Incoming reply from B is aligned to the LEFT",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account B: Group message received from Account A",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Account B: Sender display name 'HR Administrator' displayed above incoming group bubble",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Right sidebar group details panel (aside.w-[300px]) is open",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Authorized user sees 'Edit Group Details' button in sidebar",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Editing group DOES NOT open any modal popup dialog",
+    "passed": true,
+    "details": "modal count: 0"
+  },
+  {
+    "check": "Inline Group Name input is visible inside the Right Sidebar",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Inline Group Description textarea is visible inside the Right Sidebar",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Inline 'Save Changes' and 'Cancel' buttons are present",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Clicking Cancel reverts and exits inline editing mode cleanly",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Header title immediately reflects updated group name",
+    "passed": true,
+    "details": "Sprint Core Alpha [3061]"
+  },
+  {
+    "check": "Account B: Real-time update propagated new group name without page reload",
+    "passed": true,
+    "details": "Sprint Core Alpha [3061]"
+  },
+  {
+    "check": "Group Activity tab renders activity timeline entries",
+    "passed": true,
+    "details": "entries count: 11"
+  },
+  {
+    "check": "Activity timeline shows human-readable group lifecycle event",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Chat thread contains distinct centered system event row",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "GET /api/chat/groups/:id/activity returns 200 OK",
+    "passed": true,
+    "details": "status: 200"
+  },
+  {
+    "check": "Activity API returns array of persisted system events",
+    "passed": true,
+    "details": "count: 12"
+  },
+  {
+    "check": "Persisted event has isSystemEvent: true",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "Persisted event contains eventType and eventMetadata",
+    "passed": true,
+    "details": ""
+  },
+  {
+    "check": "PATCH /api/chat/groups/:id with avatarUrl returns 200 OK",
+    "passed": true,
+    "details": "status: 200"
+  },
+  {
+    "check": "Database group record has updated avatarUrl",
+    "passed": true,
+    "details": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&q=80"
+  }
+]

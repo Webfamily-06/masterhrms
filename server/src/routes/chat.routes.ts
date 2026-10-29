@@ -426,11 +426,12 @@ chatRouter.get("/conversations", requireAuth, async (req: AuthRequest, res: Resp
 
         return {
           id: g.id,
+          groupId: g.id,
           threadId,
           type: "group" as const,
           name: g.name,
           description: g.description,
-          avatarUrl: g.avatarUrl,
+          avatarUrl: g.avatarUrl || null,
           memberCount: g.members.length,
           members: g.members.map((mem) => mem.userId),
           createdById: g.createdById,
@@ -694,6 +695,7 @@ chatRouter.get("/groups", requireAuth, async (req: AuthRequest, res: Response) =
 
         return {
           id: g.id,
+          groupId: g.id,
           threadId,
           name: g.name,
           description: g.description,
@@ -897,7 +899,9 @@ chatRouter.patch("/groups/:id", requireAuth, async (req: AuthRequest, res: Respo
     const updatedData: any = {};
     if (typeof name === "string" && name.trim()) updatedData.name = name.trim();
     if (typeof description === "string") updatedData.description = description.trim() || null;
-    if (typeof avatarUrl === "string") updatedData.avatarUrl = avatarUrl.trim() || null;
+    if (avatarUrl !== undefined) {
+      updatedData.avatarUrl = typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null;
+    }
 
     const updated = await prisma.chatGroup.update({
       where: { id },
@@ -912,14 +916,17 @@ chatRouter.patch("/groups/:id", requireAuth, async (req: AuthRequest, res: Respo
     });
     const actorName = prof?.fullName || "Admin";
 
-    let changeDesc = "updated the group profile";
+    const changes: string[] = [];
     if (updatedData.name && updatedData.name !== group.name) {
-      changeDesc = `changed the group name to "${updatedData.name}"`;
-    } else if (updatedData.avatarUrl !== undefined && updatedData.avatarUrl !== group.avatarUrl) {
-      changeDesc = `changed the group profile picture`;
-    } else if (updatedData.description !== undefined && updatedData.description !== group.description) {
-      changeDesc = `changed the group description`;
+      changes.push(`changed group name to "${updatedData.name}"`);
     }
+    if (updatedData.avatarUrl !== undefined && updatedData.avatarUrl !== group.avatarUrl) {
+      changes.push(updatedData.avatarUrl ? `updated group photo` : `removed group photo`);
+    }
+    if (updatedData.description !== undefined && updatedData.description !== group.description) {
+      changes.push(`updated group description`);
+    }
+    const changeDesc = changes.length > 0 ? changes.join(" and ") : "updated the group profile";
 
     await recordSystemEvent(
       tenantId,

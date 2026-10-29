@@ -112,6 +112,7 @@ import {
   ZoomOut,
   Image as ImageIcon,
   Upload,
+  FolderOpen,
   RotateCcw,
   Ban,
   ArrowDown,
@@ -192,6 +193,7 @@ export interface ChatMessageItem {
   id: string;
   senderId: string;
   senderName: string;
+  senderAvatar?: string | null;
   content: string;
   types?: "sent" | "received";
   time?: string;
@@ -227,6 +229,7 @@ export interface ConversationSummaryItem {
   threadId: string;
   type: "direct" | "group";
   title: string;
+  avatarUrl?: string | null;
   avatarLetter: string;
   avatarColor: string;
   lastMessage: string;
@@ -423,6 +426,7 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     id: m.id,
     senderId: m.senderId,
     senderName: m.senderName || "User",
+    senderAvatar: m.senderAvatar || m.senderAvatarUrl || m.avatarUrl || null,
     content: isDeleted ? "This message was deleted" : (m.content || ""),
     types: m.senderId === currentUserId ? "sent" : "received",
     time: m.createdAt
@@ -727,6 +731,7 @@ export function UnifiedChatApp({
 
   // Group Profile Editing, Role Assignment, Ownership Transfer & Safety
   const [editGroupOpen, setEditGroupOpen] = useState(false);
+  const [isEditingGroupSidebar, setIsEditingGroupSidebar] = useState(false);
   const [editGroupName, setEditGroupName] = useState("");
   const [editGroupDescription, setEditGroupDescription] = useState("");
   const [editGroupAvatarUrl, setEditGroupAvatarUrl] = useState("");
@@ -987,6 +992,7 @@ export function UnifiedChatApp({
           threadId: c.threadId,
           type: c.type || "direct",
           title,
+          avatarUrl: c.avatarUrl || null,
           avatarLetter: title.charAt(0).toUpperCase(),
           avatarColor: getAvatarColor(title),
           lastMessage: c.lastMessage || "",
@@ -996,7 +1002,7 @@ export function UnifiedChatApp({
           unreadCount: c.unreadCount || 0,
           status: isOnline ? "online" : "offline",
           otherParticipantId: isDirect ? c.id : undefined,
-          groupId: !isDirect ? c.id : undefined,
+          groupId: !isDirect ? (c.groupId || c.id) : undefined,
           isPinned: Boolean(c.isPinned),
           isMuted: Boolean(c.isMuted),
           ownerId: c.ownerId,
@@ -1161,23 +1167,29 @@ export function UnifiedChatApp({
     enabled: Boolean(activeTargetUserId && activeThreadType === "direct"),
   });
 
+  const computedGroupId = useMemo(() => {
+    if (activeGroupId) return activeGroupId;
+    if (activeThreadId?.startsWith("group_")) return activeThreadId.replace("group_", "");
+    return "";
+  }, [activeGroupId, activeThreadId]);
+
   // Group Activity Events Query for Activity Tab
   const {
     data: groupActivityEvents = [],
     isLoading: isActivityLoading,
     refetch: refetchGroupActivity,
   } = useQuery<any[]>({
-    queryKey: ["chat", "group_activity", activeGroupId],
+    queryKey: ["chat", "group_activity", computedGroupId],
     queryFn: async () => {
-      if (!activeGroupId || activeThreadType !== "group") return [];
+      if (!computedGroupId || activeThreadType !== "group") return [];
       try {
-        const res: any = await api.get(`/api/chat/groups/${activeGroupId}/activity`);
+        const res: any = await api.get(`/api/chat/groups/${computedGroupId}/activity`);
         return Array.isArray(res) ? res : res?.events || [];
       } catch {
         return [];
       }
     },
-    enabled: Boolean(activeGroupId && activeThreadType === "group" && infoTab === "activity"),
+    enabled: Boolean(computedGroupId && activeThreadType === "group"),
   });
 
   // Reset optimistic state, pagination, and filters when switching conversations to prevent cross-conversation leakage
@@ -1218,7 +1230,8 @@ export function UnifiedChatApp({
           setActiveGroupId(found.groupId || "");
           return;
         } else if (urlThreadId.startsWith("direct_")) {
-          const targetId = urlThreadId.replace("direct_", "");
+          const parts = urlThreadId.slice("direct_".length).split("_");
+          const targetId = parts.find((p) => p !== currentUserId) || parts[0];
           setActiveThreadId(urlThreadId);
           setActiveThreadTitle("Direct Chat");
           setActiveThreadType("direct");
@@ -1226,8 +1239,9 @@ export function UnifiedChatApp({
           return;
         } else if (urlThreadId.startsWith("group_")) {
           const gId = urlThreadId.replace("group_", "");
+          const matchingGroup = groups.find((g) => g.id === gId);
           setActiveThreadId(urlThreadId);
-          setActiveThreadTitle("Group Chat");
+          setActiveThreadTitle(matchingGroup?.name || "Group Chat");
           setActiveThreadType("group");
           setActiveGroupId(gId);
           return;
@@ -1360,6 +1374,7 @@ export function UnifiedChatApp({
 
         const formatted = formatMessageItem(msg, currentUserId);
         queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+          console.log("[SET_QUERY_DATA] old count:", old?.messages?.length, "new id:", formatted.id);
           if (!old || !old.messages) return { messages: [formatted], hasMore: false };
           const exists = old.messages.some((m: any) => m.id === formatted.id);
           if (exists) {
@@ -1540,8 +1555,34 @@ export function UnifiedChatApp({
       queryClient.invalidateQueries({ queryKey: ["chat", "presence"] });
     };
 
-    const handleGroupUpdate = () => {
+    const handleGroupUpdate = (data?: any) => {
+      const g = data?.group;
+      const gId = data?.groupId || g?.id || (data?.threadId?.startsWith("group_") ? data.threadId.replace("group_", "") : computedGroupId);
+      if (g && gId) {
+        queryClient.setQueryData<GroupItem[]>(["chat", "groups"], (old) => {
+          if (!old) return old;
+          return old.map((item) => (item.id === gId ? { ...item, ...g } : item));
+        });
+        queryClient.setQueryData<ConversationSummaryItem[]>(["chat", "conversations"], (old) => {
+          if (!old) return old;
+          return old.map((item) =>
+            item.groupId === gId || item.threadId === `group_${gId}`
+              ? { ...item, title: g.name || item.title, name: g.name || item.title, avatarUrl: g.avatarUrl !== undefined ? g.avatarUrl : item.avatarUrl }
+              : item
+          );
+        });
+        if (g.name && (gId === computedGroupId || `group_${gId}` === activeThreadId)) {
+          setActiveThreadTitle(g.name);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (gId) {
+        queryClient.invalidateQueries({ queryKey: ["chat", "group_activity", gId] });
+        queryClient.invalidateQueries({ queryKey: ["chat", "messages", `group_${gId}`] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["chat", "group_activity"] });
+      }
     };
 
     // ── WebRTC Signaling Listeners ──
@@ -1702,6 +1743,12 @@ export function UnifiedChatApp({
     socket.on("presence:update", handlePresenceUpdate);
     socket.on("chat:group_created", handleGroupUpdate);
     socket.on("chat:group_updated", handleGroupUpdate);
+    socket.on("chat:system_event", (data: any) => {
+      handleGroupUpdate(data);
+      if (data?.message) {
+        handleIncomingMessage(data.message);
+      }
+    });
 
     // Call signaling events
     socket.on("call:incoming", handleIncomingCall);
@@ -1728,6 +1775,7 @@ export function UnifiedChatApp({
       socket.off("presence:update", handlePresenceUpdate);
       socket.off("chat:group_created", handleGroupUpdate);
       socket.off("chat:group_updated", handleGroupUpdate);
+      socket.off("chat:system_event");
 
       socket.off("call:incoming", handleIncomingCall);
       socket.off("call:accepted", handleCallAccepted);
@@ -1812,12 +1860,27 @@ export function UnifiedChatApp({
     },
     onSuccess: (updatedGroup: any) => {
       toast.success("Group profile updated");
+      setIsEditingGroupSidebar(false);
       setEditGroupOpen(false);
+      if (updatedGroup?.id) {
+        queryClient.setQueryData<GroupItem[]>(["chat", "groups"], (old) => {
+          if (!old) return old;
+          return old.map((g) => (g.id === updatedGroup.id ? { ...g, ...updatedGroup } : g));
+        });
+        queryClient.setQueryData<ConversationSummaryItem[]>(["chat", "conversations"], (old) => {
+          if (!old) return old;
+          return old.map((c) =>
+            c.groupId === updatedGroup.id || c.threadId === `group_${updatedGroup.id}`
+              ? { ...c, title: updatedGroup.name || c.title, name: updatedGroup.name || c.title, avatarUrl: updatedGroup.avatarUrl !== undefined ? updatedGroup.avatarUrl : c.avatarUrl }
+              : c
+          );
+        });
+        if (updatedGroup.name) setActiveThreadTitle(updatedGroup.name);
+      }
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
       queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
       queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
-      queryClient.invalidateQueries({ queryKey: ["chat", "group_activity", activeGroupId] });
-      if (updatedGroup?.name) setActiveThreadTitle(updatedGroup.name);
+      queryClient.invalidateQueries({ queryKey: ["chat", "group_activity", computedGroupId] });
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || "Failed to update group profile");
@@ -2681,18 +2744,37 @@ export function UnifiedChatApp({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", "Chat/Images");
-      const res = await api.upload("/api/v1/media/upload", formData);
-      const media = res.data;
-      if (purpose === "newGroup") {
-        setNewGroupAvatarUrl(media.url);
-        setNewGroupAvatarMediaId(media.id);
-      } else {
-        setEditGroupAvatarUrl(media.url);
-        setEditGroupAvatarMediaId(media.id);
+      let uploadedUrl = "";
+      let uploadedId = "";
+      try {
+        const res: any = await api.upload("/api/v1/media/upload", formData);
+        const media = res?.data || res;
+        uploadedUrl = media?.url || media?.files?.[0]?.url || media?.file?.url;
+        uploadedId = media?.id || media?.files?.[0]?.id || media?.files?.[0]?.mediaId || media?.mediaId;
+      } catch {
+        // Fallback to /api/chat/upload
+        const chatFormData = new FormData();
+        chatFormData.append("files", file);
+        const res2: any = await api.upload("/api/chat/upload", chatFormData);
+        const fileObj = (res2?.files || res2?.data?.files || res2?.data || [])[0] || res2;
+        uploadedUrl = fileObj?.url;
+        uploadedId = fileObj?.id || fileObj?.mediaId;
       }
-      toast.success("Group avatar uploaded to Media Library");
+
+      if (!uploadedUrl) {
+        throw new Error("Upload did not return a valid media URL");
+      }
+
+      if (purpose === "newGroup") {
+        setNewGroupAvatarUrl(uploadedUrl);
+        setNewGroupAvatarMediaId(uploadedId || "");
+      } else {
+        setEditGroupAvatarUrl(uploadedUrl);
+        setEditGroupAvatarMediaId(uploadedId || "");
+      }
+      toast.success("Group avatar uploaded successfully");
     } catch (err: any) {
-      toast.error(err.response?.data?.error || err.message || "Failed to upload group avatar");
+      toast.error(err?.response?.data?.error || err.message || "Failed to upload group avatar");
     } finally {
       setIsUploadingGroupAvatar(false);
     }
@@ -3317,6 +3399,19 @@ export function UnifiedChatApp({
       (c.employeeId && c.employeeId === activeTargetUserId)
   );
 
+  // Synchronize activeThreadTitle on initial load or empty title
+  useEffect(() => {
+    if (activeThreadType === "group" && activeGroup?.name) {
+      if (!activeThreadTitle || activeThreadTitle === "Group Chat") {
+        setActiveThreadTitle(activeGroup.name);
+      }
+    } else if (activeThreadType === "direct" && participantProfile?.name) {
+      if (!activeThreadTitle || activeThreadTitle === "Direct Chat") {
+        setActiveThreadTitle(participantProfile.name);
+      }
+    }
+  }, [activeThreadType, activeGroup?.name, participantProfile?.name]);
+
   const isUserTyping = Object.values(typingUsers).some(Boolean);
 
   return (
@@ -3501,7 +3596,7 @@ export function UnifiedChatApp({
                         setActiveThreadTitle(item.title);
                         setActiveThreadType(item.type);
                         setActiveTargetUserId(item.otherParticipantId || "");
-                        setActiveGroupId(item.groupId || "");
+                        setActiveGroupId(item.groupId || (item.threadId?.startsWith("group_") ? item.threadId.replace("group_", "") : ""));
                       }}
                       className={cn(
                         "group p-3 flex items-start gap-3 cursor-pointer transition-colors relative hover:bg-muted/50",
@@ -3509,14 +3604,14 @@ export function UnifiedChatApp({
                       )}
                     >
                       <div className="relative flex-shrink-0">
-                        <div
-                          className={cn(
-                            "size-10 rounded-full flex items-center justify-center font-bold text-xs shadow-xs",
-                            item.avatarColor
+                        <Avatar className="size-10 shadow-xs">
+                          {item.avatarUrl && (
+                            <AvatarImage src={item.avatarUrl} alt={item.title} className="object-cover" />
                           )}
-                        >
-                          {item.avatarLetter}
-                        </div>
+                          <AvatarFallback className={cn("text-white font-bold text-xs", item.avatarColor)}>
+                            {item.avatarLetter}
+                          </AvatarFallback>
+                        </Avatar>
                         {item.type === "direct" && (
                           <span
                             className={cn(
@@ -3617,14 +3712,14 @@ export function UnifiedChatApp({
                         isSelected && "bg-muted/80"
                       )}
                     >
-                      <div
-                        className={cn(
-                          "size-10 rounded-full flex items-center justify-center font-bold text-xs shadow-xs flex-shrink-0",
-                          group.avatarColor
+                      <Avatar className="size-10 shadow-xs flex-shrink-0">
+                        {group.avatarUrl && (
+                          <AvatarImage src={group.avatarUrl} alt={group.name} className="object-cover" />
                         )}
-                      >
-                        {group.avatarLetter}
-                      </div>
+                        <AvatarFallback className={cn("text-white font-bold text-xs", group.avatarColor)}>
+                          {group.avatarLetter}
+                        </AvatarFallback>
+                      </Avatar>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
@@ -4187,24 +4282,28 @@ export function UnifiedChatApp({
             {/* Conversation Header */}
             <div className="p-3.5 border-b border-border flex items-center justify-between bg-card">
               <div className="flex items-center gap-3 min-w-0">
-                {activeThreadType === "direct" && (participantProfile?.avatarUrl || activeContact?.avatarUrl) ? (
-                  <img
-                    src={participantProfile?.avatarUrl || activeContact?.avatarUrl || ""}
-                    alt={activeThreadTitle}
-                    className="size-9.5 rounded-full object-cover flex-shrink-0 shadow-xs"
-                  />
-                ) : (
-                  <div
-                    className={cn(
-                      "size-9.5 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs",
-                      getAvatarColor(activeThreadTitle)
-                    )}
-                  >
+                <Avatar className="size-9.5 flex-shrink-0 shadow-xs">
+                  {(activeThreadType === "direct"
+                    ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                    : activeGroup?.avatarUrl) ? (
+                    <AvatarImage
+                      src={
+                        (activeThreadType === "direct"
+                          ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                          : activeGroup?.avatarUrl) || ""
+                      }
+                      alt={activeThreadTitle}
+                      className="object-cover"
+                    />
+                  ) : null}
+                  <AvatarFallback className={cn("text-white font-bold text-xs", getAvatarColor(activeThreadTitle))}>
                     {(activeThreadTitle || "C").charAt(0).toUpperCase()}
-                  </div>
-                )}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-foreground truncate">{activeThreadTitle}</h3>
+                  <h3 className="font-bold text-sm text-foreground truncate">
+                    {activeThreadType === "group" && activeGroup?.name ? activeGroup.name : activeThreadTitle}
+                  </h3>
                   <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     {activeThreadType === "direct" ? (
                       <>
@@ -4458,7 +4557,7 @@ export function UnifiedChatApp({
                 </div>
               ) : (
                 allMessages.map((msg, index) => {
-                  const isSent = msg.types === "sent";
+                  const isSent = msg.senderId === currentUserId || msg.types === "sent";
                   const isAuthor = msg.senderId === currentUserId;
 
                   // Render date separator once per transition
@@ -4494,19 +4593,35 @@ export function UnifiedChatApp({
                             isSent ? "ml-auto flex-row-reverse" : "mr-auto"
                           )}
                         >
-                      {!isSent && (
-                        <div
-                          className={cn(
-                            "size-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white flex-shrink-0 shadow-2xs",
-                            getAvatarColor(msg.senderName)
+                          {!isSent && (
+                            <Avatar className="size-7 flex-shrink-0 shadow-2xs mb-0.5">
+                              {msg.senderAvatar ? (
+                                <AvatarImage
+                                  src={msg.senderAvatar}
+                                  alt={msg.senderName || "User"}
+                                  className="object-cover"
+                                />
+                              ) : null}
+                              <AvatarFallback
+                                className={cn(
+                                  "text-white font-bold text-[10px]",
+                                  getAvatarColor(msg.senderName)
+                                )}
+                              >
+                                {(msg.senderName || "U").charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
                           )}
-                        >
-                          {(msg.senderName || "U").charAt(0).toUpperCase()}
-                        </div>
-                      )}
 
-                      <div className="space-y-1 relative">
-                        {/* Reply reference preview */}
+                          <div className="space-y-1 relative">
+                            {/* In group chats, display sender display name above incoming bubble */}
+                            {!isSent && activeThreadType === "group" && (
+                              <p className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 pl-1 select-none">
+                                {msg.senderName}
+                              </p>
+                            )}
+
+                            {/* Reply reference preview */}
                         {msg.replyTo && (
                           <div className="text-[10px] text-muted-foreground border-l-2 border-teal-600 pl-2 py-0.5 mb-1 bg-muted/40 rounded-r">
                             <span className="font-semibold">{msg.replyTo.senderName}: </span>
@@ -5475,29 +5590,103 @@ export function UnifiedChatApp({
         <aside className="w-[300px] flex-shrink-0 border-l border-border bg-card flex flex-col overflow-y-auto">
           {/* Top Profile Card */}
           <div className="p-6 text-center border-b border-border/70 flex flex-col items-center">
-            {activeThreadType === "direct" && (participantProfile?.avatarUrl || activeContact?.avatarUrl) ? (
-              <img
-                src={participantProfile?.avatarUrl || activeContact?.avatarUrl || ""}
-                alt={activeThreadTitle}
-                className="size-18 rounded-full object-cover mb-3 shadow-md"
-              />
-            ) : (
-              <div
-                className={cn(
-                  "size-18 rounded-full flex items-center justify-center font-bold text-2xl text-white mb-3 shadow-md",
-                  getAvatarColor(activeThreadTitle)
-                )}
-              >
-                {(activeThreadTitle || "C").charAt(0).toUpperCase()}
-              </div>
-            )}
+            {activeThreadType === "group" && isEditingGroupSidebar ? (
+              <div className="flex flex-col items-center space-y-3 w-full">
+                <div className="relative">
+                  <Avatar className="size-20 shadow-md">
+                    {editGroupAvatarUrl ? (
+                      <AvatarImage src={editGroupAvatarUrl} alt={editGroupName || "Group"} className="object-cover" />
+                    ) : null}
+                    <AvatarFallback className={cn("text-white font-bold text-2xl", getAvatarColor(editGroupName || activeThreadTitle))}>
+                      {(editGroupName || activeThreadTitle || "G").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {isUploadingGroupAvatar && (
+                    <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                      <RefreshCw className="size-5 text-white animate-spin" />
+                    </div>
+                  )}
+                </div>
 
-            <h3 className="font-bold text-base text-foreground truncate w-full">{activeThreadTitle}</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {activeThreadType === "direct"
-                ? participantProfile?.designation || activeContact?.designation || "Colleague"
-                : `${activeGroup?.memberCount || 0} Members`}
-            </p>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleGroupAvatarUpload(file, "editGroup");
+                        e.target.value = "";
+                      }}
+                    />
+                    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-2xs">
+                      <Upload className="size-3.5 text-teal-600" />
+                      <span>Upload</span>
+                    </span>
+                  </label>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs px-2.5 gap-1"
+                    onClick={() => {
+                      setMediaPickerPurpose("editGroup");
+                      setMediaPickerOpen(true);
+                    }}
+                  >
+                    <FolderOpen className="size-3.5 text-teal-600" />
+                    <span>Media Library</span>
+                  </Button>
+
+                  {editGroupAvatarUrl && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                      onClick={() => {
+                        setEditGroupAvatarUrl("");
+                        setEditGroupAvatarMediaId("");
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <Avatar className="size-18 shadow-md mb-3">
+                  {(activeThreadType === "direct"
+                    ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                    : activeGroup?.avatarUrl) ? (
+                    <AvatarImage
+                      src={
+                        (activeThreadType === "direct"
+                          ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                          : activeGroup?.avatarUrl) || ""
+                      }
+                      alt={activeThreadTitle}
+                      className="object-cover"
+                    />
+                  ) : null}
+                  <AvatarFallback className={cn("text-white font-bold text-2xl", getAvatarColor(activeThreadTitle))}>
+                    {(activeThreadTitle || "C").charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+
+                <h3 className="font-bold text-base text-foreground truncate w-full">
+                  {activeThreadType === "group" && activeGroup?.name ? activeGroup.name : activeThreadTitle}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activeThreadType === "direct"
+                    ? participantProfile?.designation || activeContact?.designation || "Colleague"
+                    : `${activeGroup?.memberCount || 0} Members`}
+                </p>
+              </>
+            )}
 
             {/* Quick action buttons */}
             {activeThreadType === "direct" && (
@@ -5625,6 +5814,72 @@ export function UnifiedChatApp({
                     </p>
                   </div>
                 </>
+              ) : isEditingGroupSidebar ? (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                      Group Name *
+                    </label>
+                    <Input
+                      value={editGroupName}
+                      onChange={(e) => setEditGroupName(e.target.value)}
+                      maxLength={100}
+                      placeholder="Enter group name"
+                      className="h-8 text-xs font-medium"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                      Description
+                    </label>
+                    <textarea
+                      value={editGroupDescription}
+                      onChange={(e) => setEditGroupDescription(e.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      placeholder="Add a description for this group..."
+                      className="w-full text-xs p-2 rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-1 focus:ring-teal-600 font-sans"
+                    />
+                    <p className="text-[10px] text-muted-foreground text-right">{editGroupDescription.length}/500</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs"
+                      onClick={() => {
+                        if (activeGroup) {
+                          setEditGroupName(activeGroup.name);
+                          setEditGroupDescription(activeGroup.description || "");
+                          setEditGroupAvatarUrl(activeGroup.avatarUrl || "");
+                          setEditGroupAvatarMediaId("");
+                        }
+                        setIsEditingGroupSidebar(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1 text-xs bg-teal-700 hover:bg-teal-800 text-white font-sans"
+                      disabled={!editGroupName.trim() || updateGroupMutation.isPending}
+                      onClick={() => {
+                        const targetId = activeGroup?.id || activeGroupId || (activeThreadId?.startsWith("group_") ? activeThreadId.replace("group_", "") : "");
+                        if (!targetId || !editGroupName.trim()) return;
+                        updateGroupMutation.mutate({
+                          groupId: targetId,
+                          name: editGroupName.trim(),
+                          description: editGroupDescription.trim(),
+                          avatarUrl: editGroupAvatarUrl.trim() || null as any,
+                        });
+                      }}
+                    >
+                      {updateGroupMutation.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="space-y-4">
                   <div>
@@ -5654,11 +5909,12 @@ export function UnifiedChatApp({
                           setEditGroupName(activeGroup.name);
                           setEditGroupDescription(activeGroup.description || "");
                           setEditGroupAvatarUrl(activeGroup.avatarUrl || "");
-                          setEditGroupOpen(true);
+                          setEditGroupAvatarMediaId("");
+                          setIsEditingGroupSidebar(true);
                         }}
                       >
                         <Edit3 className="size-3.5 text-teal-600" />
-                        <span>Edit Group Profile</span>
+                        <span>Edit Group Details</span>
                       </Button>
                     )}
 
@@ -5723,22 +5979,14 @@ export function UnifiedChatApp({
                   return (
                     <div key={m.id || m.userId} className="py-2.5 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 min-w-0">
-                        {m.avatarUrl ? (
-                          <img
-                            src={m.avatarUrl}
-                            alt={m.name}
-                            className="size-7 rounded-full object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div
-                            className={cn(
-                              "size-7 rounded-full flex items-center justify-center font-bold text-[10px] text-white flex-shrink-0",
-                              getAvatarColor(m.name)
-                            )}
-                          >
+                        <Avatar className="size-7 flex-shrink-0 shadow-2xs">
+                          {m.avatarUrl && (
+                            <AvatarImage src={m.avatarUrl} alt={m.name} className="object-cover" />
+                          )}
+                          <AvatarFallback className={cn("text-white font-bold text-[10px]", getAvatarColor(m.name))}>
                             {(m.name || "M").charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="truncate">
                           <p className="font-semibold truncate flex items-center gap-1.5">
                             <span>{m.name}</span>
@@ -7094,138 +7342,6 @@ export function UnifiedChatApp({
                 <CalendarPlus className="size-3.5" />
               )}
               Schedule Event
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 12. EDIT GROUP PROFILE MODAL */}
-      <Dialog open={editGroupOpen} onOpenChange={setEditGroupOpen}>
-        <DialogContent
-          className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold font-sans">Edit Group Profile</DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground font-sans">
-              Update group display name, description, and avatar.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3 py-2 text-xs font-sans">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Group Name</Label>
-              <Input
-                value={editGroupName}
-                onChange={(e) => setEditGroupName(e.target.value)}
-                placeholder="e.g. Engineering Leadership"
-                className="text-xs font-sans"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold">Description</Label>
-              <Input
-                value={editGroupDescription}
-                onChange={(e) => setEditGroupDescription(e.target.value)}
-                placeholder="Team sprint coordination & announcements"
-                className="text-xs font-sans"
-              />
-            </div>
-
-            {/* Group Avatar Selection */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Group Avatar</Label>
-              <div className="flex items-center gap-3">
-                <div className="size-14 rounded-full border border-border/80 bg-muted/40 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-xs relative">
-                  {editGroupAvatarUrl ? (
-                    <img
-                      src={editGroupAvatarUrl}
-                      alt="Group Avatar"
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <Users className="size-6 text-muted-foreground/60" />
-                  )}
-                  {isUploadingGroupAvatar && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <RefreshCw className="size-4 text-white animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs gap-1.5 font-sans"
-                      onClick={() => {
-                        setMediaPickerPurpose("editGroup");
-                        setMediaPickerOpen(true);
-                      }}
-                    >
-                      <ImageIcon className="size-3.5 text-teal-600" />
-                      Choose from Media Library
-                    </Button>
-                    <label className="cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleGroupAvatarUpload(file, "editGroup");
-                          e.target.value = "";
-                        }}
-                      />
-                      <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-xs">
-                        <Upload className="size-3.5 text-teal-600" />
-                        Upload
-                      </span>
-                    </label>
-                    {editGroupAvatarUrl && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
-                        onClick={() => {
-                          setEditGroupAvatarUrl("");
-                          setEditGroupAvatarMediaId("");
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-muted-foreground">
-                    Select an existing image from Media Library or upload a new one to Chat/Images.
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="font-sans">
-            <Button variant="outline" size="sm" onClick={() => setEditGroupOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={!editGroupName.trim() || updateGroupMutation.isPending}
-              onClick={() => {
-                if (!activeGroupId) return;
-                updateGroupMutation.mutate({
-                  groupId: activeGroupId,
-                  name: editGroupName.trim(),
-                  description: editGroupDescription.trim(),
-                  avatarUrl: editGroupAvatarUrl.trim() || undefined,
-                });
-              }}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
-            >
-              Save Profile
             </Button>
           </DialogFooter>
         </DialogContent>

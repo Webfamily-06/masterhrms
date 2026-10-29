@@ -378,11 +378,12 @@ exports.chatRouter.get("/conversations", auth_1.requireAuth, async (req, res) =>
             });
             return {
                 id: g.id,
+                groupId: g.id,
                 threadId,
                 type: "group",
                 name: g.name,
                 description: g.description,
-                avatarUrl: g.avatarUrl,
+                avatarUrl: g.avatarUrl || null,
                 memberCount: g.members.length,
                 members: g.members.map((mem) => mem.userId),
                 createdById: g.createdById,
@@ -613,6 +614,7 @@ exports.chatRouter.get("/groups", auth_1.requireAuth, async (req, res) => {
             }));
             return {
                 id: g.id,
+                groupId: g.id,
                 threadId,
                 name: g.name,
                 description: g.description,
@@ -784,8 +786,9 @@ exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => 
             updatedData.name = name.trim();
         if (typeof description === "string")
             updatedData.description = description.trim() || null;
-        if (typeof avatarUrl === "string")
-            updatedData.avatarUrl = avatarUrl.trim() || null;
+        if (avatarUrl !== undefined) {
+            updatedData.avatarUrl = typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null;
+        }
         const updated = await prisma_1.prisma.chatGroup.update({
             where: { id },
             data: updatedData,
@@ -797,16 +800,17 @@ exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => 
             select: { fullName: true },
         });
         const actorName = prof?.fullName || "Admin";
-        let changeDesc = "updated the group profile";
+        const changes = [];
         if (updatedData.name && updatedData.name !== group.name) {
-            changeDesc = `changed the group name to "${updatedData.name}"`;
+            changes.push(`changed group name to "${updatedData.name}"`);
         }
-        else if (updatedData.avatarUrl !== undefined && updatedData.avatarUrl !== group.avatarUrl) {
-            changeDesc = `changed the group profile picture`;
+        if (updatedData.avatarUrl !== undefined && updatedData.avatarUrl !== group.avatarUrl) {
+            changes.push(updatedData.avatarUrl ? `updated group photo` : `removed group photo`);
         }
-        else if (updatedData.description !== undefined && updatedData.description !== group.description) {
-            changeDesc = `changed the group description`;
+        if (updatedData.description !== undefined && updatedData.description !== group.description) {
+            changes.push(`updated group description`);
         }
+        const changeDesc = changes.length > 0 ? changes.join(" and ") : "updated the group profile";
         await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_profile_updated", `${actorName} ${changeDesc}.`, { updatedFields: Object.keys(updatedData) });
         (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, group: updated });
         await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, group: updated }).catch(() => { });
