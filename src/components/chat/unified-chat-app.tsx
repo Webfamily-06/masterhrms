@@ -84,6 +84,7 @@ import {
   Paperclip,
   Send,
   Smile,
+  SmilePlus,
   ChevronDown,
   UserPlus,
   Users,
@@ -141,6 +142,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { MediaPickerModal, MediaFileItem } from "@/components/media/media-picker-modal";
+import { EmojiPicker } from "./emoji-picker";
 
 export type ChatMode = "chats" | "groups" | "contacts" | "calls";
 
@@ -853,8 +855,9 @@ export function UnifiedChatApp({
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Emoji Popover for composer
+  // Emoji Popovers
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
 
   // Desktop Context Menu & Mobile Long-press / Swipe Gestures
   const [contextMenuMessage, setContextMenuMessage] = useState<any | null>(null);
@@ -5535,24 +5538,54 @@ export function UnifiedChatApp({
                           <div
                             className={cn(
                               "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-card/90 backdrop-blur-xs border border-border rounded-lg shadow-sm px-1 py-0.5 z-10",
-                              isSent ? "-left-24" : "-right-24"
+                              isSent ? "-left-28" : "-right-28",
+                              reactionPickerMessageId === msg.id && "opacity-100"
                             )}
                           >
                             {/* Quick Emoji Reaction */}
                             <button
                               onClick={() => handleAddReaction(msg.id, "👍")}
-                              className="p-1 hover:bg-muted rounded text-xs"
+                              className="p-1 hover:bg-muted rounded text-xs cursor-pointer"
                               title="React Thumbs Up"
                             >
                               👍
                             </button>
                             <button
                               onClick={() => handleAddReaction(msg.id, "❤️")}
-                              className="p-1 hover:bg-muted rounded text-xs"
+                              className="p-1 hover:bg-muted rounded text-xs cursor-pointer"
                               title="React Heart"
                             >
                               ❤️
                             </button>
+
+                            {/* Add Reaction Picker */}
+                            <Popover
+                              open={reactionPickerMessageId === msg.id}
+                              onOpenChange={(open) => setReactionPickerMessageId(open ? msg.id : null)}
+                            >
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                                  title="Add reaction"
+                                >
+                                  <SmilePlus className="size-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="top"
+                                align={isSent ? "end" : "start"}
+                                className="p-0 border-none bg-transparent shadow-none w-auto z-50"
+                              >
+                                <EmojiPicker
+                                  onSelectEmoji={(emoji) => {
+                                    handleAddReaction(msg.id, emoji);
+                                    setReactionPickerMessageId(null);
+                                  }}
+                                  onClose={() => setReactionPickerMessageId(null)}
+                                />
+                              </PopoverContent>
+                            </Popover>
 
                             {/* Reply */}
                             <button
@@ -6090,8 +6123,8 @@ export function UnifiedChatApp({
                 />
 
                 {/* Emoji Inserter */}
-                <DropdownMenu open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-                  <DropdownMenuTrigger asChild>
+                <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+                  <PopoverTrigger asChild>
                     <button
                       type="button"
                       className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
@@ -6099,25 +6132,21 @@ export function UnifiedChatApp({
                     >
                       <Smile className="size-4.5" />
                     </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="p-2 w-64 grid grid-cols-6 gap-1 font-sans">
-                    {["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👏", "✅", "🚀", "✨", "🙏"].map(
-                      (emoji) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => {
-                            setMessageInput((prev) => prev + ` ${emoji} `);
-                            setEmojiPickerOpen(false);
-                          }}
-                          className="size-8 text-lg flex items-center justify-center hover:bg-muted rounded"
-                        >
-                          {emoji}
-                        </button>
-                      )
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="end"
+                    className="p-0 border-none bg-transparent shadow-none w-auto z-50 mb-1"
+                  >
+                    <EmojiPicker
+                      onSelectEmoji={(emoji) => {
+                        setMessageInput((prev) => prev + ` ${emoji} `);
+                        setEmojiPickerOpen(false);
+                      }}
+                      onClose={() => setEmojiPickerOpen(false)}
+                    />
+                  </PopoverContent>
+                </Popover>
 
                 {/* Voice Note Button */}
                 <button
