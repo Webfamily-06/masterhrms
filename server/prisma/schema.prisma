@@ -4902,6 +4902,7 @@ model MediaFile {
   fileLinks      FileLink[]
   activities     FileActivity[]
   recents        FileRecent[]
+  legalHolds     StorageLegalHold[]
 
   @@index([tenantId, folder])
   @@index([tenantId, parentId])
@@ -5118,6 +5119,73 @@ model StorageAlertState {
   @@unique([tenantId])
   @@map("storage_alert_states")
 }
+
+model StorageRetentionPolicy {
+  id                     String    @id @default(uuid()) @db.VarChar(36)
+  tenantId               String?   @unique @map("tenant_id") @db.VarChar(36)
+  isEnabled              Boolean   @default(false) @map("is_enabled")
+  isDryRun               Boolean   @default(true) @map("is_dry_run")
+  trashRetentionDays     Int       @default(30) @map("trash_retention_days")
+  versionRetentionDays   Int?      @map("version_retention_days")
+  maxVersionsPerFile     Int?      @map("max_versions_per_file")
+  cleanExpiredLinks      Boolean   @default(false) @map("clean_expired_links")
+  cleanAbandonedSessions Boolean   @default(true) @map("clean_abandoned_sessions")
+  requiresApproval       Boolean   @default(false) @map("requires_approval")
+  excludedFolders        String[]  @default([]) @map("excluded_folders")
+  policyVersion          Int       @default(1) @map("policy_version")
+  updatedBy              String?   @map("updated_by") @db.VarChar(36)
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("storage_retention_policies")
+}
+
+model StorageLegalHold {
+  id            String    @id @default(uuid()) @db.VarChar(36)
+  tenantId      String    @map("tenant_id") @db.VarChar(36)
+  fileId        String    @map("file_id") @db.VarChar(36)
+  fileVersionId String?   @map("file_version_id") @db.VarChar(36)
+  reason        String    @db.VarChar(500)
+  holdScope     String    @default("FILE") @map("hold_scope") @db.VarChar(20)
+  createdBy     String    @map("created_by") @db.VarChar(36)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  releasedAt    DateTime? @map("released_at")
+  releaseReason String?   @map("release_reason") @db.VarChar(500)
+  releasedBy    String?   @map("released_by") @db.VarChar(36)
+
+  file          MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fileId, releasedAt])
+  @@map("storage_legal_holds")
+}
+
+model StorageRetentionJob {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  tenantId       String?   @map("tenant_id") @db.VarChar(36)
+  policyId       String?   @map("policy_id") @db.VarChar(36)
+  status         String    @default("PENDING") @db.VarChar(30)
+  isDryRun       Boolean   @default(true) @map("is_dry_run")
+  triggerType    String    @default("MANUAL") @map("trigger_type") @db.VarChar(20)
+  eligibleCount  Int       @default(0) @map("eligible_count")
+  eligibleBytes  BigInt    @default(0) @map("eligible_bytes")
+  deletedCount   Int       @default(0) @map("deleted_count")
+  deletedBytes   BigInt    @default(0) @map("deleted_bytes")
+  skippedCount   Int       @default(0) @map("skipped_count")
+  failedCount    Int       @default(0) @map("failed_count")
+  detailsJson    Json?     @map("details_json")
+  requestedBy    String?   @map("requested_by") @db.VarChar(36)
+  approvedBy     String?   @map("approved_by") @db.VarChar(36)
+  approvedAt     DateTime? @map("approved_at")
+  rejectedReason String?   @map("rejected_reason") @db.VarChar(500)
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([tenantId, status, createdAt])
+  @@map("storage_retention_jobs")
+}
+
 
 model FileRecent {
   id         String    @id @default(uuid()) @db.VarChar(36)

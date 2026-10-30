@@ -437,6 +437,18 @@ export default function TenantUsageMetricsPage() {
     },
   });
 
+  // Fleet Retention & Governance Metrics
+  const {
+    data: fleetRetention,
+    refetch: refetchFleetRetention,
+  } = useQuery({
+    queryKey: ["super-storage-fleet-retention"],
+    queryFn: async () => {
+      const res = await api.get("/api/v1/super/storage/retention/fleet");
+      return (res as any)?.data ?? res;
+    },
+  });
+
   // Quota Utilization Distribution (Histogram Tiers)
   const quotaHistogram = useMemo(() => {
     let healthy = 0; // < 50%
@@ -1080,6 +1092,114 @@ export default function TenantUsageMetricsPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── FLEET STORAGE RETENTION & GOVERNANCE AUTOMATION ── */}
+      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-amber-500" />
+            <div>
+              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                Fleet Storage Retention & Legal Hold Governance
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Lifecycle automation overview, dry-run simulation monitoring, and legal preservation status across all tenants.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetchFleetRetention()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh
+          </button>
+        </div>
+
+        {/* Fleet Retention KPI Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+          <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">Active Policies</div>
+            <div className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {fleetRetention?.activePolicies || 0} / {fleetRetention?.totalPolicies || 0}
+            </div>
+            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-sans">
+              {fleetRetention?.dryRunPolicies || 0} in dry-run mode
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">Storage Reclaimed</div>
+            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              {fleetRetention?.formattedTotalReclaimed || "0 B"}
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans">
+              {fleetRetention?.totalReclaimedFiles || 0} items purged
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">Legal Holds Active</div>
+            <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+              {fleetRetention?.activeHoldsCount || 0}
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans">Preserved from deletion</div>
+          </div>
+
+          <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-1">
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 font-sans">Execution Runs</div>
+            <div className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+              {(fleetRetention?.recentJobs || []).length}
+            </div>
+            <div className="text-[10px] text-slate-500 font-sans">Audit logged</div>
+          </div>
+        </div>
+
+        {/* Recent Fleet Executions Table */}
+        {fleetRetention?.recentJobs && fleetRetention.recentJobs.length > 0 && (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <table className="w-full text-left text-xs border-collapse font-mono">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-500 uppercase font-sans">
+                  <th className="py-2 px-3">Job ID</th>
+                  <th className="py-2 px-3">Mode</th>
+                  <th className="py-2 px-3">Status</th>
+                  <th className="py-2 px-3">Eligible</th>
+                  <th className="py-2 px-3">Reclaimed</th>
+                  <th className="py-2 px-3">Executed At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {fleetRetention.recentJobs.slice(0, 5).map((j: any) => (
+                  <tr key={j.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100">{j.id.slice(0, 8)}...</td>
+                    <td className="py-2 px-3">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                        {j.isDryRun ? "DRY-RUN" : "LIVE"}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 font-sans">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                        j.status === "COMPLETED" ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+                      }`}>
+                        {j.status}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3">{j.eligibleCount} files</td>
+                    <td className="py-2 px-3 text-emerald-600 dark:text-emerald-400 font-bold">
+                      {j.formattedDeletedBytes || "0 B"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-500 font-sans">
+                      {new Date(j.createdAt).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Main Container Card */}

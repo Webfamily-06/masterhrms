@@ -4,6 +4,7 @@ import { StorageAdminService } from "../services/files/storage-admin.service";
 import { StorageReconciliationService } from "../services/files/storage-reconciliation.service";
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
 import { StorageForecastService } from "../services/files/storage-forecast.service";
+import { StorageRetentionService } from "../services/files/storage-retention.service";
 
 export const superStorageRouter = Router();
 
@@ -253,4 +254,76 @@ superStorageRouter.post("/reconcile", requireAuth, requireSuperAdmin, async (req
     return res.status(500).json({ error: err.message || "Failed to execute reconciliation." });
   }
 });
+
+/**
+ * GET /api/v1/super/storage/retention/fleet
+ * Fleet-wide retention metrics, active policies, and reclaimed storage.
+ */
+superStorageRouter.get(
+  "/retention/fleet",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const summary = await StorageRetentionService.getFleetRetentionSummary();
+      return res.json(summary);
+    } catch (err: any) {
+      console.error("[Super Storage Fleet Retention Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to retrieve fleet retention summary." });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/super/storage/retention/history
+ * Fleet-wide retention execution history.
+ */
+superStorageRouter.get(
+  "/retention/history",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { tenantId, page, limit } = req.query as any;
+      const history = await StorageRetentionService.listJobs({
+        tenantId: tenantId ? String(tenantId) : undefined,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 20,
+      });
+      return res.json(history);
+    } catch (err: any) {
+      console.error("[Super Storage Retention History Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to retrieve retention history." });
+    }
+  }
+);
+
+/**
+ * POST /api/v1/super/storage/retention/execute
+ * Super Admin trigger for tenant retention cleanup (or dry-run).
+ */
+superStorageRouter.post(
+  "/retention/execute",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { tenantId, isDryRun, force } = req.body;
+      if (!tenantId) {
+        return res.status(400).json({ error: "tenantId is required for retention execution." });
+      }
+
+      const result = await StorageRetentionService.executeRetentionJob({
+        tenantId,
+        actorId: req.user?.id || req.user?.userId,
+        isDryRun,
+        force,
+      });
+      return res.json(result);
+    } catch (err: any) {
+      console.error("[Super Storage Retention Execute Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to execute retention cleanup." });
+    }
+  }
+);
 

@@ -1082,6 +1082,19 @@ export class FilesService {
       throw err;
     }
 
+    // Protection Guard: Block deletion if file is under active legal hold
+    const activeHold = await (prisma as any).storageLegalHold?.findFirst({
+      where: { fileId: file.id, releasedAt: null },
+    });
+    if (activeHold) {
+      const err: any = new Error(
+        `Cannot delete "${file.fileName}": file is protected by active Legal Hold "${activeHold.reason}".`
+      );
+      err.status = 403;
+      err.code = "LEGAL_HOLD_ACTIVE";
+      throw err;
+    }
+
     const storageProvider = StorageProviderFactory.getProvider();
     const isFromTrash = file.status === "TRASHED" || !!file.deletedAt;
 

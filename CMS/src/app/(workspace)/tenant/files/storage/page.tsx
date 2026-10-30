@@ -39,10 +39,11 @@ import { Badge } from '@/components/ui/badge';
 
 // SSR-safe ApexCharts import
 const Chart = lazy(() => import('react-apexcharts'));
+import RetentionTab from './RetentionTab';
 
 export default function TenantStorageAdministrationPage() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'teams' | 'governance' | 'analytics' | 'reconcile' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'teams' | 'governance' | 'analytics' | 'reconcile' | 'activity' | 'retention'>('overview');
   const [isReconciling, setIsReconciling] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [overrideQuotaGb, setOverrideQuotaGb] = useState('10');
@@ -55,6 +56,20 @@ export default function TenantStorageAdministrationPage() {
   const [isSavingDeptQuota, setIsSavingDeptQuota] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [analyticsLookback, setAnalyticsLookback] = useState<7 | 30 | 90>(30);
+  // Check URL search params for initial tab
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tab = urlParams.get('tab');
+      if (
+        tab &&
+        ['overview', 'users', 'teams', 'governance', 'analytics', 'reconcile', 'activity', 'retention'].includes(tab)
+      ) {
+        setActiveTab(tab as any);
+      }
+    }
+  }, []);
+
 
   // Real-time Socket.IO Sync State
   const [socketConnected, setSocketConnected] = useState(false);
@@ -469,6 +484,17 @@ export default function TenantStorageAdministrationPage() {
         >
           <PieChart className="w-4 h-4" />
           Storage Overview
+        </button>
+        <button
+          onClick={() => setActiveTab('retention')}
+          className={`py-2.5 px-4 border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'retention'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          Retention & Legal Holds
         </button>
         <button
           onClick={() => setActiveTab('users')}
@@ -1388,6 +1414,9 @@ export default function TenantStorageAdministrationPage() {
       )}
 
       {/* ── Tab Content 7: Storage Activity Timeline ── */}
+      {/* ── Tab Content 8: Retention & Legal Holds ── */}
+      {activeTab === 'retention' && <RetentionTab />}
+
       {activeTab === 'activity' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
