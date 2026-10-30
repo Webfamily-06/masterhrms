@@ -178,9 +178,10 @@ export class ChatFolderService {
         msg.senderId
       );
 
-      for (const att of msg.attachments) {
+      for (const att of (msg.attachments as any[])) {
         processed++;
-        const mediaId = att.mediaId || (att.id && !String(att.id).startsWith("att_") ? att.id : null);
+        const attObj = att as any;
+        const mediaId = attObj?.mediaId || (attObj?.id && !String(attObj.id).startsWith("att_") ? attObj.id : null);
         if (!mediaId) continue;
 
         const media = await db.mediaFile.findUnique({

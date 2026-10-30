@@ -777,7 +777,7 @@ export class StorageAdminService {
       fileSize: act.file?.fileSize || 0,
       formattedSize: this.formatBytes(act.file?.fileSize || 0),
       action: act.action,
-      details: act.details,
+      details: (act as any).details || (act as any).metaJson || null,
       actorId: act.actorId,
       createdAt: act.createdAt.toISOString(),
     }));

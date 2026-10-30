@@ -54,6 +54,7 @@ export default function TenantStorageAdministrationPage() {
   const [deptQuotaGb, setDeptQuotaGb] = useState('20');
   const [isSavingDeptQuota, setIsSavingDeptQuota] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [analyticsLookback, setAnalyticsLookback] = useState<7 | 30 | 90>(30);
 
   // Real-time Socket.IO Sync State
   const [socketConnected, setSocketConnected] = useState(false);
@@ -119,10 +120,10 @@ export default function TenantStorageAdministrationPage() {
   });
 
   // 2. Fetch Growth & Capacity Forecast Analytics
-  const { data: analytics } = useQuery({
-    queryKey: ['tenant-storage-analytics'],
+  const { data: analytics, isFetching: isAnalyticsFetching, refetch: refetchAnalytics } = useQuery({
+    queryKey: ['tenant-storage-analytics', analyticsLookback],
     queryFn: async () => {
-      const res = await api.get('/api/v1/tenant/storage/analytics');
+      const res = await api.get(`/api/v1/tenant/storage/analytics?lookbackDays=${analyticsLookback}`);
       return (res as any)?.data ?? res;
     },
   });
@@ -998,62 +999,294 @@ export default function TenantStorageAdministrationPage() {
       )}
 
       {/* ── Tab Content 4: Growth & Runway Forecasting ── */}
-      {activeTab === 'analytics' && (
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs">
-              <div className="text-xs text-muted-foreground">Average Daily Ingestion</div>
-              <div className="text-xl font-bold font-mono text-foreground mt-1">
-                {analytics?.forecast?.formattedDailyGrowth || '10.0 MB / day'}
+      {activeTab === 'analytics' && (() => {
+        const forecast = analytics?.forecast || analytics?.growth?.forecast;
+        const growthHistory = analytics?.growth?.history || [];
+        const projections = analytics?.growth?.projections || [];
+        const hasSufficientHistory = analytics?.growth?.hasSufficientHistory ?? (growthHistory.length >= 2);
+        const isInsufficientData = !hasSufficientHistory || forecast?.confidence === 'INSUFFICIENT_DATA';
+
+        return (
+          <div className="space-y-5">
+            {/* Toolbar: Title, Info, and Lookback Window Selector */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-border/60 bg-card shadow-xs">
+              <div>
+                <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  Capacity Runway & Linear Regression Forecast
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Tenant-isolated least-squares regression model evaluating daily consumption trajectory against plan quota.
+                </p>
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Calculated velocity</div>
+
+              <div className="flex items-center gap-1.5 self-start sm:self-auto bg-secondary/50 p-1 rounded-lg border border-border/50 text-xs">
+                <span className="text-[11px] text-muted-foreground px-2 font-medium">Window:</span>
+                {([7, 30, 90] as const).map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setAnalyticsLookback(days)}
+                    className={`px-2.5 py-1 rounded-md font-mono text-xs transition-colors cursor-pointer ${
+                      analyticsLookback === days
+                        ? 'bg-background text-foreground font-semibold shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {days}d
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => refetchAnalytics()}
+                  disabled={isAnalyticsFetching}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors ml-1"
+                  title="Refresh Forecast"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isAnalyticsFetching ? 'animate-spin text-primary' : ''}`} />
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs">
-              <div className="text-xs text-muted-foreground">Estimated Runway (Days)</div>
-              <div className="text-xl font-bold font-mono text-emerald-500 mt-1">
-                {analytics?.forecast?.estimatedDaysToExhaustion
-                  ? `${analytics.forecast.estimatedDaysToExhaustion} days`
-                  : 'Sufficient Runway'}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
-                {analytics?.forecast?.projectedExhaustionDate
-                  ? `Est. depletion: ${analytics.forecast.projectedExhaustionDate}`
-                  : 'No near-term exhaustion'}
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs">
-              <div className="text-xs text-muted-foreground">Forecast Label</div>
-              <div className="text-xl font-bold text-foreground mt-1 flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                {analytics?.forecast?.forecastStatus || 'HEALTHY'}
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">Explicitly labeled estimate</div>
-            </div>
-          </div>
-
-          <div className="p-5 rounded-xl border border-border/60 bg-card shadow-xs space-y-3">
-            <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-emerald-500" />
-              Real Storage Snapshots
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              Storage tracking is grounded in daily persistent snapshots. Below are the authoritative historical markers.
-            </p>
-
-            <div className="divide-y divide-border/60 border border-border/60 rounded-lg overflow-hidden">
-              {analytics?.growth?.snapshots?.map((snap: any) => (
-                <div key={snap.date} className="p-3 flex items-center justify-between text-xs hover:bg-secondary/20">
-                  <div className="font-mono font-semibold">{snap.date}</div>
-                  <div className="font-mono">Used: {snap.formattedUsed}</div>
-                  <div className="font-mono text-muted-foreground">{snap.fileCount} files recorded</div>
+            {/* Insufficient Data State Banner */}
+            {isInsufficientData && (
+              <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/5 text-amber-700 dark:text-amber-300 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs">
+                  <span className="font-bold block text-sm">Historical Trend Data Gathering in Progress</span>
+                  <p className="text-muted-foreground">
+                    Authoritative least-squares linear forecasting requires at least 2 snapshot days. MasterHRMS captures persistent daily storage snapshots automatically at midnight (00:00 UTC).
+                  </p>
+                  <div className="flex items-center gap-3 pt-1 text-[11px] font-mono">
+                    <span>Recorded Snapshots: {growthHistory.length}</span>
+                    <span>•</span>
+                    <span>Confidence: INSUFFICIENT_DATA</span>
+                    <span>•</span>
+                    <span>Live Quota Enforcement: ACTIVE</span>
+                  </div>
                 </div>
-              ))}
+              </div>
+            )}
+
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs space-y-1">
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                  <span>Daily Consumption Velocity</span>
+                  <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+                </div>
+                <div className="text-xl font-bold font-mono text-foreground mt-1">
+                  {forecast?.formattedDailyGrowth || (isInsufficientData ? '0 B / day' : '—')}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {isInsufficientData ? 'Baseline established' : `Slope: ${forecast?.regressionSlope ? (forecast.regressionSlope > 0 ? '+' : '') + Math.round(forecast.regressionSlope / 1024) + ' KB/day' : 'Stable'}`}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs space-y-1">
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                  <span>30-Day Forward Ingestion</span>
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                </div>
+                <div className="text-xl font-bold font-mono text-foreground mt-1">
+                  {forecast?.formattedProjected30Days || forecast?.formattedCurrentUsage || '0 B'}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Current: {summary?.usage?.formattedActive || forecast?.formattedCurrentUsage || '0 B'}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs space-y-1">
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                  <span>Projected Quota Runway</span>
+                  <HardDrive className="w-3.5 h-3.5 text-emerald-500" />
+                </div>
+                <div className={`text-xl font-bold font-mono mt-1 ${
+                  forecast?.thresholdState === 'LOCKED' || forecast?.forecastStatus === 'EXCEEDED'
+                    ? 'text-rose-500'
+                    : forecast?.projectedDaysRemaining && forecast.projectedDaysRemaining < 30
+                    ? 'text-amber-500'
+                    : 'text-emerald-500'
+                }`}>
+                  {forecast?.thresholdState === 'LOCKED' || forecast?.forecastStatus === 'EXCEEDED'
+                    ? 'Quota Exceeded'
+                    : forecast?.projectedDaysRemaining !== null && forecast?.projectedDaysRemaining !== undefined
+                    ? `${forecast.projectedDaysRemaining} days`
+                    : isInsufficientData
+                    ? 'Gathering History'
+                    : 'Runway > 10 yrs'}
+                </div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {forecast?.projectedExhaustionDate
+                    ? `Exhaustion on: ${forecast.projectedExhaustionDate}`
+                    : 'No near-term exhaustion'}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border/60 bg-card shadow-xs space-y-1">
+                <div className="text-xs text-muted-foreground flex items-center justify-between">
+                  <span>Forecast Reliability</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <div className="text-base font-bold text-foreground mt-1 flex items-center gap-2">
+                  <Badge
+                    className={`font-mono text-[10px] ${
+                      forecast?.confidence === 'HIGH'
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : forecast?.confidence === 'MEDIUM'
+                        ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+                        : forecast?.confidence === 'LOW'
+                        ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                        : 'bg-secondary text-muted-foreground border-border'
+                    }`}
+                  >
+                    {forecast?.confidence || 'INSUFFICIENT_DATA'}
+                  </Badge>
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {forecast?.forecastStatus || 'NORMAL'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Sample: {growthHistory.length} daily snapshots
+                </div>
+              </div>
+            </div>
+
+            {/* Visual Runway Progress Bar */}
+            <div className="p-5 rounded-xl border border-border/60 bg-card shadow-xs space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">Capacity Headroom & 30-Day Projection</span>
+                <span className="font-mono text-muted-foreground">
+                  Quota: {summary?.quota?.formattedQuota || forecast?.formattedQuota || '10.0 GB'}
+                </span>
+              </div>
+
+              <div className="h-3 w-full bg-secondary rounded-full overflow-hidden flex">
+                <div
+                  className="bg-emerald-500 transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, Math.max(1, (summary?.usage?.activeBytes || forecast?.currentUsageBytes || 0) / Math.max(1, (summary?.quota?.quotaBytes || forecast?.quotaBytes || 1)) * 100))}%`,
+                  }}
+                  title="Current Active Storage"
+                />
+                <div
+                  className="bg-blue-400/70 border-l border-blue-600/30 transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, ((forecast?.projectedUsage30DaysBytes || 0) - (forecast?.currentUsageBytes || 0)) / Math.max(1, (summary?.quota?.quotaBytes || forecast?.quotaBytes || 1)) * 100))}%`,
+                  }}
+                  title="Projected 30-Day Net Growth"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span>Current Active: {summary?.usage?.formattedActive || forecast?.formattedCurrentUsage || '0 B'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                    <span>30-Day Ingestion: {forecast?.formattedProjected30Days || '0 B'}</span>
+                  </div>
+                </div>
+                <span className="font-mono">
+                  Available: {summary?.usage?.formattedAvailable || forecast?.formattedAvailable || '0 B'}
+                </span>
+              </div>
+            </div>
+
+            {/* Authoritative Snapshots & Projections Table */}
+            <div className="p-5 rounded-xl border border-border/60 bg-card shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Database className="w-4 h-4 text-primary" />
+                    Authoritative Storage Snapshots & Forward Projections
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Immutable historical storage records captured daily at 00:00 UTC alongside mathematical forward extrapolations.
+                  </p>
+                </div>
+                <Badge variant="outline" className="font-mono text-[10px]">
+                  {growthHistory.length} Observed + {projections.length} Projected
+                </Badge>
+              </div>
+
+              <div className="border border-border/60 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-secondary/40 font-semibold text-muted-foreground border-b border-border/60 font-mono">
+                    <tr>
+                      <th className="p-2.5">Date</th>
+                      <th className="p-2.5">Type</th>
+                      <th className="p-2.5">Active Files</th>
+                      <th className="p-2.5">Recycle Bin</th>
+                      <th className="p-2.5">Versions</th>
+                      <th className="p-2.5">Total Billable</th>
+                      <th className="p-2.5">Files Count</th>
+                      <th className="p-2.5 text-right">Net Growth</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60 font-mono">
+                    {/* Historical snapshots */}
+                    {growthHistory.map((point: any) => (
+                      <tr key={point.date} className="hover:bg-secondary/20 transition-colors">
+                        <td className="p-2.5 font-semibold text-foreground">{point.date}</td>
+                        <td className="p-2.5">
+                          <Badge variant="outline" className="text-[10px] bg-secondary/30">
+                            Observed
+                          </Badge>
+                        </td>
+                        <td className="p-2.5">{point.formattedUsed}</td>
+                        <td className="p-2.5 text-muted-foreground">{point.formattedTrash}</td>
+                        <td className="p-2.5 text-muted-foreground">{point.formattedVersion}</td>
+                        <td className="p-2.5 font-bold text-foreground">{point.formattedBillable}</td>
+                        <td className="p-2.5">{point.fileCount}</td>
+                        <td className={`p-2.5 text-right font-bold ${
+                          point.netGrowthBytes > 0
+                            ? 'text-emerald-500'
+                            : point.netGrowthBytes < 0
+                            ? 'text-blue-500'
+                            : 'text-muted-foreground'
+                        }`}>
+                          {point.netGrowthBytes > 0 ? '+' : ''}{point.netGrowthBytes ? (Math.round(point.netGrowthBytes / 1024) + ' KB') : '0 B'}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Forward Projections */}
+                    {projections.map((proj: any) => (
+                      <tr key={proj.date} className="hover:bg-primary/5 transition-colors bg-secondary/10">
+                        <td className="p-2.5 font-semibold text-primary">{proj.date}</td>
+                        <td className="p-2.5">
+                          <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                            Projected
+                          </Badge>
+                        </td>
+                        <td className="p-2.5 text-primary">{proj.formattedUsed}</td>
+                        <td className="p-2.5 text-muted-foreground">{proj.formattedTrash}</td>
+                        <td className="p-2.5 text-muted-foreground">{proj.formattedVersion}</td>
+                        <td className="p-2.5 font-bold text-primary">{proj.formattedBillable}</td>
+                        <td className="p-2.5">{proj.fileCount}</td>
+                        <td className="p-2.5 text-right font-bold text-primary">
+                          +{Math.round(proj.netGrowthBytes / 1024)} KB
+                        </td>
+                      </tr>
+                    ))}
+
+                    {growthHistory.length === 0 && projections.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                          No snapshot history recorded yet. The daily storage snapshot daemon runs every night at 00:00 UTC.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Tab Content 5: Reconciliation & Self-Healing ── */}
       {activeTab === 'reconcile' && (

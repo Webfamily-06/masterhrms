@@ -38,6 +38,11 @@ import {
   Folder,
   Activity,
   ArrowUpRight,
+  TrendingUp,
+  BarChart3,
+  CheckCircle2,
+  Sparkles,
+  PieChart,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -202,6 +207,8 @@ export type TenantUsageDetailResponse = {
       actorId: string;
       createdAt: string;
     }>;
+    forecast?: any;
+    growthHistory?: any;
     lastReconciledAt?: string | null;
   };
   userActivity: {
@@ -327,8 +334,9 @@ export default function TenantUsageMetricsPage() {
   // Detail Modal State
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [detailPeriod, setDetailPeriod] = useState<"30d" | "7d" | "90d" | "1y" | "all">("30d");
-  const [modalTab, setModalTab] = useState<"storage" | "departments" | "teams" | "users" | "activity" | "telemetry">("storage");
+  const [modalTab, setModalTab] = useState<"storage" | "departments" | "teams" | "users" | "activity" | "telemetry" | "forecast">("storage");
   const [copiedId, setCopiedId] = useState(false);
+  const [forecastLookback, setForecastLookback] = useState<7 | 30 | 90>(30);
 
   // Real-time Socket.IO State
   const [socketConnected, setSocketConnected] = useState(false);
@@ -414,6 +422,45 @@ export default function TenantUsageMetricsPage() {
 
   const fleetSummary = apiResult?.fleetSummary;
   const metrics = apiResult?.data || [];
+
+  // Fleet Analytics & Storage Capacity Forecasting
+  const {
+    data: fleetAnalytics,
+    isLoading: isAnalyticsLoading,
+    isFetching: isAnalyticsFetching,
+    refetch: refetchFleetAnalytics,
+  } = useQuery({
+    queryKey: ["super-storage-fleet-analytics", forecastLookback],
+    queryFn: async () => {
+      const res = await api.get(`/api/v1/super/storage/analytics?lookbackDays=${forecastLookback}`);
+      return (res as any)?.data ?? res;
+    },
+  });
+
+  // Quota Utilization Distribution (Histogram Tiers)
+  const quotaHistogram = useMemo(() => {
+    let healthy = 0; // < 50%
+    let moderate = 0; // 50 - 79%
+    let warning = 0; // 80 - 99%
+    let exceeded = 0; // 100%+
+
+    metrics.forEach((m) => {
+      const p = m.storagePercentage ?? 0;
+      if (p >= 100 || m.thresholdState === "LOCKED") exceeded++;
+      else if (p >= 80 || m.thresholdState === "CRITICAL" || m.thresholdState === "WARNING") warning++;
+      else if (p >= 50) moderate++;
+      else healthy++;
+    });
+
+    const total = Math.max(1, metrics.length);
+    return {
+      healthy: { count: healthy, pct: Math.round((healthy / total) * 100) },
+      moderate: { count: moderate, pct: Math.round((moderate / total) * 100) },
+      warning: { count: warning, pct: Math.round((warning / total) * 100) },
+      exceeded: { count: exceeded, pct: Math.round((exceeded / total) * 100) },
+      totalTenants: metrics.length,
+    };
+  }, [metrics]);
 
   // Fetch deep tenant details when modal opens
   const {
@@ -687,6 +734,350 @@ export default function TenantUsageMetricsPage() {
           </div>
           <div className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
             Frozen writes
+          </div>
+        </div>
+      </div>
+
+      {/* ── FLEET ANALYTICS & STORAGE CAPACITY FORECASTING ── */}
+      <div className="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-5">
+        {/* Section Header with Lookback Window Filter */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-indigo-500" />
+              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                Fleet Analytics & Storage Capacity Forecasting
+              </h3>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Platform-wide least-squares regression velocity, capacity exhaustion watchlist, utilization distribution histogram, and anomaly telemetry.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 self-start sm:self-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+            <span className="text-[11px] text-slate-500 px-2 font-medium">Forecast Window:</span>
+            {([7, 30, 90] as const).map((days) => (
+              <button
+                key={days}
+                type="button"
+                onClick={() => setForecastLookback(days)}
+                className={`px-2.5 py-1 rounded-md font-mono text-xs transition-colors cursor-pointer ${
+                  forecastLookback === days
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                {days}d
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => refetchFleetAnalytics()}
+              disabled={isAnalyticsFetching}
+              className="p-1 text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 rounded transition-colors ml-1"
+              title="Refresh Fleet Forecasting"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isAnalyticsFetching ? "animate-spin text-primary" : ""}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Top Grid: Fleet Regression Trajectory + Quota Utilization Histogram */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Box 1: Fleet Growth Trajectory & Forward Extrapolations */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <BarChart3 className="w-4 h-4 text-blue-500" />
+                Fleet Growth Trajectory & Forward Projections
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">
+                {fleetAnalytics?.growth?.totalTrackedDays || 0} tracked snapshot days
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] text-slate-400 block font-sans">Net Period Delta</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 mt-0.5 block">
+                  {fleetAnalytics?.growth?.summary?.formattedNetPeriodGrowth || "0 B"}
+                </span>
+              </div>
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] text-slate-400 block font-sans">Average Daily Velocity</span>
+                <span className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-0.5 block">
+                  {fleetAnalytics?.growth?.summary?.formattedDailyGrowth || "0 B / day"}
+                </span>
+              </div>
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] text-slate-400 block font-sans">Reclaimed Period</span>
+                <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+                  {fleetAnalytics?.growth?.summary?.formattedReclaimedPeriod || "0 B"}
+                </span>
+              </div>
+            </div>
+
+            {/* If Insufficient Snapshots */}
+            {!fleetAnalytics?.growth?.hasSufficientHistory && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Linear extrapolation requires at least 2 snapshot days. Nightly cron records daily snapshots automatically.</span>
+              </div>
+            )}
+
+            {/* Projections or Recent Data Points */}
+            <div className="divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800 text-xs font-mono">
+              {(fleetAnalytics?.growth?.projections || []).slice(0, 4).map((proj: any) => (
+                <div key={proj.date} className="p-2.5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-750">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">{proj.date}</span>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary font-semibold">
+                      Projected
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-500">Billable: {proj.formattedBillable}</span>
+                    <span className="font-bold text-primary">+{Math.round(proj.netGrowthBytes / 1024)} KB</span>
+                  </div>
+                </div>
+              ))}
+              {(!fleetAnalytics?.growth?.projections || fleetAnalytics.growth.projections.length === 0) && (
+                <div className="p-4 text-center text-slate-400 text-xs font-sans">
+                  No forward projection data available until 2+ snapshots are established.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Box 2: Quota Utilization Distribution Histogram */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <PieChart className="w-4 h-4 text-emerald-500" />
+                Fleet Quota Utilization Distribution
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">
+                {quotaHistogram.totalTenants} active workspaces
+              </span>
+            </div>
+
+            {/* Multi-segment Segmented Bar */}
+            <div className="h-4 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+              <div
+                className="bg-emerald-500 transition-all duration-300"
+                style={{ width: `${quotaHistogram.healthy.pct}%` }}
+                title={`Healthy (<50%): ${quotaHistogram.healthy.count} tenants`}
+              />
+              <div
+                className="bg-blue-500 transition-all duration-300"
+                style={{ width: `${quotaHistogram.moderate.pct}%` }}
+                title={`Moderate (50-79%): ${quotaHistogram.moderate.count} tenants`}
+              />
+              <div
+                className="bg-amber-500 transition-all duration-300"
+                style={{ width: `${quotaHistogram.warning.pct}%` }}
+                title={`Approaching Quota (80-99%): ${quotaHistogram.warning.count} tenants`}
+              />
+              <div
+                className="bg-rose-500 transition-all duration-300"
+                style={{ width: `${quotaHistogram.exceeded.pct}%` }}
+                title={`Exceeded/Locked (100%+): ${quotaHistogram.exceeded.count} tenants`}
+              />
+            </div>
+
+            {/* 4 Tiers Breakdown Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Healthy (&lt;50%)</span>
+                </div>
+                <div className="text-base font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                  {quotaHistogram.healthy.count}
+                  <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.healthy.pct}%)</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span>Moderate (50-79%)</span>
+                </div>
+                <div className="text-base font-bold text-blue-600 dark:text-blue-400 font-mono">
+                  {quotaHistogram.moderate.count}
+                  <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.moderate.pct}%)</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span>At-Risk (80-99%)</span>
+                </div>
+                <div className="text-base font-bold text-amber-600 dark:text-amber-400 font-mono">
+                  {quotaHistogram.warning.count}
+                  <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.warning.pct}%)</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                  <span>Locked (100%+)</span>
+                </div>
+                <div className="text-base font-bold text-rose-600 dark:text-rose-400 font-mono">
+                  {quotaHistogram.exceeded.count}
+                  <span className="text-[10px] text-slate-400 font-normal ml-1">({quotaHistogram.exceeded.pct}%)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Grid: Capacity Exhaustion Watchlist + Storage Anomaly Insights */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Watchlist Table */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-500" />
+                <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                  Capacity Exhaustion Watchlist (At-Risk Tenants)
+                </h4>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500">
+                {(fleetAnalytics?.watchlist || []).length} flagged
+              </span>
+            </div>
+
+            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden bg-white dark:bg-slate-800">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="p-2">Workspace</th>
+                    <th className="p-2">Usage / Quota</th>
+                    <th className="p-2">Velocity</th>
+                    <th className="p-2">Runway</th>
+                    <th className="p-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  {(fleetAnalytics?.watchlist || []).map((entry: any) => (
+                    <tr key={entry.tenantId} className="hover:bg-slate-50 dark:hover:bg-slate-750">
+                      <td className="p-2 font-sans font-medium text-slate-900 dark:text-slate-100">
+                        <div>{entry.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{entry.slug}</div>
+                      </td>
+                      <td className="p-2">
+                        <div>{entry.formattedCurrentUsage} / {entry.formattedQuota}</div>
+                        <div className="text-[10px] text-slate-400">{entry.utilizationPercent}% used</div>
+                      </td>
+                      <td className="p-2 text-slate-600 dark:text-slate-300">
+                        {entry.formattedDailyGrowth}
+                      </td>
+                      <td className="p-2">
+                        <span className={`font-bold ${
+                          entry.thresholdState === "LOCKED" || entry.forecastStatus === "EXCEEDED"
+                            ? "text-rose-600 dark:text-rose-400"
+                            : entry.projectedDaysRemaining && entry.projectedDaysRemaining < 30
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-emerald-600 dark:text-emerald-400"
+                        }`}>
+                          {entry.thresholdState === "LOCKED" || entry.forecastStatus === "EXCEEDED"
+                            ? "Over Quota"
+                            : entry.projectedDaysRemaining !== null
+                            ? `${entry.projectedDaysRemaining}d`
+                            : "Stable"}
+                        </span>
+                      </td>
+                      <td className="p-2 text-right font-sans">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedTenantId(entry.tenantId);
+                            setDetailPeriod(period);
+                            setModalTab("forecast");
+                          }}
+                          className="px-2 py-1 text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded transition-colors cursor-pointer"
+                        >
+                          Inspect
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!fleetAnalytics?.watchlist || fleetAnalytics.watchlist.length === 0) && (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-slate-400 text-xs font-sans">
+                        No workspaces currently at immediate risk of capacity exhaustion.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Anomaly Telemetry Cards */}
+          <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500" />
+                <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                  Storage Anomaly Insights & Active Flags
+                </h4>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500">
+                {(fleetAnalytics?.anomalies || []).length} insights
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {(fleetAnalytics?.anomalies || []).map((anom: any) => (
+                <div
+                  key={anom.id}
+                  className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                        anom.severity === "CRITICAL"
+                          ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300"
+                          : anom.severity === "WARNING"
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                          : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                      }`}>
+                        {anom.type}
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{anom.title}</span>
+                    </div>
+                    <p className="text-slate-500 text-[11px]">{anom.message}</p>
+                    <span className="text-[10px] font-mono text-slate-400">Workspace: {anom.tenantName}</span>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100 block">
+                      {anom.metricFormatted}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTenantId(anom.tenantId);
+                        setDetailPeriod(period);
+                        setModalTab("forecast");
+                      }}
+                      className="text-[10px] text-primary hover:underline font-semibold mt-1 block"
+                    >
+                      Investigate
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {(!fleetAnalytics?.anomalies || fleetAnalytics.anomalies.length === 0) && (
+                <div className="p-6 text-center text-slate-400 text-xs font-sans bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <ShieldCheck className="w-6 h-6 text-emerald-500 mx-auto mb-1.5" />
+                  No storage consumption anomalies detected in active fleet.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1921,6 +2312,229 @@ export default function TenantUsageMetricsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* MODAL TAB 7: Capacity Forecast & Historical Projections */}
+                {modalTab === "forecast" && (() => {
+                  const fc = detailData.storage.forecast;
+                  const gh = detailData.storage.growthHistory;
+                  const historyPoints = gh?.history || [];
+                  const projectionPoints = gh?.projections || [];
+                  const isInsufficientData = !gh?.hasSufficientHistory || fc?.confidence === "INSUFFICIENT_DATA";
+
+                  return (
+                    <div className="space-y-5">
+                      {/* Insufficient Data Warning Banner */}
+                      {isInsufficientData && (
+                        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200 flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                          <div className="space-y-1 text-xs">
+                            <span className="font-bold block text-sm">Linear Forecast: Gathering Snapshots</span>
+                            <p className="text-slate-600 dark:text-slate-400">
+                              Capacity forecasting uses tenant-isolated least-squares regression over persistent daily snapshots.
+                              A minimum of 2 daily snapshots is required to calculate growth slope and time-to-exhaustion.
+                            </p>
+                            <div className="flex items-center gap-3 pt-1 text-[11px] font-mono">
+                              <span>Tracked Snapshots: {historyPoints.length}</span>
+                              <span>•</span>
+                              <span>Confidence: INSUFFICIENT_DATA</span>
+                              <span>•</span>
+                              <span>Live Quota Enforcement: ACTIVE</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* KPI Cards */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                          <span className="text-slate-500 text-[11px] block font-sans">Daily Consumption Velocity</span>
+                          <span className="text-base font-bold text-slate-900 dark:text-slate-100 mt-1 block">
+                            {fc?.formattedDailyGrowth || (isInsufficientData ? "0 B / day" : "—")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-sans">
+                            {fc?.regressionSlope ? `${fc.regressionSlope > 0 ? '+' : ''}${Math.round(fc.regressionSlope / 1024)} KB/day slope` : "Stable"}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                          <span className="text-slate-500 text-[11px] block font-sans">30-Day Forward Projection</span>
+                          <span className="text-base font-bold text-indigo-600 dark:text-indigo-400 mt-1 block">
+                            {fc?.formattedProjected30Days || fc?.formattedCurrentUsage || "0 B"}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-sans">
+                            Current: {detailData.storage.formattedActive || "0 B"}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                          <span className="text-slate-500 text-[11px] block font-sans">Runway to Quota Depletion</span>
+                          <span className={`text-base font-bold mt-1 block ${
+                            fc?.thresholdState === "LOCKED" || fc?.forecastStatus === "EXCEEDED"
+                              ? "text-rose-600 dark:text-rose-400"
+                              : fc?.projectedDaysRemaining && fc.projectedDaysRemaining < 30
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-emerald-600 dark:text-emerald-400"
+                          }`}>
+                            {fc?.thresholdState === "LOCKED" || fc?.forecastStatus === "EXCEEDED"
+                              ? "Quota Exceeded"
+                              : fc?.projectedDaysRemaining !== null && fc?.projectedDaysRemaining !== undefined
+                              ? `${fc.projectedDaysRemaining} days`
+                              : isInsufficientData
+                              ? "Gathering Snapshots"
+                              : "Runway > 10 yrs"}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-sans truncate block">
+                            {fc?.projectedExhaustionDate ? `Exhaustion: ${fc.projectedExhaustionDate}` : "No near-term exhaustion"}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80">
+                          <span className="text-slate-500 text-[11px] block font-sans">Forecast Reliability</span>
+                          <span className="text-sm font-bold text-slate-900 dark:text-slate-100 mt-1 flex items-center gap-1.5">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              fc?.confidence === "HIGH"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : fc?.confidence === "MEDIUM"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                                : fc?.confidence === "LOW"
+                                ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                            }`}>
+                              {fc?.confidence || "INSUFFICIENT_DATA"}
+                            </span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-sans">
+                            Sample: {historyPoints.length} snapshots
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Headroom & Runway Progress Bar */}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-800 dark:text-slate-200">Headroom & 30-Day Linear Ingestion Trajectory</span>
+                          <span className="font-mono text-slate-500">
+                            Quota: {detailData.storage.totalLimitFormatted || "10.0 GB"}
+                          </span>
+                        </div>
+                        <div className="h-3 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                          <div
+                            className="bg-emerald-500 transition-all duration-300"
+                            style={{
+                              width: `${Math.min(100, Math.max(1, (detailData.storage.activeBytes || fc?.currentUsageBytes || 0) / Math.max(1, detailData.storage.totalLimitBytes || fc?.quotaBytes || 1) * 100))}%`,
+                            }}
+                            title="Current Active Storage"
+                          />
+                          <div
+                            className="bg-blue-400/80 border-l border-blue-600/30 transition-all duration-300"
+                            style={{
+                              width: `${Math.min(100, Math.max(0, ((fc?.projectedUsage30DaysBytes || 0) - (fc?.currentUsageBytes || 0)) / Math.max(1, detailData.storage.totalLimitBytes || fc?.quotaBytes || 1) * 100))}%`,
+                            }}
+                            title="30-Day Forward Net Ingestion"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                              Active: {detailData.storage.formattedActive || "0 B"}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+                              30d Projected: {fc?.formattedProjected30Days || "0 B"}
+                            </span>
+                          </div>
+                          <span className="font-mono">
+                            Available: {detailData.storage.remainingFormatted || "0 B"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Snapshots & Projections Table */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                            <Database className="w-4 h-4 text-primary" />
+                            Storage Snapshots & Mathematical Projections
+                          </h4>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {historyPoints.length} Observed • {projectionPoints.length} Projected
+                          </span>
+                        </div>
+
+                        <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                          <table className="w-full text-left text-xs font-mono">
+                            <thead className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
+                              <tr>
+                                <th className="p-2.5">Date</th>
+                                <th className="p-2.5">Type</th>
+                                <th className="p-2.5">Active</th>
+                                <th className="p-2.5">Trash</th>
+                                <th className="p-2.5">Versions</th>
+                                <th className="p-2.5">Total Billable</th>
+                                <th className="p-2.5">Files</th>
+                                <th className="p-2.5 text-right">Net Growth</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                              {historyPoints.map((point: any) => (
+                                <tr key={point.date} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                  <td className="p-2.5 font-semibold text-slate-900 dark:text-slate-100">{point.date}</td>
+                                  <td className="p-2.5">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                      Observed
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5">{point.formattedUsed}</td>
+                                  <td className="p-2.5 text-slate-500">{point.formattedTrash}</td>
+                                  <td className="p-2.5 text-slate-500">{point.formattedVersion}</td>
+                                  <td className="p-2.5 font-bold text-slate-900 dark:text-slate-100">{point.formattedBillable}</td>
+                                  <td className="p-2.5">{point.fileCount}</td>
+                                  <td className={`p-2.5 text-right font-bold ${
+                                    point.netGrowthBytes > 0
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : point.netGrowthBytes < 0
+                                      ? "text-blue-600 dark:text-blue-400"
+                                      : "text-slate-400"
+                                  }`}>
+                                    {point.netGrowthBytes > 0 ? '+' : ''}{point.netGrowthBytes ? (Math.round(point.netGrowthBytes / 1024) + ' KB') : '0 B'}
+                                  </td>
+                                </tr>
+                              ))}
+
+                              {projectionPoints.map((proj: any) => (
+                                <tr key={proj.date} className="bg-primary/5 hover:bg-primary/10">
+                                  <td className="p-2.5 font-semibold text-primary">{proj.date}</td>
+                                  <td className="p-2.5">
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/20 text-primary">
+                                      Projected
+                                    </span>
+                                  </td>
+                                  <td className="p-2.5 text-primary">{proj.formattedUsed}</td>
+                                  <td className="p-2.5 text-slate-500">{proj.formattedTrash}</td>
+                                  <td className="p-2.5 text-slate-500">{proj.formattedVersion}</td>
+                                  <td className="p-2.5 font-bold text-primary">{proj.formattedBillable}</td>
+                                  <td className="p-2.5">{proj.fileCount}</td>
+                                  <td className="p-2.5 text-right font-bold text-primary">
+                                    +{Math.round(proj.netGrowthBytes / 1024)} KB
+                                  </td>
+                                </tr>
+                              ))}
+
+                              {historyPoints.length === 0 && projectionPoints.length === 0 && (
+                                <tr>
+                                  <td colSpan={8} className="p-6 text-center text-slate-500 font-sans">
+                                    No snapshot history recorded for this workspace yet.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

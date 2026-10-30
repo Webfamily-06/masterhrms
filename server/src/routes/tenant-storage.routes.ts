@@ -4,6 +4,7 @@ import { StorageAdminService } from "../services/files/storage-admin.service";
 import { StorageReconciliationService } from "../services/files/storage-reconciliation.service";
 import { StorageUsageEngine } from "../services/files/storage-usage.engine";
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
+import { StorageForecastService } from "../services/files/storage-forecast.service";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 
 const prisma = rawPrisma || proxiedPrisma;
@@ -90,8 +91,9 @@ tenantStorageRouter.get("/analytics", requireAuth, async (req: AuthRequest, res:
       return res.status(403).json({ error: "Storage administration requires administrator privileges." });
     }
 
-    const growth = await StorageAdminService.getStorageGrowthAnalytics(tenantId);
-    const forecast = await StorageAdminService.calculateCapacityForecast(tenantId);
+    const lookbackDays = req.query.lookbackDays ? Number(req.query.lookbackDays) : 30;
+    const growth = await StorageForecastService.getTenantGrowthHistory(tenantId, { lookbackDays });
+    const forecast = growth.forecast;
     return res.json({ growth, forecast });
   } catch (err: any) {
     console.error("[Tenant Storage Analytics Error]:", err);

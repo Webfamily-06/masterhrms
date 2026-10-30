@@ -3,6 +3,7 @@ import { getBaseDomain } from "../lib/workspace-host";
 import { StorageAdminService } from "./files/storage-admin.service";
 import { StorageUsageEngine } from "./files/storage-usage.engine";
 import { QuotaService, PLAN_STORAGE_CAPACITIES_GB } from "./files/quota.service";
+import { StorageForecastService } from "./files/storage-forecast.service";
 
 export interface TenantUsageFilterOptions {
   search?: string;
@@ -451,10 +452,13 @@ export class TenantUsageMetricsService {
     const storageLimitBytes = storageLimitGb ? storageLimitGb * 1024 * 1024 * 1024 : null;
 
     // A. Canonical F4 Storage Breakdown & Telemetry
-    const [storageSummary, departmentBreakdown, recentActivities, attCount, saleCount, leadCount, taskCount, ticketCount, empCount] = await Promise.all([
+    const lookbackDays = period === "7d" ? 7 : (period === "90d" ? 90 : 30);
+    const [storageSummary, departmentBreakdown, recentActivities, forecast, growthHistory, attCount, saleCount, leadCount, taskCount, ticketCount, empCount] = await Promise.all([
       StorageAdminService.getTenantStorageSummary(tenantId).catch(() => null),
       StorageUsageEngine.calculateDepartmentBreakdown(tenantId).catch(() => []),
       StorageAdminService.getStorageActivity(tenantId, 15).catch(() => []),
+      StorageForecastService.calculateTenantForecast(tenantId, { lookbackDays }).catch(() => null),
+      StorageForecastService.getTenantGrowthHistory(tenantId, { lookbackDays }).catch(() => null),
       prisma.attendance.count({ where: { tenantId } }),
       prisma.sale.count({ where: { tenantId } }),
       prisma.crmLead.count({ where: { tenantId } }),
@@ -477,12 +481,12 @@ export class TenantUsageMetricsService {
     const totalRecords = attCount + saleCount + leadCount + taskCount + ticketCount + empCount;
     const databaseBytes = 1024 * 1024 * 2 + totalRecords * 2048;
 
-    const catMap = new Map((storageSummary?.categories || []).map(c => [c.category, c]));
+    const catMap = new Map<string, any>((storageSummary?.categories || []).map((c: any) => [c.category, c]));
     const imagesBytes = catMap.get("Images")?.bytes || 0;
     const docsBytes = catMap.get("Documents")?.bytes || 0;
     const videoBytes = catMap.get("Videos")?.bytes || 0;
     const audioBytes = catMap.get("Audio")?.bytes || 0;
-    const otherFileBytes = (storageSummary?.categories || []).filter(c => !["Images", "Documents", "Videos", "Audio"].includes(c.category)).reduce((acc, c) => acc + c.bytes, 0);
+    const otherFileBytes = (storageSummary?.categories || []).filter((c: any) => !["Images", "Documents", "Videos", "Audio"].includes(c.category)).reduce((acc: number, c: any) => acc + c.bytes, 0);
 
     const totalUsedBytes = activeBytes;
     const remainingBytes = availableBytes;
@@ -619,6 +623,8 @@ export class TenantUsageMetricsService {
         topUsers: storageSummary?.topUsers || [],
         teams: storageSummary?.teams || [],
         recentActivities: recentActivities || [],
+        forecast,
+        growthHistory,
         lastReconciledAt: null,
       },
       userActivity: {

@@ -83,10 +83,10 @@ async function runVerification() {
     assert(!!tenant, `Found test tenant: ${tenant?.name} (${tenant?.id})`);
 
     const tenantAdmin = await prisma.user.findFirst({
-      where: { profile: { tenantId: tenant.id }, roles: { some: { role: 'hr_admin' } } },
+      where: { email: 'hr@masterhrms.com' },
       include: { profile: true, roles: true },
     }) || await prisma.user.findFirst({
-      where: { profile: { tenantId: tenant.id } },
+      where: { profile: { tenantId: tenant.id }, roles: { some: { role: 'hr_admin' }, none: { role: 'super_admin' } } },
       include: { profile: true, roles: true },
     });
     assert(!!tenantAdmin, `Found Tenant User: ${tenantAdmin?.email} (${tenantAdmin?.id})`);

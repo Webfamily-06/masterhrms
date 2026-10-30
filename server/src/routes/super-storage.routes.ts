@@ -3,6 +3,7 @@ import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth"
 import { StorageAdminService } from "../services/files/storage-admin.service";
 import { StorageReconciliationService } from "../services/files/storage-reconciliation.service";
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
+import { StorageForecastService } from "../services/files/storage-forecast.service";
 
 export const superStorageRouter = Router();
 
@@ -118,12 +119,108 @@ superStorageRouter.put("/tenants/:id/quota", requireAuth, requireSuperAdmin, asy
  */
 superStorageRouter.get("/analytics", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const growth = await StorageAdminService.getStorageGrowthAnalytics(null);
-    const forecast = await StorageAdminService.calculateCapacityForecast(null);
-    return res.json({ growth, forecast });
+    const lookbackDays = req.query.lookbackDays ? Number(req.query.lookbackDays) : 30;
+    const [growth, forecast, watchlist, anomalies] = await Promise.all([
+      StorageForecastService.getFleetGrowthHistory({ lookbackDays }),
+      StorageForecastService.calculateFleetForecast({ lookbackDays }),
+      StorageForecastService.getExhaustionWatchlist(10),
+      StorageForecastService.getStorageAnomalies(10),
+    ]);
+    return res.json({ growth, forecast, watchlist, anomalies });
   } catch (err: any) {
     console.error("[Super Storage Analytics Error]:", err);
     return res.status(500).json({ error: err.message || "Failed to retrieve platform storage analytics." });
+  }
+});
+
+/**
+ * GET /api/v1/super/storage/analytics/fleet
+ * Fleet aggregate capacity forecast with least squares regression
+ */
+superStorageRouter.get("/analytics/fleet", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const lookbackDays = req.query.lookbackDays ? Number(req.query.lookbackDays) : 30;
+    const forecast = await StorageForecastService.calculateFleetForecast({ lookbackDays });
+    return res.json(forecast);
+  } catch (err: any) {
+    console.error("[Super Storage Fleet Forecast Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to calculate fleet forecast." });
+  }
+});
+
+/**
+ * GET /api/v1/super/storage/analytics/growth
+ * Fleet historical snapshots + forward projections
+ */
+superStorageRouter.get("/analytics/growth", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const lookbackDays = req.query.lookbackDays ? Number(req.query.lookbackDays) : 30;
+    const growth = await StorageForecastService.getFleetGrowthHistory({ lookbackDays });
+    return res.json(growth);
+  } catch (err: any) {
+    console.error("[Super Storage Fleet Growth Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve fleet growth history." });
+  }
+});
+
+/**
+ * GET /api/v1/super/storage/analytics/watchlist
+ * Tenants approaching quota or capacity exhaustion
+ */
+superStorageRouter.get("/analytics/watchlist", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const watchlist = await StorageForecastService.getExhaustionWatchlist(limit);
+    return res.json({ watchlist });
+  } catch (err: any) {
+    console.error("[Super Storage Watchlist Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve exhaustion watchlist." });
+  }
+});
+
+/**
+ * GET /api/v1/super/storage/analytics/anomalies
+ * Storage consumption anomalies (spikes, trash bloat, stalled uploads)
+ */
+superStorageRouter.get("/analytics/anomalies", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const anomalies = await StorageForecastService.getStorageAnomalies(limit);
+    return res.json({ anomalies });
+  } catch (err: any) {
+    console.error("[Super Storage Anomalies Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve storage anomalies." });
+  }
+});
+
+/**
+ * GET /api/v1/super/storage/analytics/tenants/:id/forecast
+ * Deep single-tenant capacity forecast
+ */
+superStorageRouter.get("/analytics/tenants/:id/forecast", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const lookbackDays = req.query.lookbackDays ? Number(req.query.lookbackDays) : 30;
+    const history = await StorageForecastService.getTenantGrowthHistory(id, { lookbackDays });
+    const forecast = history.forecast;
+    return res.json({ forecast, history });
+  } catch (err: any) {
+    console.error("[Super Storage Tenant Forecast Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to calculate tenant forecast." });
+  }
+});
+
+/**
+ * POST /api/v1/super/storage/snapshots/capture
+ * Explicit trigger for daily snapshot capture (scheduler or manual)
+ */
+superStorageRouter.post("/snapshots/capture", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await StorageForecastService.captureDailySnapshots();
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("[Super Storage Capture Snapshots Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to capture storage snapshots." });
   }
 });
 

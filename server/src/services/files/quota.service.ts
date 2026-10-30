@@ -118,16 +118,28 @@ export class QuotaService {
     });
 
     if (!usage) {
-      usage = await tx.storageUsage.create({
-        data: {
-          tenantId: tid,
-          userId: canonicalUserId,
-          usedBytes: BigInt(0),
-          trashBytes: BigInt(0),
-          reservedBytes: BigInt(0),
-          fileCount: 0,
-        },
-      });
+      try {
+        usage = await tx.storageUsage.create({
+          data: {
+            tenantId: tid,
+            userId: canonicalUserId,
+            usedBytes: BigInt(0),
+            trashBytes: BigInt(0),
+            reservedBytes: BigInt(0),
+            fileCount: 0,
+          },
+        });
+      } catch (err: any) {
+        if (err.code === "P2002") {
+          usage = await tx.storageUsage.findFirst({
+            where: canonicalUserId === null
+              ? { tenantId: tid, userId: null }
+              : { tenantId: tid, userId: canonicalUserId },
+          });
+        } else {
+          throw err;
+        }
+      }
     }
 
     return usage;
