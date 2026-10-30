@@ -6,7 +6,7 @@
 **Status:** COMPLETED & VERIFIED  
 **Date:** 2026-10-30  
 **Target Environment:** MasterHRMS Platform (`http://localhost:3000`, `http://localhost:4000`)  
-**Baseline:** F1 independently verified (14/14 checkpoints PASS)  
+**Baseline:** F1 independently verified (14/14 architectural checkpoints in F1 Verification Report; 19/19 core regression tests and 22/22 E2E checks PASS)  
 
 ---
 
@@ -133,7 +133,7 @@ All screenshots are saved in `docs/Saas/screenshots/files_f2/` and copied to the
 
 - **Backend Schema Changes:** **ZERO** (Strictly adhered to F1 freeze).
 - **Backend Service Changes:** **ZERO**.
-- **Regressions:** None. All 14 F1 verification checkpoints remain PASS.
+- **Regressions:** None. All 14 F1 architectural checkpoints (including 19/19 core regression tests and 22/22 E2E checks) remain PASS.
 - **Scope Compliance:** Excluded F3 (advanced sharing dialogs/team folders), F4 (storage admin quotas), and F5–F8.
 
 ---

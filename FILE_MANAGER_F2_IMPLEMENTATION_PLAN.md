@@ -83,14 +83,14 @@ F2 will strictly consume existing verified F1 endpoints:
 
 - `GET /api/v1/files`: Query nodes (`parentId`, `category`, `starred`, `trashed`, `view`, `search`, `sortBy`, `sortOrder`, `page`, `limit`).
 - `GET /api/v1/files/stats`: Storage capacity, quota used, percentage, category breakdown.
-- `POST /api/v1/files/folder`: Create folder with Windows 11 filename validation.
-- `PATCH /api/v1/files/:id/rename`: Rename file or folder.
+- `POST /api/v1/files/folders`: Create folder with Windows 11 filename validation.
+- `PATCH /api/v1/files/nodes/:id`: Rename file or folder.
 - `PATCH /api/v1/files/:id/move`: Relocate file or folder with cycle prevention.
 - `POST /api/v1/files/:id/star`: Toggle user star state.
 - `POST /api/v1/files/trash`: Batch move items to Recycle Bin (`ids: string[]`).
 - `POST /api/v1/files/restore`: Batch restore items from Recycle Bin (`ids: string[]`).
-- `GET /api/v1/files/:id/signed-url`: Fetch authorized signed download URL.
-- `GET /api/v1/files/:id/preview`: Fetch authorized signed inline preview URL.
+- `GET /api/v1/files/nodes/:id/download`: Fetch authorized signed download URL.
+- `GET /api/v1/files/nodes/:id/preview`: Fetch authorized signed inline preview URL.
 - `POST /api/v1/files/upload`: Multipart upload fallback with quota verification.
 - Direct uploads via `/api/v1/files/uploads` when supported.
 

@@ -100,7 +100,7 @@ flowchart TD
 
 | File Manager Action | Action Status Under Locked Quota ($\ge 100\%$) | Technical Behavior / API Response |
 | :--- | :--- | :--- |
-| **Single File Upload** | **BLOCKED** | HTTP 403 Forbidden with `{ code: "QUOTA_EXCEEDED", scope: "TENANT" | "USER" }`. |
+| **Single File Upload** | **BLOCKED** | HTTP 403 Forbidden with `{ code: "QUOTA_EXCEEDED", scope: "TENANT or USER" }`. |
 | **Batch File Upload** | **BLOCKED** | Pre-flight verification fails atomically before any binary is uploaded. |
 | **New Version Upload** | **BLOCKED** | Cannot increment version; returns `{ code: "QUOTA_EXCEEDED" }`. |
 | **Folder Creation** | **ALLOWED** | Folders consume 0 bytes of object storage; metadata creation is permitted. |
@@ -118,7 +118,8 @@ Phase F4 introduces three administrative remediation mechanisms:
 
 ### 5.1 Temporary Grace Overrides
 Tenant Admins can grant temporary quota grace periods (e.g., 48-hour exemption or +5 GB temporary buffer) to resolve mission-critical blocking events during emergency HR cycles:
-- **Prisma Representation:** Stored in `StorageQuota.source = "OVERRIDE"` with an explicit `expiresAt` timestamp.
+- **Prisma Representation:** Stored in `StorageQuota.source = "OVERRIDE"` with an explicit persisted `expiresAt` timestamp field.
+- **Enforcement Rule:** Quota evaluation treats an override as active only while `now() < expiresAt`. Once `expiresAt` has elapsed, the override is automatically expired and no longer grants quota grace, reverting evaluation to standard plan capacity.
 - **Audit Logging:** Every override generates a permanent record in `FileActivity` and `StorageAlertLog`.
 
 ### 5.2 Department & User Quota Re-balancing

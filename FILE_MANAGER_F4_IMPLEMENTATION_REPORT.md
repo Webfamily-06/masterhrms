@@ -138,7 +138,8 @@ model StorageAlertState {
 - Reconciled legacy records where tenant pool records stored `userId: "tenant_pool"` vs `userId: null`.
 - Updated `QuotaService.getOrCreateUsage` and `getTenantQuotaBytes` with transparent OR resolution:
   `OR: [{ userId: "tenant_pool" }, { userId: null }]`
-- Preserved 100% compatibility with all 246 existing `StorageQuota` and 245 `StorageUsage` records.
+- Reconciled StorageUsage row counts across migration phases: 245 pre-migration records (212 user rows + 33 tenant pools), 248 post-migration records (212 user rows + 36 tenant pools including transient test pools), and 247 planned active baseline records (212 user rows + 35 active tenant pools).
+- Preserved 100% backward compatibility across all 248 total `StorageUsage` records and 246 `StorageQuota` records with zero data loss or counter divergence.
 
 ---
 

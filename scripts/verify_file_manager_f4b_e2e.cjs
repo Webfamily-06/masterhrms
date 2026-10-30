@@ -1,6 +1,9 @@
 /**
  * MASTERHRMS — PHASE F4-B COMPREHENSIVE VERIFICATION SUITE
  * Core Storage Usage Calculation Engine (SUCE) & Reconciliation Service
+ *
+ * Invocation:
+ *   npx tsx scripts/verify_file_manager_f4b_e2e.cjs
  */
 
 const path = require("path");
@@ -10,7 +13,7 @@ const http = require("http");
 const jwt = require("../server/node_modules/jsonwebtoken");
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "masterhrms-jwt-secret-key-change-in-production-2026";
+const JWT_SECRET = process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
 const API_PORT = process.env.PORT || 4000;
 
 function makeRequest(method, path, headers = {}, body = null) {
@@ -131,8 +134,17 @@ async function runVerification() {
     console.log(`Using test tenant: ${testTenant.name} (${tenantId})`);
 
     // Dynamically import TS engine module
-    const { StorageUsageEngine } = require("../server/src/services/files/storage-usage.engine");
-    const { StorageReconciliationService } = require("../server/src/services/files/storage-reconciliation.service");
+    let StorageUsageEngine, StorageReconciliationService;
+    try {
+      ({ StorageUsageEngine } = require("../server/dist/services/files/storage-usage.engine"));
+      ({ StorageReconciliationService } = require("../server/dist/services/files/storage-reconciliation.service"));
+    } catch {
+      try {
+        require("../server/node_modules/ts-node/register");
+      } catch {}
+      ({ StorageUsageEngine } = require("../server/src/services/files/storage-usage.engine"));
+      ({ StorageReconciliationService } = require("../server/src/services/files/storage-reconciliation.service"));
+    }
 
     const dimensions = await StorageUsageEngine.calculateTenantDimensions(tenantId);
     assert(dimensions.tenantId === tenantId, `Engine calculated dimensions for correct tenant ID`);
@@ -291,13 +303,18 @@ async function runVerification() {
     console.log("\n--- TEST 8: REST API Surface Verification ---");
     const adminUser = await prisma.user.findFirst({
       where: {
-        roles: { has: "admin" },
+        profile: { tenantId },
+        roles: { some: { role: { in: ["hr_admin", "super_admin"] } } },
+      },
+    }) || await prisma.user.findFirst({
+      where: {
+        roles: { some: { role: { in: ["hr_admin", "super_admin"] } } },
       },
     });
 
     const superAdminUser = await prisma.user.findFirst({
       where: {
-        roles: { has: "super_admin" },
+        roles: { some: { role: "super_admin" } },
       },
     });
 

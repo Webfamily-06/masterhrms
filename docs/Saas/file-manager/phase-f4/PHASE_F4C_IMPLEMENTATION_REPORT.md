@@ -35,7 +35,7 @@ flowchart TD
 ```
 
 ### Hierarchy Rules & Resolution:
-1. **Tier 1 (Platform Ceiling)**: 1,099,511,627,776 bytes (1.0 TiB default) ceiling protecting fleet infrastructure from unconstrained consumption.
+1. **Tier 1 (Platform Ceiling)**: 1,099,511,627,776 bytes (1,024 GB / 1.0 TB binary) ceiling protecting fleet infrastructure from unconstrained consumption.
 2. **Tier 2 (Tenant Plan Capacity)**: Resolved dynamically from active `TenantSubscription.plan.storageQuota` with manual overrides in `StorageQuota (userId: null)`.
 3. **Tier 3 (Department Allocations)**: Policy-level limit stored in `Setting` (`group: "storage_quota"`, `key: "quota_dept_{id}"`). Enforces that the sum of all active files owned by employees of a department does not exceed the allocation.
 4. **Tier 4 (Team Folder Workspaces)**: Enforced via `FileTeam.quotaBytes`. Team folder uploads charge the team folder allocation and tenant pool, bypassing the uploader's personal quota.
@@ -49,34 +49,36 @@ $$\text{UserQuotaOverride} \le \text{TenantQuotaBytes}$$
 
 ---
 
-## 3. Canonical 4-State Threshold Lifecycle & State Machine
+## 3. Canonical Threshold Lifecycle & State Machine (F4-B Aligned)
 
 Storage utilization is continuously computed via:
 $$U = \min\left(100, \frac{\text{usedBytes} + \text{reservedBytes}}{\text{quotaBytes}} \times 100\right)$$
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NORMAL: U < 80%
-    NORMAL --> WARNING: U >= 80% and U < 90%
-    WARNING --> CRITICAL: U >= 90% and U < 100%
-    CRITICAL --> LOCKED: U >= 100%
-    LOCKED --> CRITICAL: Purge / Trash (U < 100%)
-    CRITICAL --> WARNING: Purge / Trash (U < 90%)
-    WARNING --> NORMAL: Purge / Trash (U < 80%)
+    [*] --> NORMAL: U < 70%
+    NORMAL --> WARNING_70: U >= 70% and U < 85%
+    WARNING_70 --> HIGH_85: U >= 85% and U < 95%
+    HIGH_85 --> CRITICAL_95: U >= 95% and U < 100%
+    CRITICAL_95 --> LOCKED_100: U >= 100%
+    LOCKED_100 --> CRITICAL_95: Purge / Trash (U < 100%)
+    CRITICAL_95 --> HIGH_85: Purge / Trash (U < 95%)
+    HIGH_85 --> WARNING_70: Purge / Trash (U < 85%)
+    WARNING_70 --> NORMAL: Purge / Trash (U < 70%)
 ```
 
 ### Operational Permissions Matrix
 
-| Operation | NORMAL (< 80%) | WARNING (80-89.9%) | CRITICAL (90-99.9%) | LOCKED (>= 100%) |
-| :--- | :---: | :---: | :---: | :---: |
-| **File Read & Download** | Allowed | Allowed | Allowed | **Allowed** |
-| **Explorer Navigation & Search** | Allowed | Allowed | Allowed | **Allowed** |
-| **Move to Recycle Bin** | Allowed | Allowed | Allowed | **Allowed** |
-| **Permanent Purge** | Allowed | Allowed | Allowed | **Allowed (Reclaims Space)** |
-| **New File Upload Reservation** | Allowed | Allowed | Allowed | **BLOCKED (403)** |
-| **Single File > 100 MB** | **BLOCKED (400)** | **BLOCKED (400)** | **BLOCKED (400)** | **BLOCKED (400)** |
-| **Outbox Events** | None | `quota.state.transitioned` | `quota.state.transitioned` | `quota.state.locked` / `quota.blocked` |
-| **Recovery Event on Purge** | N/A | `quota.recovered` | `quota.recovered` | `quota.recovered` |
+| Operation | NORMAL (< 70%) | WARNING_70 (70-84.9%) | HIGH_85 (85-94.9%) | CRITICAL_95 (95-99.9%) | LOCKED_100 (>= 100%) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **File Read & Download** | Allowed | Allowed | Allowed | Allowed | **Allowed** |
+| **Explorer Navigation & Search** | Allowed | Allowed | Allowed | Allowed | **Allowed** |
+| **Move to Recycle Bin** | Allowed | Allowed | Allowed | Allowed | **Allowed** |
+| **Permanent Purge** | Allowed | Allowed | Allowed | Allowed | **Allowed (Reclaims Space)** |
+| **New File Upload Reservation** | Allowed | Allowed | Allowed | Allowed | **BLOCKED (403)** |
+| **Single File > 100 MB** | **BLOCKED (400)** | **BLOCKED (400)** | **BLOCKED (400)** | **BLOCKED (400)** | **BLOCKED (400)** |
+| **Outbox Events** | None | `quota.state.transitioned` | `quota.state.transitioned` | `quota.state.transitioned` | `quota.state.locked` / `quota.blocked` |
+| **Recovery Event on Purge** | N/A | `quota.recovered` | `quota.recovered` | `quota.recovered` | `quota.recovered` |
 
 ---
 

@@ -271,7 +271,7 @@ Permanently purges all items currently in the Recycle Bin for the tenant.
 
 ### 3.2 Super-Admin Fleet Storage API Surface (`/api/v1/super/storage/*`)
 
-#### 1. `GET /api/v1/super/storage/fleet-overview`
+#### 1. `GET /api/v1/super/storage/overview`
 Global multi-tenant storage statistics across the entire MasterHRMS SaaS deployment.
 - **Access:** `requireSuperAdmin`
 - **Response Contract (200 OK):**

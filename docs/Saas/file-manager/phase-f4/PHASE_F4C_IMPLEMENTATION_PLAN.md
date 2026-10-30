@@ -34,14 +34,14 @@ Phase F4-C establishes the comprehensive, enterprise-grade quota governance fram
 - `StorageQuota`: Stores tenant pool quota (`userId: null`) and user custom overrides (`userId: UUID`). Contains `quotaBytes BigInt`, `source String ("PLAN" | "DEFAULT" | "OVERRIDE")`.
 - `StorageUsage`: Materialized fast-path accounting row (`tenantId, userId`) tracking `usedBytes BigInt`, `trashBytes BigInt`, `reservedBytes BigInt`, and `fileCount Int`.
 - `FileTeam`: Stores team folders with `quotaBytes BigInt?` and `rootFolderId String?`.
-- `Department`: Organizational unit linked to employees. Department quotas are stored in `Setting` (`group: "storage_quota", key: "dept_" + departmentId`) or `StorageQuota(source: "DEPARTMENT")`.
+- `Department`: Organizational unit linked to employees. Department quotas are authoritatively stored in `Setting` (`group: "storage_quota"`, `key: "quota_dept_" + departmentId`), with default nominal allocation falling back to `DEFAULT_DEPARTMENT_QUOTA_BYTES` (10 GB) when unconfigured. Reads, writes, and enforcement strictly use this store.
 - `StorageAlertState`: Tracks `currentLevel`, `lastNotifiedLevel`, `lastNotifiedAt`, `resolvedAt` per tenant.
 
 ### 2.2 Reconciled Governance Hierarchy Rules
 
 ```mermaid
 graph TD
-    Platform["Tier 0: Platform Ceiling (1,000 GB / 1 TB)"]
+    Platform["Tier 0: Platform Ceiling (1,024 GB / 1.0 TB)"]
     Platform --> Tenant["Tier 1: Tenant Subscription Plan (10 GB – 500 GB)"]
     
     Tenant --> DeptPool["Tier 2: Department Allocation (Tenant-scoped subset)"]

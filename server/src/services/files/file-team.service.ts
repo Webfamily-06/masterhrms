@@ -323,7 +323,7 @@ export class FileTeamService {
         title: "Added to team folder",
         message: `You were added to team "${team.name}" as ${role}.`,
         type: "TEAM_ADDED",
-        actionUrl: `/apps/file-manager/list-view`,
+        actionUrl: `/me/files`,
       });
     } catch {}
 

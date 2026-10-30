@@ -178,10 +178,19 @@ export default function RetentionTab() {
   const handleExecuteRetention = async () => {
     try {
       setIsExecutingRetention(true);
-      const res: any = await api.post('/api/v1/tenant/storage/retention/execute', {
-        isDryRun: false,
-        force: true,
-      });
+
+      let jobIdToExecute: string | undefined;
+      if (retentionPolicy?.requiresApproval) {
+        const reqRes: any = await api.post('/api/v1/tenant/storage/retention/request-approval');
+        const pendingJobId = reqRes?.job?.id || reqRes?.data?.job?.id;
+        if (!pendingJobId) throw new Error('Failed to request approval for retention job.');
+
+        const approveRes: any = await api.post(`/api/v1/tenant/storage/retention/jobs/${pendingJobId}/approve`);
+        jobIdToExecute = approveRes?.job?.id || approveRes?.data?.job?.id || pendingJobId;
+      }
+
+      const payload = jobIdToExecute ? { jobId: jobIdToExecute } : {};
+      const res: any = await api.post('/api/v1/tenant/storage/retention/execute', payload);
       const data = res?.data ?? res;
       toast.success(`Retention execution completed: ${data.deletedCount} items purged, ${data.formattedReclaimed} reclaimed.`);
       setIsConfirmExecuteOpen(false);
@@ -301,7 +310,7 @@ export default function RetentionTab() {
           <Button
             size="sm"
             onClick={() => setIsConfirmExecuteOpen(true)}
-            disabled={isExecutingRetention || !retentionPolicy?.isEnabled}
+            disabled={isExecutingRetention || !retentionPolicy?.isEnabled || retentionPolicy?.isDryRun}
             className="text-xs gap-1.5 h-8 font-medium bg-rose-600 hover:bg-rose-700 text-white"
           >
             <Play className="w-3.5 h-3.5" />
@@ -812,7 +821,7 @@ export default function RetentionTab() {
             <Button
               size="sm"
               onClick={handleExecuteRetention}
-              disabled={isExecutingRetention}
+              disabled={isExecutingRetention || retentionPolicy?.isDryRun}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {isExecutingRetention ? 'Executing Purge...' : 'Confirm & Execute Purge'}
@@ -823,3 +832,4 @@ export default function RetentionTab() {
     </div>
   );
 }
+

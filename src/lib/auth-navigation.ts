@@ -26,6 +26,22 @@ export function extractRolesFromToken(token?: string | null): { roles: string[];
   }
 }
 
+export function isSafeRelativeUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  if (!url.startsWith("/") || url.startsWith("//") || url.startsWith("/\\")) {
+    return false;
+  }
+  if (url.includes("\\") || url.includes("://")) {
+    return false;
+  }
+  try {
+    const parsed = new URL(url, "http://localhost");
+    return parsed.origin === "http://localhost" && parsed.pathname.startsWith("/");
+  } catch {
+    return false;
+  }
+}
+
 export function resolveDefaultRoute(
   roles: string[] = [],
   redirect?: string | null,
@@ -62,6 +78,7 @@ export function resolveDefaultRoute(
   // Validate explicit intended redirect path
   if (
     redirect &&
+    isSafeRelativeUrl(redirect) &&
     redirect !== "/" &&
     redirect !== "/auth" &&
     redirect !== "/login" &&

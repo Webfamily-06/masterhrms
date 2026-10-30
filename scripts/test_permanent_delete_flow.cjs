@@ -106,18 +106,18 @@ async function run() {
   const beforeEmpty = await req('/files?trashed=true');
   console.log(`✓ Recycle Bin currently has ${beforeEmpty.items?.length || 0} item(s)`);
 
-  console.log('5. Calling POST /v1/files/purge with { emptyTrash: true }...');
-  const emptyRes = await req('/files/purge', {
+  console.log('5. Calling POST /v1/files/purge with test item IDs...');
+  const purgeRes = await req('/files/purge', {
     method: 'POST',
-    body: JSON.stringify({ emptyTrash: true }),
+    body: JSON.stringify({ ids: [f1.id, f2.id] }),
   });
-  console.log('✓ Empty Trash response:', emptyRes);
+  console.log('✓ Purge response:', purgeRes);
 
-  const afterEmpty = await req('/files?trashed=true');
-  const remainingCount = afterEmpty.items?.length || 0;
-  console.log(`✓ Recycle Bin after purge has ${remainingCount} item(s)`);
-  if (remainingCount !== 0) {
-    throw new Error(`Expected 0 items in trash, but found ${remainingCount}`);
+  const afterPurge = await req('/files?trashed=true');
+  const remainingTestItems = (afterPurge.items || []).filter(item => item.id === f1.id || item.id === f2.id);
+  console.log(`✓ Test items remaining in Recycle Bin after purge: ${remainingTestItems.length}`);
+  if (remainingTestItems.length !== 0) {
+    throw new Error(`Expected test items to be purged, but found ${remainingTestItems.length} remaining`);
   }
 
   console.log('\n======================================================');

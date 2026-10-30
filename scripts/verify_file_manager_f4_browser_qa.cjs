@@ -67,6 +67,7 @@ async function runBrowserQA() {
   const browser = await chromium.launch({ headless: true });
   const consoleErrors = [];
 
+  let caughtError = null;
   try {
     // =========================================================================
     // 1. SUPER ADMIN STORAGE DASHBOARD (/super/files/storage)
@@ -254,7 +255,9 @@ async function runBrowserQA() {
     }
 
   } catch (err) {
+    caughtError = err;
     console.error("Browser QA Error:", err);
+    record(999, "Browser QA Execution Completed Without Exceptions", "FAIL", err.message);
   } finally {
     await browser.close();
   }
@@ -268,8 +271,10 @@ async function runBrowserQA() {
   console.log(`TOTAL: ${checks.length} | PASS: ${passed} | FAIL: ${failed}`);
   console.log("===============================================================================\n");
 
-  if (failed > 0) {
+  if (failed > 0 || caughtError || checks.length === 0) {
     process.exit(1);
+  } else {
+    process.exit(0);
   }
 }
 

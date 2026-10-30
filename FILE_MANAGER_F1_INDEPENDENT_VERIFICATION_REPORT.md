@@ -181,7 +181,7 @@ An exhaustive, read-only empirical verification of the MasterHRMS File Manager P
 - **Empirical Verification:**
   - All 17 new columns added to `media_files` (`nameKey`, `type`, `ownerType`, `ownerId`, `extension`, `currentVersionId`, `thumbnailKey`, `status`, `trashedAt`, `trashedBy`, `originalParentId`, `trashedByCascade`, `systemModule`, `systemPage`, `materializedPath`, `depth`, `version`) are either nullable or carry `@default(...)` clauses.
   - No existing columns were renamed, modified, or dropped.
-  - All 9 new supporting models (`FileVersion`, `FileAcl`, `FileTeam`, `FileTeamMember`, `FileLink`, `FileUploadSession`, `StorageQuota`, `StorageUsage`, `FileRecent`, `FileActivity`) use `onDelete: Cascade` foreign keys referencing `MediaFile.id`, ensuring referential integrity and clean cascading deletions.
+  - All 10 new supporting models (`FileVersion`, `FileAcl`, `FileTeam`, `FileTeamMember`, `FileLink`, `FileUploadSession`, `StorageQuota`, `StorageUsage`, `FileRecent`, `FileActivity`) use `onDelete: Cascade` foreign keys referencing `MediaFile.id`, ensuring referential integrity and clean cascading deletions.
   - The migration is 100% additive, non-destructive, and backward compatible.
 
 ---

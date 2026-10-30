@@ -136,7 +136,7 @@ async function runVerification() {
       if (res.status === 200 && res.data.usage) {
         const u = res.data.usage;
         const liveMediaFiles = await prisma.mediaFile.findMany({
-          where: { tenantId, status: { not: "trash" }, isFolder: false },
+          where: { tenantId, status: "ACTIVE", deletedAt: null, isFolder: false },
           select: { fileSize: true },
         });
         const liveFileSum = liveMediaFiles.reduce((acc, f) => acc + (f.fileSize || 0), 0);
@@ -235,7 +235,11 @@ async function runVerification() {
       if (res.status === 200 && res.data.usage) {
         const u = res.data.usage;
         const trashedInDb = await prisma.mediaFile.findMany({
-          where: { tenantId, status: "trash", isFolder: false },
+          where: {
+            tenantId,
+            OR: [{ status: "TRASHED" }, { deletedAt: { not: null } }],
+            isFolder: false,
+          },
           select: { fileSize: true },
         });
         const trashedSum = trashedInDb.reduce((acc, f) => acc + (f.fileSize || 0), 0);
@@ -385,28 +389,13 @@ async function runVerification() {
     // 13. Alert threshold transitions
     // -------------------------------------------------------------------------
     {
-      // Verify evaluateThreshold logic directly from implementation rules
-      function evaluateThreshold(pct) {
-        if (pct >= 100) return "LOCKED";
-        if (pct >= 95) return "CRITICAL";
-        if (pct >= 85) return "HIGH_USAGE";
-        if (pct >= 70) return "WARNING";
-        return "NORMAL";
-      }
-
-      const thresholds = [
-        { pct: 50, expected: "NORMAL" },
-        { pct: 75, expected: "WARNING" },
-        { pct: 88, expected: "HIGH_USAGE" },
-        { pct: 96, expected: "CRITICAL" },
-        { pct: 102, expected: "LOCKED" },
-      ];
-
-      const allMatch = thresholds.every((t) => evaluateThreshold(t.pct) === t.expected);
-      if (allMatch) {
-        record(13, "Alert Threshold Transitions", "PASS", "Verified transitions for 50% (NORMAL), 75% (WARNING), 88% (HIGH), 96% (CRITICAL), 102% (LOCKED)");
+      // Exercise server's threshold logic via /tenant/storage/summary and /tenant/storage/governance
+      const summaryRes = await apiRequest("GET", "/tenant/storage/summary", tenantAdminToken);
+      const govRes = await apiRequest("GET", "/tenant/storage/governance", tenantAdminToken);
+      if (summaryRes.status === 200 && summaryRes.data?.thresholdState && govRes.status === 200 && govRes.data?.lifecycleState) {
+        record(13, "Alert Threshold Transitions", "PASS", `Server evaluated thresholdState: ${summaryRes.data.thresholdState}, lifecycleState: ${govRes.data.lifecycleState} (Usage: ${summaryRes.data.usage?.percentUsed || 0}%)`);
       } else {
-        record(13, "Alert Threshold Transitions", "FAIL", "Threshold mapping error");
+        record(13, "Alert Threshold Transitions", "FAIL", `Failed to resolve server threshold state. Summary: ${summaryRes.status}, Governance: ${govRes.status}`);
       }
     }
 
@@ -515,6 +504,7 @@ async function runVerification() {
 
   } catch (err) {
     console.error("Verification suite execution error:", err);
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
@@ -528,8 +518,10 @@ async function runVerification() {
   console.log(`TOTAL: ${results.length} | PASS: ${passed} | FAIL: ${failed}`);
   console.log("================================================================\n");
 
-  if (failed > 0) {
+  if (failed > 0 || process.exitCode === 1 || results.length === 0) {
     process.exit(1);
+  } else {
+    process.exit(0);
   }
 }
 

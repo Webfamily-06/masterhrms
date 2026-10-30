@@ -148,12 +148,14 @@ export class FilesService {
         }
 
         // Privacy by Default: Exclude private direct-message attachments from general organization browsing
+        // unless the caller is an authorized participant (owner, uploader, or granted via FileAcl)
         where.NOT = [
           {
             AND: [
               { folder: { contains: "Direct Conversations", mode: "insensitive" } },
               { ownerId: { not: options.userId } },
-              { uploadedBy: { not: options.userId } }
+              { uploadedBy: { not: options.userId } },
+              { acls: { none: { principalId: options.userId } } },
             ]
           }
         ];
@@ -1083,7 +1085,7 @@ export class FilesService {
     }
 
     // Protection Guard: Block deletion if file is under active legal hold
-    const activeHold = await (prisma as any).storageLegalHold?.findFirst({
+    const activeHold = await prisma.storageLegalHold.findFirst({
       where: { fileId: file.id, releasedAt: null },
     });
     if (activeHold) {
@@ -1095,10 +1097,80 @@ export class FilesService {
       throw err;
     }
 
+    const isFolder = file.isFolder || file.type === "FOLDER";
+    let descendantFiles: any[] = [];
+    if (isFolder) {
+      const folderPath = file.materializedPath || `/${file.id}`;
+      descendantFiles = await prisma.mediaFile.findMany({
+        where: {
+          materializedPath: { startsWith: `${folderPath}/` },
+        },
+        include: { versions: true },
+      });
+
+      if (descendantFiles.length > 0) {
+        const descendantIds = descendantFiles.map((d) => d.id);
+        const activeDescendantHold = await prisma.storageLegalHold.findFirst({
+          where: { fileId: { in: descendantIds }, releasedAt: null },
+        });
+        if (activeDescendantHold) {
+          const heldFile = descendantFiles.find((d) => d.id === activeDescendantHold.fileId);
+          const err: any = new Error(
+            `Cannot delete folder "${file.fileName}": contains item "${heldFile?.fileName || activeDescendantHold.fileId}" protected by active Legal Hold "${activeDescendantHold.reason}".`
+          );
+          err.status = 403;
+          err.code = "LEGAL_HOLD_ACTIVE";
+          throw err;
+        }
+      }
+    }
+
     const storageProvider = StorageProviderFactory.getProvider();
     const isFromTrash = file.status === "TRASHED" || !!file.deletedAt;
 
     await prisma.$transaction(async (tx) => {
+      // If folder has descendants, purge children bottom-up (depth descending)
+      if (descendantFiles.length > 0) {
+        const sortedDescendants = [...descendantFiles].sort(
+          (a, b) => (b.depth || 0) - (a.depth || 0)
+        );
+        for (const desc of sortedDescendants) {
+          for (const version of desc.versions) {
+            if (version.storageKey) {
+              try {
+                await storageProvider.deleteObject(version.storageKey);
+              } catch (e) {
+                console.warn(`[DeletePermanent] Failed to purge descendant key: ${version.storageKey}`, e);
+              }
+            }
+          }
+
+          if (!desc.isFolder && desc.type !== "FOLDER") {
+            const descFromTrash = desc.status === "TRASHED" || !!desc.deletedAt;
+            await QuotaService.purgeFileBytes(
+              tx,
+              desc.tenantId,
+              desc.ownerId || options.userId,
+              desc.fileSize || 0,
+              descFromTrash
+            );
+          }
+
+          await tx.storageLegalHold.deleteMany({
+            where: { fileId: desc.id, releasedAt: { not: null } },
+          });
+          await tx.fileLink.deleteMany({ where: { fileId: desc.id } });
+          await tx.mediaUsage.deleteMany({ where: { mediaId: desc.id } });
+          await tx.fileStar.deleteMany({ where: { fileId: desc.id } });
+          await tx.fileAcl.deleteMany({ where: { fileId: desc.id } });
+          await tx.fileShare.deleteMany({ where: { fileId: desc.id } });
+          await tx.fileRecent.deleteMany({ where: { fileId: desc.id } });
+          await tx.fileActivity.deleteMany({ where: { fileId: desc.id } });
+          await tx.fileVersion.deleteMany({ where: { fileId: desc.id } });
+          await tx.mediaFile.delete({ where: { id: desc.id } });
+        }
+      }
+
       // 1. Delete versions from object storage
       for (const version of file.versions) {
         if (version.storageKey) {
@@ -1121,7 +1193,10 @@ export class FilesService {
         );
       }
 
-      // 3. Delete DB records
+      // 3. Delete released holds and DB records
+      await tx.storageLegalHold.deleteMany({
+        where: { fileId: file.id, releasedAt: { not: null } },
+      });
       await tx.fileLink.deleteMany({ where: { fileId: file.id } });
       await tx.mediaUsage.deleteMany({ where: { mediaId: file.id } });
       await tx.fileStar.deleteMany({ where: { fileId: file.id } });

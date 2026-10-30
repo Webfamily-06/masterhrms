@@ -25,7 +25,7 @@ function getTenantContext(req: any) {
   const isAdmin =
     isSuper ||
     userRoles.some((r) =>
-      ["admin", "tenantadmin", "workspaceadmin", "owner", "super_admin", "hr_admin"].includes(r.toLowerCase())
+      ["admin", "tenantadmin", "tenant_admin", "workspaceadmin", "owner", "super_admin", "hr_admin"].includes(r.toLowerCase())
     );
   return { isSuper, isAdmin, tenantId, userId, userRoles };
 }

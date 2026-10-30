@@ -348,7 +348,7 @@ export class FileAclService {
           title: "File shared with you",
           message: `A ${file?.isFolder ? "folder" : "file"} "${file?.fileName}" was shared with you as ${options.permission}.`,
           type: "FILE_SHARED",
-          actionUrl: `/apps/file-manager/list-view`,
+          actionUrl: `/me/files`,
         });
       } catch (e) {
         console.warn("[FileAcl] Notification dispatch failed:", e);
@@ -705,7 +705,7 @@ export class FileAclService {
     token: string;
     password?: string;
   }): Promise<{
-    file: any;
+    file?: any;
     allowDownload: boolean;
     requiresPassword: boolean;
     isPasswordValid?: boolean;
@@ -764,6 +764,12 @@ export class FileAclService {
           err.status = 401;
           throw err;
         }
+      } else {
+        return {
+          requiresPassword: true,
+          allowDownload: false,
+          isPasswordValid: false,
+        };
       }
     } else {
       isPasswordValid = true;

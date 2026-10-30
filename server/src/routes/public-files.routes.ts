@@ -24,7 +24,7 @@ publicFilesRouter.get("/link/:token", async (req: Request, res: Response) => {
 
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     return res.json({
-      file: result.file,
+      file: result.file || null,
       allowDownload: result.allowDownload,
       requiresPassword: result.requiresPassword,
       isPasswordValid: result.isPasswordValid,
@@ -44,10 +44,20 @@ publicFilesRouter.post("/link/:token/verify", async (req: Request, res: Response
     const { token } = req.params;
     const { password } = req.body;
 
+    if (!password || typeof password !== "string" || !password.trim()) {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return res.status(400).json({ error: "Password is required." });
+    }
+
     const result = await FileAclService.verifyPublicLink({
       token,
       password,
     });
+
+    if (result.requiresPassword && !result.isPasswordValid) {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return res.status(401).json({ error: "Invalid password." });
+    }
 
     res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
     return res.json({
@@ -75,12 +85,16 @@ publicFilesRouter.post("/link/:token/download", async (req: Request, res: Respon
       password,
     });
 
-    if (!result.allowDownload) {
-      return res.status(403).json({ error: "Download is not permitted for this link." });
-    }
-
     if (result.requiresPassword && !result.isPasswordValid) {
       return res.status(401).json({ error: "Password required to download this file." });
+    }
+
+    if (!result.file) {
+      return res.status(404).json({ error: "File not found or access denied." });
+    }
+
+    if (!result.allowDownload) {
+      return res.status(403).json({ error: "Download is not permitted for this link." });
     }
 
     // Fetch storage key

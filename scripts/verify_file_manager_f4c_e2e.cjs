@@ -10,7 +10,7 @@ const http = require("http");
 const jwt = require("../server/node_modules/jsonwebtoken");
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "masterhrms-jwt-secret-key-change-in-production-2026";
+const JWT_SECRET = process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
 const API_PORT = process.env.PORT || 4000;
 
 function makeRequest(method, path, headers = {}, body = null) {
@@ -169,7 +169,15 @@ async function runVerification() {
 
     // CHECKPOINT 1: Canonical 4-State Threshold Calculations
     console.log("\n--- CHECKPOINT 1: Threshold State Transitions ---");
-    const { QuotaGovernanceService } = require("../server/src/services/files/quota-governance.service");
+    let QuotaGovernanceService;
+    try {
+      ({ QuotaGovernanceService } = require("../server/dist/services/files/quota-governance.service"));
+    } catch {
+      try {
+        require("../server/node_modules/ts-node/register");
+      } catch {}
+      ({ QuotaGovernanceService } = require("../server/src/services/files/quota-governance.service"));
+    }
     assert(QuotaGovernanceService.resolveThresholdLevel(0) === "NORMAL", "0% resolves to NORMAL");
     assert(QuotaGovernanceService.resolveThresholdLevel(79.9) === "NORMAL", "79.9% resolves to NORMAL (< 80%)");
     assert(QuotaGovernanceService.resolveThresholdLevel(80.0) === "WARNING", "80.0% resolves to WARNING (>= 80%)");
@@ -283,7 +291,15 @@ async function runVerification() {
 
     // CHECKPOINT 7: Quota Service Pre-flight Enforcement & Outbox Events
     console.log("\n--- CHECKPOINT 7: Quota Pre-flight Enforcement & Outbox Audit ---");
-    const { QuotaService, QuotaExceededError } = require("../server/src/services/files/quota.service");
+    let QuotaService, QuotaExceededError;
+    try {
+      ({ QuotaService, QuotaExceededError } = require("../server/dist/services/files/quota.service"));
+    } catch {
+      try {
+        require("../server/node_modules/ts-node/register");
+      } catch {}
+      ({ QuotaService, QuotaExceededError } = require("../server/src/services/files/quota.service"));
+    }
 
     // Single file limit (files > 100 MB or plan ceiling)
     let singleFileBlocked = false;
@@ -301,50 +317,52 @@ async function runVerification() {
     }
     assert(singleFileBlocked, "Single file exceeding 100MB blocked at pre-flight check");
 
-    // Test tenant quota limit check + OutboxEvent
+    // Test tenant quota limit check + OutboxEvent on an isolated disposable tenant
     let tenantQuotaBlocked = false;
-    let tempQuota = await prisma.storageQuota.findFirst({
-      where: { tenantId: tenant.id, userId: null },
-    });
-    if (!tempQuota) {
-      tempQuota = await prisma.storageQuota.create({
-        data: { tenantId: tenant.id, userId: null, quotaBytes: BigInt(50 * 1024 * 1024 * 1024) },
-      });
-    }
-    const origQuota = tempQuota.quotaBytes;
-    await prisma.storageQuota.update({
-      where: { id: tempQuota.id },
-      data: { quotaBytes: BigInt(5 * 1024 * 1024) }, // Temporarily restrict to 5 MB
-    });
-    try {
-      await QuotaService.reserveUploadBytes(
-        prisma,
-        tenant.id,
-        tenantUser.id,
-        10 * 1024 * 1024 // 10 MB exceeds 5 MB quota
-      );
-    } catch (e) {
-      if (e instanceof QuotaExceededError) {
-        tenantQuotaBlocked = true;
-      }
-    }
-    // Restore tenant quota
-    await prisma.storageQuota.update({
-      where: { id: tempQuota.id },
-      data: { quotaBytes: origQuota },
-    });
-    assert(tenantQuotaBlocked, "Upload exceeding tenant capacity throws QuotaExceededError");
-
-    // Check OutboxEvent was emitted for blocked quota
-    const blockedEvents = await prisma.outboxEvent.findMany({
-      where: {
-        tenantId: tenant.id,
-        eventType: "quota.blocked",
+    const tenantUid = `f4c-disp-${Date.now()}`;
+    const disposableTenant = await prisma.tenant.create({
+      data: {
+        id: tenantUid,
+        slug: tenantUid,
+        name: "F4C Disposable Test Tenant",
       },
-      orderBy: { createdAt: "desc" },
-      take: 5,
     });
-    assert(blockedEvents.length > 0, "OutboxEvent 'quota.blocked' recorded in database");
+
+    try {
+      await prisma.storageQuota.create({
+        data: { tenantId: disposableTenant.id, userId: null, quotaBytes: BigInt(5 * 1024 * 1024) },
+      });
+
+      try {
+        await QuotaService.reserveUploadBytes(
+          prisma,
+          disposableTenant.id,
+          tenantUser.id,
+          10 * 1024 * 1024 // 10 MB exceeds 5 MB quota
+        );
+      } catch (e) {
+        if (e instanceof QuotaExceededError) {
+          tenantQuotaBlocked = true;
+        }
+      }
+      assert(tenantQuotaBlocked, "Upload exceeding tenant capacity throws QuotaExceededError");
+
+      // Check OutboxEvent was emitted for blocked quota
+      const blockedEvents = await prisma.outboxEvent.findMany({
+        where: {
+          tenantId: disposableTenant.id,
+          eventType: "quota.blocked",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      assert(blockedEvents.length > 0, "OutboxEvent 'quota.blocked' recorded in database");
+    } finally {
+      await prisma.storageQuota.deleteMany({ where: { tenantId: disposableTenant.id } }).catch(() => {});
+      await prisma.storageUsage.deleteMany({ where: { tenantId: disposableTenant.id } }).catch(() => {});
+      await prisma.outboxEvent.deleteMany({ where: { tenantId: disposableTenant.id } }).catch(() => {});
+      await prisma.tenant.delete({ where: { id: disposableTenant.id } }).catch(() => {});
+    }
 
     // CHECKPOINT 8: State Transition Evaluation & Self-Healing Recovery
     console.log("\n--- CHECKPOINT 8: State Transition & Recovery ---");

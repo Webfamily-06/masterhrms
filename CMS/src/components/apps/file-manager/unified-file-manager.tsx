@@ -227,6 +227,7 @@ export function UnifiedFileManager({
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewTarget, setPreviewTarget] = useState<FileItem | null>(null);
+  const [modalPreviewSignedUrl, setModalPreviewSignedUrl] = useState<string | null>(null);
   const [previewSignedUrl, setPreviewSignedUrl] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
@@ -391,11 +392,12 @@ export function UnifiedFileManager({
         setContextMenu(null);
       }
     };
+    const handleResize = () => setContextMenu(null);
     window.addEventListener("pointerdown", handleOutside);
-    window.addEventListener("resize", () => setContextMenu(null));
+    window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("pointerdown", handleOutside);
-      window.removeEventListener("resize", () => setContextMenu(null));
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -425,6 +427,27 @@ export function UnifiedFileManager({
       active = false;
     };
   }, [activeInspectorItem, showInspector]);
+
+  // Fetch signed preview URL for preview modal target
+  useEffect(() => {
+    let active = true;
+    setModalPreviewSignedUrl(null);
+    if (previewTarget && !previewTarget.isFolder && isPreviewModalOpen) {
+      api
+        .get(`/v1/files/nodes/${previewTarget.id}/preview`)
+        .then((res) => {
+          if (active && res?.signedUrl) {
+            setModalPreviewSignedUrl(res.signedUrl);
+          }
+        })
+        .catch(() => {
+          if (active) setModalPreviewSignedUrl(previewTarget.url || null);
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [previewTarget, isPreviewModalOpen]);
 
   // Keyboard navigation & Shortcuts (Ctrl+A, Delete, F2, Escape, Enter)
   useEffect(() => {
@@ -670,6 +693,7 @@ export function UnifiedFileManager({
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
       formData.append("files", files[i]);
+      formData.append("relativePaths", (files[i] as any).webkitRelativePath || files[i].name);
     }
     if (currentFolder?.id) {
       formData.append("parentId", currentFolder.id);
@@ -683,7 +707,6 @@ export function UnifiedFileManager({
       toast.success(`Successfully uploaded ${files.length} file(s)!`);
       qc.invalidateQueries({ queryKey: ["files-list"] });
       qc.invalidateQueries({ queryKey: ["files-stats"] });
-      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || err.message || "Failed to upload file(s).";
       const isQuota = errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("exceeded") || errMsg.toLowerCase().includes("limit reached");
@@ -694,6 +717,8 @@ export function UnifiedFileManager({
       }
     } finally {
       setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (folderInputRef.current) folderInputRef.current.value = "";
     }
   };
 
@@ -1266,7 +1291,7 @@ export function UnifiedFileManager({
                 variant="ghost"
                 size="sm"
                 disabled={selectedIds.size === 0}
-                onClick={() => handleBatchTrashOrRestore(true)}
+                onClick={() => handleBatchTrashOrRestore(true, selectedItems)}
                 className="h-8 px-2.5 gap-1.5 font-medium text-xs text-primary hover:bg-primary/10 disabled:opacity-40"
                 title="Restore selected items"
               >
@@ -2999,7 +3024,13 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       {/* DIALOG: DELETE / TRASH CONFIRMATION                                    */}
       {/* ----------------------------------------------------------------------- */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog
+        open={isDeleteOpen}
+        onOpenChange={(open) => {
+          setIsDeleteOpen(open);
+          if (!open) setDeleteTargets([]);
+        }}
+      >
         <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive text-sm font-semibold">
@@ -3090,31 +3121,40 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       {/* DIALOG: FULL PREVIEW MODAL                                             */}
       {/* ----------------------------------------------------------------------- */}
-      <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+      <Dialog
+        open={isPreviewModalOpen}
+        onOpenChange={(open) => {
+          setIsPreviewModalOpen(open);
+          if (!open) {
+            setPreviewTarget(null);
+            setModalPreviewSignedUrl(null);
+          }
+        }}
+      >
         <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4 font-sans">
           <DialogHeader className="pb-2 border-b border-border">
             <DialogTitle className="truncate text-sm font-semibold">{previewTarget?.fileName}</DialogTitle>
           </DialogHeader>
           <div className="flex-1 flex items-center justify-center p-4 overflow-auto min-h-[320px]">
-            {previewTarget?.category === "Images" && (previewSignedUrl || previewTarget.url) ? (
+            {previewTarget?.category === "Images" && (modalPreviewSignedUrl || previewTarget.url) ? (
               <img
-                src={previewSignedUrl || previewTarget.url}
+                src={modalPreviewSignedUrl || previewTarget.url}
                 alt={previewTarget.fileName}
                 className="max-h-[70vh] max-w-full rounded-lg object-contain"
               />
-            ) : previewTarget?.mimeType?.includes("video") && (previewSignedUrl || previewTarget.url) ? (
+            ) : previewTarget?.mimeType?.includes("video") && (modalPreviewSignedUrl || previewTarget.url) ? (
               <video controls className="max-h-[70vh] max-w-full rounded-lg">
-                <source src={previewSignedUrl || previewTarget.url} type={previewTarget.mimeType} />
+                <source src={modalPreviewSignedUrl || previewTarget.url} type={previewTarget.mimeType} />
                 Your browser does not support HTML5 video.
               </video>
-            ) : previewTarget?.mimeType?.includes("audio") && (previewSignedUrl || previewTarget.url) ? (
+            ) : previewTarget?.mimeType?.includes("audio") && (modalPreviewSignedUrl || previewTarget.url) ? (
               <div className="p-6 rounded-2xl bg-card border border-border flex flex-col items-center gap-4">
                 <Music className="size-12 text-primary" />
-                <audio controls src={previewSignedUrl || previewTarget.url} className="w-72" />
+                <audio controls src={modalPreviewSignedUrl || previewTarget.url} className="w-72" />
               </div>
-            ) : previewTarget?.mimeType === "application/pdf" && (previewSignedUrl || previewTarget.url) ? (
+            ) : previewTarget?.mimeType === "application/pdf" && (modalPreviewSignedUrl || previewTarget.url) ? (
               <iframe
-                src={previewSignedUrl || previewTarget.url}
+                src={modalPreviewSignedUrl || previewTarget.url}
                 className="w-full h-[65vh] rounded-lg border border-border"
                 title={previewTarget.fileName}
               />

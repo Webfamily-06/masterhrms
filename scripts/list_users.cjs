@@ -1,18 +1,14 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../server/.env') });
 const { PrismaClient } = require('../server/node_modules/@prisma/client');
 const prisma = new PrismaClient();
 
-async function run() {
+async function main() {
   const users = await prisma.user.findMany({
     take: 10,
-    select: {
-      id: true,
-      email: true,
-      profile: { select: { fullName: true, tenantId: true } },
-      roles: true,
-    },
+    include: { profile: true, roles: true }
   });
-  console.log(JSON.stringify(users, null, 2));
+  users.forEach(u => console.log(u.id, u.email, u.profile?.tenantId, u.roles.map(r => r.role)));
   await prisma.$disconnect();
 }
-
-run().catch(console.error);
+main();

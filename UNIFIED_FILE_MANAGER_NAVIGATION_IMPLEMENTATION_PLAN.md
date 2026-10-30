@@ -63,7 +63,7 @@ MasterHRMS previously had fragmented file experiences across workspaces:
 | `/apps/file-manager/list-view` | `FileManagerListPage` | Core Apps | **Redirect to `/hr/files`**. |
 | `/apps/file-manager/grid-view` | `FileManagerGridPage` | Core Apps | **Redirect to `/hr/files`**. |
 | `/apps/file-manager` | Redirect/missing | Core Apps | **Redirect to `/hr/files`**. |
-| `/media` | Redirect to `/hr/media` | Global | **Redirect to `/tenant/files` or `/hr/files`**. |
+| `/media` | Redirect to `/hr/media` | Global | **Redirect to `/tenant/files` by default (dynamically routed to `/hr/files` for HR sessions and `/me/files` for employee sessions)**. |
 
 ---
 
@@ -112,8 +112,8 @@ In `UnifiedFileManager`:
    - **List View** (`ListIcon`): Dense row list optimized for rapid file scanning.
 2. State Management:
    - State `view: FileManagerView` stored in local component state.
-   - Initial state restored from `localStorage.getItem("hrms_file_manager_view") || initialView || "details"`.
-   - On change, updates both `view` and `localStorage.setItem("hrms_file_manager_view", newView)`.
+   - Initial state restored from `localStorage.getItem("master_hrms_file_view") || initialView || "details"`.
+   - On change, updates both `view` and `localStorage.setItem("master_hrms_file_view", newView)`.
    - No route navigation or page reloads.
    - `currentFolder`, `searchQuery`, `category`, and `selectedIds` are completely preserved across view switches.
 

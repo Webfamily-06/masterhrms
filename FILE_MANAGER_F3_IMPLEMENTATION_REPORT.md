@@ -93,26 +93,26 @@ All browser interactions were verified across multi-session environments (HR Adm
 ### 4.1 Screenshots
 
 ````carousel
-![01 Share Dialog Internal Collaborators](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/01_f3_share_modal_internal.png)
+![01 Share Dialog Internal Collaborators](docs/Saas/screenshots/files_f3/01_f3_share_modal_internal.png)
 <!-- slide -->
-![02 Share Dialog Public Link](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/02_f3_share_modal_public.png)
+![02 Share Dialog Public Link](docs/Saas/screenshots/files_f3/02_f3_share_modal_public.png)
 <!-- slide -->
-![03 Guest Password Prompt](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/03_f3_guest_password_prompt.png)
+![03 Guest Password Prompt](docs/Saas/screenshots/files_f3/03_f3_guest_password_prompt.png)
 <!-- slide -->
-![04 Guest Unlocked Preview](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/04_f3_guest_unlocked_preview.png)
+![04 Guest Unlocked Preview](docs/Saas/screenshots/files_f3/04_f3_guest_unlocked_preview.png)
 <!-- slide -->
-![05 Employee Shared With Me](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/05_f3_employee_shared_with_me.png)
+![05 Employee Shared With Me](docs/Saas/screenshots/files_f3/05_f3_employee_shared_with_me.png)
 <!-- slide -->
-![06 Guest Link Revoked 404](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/06_f3_guest_link_revoked_404.png)
+![06 Guest Link Revoked 404](docs/Saas/screenshots/files_f3/06_f3_guest_link_revoked_404.png)
 ````
 
 ### Detailed Captions:
-1. **[01_f3_share_modal_internal.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/01_f3_share_modal_internal.png):** Internal Collaborators tab showing principal fuzzy search, role permission dropdown, and the "Who has access" audit matrix.
-2. **[02_f3_share_modal_public.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/02_f3_share_modal_public.png):** Public Link management showing the unguessable URL, active state indicator, copy shortcut, and one-click Revoke Link control.
-3. **[03_f3_guest_password_prompt.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/03_f3_guest_password_prompt.png):** Guest portal password challenge for protected files, preventing unauthorized visitors from accessing metadata or content.
-4. **[04_f3_guest_unlocked_preview.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/04_f3_guest_unlocked_preview.png):** Unlocked guest view displaying authentic Microsoft Word SVG icon, verified file size, formatted MIME type, and signed download trigger.
-5. **[05_f3_employee_shared_with_me.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/05_f3_employee_shared_with_me.png):** Employee session `/me/files` under "Shared with Me" quick access, displaying collaborative files granted by HR Admin.
-6. **[06_f3_guest_link_revoked_404.png](file:///C:/Users/TSV%20Global%20Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0/06_f3_guest_link_revoked_404.png):** Instant invalidation: reloading the guest link after owner revocation displays the "Link Unavailable or Expired" notice.
+1. **[01_f3_share_modal_internal.png](docs/Saas/screenshots/files_f3/01_f3_share_modal_internal.png):** Internal Collaborators tab showing principal fuzzy search, role permission dropdown, and the "Who has access" audit matrix.
+2. **[02_f3_share_modal_public.png](docs/Saas/screenshots/files_f3/02_f3_share_modal_public.png):** Public Link management showing the unguessable URL, active state indicator, copy shortcut, and one-click Revoke Link control.
+3. **[03_f3_guest_password_prompt.png](docs/Saas/screenshots/files_f3/03_f3_guest_password_prompt.png):** Guest portal password challenge for protected files, preventing unauthorized visitors from accessing metadata or content.
+4. **[04_f3_guest_unlocked_preview.png](docs/Saas/screenshots/files_f3/04_f3_guest_unlocked_preview.png):** Unlocked guest view displaying authentic Microsoft Word SVG icon, verified file size, formatted MIME type, and signed download trigger.
+5. **[05_f3_employee_shared_with_me.png](docs/Saas/screenshots/files_f3/05_f3_employee_shared_with_me.png):** Employee session `/me/files` under "Shared with Me" quick access, displaying collaborative files granted by HR Admin.
+6. **[06_f3_guest_link_revoked_404.png](docs/Saas/screenshots/files_f3/06_f3_guest_link_revoked_404.png):** Instant invalidation: reloading the guest link after owner revocation displays the "Link Unavailable or Expired" notice.
 
 ---
 

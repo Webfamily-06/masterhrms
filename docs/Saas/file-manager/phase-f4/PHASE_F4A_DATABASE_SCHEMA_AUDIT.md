@@ -135,10 +135,13 @@ WHERE tenant_id = :tid
 Currently, the existing composite index is `@@index([tenantId, status])`. The database must perform a secondary heap scan or bitmap index scan to filter out `deletedAt` and `isFolder`.
 
 **Proposed Composite Index:**
-```prisma
-@@index([tenantId, status, isFolder, deletedAt], name: "idx_media_files_storage_calc")
+```sql
+-- For an Index-Only Scan in PostgreSQL covering byte summations and category groupings:
+CREATE INDEX idx_media_files_storage_calc 
+ON media_files (tenant_id, status, is_folder, deleted_at) 
+INCLUDE (file_size, category);
 ```
-This enables an Index-Only Scan in PostgreSQL, accelerating tenant-wide byte summations by up to 25x on tenants with > 100,000 files.
+Covering the filter predicates (`tenantId`, `status`, `isFolder`, `deletedAt`) along with the aggregation payload (`file_size`, `category`) avoids heap lookups during high-frequency storage summations.
 
 ### Bottleneck 2: Category Breakdown Aggregation
 The storage dashboard requires grouping by `category` to display file-type distribution.
@@ -195,6 +198,9 @@ model StorageQuota {
   @@index([tenantId, entityType])
   @@map("storage_quotas")
 }
+
+// Partial unique index ensuring tenant-level rows cannot duplicate when entity_id is null:
+// CREATE UNIQUE INDEX uq_storage_quotas_tenant_pool ON storage_quotas (tenant_id, entity_type) WHERE entity_id IS NULL;
 ```
 
 ### Proposed Model 3: `StorageAlertLog`

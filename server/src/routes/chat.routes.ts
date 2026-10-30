@@ -1631,6 +1631,12 @@ chatRouter.post(
 
         // Resolve canonical Organization Chat folder hierarchy
         const threadId = req.body?.threadId || (req.query?.threadId as string);
+        if (threadId) {
+          const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+          if (!authCheck.authorized) {
+            return res.status(403).json({ error: authCheck.reason || "Unauthorized access to thread" });
+          }
+        }
         const folderContext = await ChatFolderService.resolveChatFolderHierarchy(
           tenantId,
           threadId,

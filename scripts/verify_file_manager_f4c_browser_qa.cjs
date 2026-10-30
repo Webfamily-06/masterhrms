@@ -6,8 +6,18 @@ const { PrismaClient } = require("../server/node_modules/@prisma/client");
 const jwt = require("../server/node_modules/jsonwebtoken");
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || "masterhrms-jwt-secret-key-change-in-production-2026";
-const ARTIFACT_DIR = "C:\\Users\\TSV Global Solutions\\.gemini\\antigravity\\brain\\29494ee0-4f9e-4896-8c16-14b56e9678b0";
+const JWT_SECRET = process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || null;
+
+function copyArtifact(sourcePath, targetFileName) {
+  if (ARTIFACT_DIR && fs.existsSync(ARTIFACT_DIR)) {
+    try {
+      fs.copyFileSync(sourcePath, path.join(ARTIFACT_DIR, targetFileName));
+    } catch (err) {
+      console.warn(`Could not copy artifact ${targetFileName}:`, err.message);
+    }
+  }
+}
 const DOCS_DIR = path.join(__dirname, "../docs/Saas/screenshots/files");
 
 function generateToken(payload) {
@@ -66,7 +76,7 @@ async function runBrowserQA() {
 
   const screen1 = path.join(DOCS_DIR, "01_f4c_tenant_storage_quota_governance.png");
   await page.screenshot({ path: screen1, fullPage: true });
-  fs.copyFileSync(screen1, path.join(ARTIFACT_DIR, "01_f4c_tenant_storage_quota_governance.png"));
+  copyArtifact(screen1, "01_f4c_tenant_storage_quota_governance.png");
   console.log(`Saved screenshot 1: ${screen1}`);
 
   // 2. Open Department Quota Dialog
@@ -78,7 +88,7 @@ async function runBrowserQA() {
 
     const screen2 = path.join(DOCS_DIR, "02_f4c_department_quota_dialog.png");
     await page.screenshot({ path: screen2, fullPage: false });
-    fs.copyFileSync(screen2, path.join(ARTIFACT_DIR, "02_f4c_department_quota_dialog.png"));
+    copyArtifact(screen2, "02_f4c_department_quota_dialog.png");
     console.log(`Saved screenshot 2: ${screen2}`);
 
     // Close dialog
@@ -96,7 +106,7 @@ async function runBrowserQA() {
 
     const screen3 = path.join(DOCS_DIR, "03_f4c_team_quota_dialog.png");
     await page.screenshot({ path: screen3, fullPage: false });
-    fs.copyFileSync(screen3, path.join(ARTIFACT_DIR, "03_f4c_team_quota_dialog.png"));
+    copyArtifact(screen3, "03_f4c_team_quota_dialog.png");
     console.log(`Saved screenshot 3: ${screen3}`);
 
     const cancelBtn = page.locator("button:has-text('Cancel')").first();
@@ -111,7 +121,7 @@ async function runBrowserQA() {
 
   const screen4 = path.join(DOCS_DIR, "04_f4c_file_manager_storage_meter.png");
   await page.screenshot({ path: screen4, fullPage: true });
-  fs.copyFileSync(screen4, path.join(ARTIFACT_DIR, "04_f4c_file_manager_storage_meter.png"));
+  copyArtifact(screen4, "04_f4c_file_manager_storage_meter.png");
   console.log(`Saved screenshot 4: ${screen4}`);
 
   // 5. Tablet Responsive View
@@ -122,7 +132,7 @@ async function runBrowserQA() {
 
   const screen5 = path.join(DOCS_DIR, "05_f4c_responsive_tablet_governance.png");
   await page.screenshot({ path: screen5, fullPage: true });
-  fs.copyFileSync(screen5, path.join(ARTIFACT_DIR, "05_f4c_responsive_tablet_governance.png"));
+  copyArtifact(screen5, "05_f4c_responsive_tablet_governance.png");
   console.log(`Saved screenshot 5: ${screen5}`);
 
   await browser.close();

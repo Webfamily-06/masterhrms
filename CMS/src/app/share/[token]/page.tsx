@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "@/lib/api";
 import {
   Download,
   Lock,
@@ -57,7 +58,8 @@ export default function PublicSharePage({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`http://localhost:4000/api/v1/public/files/link/${token}`);
+        const apiBase = (API_BASE || "/api").replace(/\/+$/, "");
+        const res = await fetch(`${apiBase}/v1/public/files/link/${encodeURIComponent(token)}`);
         const data = await res.json();
 
         if (!res.ok) {
@@ -87,7 +89,8 @@ export default function PublicSharePage({
     setIsVerifyingPassword(true);
     setPasswordError(null);
     try {
-      const res = await fetch(`http://localhost:4000/api/v1/public/files/link/${token}/verify`, {
+      const apiBase = (API_BASE || "/api").replace(/\/+$/, "");
+      const res = await fetch(`${apiBase}/v1/public/files/link/${encodeURIComponent(token)}/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: password.trim() }),
@@ -115,7 +118,8 @@ export default function PublicSharePage({
     if (!token) return;
     setIsDownloading(true);
     try {
-      const res = await fetch(`http://localhost:4000/api/v1/public/files/link/${token}/download`, {
+      const apiBase = (API_BASE || "/api").replace(/\/+$/, "");
+      const res = await fetch(`${apiBase}/v1/public/files/link/${encodeURIComponent(token)}/download`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: password.trim() || undefined }),

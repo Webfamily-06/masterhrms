@@ -696,6 +696,21 @@ function broadcastToTenant(tenantId, event, payload) {
     if (!ioInstance)
         return;
     ioInstance.to(`tenant:${tenantId}`).emit(event, payload);
+    // Forward storage, file, and quota events to Super Admin platform room
+    if (event.startsWith("file:") ||
+        event.startsWith("file.") ||
+        event.startsWith("storage:") ||
+        event.startsWith("storage.") ||
+        event.startsWith("quota:") ||
+        event.startsWith("quota.")) {
+        ioInstance.to("platform:admin").emit("storage:platform:update", {
+            tenantId,
+            event,
+            payload,
+            timestamp: new Date().toISOString(),
+        });
+        ioInstance.to("platform:admin").emit(event, { tenantId, ...payload });
+    }
 }
 function broadcastToUser(userId, event, payload) {
     if (!ioInstance)

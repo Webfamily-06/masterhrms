@@ -284,11 +284,28 @@ superStorageRouter.get(
   requireSuperAdmin,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { tenantId, page, limit } = req.query as any;
+      const { tenantId, page: rawPage, limit: rawLimit } = req.query as any;
+
+      let page = 1;
+      if (rawPage !== undefined) {
+        const parsedPage = parseInt(String(rawPage), 10);
+        if (Number.isFinite(parsedPage) && parsedPage > 0) {
+          page = parsedPage;
+        }
+      }
+
+      let limit = 20;
+      if (rawLimit !== undefined) {
+        const parsedLimit = parseInt(String(rawLimit), 10);
+        if (Number.isFinite(parsedLimit) && parsedLimit > 0) {
+          limit = Math.min(parsedLimit, 100);
+        }
+      }
+
       const history = await StorageRetentionService.listJobs({
         tenantId: tenantId ? String(tenantId) : undefined,
-        page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 20,
+        page,
+        limit,
       });
       return res.json(history);
     } catch (err: any) {
@@ -308,13 +325,14 @@ superStorageRouter.post(
   requireSuperAdmin,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { tenantId, isDryRun, force } = req.body;
+      const { tenantId, jobId, isDryRun, force } = req.body;
       if (!tenantId) {
         return res.status(400).json({ error: "tenantId is required for retention execution." });
       }
 
       const result = await StorageRetentionService.executeRetentionJob({
         tenantId,
+        jobId: jobId ? String(jobId) : undefined,
         actorId: req.user?.id || req.user?.userId,
         isDryRun,
         force,

@@ -4893,7 +4893,7 @@ model MediaFile {
   depth               Int           @default(0)
   version             Int           @default(1)
 
-  parent         MediaFile?   @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  parent         MediaFile?   @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children       MediaFile[]  @relation("FolderHierarchy")
   stars          FileStar[]
   shares         FileShare[]
@@ -5154,7 +5154,7 @@ model StorageLegalHold {
   releaseReason String?   @map("release_reason") @db.VarChar(500)
   releasedBy    String?   @map("released_by") @db.VarChar(36)
 
-  file          MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  file          MediaFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, fileId, releasedAt])
   @@map("storage_legal_holds")

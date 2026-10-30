@@ -24,11 +24,11 @@ This blueprint defines the frontend user interface architecture, layout specific
 
 ## 2. Dashboard Component Hierarchy & Layout Structure
 
-The Storage Administration experience will be mounted under [`CMS/src/app/(workspace)/tenant/storage/`](file:///c:/Users/TSV%20Global%20Solutions/Documents/hrms/CMS/src/app/(workspace)/tenant) and integrated into the primary sidebar navigation.
+The Storage Administration experience will be mounted under [`CMS/src/app/(workspace)/tenant/files/storage/`](file:///c:/Users/TSV%20Global%20Solutions/Documents/hrms/CMS/src/app/(workspace)/tenant/files/storage) and integrated into the primary sidebar navigation.
 
 ```mermaid
 graph TD
-    Root["Tenant Storage Hub (/tenant/storage)"]
+    Root["Tenant Storage Hub (/tenant/files/storage)"]
     
     Root --> Header["Storage Command Ribbon & Health Status"]
     Root --> NavTabs["Navigation Tabs (Overview | Departments | Teams | Users | Analytics | Cleanup | Settings)"]

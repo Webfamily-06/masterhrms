@@ -493,6 +493,7 @@ export class StorageRetentionService {
       RETENTION_PERIOD_NOT_ELAPSED: 0,
       EXCLUDED_FOLDER: 0,
       ACTIVE_FILE_GUARD: 0,
+      DESCENDANTS_REMAINING: 0,
     };
 
     let totalEligibleBytes = BigInt(0);
@@ -582,6 +583,26 @@ export class StorageRetentionService {
           details: `Item has been in trash since ${trashedDate.toISOString()}, less than the required ${trashRetentionDays} days.`,
         });
         continue;
+      }
+
+      // Safety Invariant 7: Trashed Folder Descendant Check
+      if (file.isFolder || file.type === "FOLDER") {
+        const folderPath = file.materializedPath || `/${file.id}`;
+        const remainingDescendants = await prisma.mediaFile.count({
+          where: {
+            materializedPath: { startsWith: `${folderPath}/` },
+          },
+        });
+        if (remainingDescendants > 0) {
+          skippedBreakdown.DESCENDANTS_REMAINING = (skippedBreakdown.DESCENDANTS_REMAINING || 0) + 1;
+          skippedItems.push({
+            id: file.id,
+            fileName: file.fileName,
+            reason: "DESCENDANTS_REMAINING",
+            details: `Folder contains ${remainingDescendants} descendant item(s) that must be purged first.`,
+          });
+          continue;
+        }
       }
 
       // File is eligible for permanent purge!
@@ -856,6 +877,12 @@ export class StorageRetentionService {
       throw new Error(`Job cannot be approved from status "${job.status}". Must be PENDING_APPROVAL.`);
     }
 
+    if (job.requestedBy && job.requestedBy === actorId) {
+      const err: any = new Error("Separation of duties violation: The requester cannot approve their own retention job.");
+      err.status = 403;
+      throw err;
+    }
+
     const updated = await prisma.storageRetentionJob.update({
       where: { id: job.id },
       data: {
@@ -933,14 +960,14 @@ export class StorageRetentionService {
     const policy = await this.getTenantPolicy(tenantId);
 
     // Safety Invariant: Check if policy is enabled
-    if (!policy.isEnabled && !force) {
+    if (!policy.isEnabled) {
       throw new Error(
         "Retention policy is currently disabled. Enable policy before executing destructive permanent deletion."
       );
     }
 
     // Safety Invariant: Dry-Run Redirect
-    const shouldDryRun = options.isDryRun !== undefined ? options.isDryRun : policy.isDryRun;
+    const shouldDryRun = policy.isDryRun || options.isDryRun === true;
     if (shouldDryRun) {
       return this.createDryRunPreview(tenantId, actorId);
     }
@@ -956,6 +983,11 @@ export class StorageRetentionService {
       });
       if (!approvedJob || approvedJob.status !== "APPROVED") {
         throw new Error("Job has not been approved for execution.");
+      }
+      if (approvedJob.tenantId !== tenantId) {
+        const err: any = new Error("Forbidden: Access denied to approved job belonging to another tenant.");
+        err.status = 403;
+        throw err;
       }
     }
 
@@ -995,9 +1027,26 @@ export class StorageRetentionService {
       // Re-evaluate candidates in real-time immediately before execution!
       const evaluation = await this.evaluateCandidates(tenantId, policy);
 
+      let candidates = evaluation.eligibleFiles;
+      let eligibleVersions = evaluation.eligibleVersions;
+
+      if (approvedJob?.detailsJson) {
+        const details =
+          typeof approvedJob.detailsJson === "string"
+            ? JSON.parse(approvedJob.detailsJson)
+            : approvedJob.detailsJson;
+        if (Array.isArray(details.candidateIds)) {
+          const approvedSet = new Set(details.candidateIds);
+          candidates = candidates.filter((c: any) => approvedSet.has(c.id));
+        }
+        if (Array.isArray(details.versionIds)) {
+          const approvedVerSet = new Set(details.versionIds);
+          eligibleVersions = eligibleVersions.filter((v: any) => approvedVerSet.has(v.id));
+        }
+      }
+
       // Execute in bounded chunks (CHUNK_SIZE = 25)
       const CHUNK_SIZE = 25;
-      const candidates = evaluation.eligibleFiles;
 
       for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
         const chunk = candidates.slice(i, i + CHUNK_SIZE);
@@ -1057,56 +1106,71 @@ export class StorageRetentionService {
 
           // STEP 2: PRISMA TRANSACTION FOR METADATA PURGE & SUCE RECLAIM
           const fileSizeNum = freshFile.fileSize || 0;
-          await prisma.$transaction(async (tx: any) => {
-            // A. Decrement SUCE quota counters (floor-protected)
-            if (!freshFile.isFolder && freshFile.type !== "FOLDER") {
-              await QuotaService.purgeFileBytes(
-                tx,
-                tenantId,
-                freshFile.ownerId || actorId || "system",
-                fileSizeNum,
-                true // Purging from trash!
-              );
-            }
+          try {
+            await prisma.$transaction(async (tx: any) => {
+              // A. Decrement SUCE quota counters (floor-protected)
+              if (!freshFile.isFolder && freshFile.type !== "FOLDER") {
+                await QuotaService.purgeFileBytes(
+                  tx,
+                  tenantId,
+                  freshFile.ownerId || actorId || "system",
+                  fileSizeNum,
+                  true // Purging from trash!
+                );
+              }
 
-            // B. Clean related records
-            await tx.fileLink.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.mediaUsage.deleteMany({ where: { mediaId: freshFile.id } });
-            await tx.fileStar.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.fileAcl.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.fileShare.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.fileRecent.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.fileActivity.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.fileVersion.deleteMany({ where: { fileId: freshFile.id } });
-            await tx.mediaFile.delete({ where: { id: freshFile.id } });
+              // B. Delete released legal holds before mediaFile deletion
+              await tx.storageLegalHold.deleteMany({
+                where: { fileId: freshFile.id, releasedAt: { not: null } },
+              });
 
-            // C. Audit event in Outbox
-            await OutboxService.createOutboxEvent(
-              {
-                tenantId,
-                eventType: "storage.retention.file_purged",
-                entityType: "MediaFile",
-                entityId: freshFile.id,
-                actorId: actorId || null,
-                payload: {
-                  id: freshFile.id,
-                  fileName: freshFile.fileName,
-                  fileSize: fileSizeNum,
-                  jobId: job.id,
+              // C. Clean related records
+              await tx.fileLink.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.mediaUsage.deleteMany({ where: { mediaId: freshFile.id } });
+              await tx.fileStar.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.fileAcl.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.fileShare.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.fileRecent.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.fileActivity.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.fileVersion.deleteMany({ where: { fileId: freshFile.id } });
+              await tx.mediaFile.delete({ where: { id: freshFile.id } });
+
+              // D. Audit event in Outbox
+              await OutboxService.createOutboxEvent(
+                {
+                  tenantId,
+                  eventType: "storage.retention.file_purged",
+                  entityType: "MediaFile",
+                  entityId: freshFile.id,
+                  actorId: actorId || null,
+                  payload: {
+                    id: freshFile.id,
+                    fileName: freshFile.fileName,
+                    fileSize: fileSizeNum,
+                    jobId: job.id,
+                  },
                 },
-              },
-              tx
-            );
-          });
+                tx
+              );
+            });
 
-          deletedCount++;
-          deletedBytes += BigInt(fileSizeNum);
-          executionDetails.deletedFiles.push({ id: freshFile.id, fileName: freshFile.fileName });
+            deletedCount++;
+            deletedBytes += BigInt(fileSizeNum);
+            executionDetails.deletedFiles.push({ id: freshFile.id, fileName: freshFile.fileName });
+          } catch (fileErr: any) {
+            console.error(`[RetentionPurge] Failed to purge file ${freshFile.id}:`, fileErr);
+            failedCount++;
+            executionDetails.failedFiles.push({
+              id: freshFile.id,
+              fileName: freshFile.fileName,
+              error: fileErr.message,
+            });
+          }
         }
       }
 
       // STEP 3: PRUNE HISTORICAL FILE VERSIONS (IF CONFIGURED)
-      for (const ver of evaluation.eligibleVersions) {
+      for (const ver of eligibleVersions) {
         try {
           if (ver.storageKey) {
             await storageProvider.deleteObject(ver.storageKey);
@@ -1314,3 +1378,4 @@ export class StorageRetentionService {
     };
   }
 }
+

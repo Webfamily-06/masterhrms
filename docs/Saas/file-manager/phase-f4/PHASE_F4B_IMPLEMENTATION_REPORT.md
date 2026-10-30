@@ -106,7 +106,7 @@ Implemented in [`server/src/services/files/storage-usage.engine.ts`](file:///c:/
 | **Total Physical Footprint** | $S_{\text{physical}}$ | $S_{\text{active}} + S_{\text{trash}} + S_{\text{versions}}$ |
 | **Billable Storage Footprint**| $S_{\text{billable}}$ | $S_{\text{active}} + S_{\text{trash}} + S_{\text{versions}}$ |
 | **Available Unreserved Bytes**| $S_{\text{remaining}}$| $\max(0, \text{PlanLimitBytes} - (S_{\text{active}} + S_{\text{reserved}}))$ |
-| **Utilization Percentage** | $U$ | $\min(100, (S_{\text{active}} / \text{PlanLimitBytes}) \times 100)$ |
+| **Utilization Percentage** | $U$ | $\min(100, ((S_{\text{active}} + S_{\text{reserved}}) / \text{PlanLimitBytes}) \times 100)$ |
 
 ### 3.2 Threshold Levels
 - `NORMAL`: $U < 70\%$
@@ -167,8 +167,9 @@ Compares materialized counters in `StorageUsage` (`userId: null`) against live a
   3. Writes persistent `OutboxEvent` with `eventType = 'storage.reconciled'` containing before/after counters, drift corrected, and actor metadata.
 - Broadcasts WebSocket event `storage.usage.updated` to active tenant clients.
 
-### 4.4 Fleet-Wide Sweep with Mutual Exclusion Lock
-- Protected by `private static isFleetReconciling = false;` to prevent concurrent sweep race conditions.
+### 4.4 Fleet-Wide Sweep with Distributed Mutual Exclusion Lock
+- Protected by cluster-wide PostgreSQL advisory locks (`pg_try_advisory_lock(849201948)`) with fallback to local `isFleetReconciling` guard to prevent concurrent sweep race conditions across multiple application replicas.
+- Automatically releases the advisory lock on all success and error exit paths.
 - Processes tenants in bounded batches (default: 25) with exponential backoff on transient connection hiccups.
 
 ---

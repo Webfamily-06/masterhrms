@@ -11,6 +11,13 @@ const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") }); // project root .env
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
+// Global BigInt JSON serialization support for Express API boundaries
+if (!BigInt.prototype.toJSON) {
+    BigInt.prototype.toJSON = function () {
+        const intVal = Number(this);
+        return Number.isSafeInteger(intVal) ? intVal : this.toString();
+    };
+}
 // Global process error logging (ensures crashes appear in Vercel runtime logs without secret leakage)
 process.on("unhandledRejection", (reason) => {
     console.error("Unhandled Rejection:", reason?.message || reason, reason?.stack || "");
@@ -49,6 +56,8 @@ const statutory_returns_routes_1 = require("./routes/statutory-returns.routes");
 const invoices_routes_1 = require("./routes/invoices.routes");
 const crm_routes_1 = require("./routes/crm.routes");
 const super_routes_1 = require("./routes/super.routes");
+const super_storage_routes_1 = require("./routes/super-storage.routes");
+const tenant_storage_routes_1 = require("./routes/tenant-storage.routes");
 const addons_routes_1 = require("./routes/addons.routes");
 const email_routes_1 = require("./routes/email.routes");
 const user_email_accounts_routes_1 = require("./routes/user-email-accounts.routes");
@@ -112,6 +121,7 @@ const timesheets_routes_1 = require("./routes/timesheets.routes");
 const settings_routes_1 = require("./routes/settings.routes");
 const media_routes_1 = require("./routes/media.routes");
 const files_routes_1 = require("./routes/files.routes");
+const public_files_routes_1 = require("./routes/public-files.routes");
 const app_config_routes_1 = require("./routes/app-config.routes");
 const employee_self_service_routes_1 = require("./routes/employee-self-service.routes");
 const company_profile_routes_1 = require("./routes/company-profile.routes");
@@ -367,6 +377,12 @@ app.use("/api/v1/media", media_routes_1.mediaRouter);
 app.use("/api/media", media_routes_1.mediaRouter);
 app.use("/api/v1/files", files_routes_1.filesRouter);
 app.use("/api/files", files_routes_1.filesRouter);
+app.use("/api/v1/super/storage", super_storage_routes_1.superStorageRouter);
+app.use("/api/super/storage", super_storage_routes_1.superStorageRouter);
+app.use("/api/v1/tenant/storage", tenant_storage_routes_1.tenantStorageRouter);
+app.use("/api/tenant/storage", tenant_storage_routes_1.tenantStorageRouter);
+app.use("/api/v1/public/files", public_files_routes_1.publicFilesRouter);
+app.use("/api/public/files", public_files_routes_1.publicFilesRouter);
 app.use("/api/v1/public", app_config_routes_1.appConfigRouter);
 app.use("/api/public", app_config_routes_1.appConfigRouter);
 app.use("/api", app_config_routes_1.appConfigRouter);
@@ -380,7 +396,7 @@ app.use("/api/company-profile", company_profile_routes_1.companyProfileRouter);
 app.use("/api/billing", billing_routes_1.billingRouter);
 app.use("/api/commerce", commerce_routes_1.commerceRouter);
 app.post("/api/webhooks/razorpay", billing_routes_1.handleRazorpayWebhook);
-app.use("/api/auth", security_hardening_middleware_1.authRateLimiter, auth_routes_1.authRouter);
+app.use(["/api/auth", "/api/v1/auth"], security_hardening_middleware_1.authRateLimiter, auth_routes_1.authRouter);
 app.use("/api/workspace/custom-domain", tenant_domain_routes_1.tenantDomainRouter);
 app.use("/api/workspace", workspace_routing_routes_1.workspaceRoutingRouter);
 app.use("/api", workspace_routing_routes_1.workspaceRoutingRouter);

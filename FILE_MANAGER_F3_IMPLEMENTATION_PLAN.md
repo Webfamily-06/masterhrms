@@ -103,7 +103,10 @@ When evaluating user $U$ accessing file or folder $F$ in tenant $T$:
 
 ### 5.2 Password Protection & Expiration
 - If password protection is configured, the password is encrypted using a salted hash (`FileAcl.linkPasswordHash`).
-- Visitor must submit the plaintext password via `POST /api/v1/public/files/link/:token/verify`.
+- Unverified access to `GET /api/v1/public/files/link/:token` returns `{ requiresPassword: true, allowDownload: false }` without exposing sensitive file metadata.
+- Visitor must submit the plaintext password via `POST /api/v1/public/files/link/:token/verify` with `{ password: string }`.
+- Upon successful password verification, the server responds with `{ verified: true, file: PublicFileMetadata, allowDownload: boolean }`, unlocking file metadata for the guest UI.
+- For download authorization, `POST /api/v1/public/files/link/:token/download` requires `{ password?: string }` in the payload, ensuring protected files verify password authorization before issuing the short-lived signed download URL.
 - If `expiresAt` is configured and `expiresAt <= now`, the link is rejected with `404 Not Found`.
 - Trashed or deleted files (`deletedAt != null || status === "TRASHED"`) automatically invalidate public links.
 
@@ -135,8 +138,9 @@ When evaluating user $U$ accessing file or folder $F$ in tenant $T$:
 ### 6.3 Public Link Endpoints
 - `POST /api/v1/files/:id/public-link`: Generates or updates a public link for a file (returns raw token once).
 - `DELETE /api/v1/files/:id/public-link`: Revokes the active public link.
-- `GET /api/v1/public/files/link/:token`: Public anonymous endpoint to get link status and preview metadata.
-- `POST /api/v1/public/files/link/:token/download`: Public anonymous endpoint to get short-lived signed download URL (validates password if protected).
+- `GET /api/v1/public/files/link/:token`: Public anonymous endpoint to get link status and preview metadata (restricted when password required).
+- `POST /api/v1/public/files/link/:token/verify`: Public verification endpoint validating `{ password: string }`, returning unlocked metadata and download authorization.
+- `POST /api/v1/public/files/link/:token/download`: Public anonymous endpoint to get short-lived signed download URL (validates `{ password?: string }` payload for protected links).
 
 ---
 

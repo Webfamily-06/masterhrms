@@ -86,7 +86,7 @@ graph LR
    - User storage consumption leaderboard with search, role filters, and override actions.
    - Team folder pool monitor with manager reassignment controls.
 4. **Live Real-Time Hydration:**
-   - TanStack Query hooks bound to Socket.IO `storage.usage.updated` events for zero-refresh updates.
+   - TanStack Query hooks bound to canonical storage WebSocket events (`storage:quota_updated`, `storage:tenant:update`, `storage.usage.updated`, `storage:alert`) for consistent zero-refresh dashboard query invalidation.
 
 **Exit Gate Criteria:** Browser E2E QA passing 100% of interactive flows, responsive verification across desktop/tablet/mobile, and zero TypeScript compiler warnings.
 

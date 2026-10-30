@@ -401,9 +401,6 @@ export class StorageAdminService {
     const percentUsed = quotaNum > 0 ? Math.min(100, parseFloat(((activeBytes / quotaNum) * 100).toFixed(1))) : 0;
     const thresholdState = this.getThresholdLevel(percentUsed);
 
-    // Trigger alert verification
-    await this.checkAndDispatchAlerts(tenantId, percentUsed);
-
     // 4. Folder Count
     const folderCount = await prisma.mediaFile.count({
       where: { tenantId, isFolder: true, status: "ACTIVE", deletedAt: null },
@@ -456,26 +453,47 @@ export class StorageAdminService {
         id: true,
         email: true,
         profile: { select: { fullName: true } },
+        employees: {
+          where: { tenantId },
+          select: {
+            department: { select: { name: true } },
+          },
+          take: 1,
+        },
       },
     });
     const userInfoMap = new Map<string, any>();
     users.forEach((u) => userInfoMap.set(u.id, u));
 
+    // Custom quotas lookup matching StorageUsageEngine.calculateUserBreakdown
+    const customQuotas = await prisma.storageQuota.findMany({
+      where: {
+        tenantId,
+        userId: { in: userIds },
+      },
+    });
+    const quotaMap = new Map<string, bigint>();
+    customQuotas.forEach((q) => {
+      if (q.userId) quotaMap.set(q.userId, q.quotaBytes);
+    });
+
     const topUsers = usersUsage.map((u) => {
       const uInfo = userInfoMap.get(u.userId!);
       const name = uInfo?.profile?.fullName || uInfo?.email || "User";
+      const department = uInfo?.employees?.[0]?.department?.name || "General";
       const uUsed = Number(u.usedBytes);
-      const uQuota = Number(DEFAULT_USER_QUOTA_BYTES);
+      const userQuotaBigInt = quotaMap.get(u.userId!) ?? DEFAULT_USER_QUOTA_BYTES;
+      const uQuota = Number(userQuotaBigInt);
       return {
         userId: u.userId,
         name: name || u.userId,
         email: uInfo?.email || "",
-        department: "General",
+        department,
         usedBytes: uUsed,
         formattedUsed: this.formatBytes(uUsed),
         quotaBytes: uQuota,
         formattedQuota: this.formatBytes(uQuota),
-        percentUsed: Math.min(100, Math.round((uUsed / uQuota) * 100)),
+        percentUsed: uQuota > 0 ? Math.min(100, Math.round((uUsed / uQuota) * 100)) : 0,
         fileCount: u.fileCount,
       };
     });

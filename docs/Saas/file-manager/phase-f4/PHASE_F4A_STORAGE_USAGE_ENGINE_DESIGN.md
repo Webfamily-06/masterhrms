@@ -71,8 +71,9 @@ graph TD
    $$S_{\text{reserved}}(T) = \sum_{s \in \mathcal{S}_{\text{upload}}(T)} s.\text{sizeBytes}$$
    Where $\mathcal{S}_{\text{upload}}(T) = \{ s \in \text{FileUploadSession} \mid s.\text{tenantId} = T \land s.\text{status} = \text{'INITIATED'} \land s.\text{expiresAt} > \text{now()} \}$.
 
-5. **Total Tenant Physical Footprint ($S_{\text{physical}}$):**
-   $$S_{\text{physical}}(T) = S_{\text{active}}(T) + S_{\text{trash}}(T) + S_{\text{versions}}(T) + S_{\text{thumbs}}(T)$$
+5. **Total Tenant Database-Tracked Physical Footprint ($S_{\text{tracked}}$):**
+   $$S_{\text{tracked}}(T) = S_{\text{active}}(T) + S_{\text{trash}}(T) + S_{\text{versions}}(T)$$
+   Represents all persisted blobs actively cataloged in the primary database across active files, trash, and version history. (Note: unindexed generated thumbnail derivatives $S_{\text{thumbs}}$ stored on CDN/bucket caches are excluded from $S_{\text{tracked}}$ unless measured and tracked by an explicit database row model).
 
 6. **Billable Storage ($S_{\text{billable}}$):**
    $$S_{\text{billable}}(T) = S_{\text{active}}(T) + S_{\text{trash}}(T) + S_{\text{versions}}(T)$$
@@ -156,17 +157,21 @@ SELECT
     t.id AS team_id,
     t.name AS team_name,
     t.quota_bytes,
-    COALESCE(SUM(mf.file_size), 0) AS used_bytes,
-    COUNT(mf.id) AS file_count
+    COALESCE(SUM(team_files.file_size), 0) AS used_bytes,
+    COUNT(team_files.id) AS file_count
 FROM file_teams t
-LEFT JOIN media_files mf ON (
-    (mf.owner_type = 'TEAM' AND mf.owner_id = t.id)
-    OR mf.materialized_path LIKE CONCAT('/', t.root_folder_id, '/%')
-)
-AND mf.tenant_id = :tenantId 
-AND mf.status = 'ACTIVE' 
-AND mf.deleted_at IS NULL 
-AND mf.is_folder = false
+LEFT JOIN LATERAL (
+    SELECT DISTINCT mf.id, mf.file_size
+    FROM media_files mf
+    WHERE mf.tenant_id = :tenantId 
+      AND mf.status = 'ACTIVE' 
+      AND mf.deleted_at IS NULL 
+      AND mf.is_folder = false
+      AND (
+          (mf.owner_type = 'TEAM' AND mf.owner_id = t.id)
+          OR mf.materialized_path LIKE CONCAT('/', t.root_folder_id, '/%')
+      )
+) team_files ON true
 WHERE t.tenant_id = :tenantId
 GROUP BY t.id, t.name, t.quota_bytes;
 ```
@@ -245,15 +250,19 @@ If a user or tenant has 10 MB remaining in their quota and initiates three simul
 2. **Session Expiry Reaper:**
    Every `FileUploadSession` is assigned an `expiresAt` timestamp (default: 3600 seconds). An automated background worker runs every 10 minutes:
    ```typescript
-   // Release reserved bytes for abandoned sessions
+   // Release reserved bytes for abandoned sessions atomically
    const expiredSessions = await prisma.fileUploadSession.findMany({
      where: { status: "INITIATED", expiresAt: { lt: new Date() } }
    });
    for (const session of expiredSessions) {
-     await QuotaService.releaseReservedBytes(tx, session.tenantId, session.userId, Number(session.sizeBytes));
-     await prisma.fileUploadSession.update({
-       where: { id: session.id },
-       data: { status: "EXPIRED" }
+     // Atomically claim session by transitioning status from INITIATED to EXPIRED
+     await prisma.$transaction(async (tx) => {
+       const updateResult = await tx.fileUploadSession.updateMany({
+         where: { id: session.id, status: "INITIATED" },
+         data: { status: "EXPIRED" }
+       });
+       if (updateResult.count === 0) return; // Already claimed by another concurrent worker
+       await QuotaService.releaseReservedBytes(tx, session.tenantId, session.userId, Number(session.sizeBytes));
      });
    }
    ```

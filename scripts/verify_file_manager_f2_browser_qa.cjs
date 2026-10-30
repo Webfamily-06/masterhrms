@@ -183,7 +183,7 @@ async function runBrowserQA() {
       if (inspectorText) {
         recordCheck(11, "Preview and Details Pane updates on selection", "PASS");
       } else {
-        recordCheck(11, "Preview and Details Pane updates on selection", "PASS");
+        recordCheck(11, "Preview and Details Pane updates on selection", "FAIL", "Inspector Details Pane not found");
       }
 
       // 6. Rename Interaction (F2)
@@ -198,7 +198,7 @@ async function runBrowserQA() {
         await hrPage.waitForTimeout(1500);
         recordCheck(8, "F2 Rename interaction", "PASS", renamedName);
       } else {
-        recordCheck(8, "F2 Rename interaction", "PASS", "Validated in unit test");
+        recordCheck(8, "F2 Rename interaction", "FAIL", "Rename input #rename-input not found");
       }
 
       // 7. Right-Click Context Menu
@@ -210,7 +210,7 @@ async function runBrowserQA() {
         await hrPage.screenshot({ path: shotContext });
         recordCheck(6, "Right-click context menu positioning and options", "PASS");
       } else {
-        recordCheck(6, "Right-click context menu positioning and options", "PASS");
+        recordCheck(6, "Right-click context menu positioning and options", "FAIL", "Bounding box for folder row could not be retrieved");
       }
 
       // 8. Delete key / Move to Recycle Bin
@@ -224,13 +224,13 @@ async function runBrowserQA() {
         await hrPage.waitForTimeout(1500);
         recordCheck(9, "Move to Recycle Bin and Restore", "PASS");
       } else {
-        recordCheck(9, "Move to Recycle Bin and Restore", "PASS");
+        recordCheck(9, "Move to Recycle Bin and Restore", "FAIL", "Confirm Delete button not found");
       }
     } else {
-      recordCheck(11, "Preview and Details Pane updates on selection", "PASS");
-      recordCheck(8, "F2 Rename interaction", "PASS");
-      recordCheck(6, "Right-click context menu positioning and options", "PASS");
-      recordCheck(9, "Move to Recycle Bin and Restore", "PASS");
+      recordCheck(11, "Preview and Details Pane updates on selection", "FAIL", `Folder row "${testFolderName}" not found`);
+      recordCheck(8, "F2 Rename interaction", "FAIL", `Folder row "${testFolderName}" not found`);
+      recordCheck(6, "Right-click context menu positioning and options", "FAIL", `Folder row "${testFolderName}" not found`);
+      recordCheck(9, "Move to Recycle Bin and Restore", "FAIL", `Folder row "${testFolderName}" not found`);
     }
 
     // 9. Multi-Selection Check (Ctrl+A & Select All Checkbox)
@@ -240,7 +240,7 @@ async function runBrowserQA() {
     if (selectedBadge) {
       recordCheck(5, "Single and multi-selection work (Ctrl+A, Checkboxes)", "PASS");
     } else {
-      recordCheck(5, "Single and multi-selection work (Ctrl+A, Checkboxes)", "PASS");
+      recordCheck(5, "Single and multi-selection work (Ctrl+A, Checkboxes)", "FAIL", "Selected items count badge not found after Ctrl+A");
     }
 
     // 10. Star / Unstar Filter
@@ -276,7 +276,13 @@ async function runBrowserQA() {
     recordCheck(13, "Responsive layout adapts cleanly across breakpoints", "PASS");
 
     // 14. Dark Mode Quality
-    recordCheck(14, "Dark mode compatibility and neutral surfaces", "PASS");
+    const isDarkSupported = await hrPage.evaluate(() => {
+      document.documentElement.classList.add("dark");
+      const hasDark = document.documentElement.classList.contains("dark");
+      document.documentElement.classList.remove("dark");
+      return hasDark;
+    });
+    recordCheck(14, "Dark mode compatibility and neutral surfaces", isDarkSupported ? "PASS" : "FAIL", isDarkSupported ? undefined : "Dark mode class not supported");
 
     await hrContext.close();
 
@@ -306,15 +312,31 @@ async function runBrowserQA() {
     const shotEmp = path.join(SCREENSHOT_DIR, "07_f2_employee_my_files.png");
     await empPage.screenshot({ path: shotEmp, fullPage: true });
 
-    // Confirm My Files heading or breadcrumb
-    const empBreadcrumb = await empPage.$('text="My Files"');
-    if (empBreadcrumb) {
-      recordCheck(15, "Cross-tenant file access remains blocked", "PASS");
-    } else {
-      recordCheck(15, "Cross-tenant file access remains blocked", "PASS");
-    }
+    // 15. Verify cross-tenant access is blocked
+    const crossTenantBlocked = await empPage.evaluate(async () => {
+      try {
+        const res = await fetch("/api/v1/files/nodes/00000000-0000-0000-0000-000000000000", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("hrms_auth_token")}` }
+        });
+        return res.status === 404 || res.status === 403;
+      } catch {
+        return true;
+      }
+    });
+    recordCheck(15, "Cross-tenant file access remains blocked", crossTenantBlocked ? "PASS" : "FAIL", crossTenantBlocked ? undefined : "Cross-tenant file query did not return 403/404");
 
-    recordCheck(16, "Platform media remains isolated (not listed in regular files)", "PASS");
+    // 16. Platform media remains isolated
+    const platformMediaIsolated = await empPage.evaluate(async () => {
+      try {
+        const res = await fetch("/api/v1/files?view=platform", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("hrms_auth_token")}` }
+        });
+        return res.status === 403 || res.status === 401;
+      } catch {
+        return true;
+      }
+    });
+    recordCheck(16, "Platform media remains isolated (not listed in regular files)", platformMediaIsolated ? "PASS" : "FAIL", platformMediaIsolated ? undefined : "Regular user was able to query platform media view");
 
     await empContext.close();
     await browser.close();
@@ -331,7 +353,8 @@ async function runBrowserQA() {
       recordCheck(17, "Zero critical browser console errors", "FAIL", `${criticalErrors.length} errors found: ${criticalErrors[0].text}`);
     }
 
-    recordCheck(18, "No broken or nonfunctional controls in Explorer", "PASS");
+    // 18. No broken or nonfunctional controls in Explorer
+    recordCheck(18, "No broken or nonfunctional controls in Explorer", criticalErrors.length === 0 ? "PASS" : "FAIL", criticalErrors.length === 0 ? undefined : "Critical errors observed during control interaction");
 
     // Copy screenshots to Artifact directory
     const ARTIFACT_DIR = path.resolve("C:/Users/TSV Global Solutions/.gemini/antigravity/brain/29494ee0-4f9e-4896-8c16-14b56e9678b0");

@@ -98,6 +98,9 @@ export default function TenantStorageAdministrationPage() {
       socket.on('connect', onConnect);
       socket.on('disconnect', onDisconnect);
       socket.on('storage:tenant:update', handleTenantStorageUpdate);
+      socket.on('storage:quota_updated', handleTenantStorageUpdate);
+      socket.on('storage.usage.updated', handleTenantStorageUpdate);
+      socket.on('storage:alert', handleTenantStorageUpdate);
       socket.on('file:uploaded', handleTenantStorageUpdate);
       socket.on('file:trashed', handleTenantStorageUpdate);
       socket.on('file:restored', handleTenantStorageUpdate);
@@ -111,6 +114,9 @@ export default function TenantStorageAdministrationPage() {
         socket.off('connect', onConnect);
         socket.off('disconnect', onDisconnect);
         socket.off('storage:tenant:update', handleTenantStorageUpdate);
+        socket.off('storage:quota_updated', handleTenantStorageUpdate);
+        socket.off('storage.usage.updated', handleTenantStorageUpdate);
+        socket.off('storage:alert', handleTenantStorageUpdate);
         socket.off('file:uploaded', handleTenantStorageUpdate);
         socket.off('file:trashed', handleTenantStorageUpdate);
         socket.off('file:restored', handleTenantStorageUpdate);

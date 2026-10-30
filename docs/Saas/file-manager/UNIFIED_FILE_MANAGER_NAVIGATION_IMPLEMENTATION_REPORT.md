@@ -95,7 +95,7 @@ Created `server/src/services/files/chat-folder.service.ts`:
 ### 4.3 Privacy by Default for Direct Conversations
 
 To ensure confidential direct message attachments are not exposed during organization-wide browsing (`view=org`):
-- Added strict filtering in `server/src/services/files/files.service.ts`:
+- Added strict filtering in `server/src/services/files/files.service.ts` allowing authorized conversation participants (via `ownerId`, `uploadedBy`, or participant grants in `FileAcl`) to view attachments while excluding non-participants:
   ```ts
   where.NOT = [
     {
@@ -103,11 +103,12 @@ To ensure confidential direct message attachments are not exposed during organiz
         { folder: { contains: "Direct Conversations", mode: "insensitive" } },
         { ownerId: { not: options.userId } },
         { uploadedBy: { not: options.userId } },
+        { acls: { none: { principalId: options.userId } } },
       ],
     },
   ];
   ```
-- Verified that non-participants (including Tenant Admins browsing all organization files) cannot see other users' direct message attachments.
+- Verified that non-participants (including Tenant Admins browsing all organization files) cannot see direct message attachments unless explicitly granted participant access via `FileAcl`.
 
 ---
 

@@ -44,6 +44,12 @@ export class ChatFolderService {
     });
 
     if (existing) {
+      if (existing.ownerType === "ORGANIZATION" && (existing.ownerId !== "system" || existing.uploadedBy !== "system")) {
+        await db.mediaFile.update({
+          where: { id: existing.id },
+          data: { ownerId: "system", uploadedBy: "system" },
+        });
+      }
       return existing;
     }
 
@@ -62,8 +68,8 @@ export class ChatFolderService {
         isFolder: true,
         parentId,
         ownerType: "ORGANIZATION",
-        ownerId: creatorId,
-        uploadedBy: creatorId,
+        ownerId: "system",
+        uploadedBy: "system",
         type: "FOLDER",
         category: "All",
         status: "ACTIVE",
@@ -88,7 +94,7 @@ export class ChatFolderService {
       "Communication",
       "Communication",
       null,
-      currentUserId
+      "system"
     );
 
     // 2. Organization Chat
@@ -97,7 +103,7 @@ export class ChatFolderService {
       "Organization Chat",
       "Communication/Organization Chat",
       commFolder.id,
-      currentUserId
+      "system"
     );
 
     let subCategoryName = "General";
@@ -105,8 +111,8 @@ export class ChatFolderService {
 
     if (threadId && threadId.startsWith("group_")) {
       const groupId = threadId.slice(6);
-      const group = await db.chatGroup.findUnique({
-        where: { id: groupId },
+      const group = await db.chatGroup.findFirst({
+        where: { id: groupId, tenantId },
         select: { name: true },
       });
       subCategoryName = group?.name ? group.name.replace(/[\\/:*?"<>|]/g, "_") : "General Channel";
@@ -124,7 +130,7 @@ export class ChatFolderService {
       subCategoryName,
       `Communication/Organization Chat/${subCategoryName}`,
       chatFolder.id,
-      currentUserId
+      "system"
     );
 
     // 4. Attachments leaf folder
@@ -133,7 +139,7 @@ export class ChatFolderService {
       "Attachments",
       `Communication/Organization Chat/${subCategoryName}/Attachments`,
       groupFolder.id,
-      currentUserId
+      "system"
     );
 
     return {

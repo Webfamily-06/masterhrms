@@ -19,6 +19,7 @@ const url_preview_service_1 = require("../services/url-preview.service");
 const notification_service_1 = require("../services/notification.service");
 const media_service_1 = require("../services/media/media.service");
 const chat_system_events_service_1 = require("../services/chat-system-events.service");
+const chat_folder_service_1 = require("../services/files/chat-folder.service");
 exports.chatRouter = (0, express_1.Router)();
 exports.chatRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 const chatUpload = (0, multer_1.default)({
@@ -1367,28 +1368,56 @@ exports.chatRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
                     code: "FILE_RESTRICTED",
                 });
             }
-            // Logical folder classification under /media:
-            // - Images -> Chat/Images/
-            // - Audio -> Chat/Audio/
-            // - PDFs and Documents -> Chat/Documents/
-            let targetFolder = "Chat/Documents";
-            const mime = (file.mimetype || "").toLowerCase();
-            if (mime.startsWith("image/") ||
-                ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg"].includes(ext)) {
-                targetFolder = "Chat/Images";
+            // Resolve canonical Organization Chat folder hierarchy
+            const threadId = req.body?.threadId || req.query?.threadId;
+            if (threadId) {
+                const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+                if (!authCheck.authorized) {
+                    return res.status(403).json({ error: authCheck.reason || "Unauthorized access to thread" });
+                }
             }
-            else if (mime.startsWith("audio/") ||
-                ["mp3", "wav", "ogg", "weba", "webm", "m4a", "aac"].includes(ext)) {
-                targetFolder = "Chat/Audio";
-            }
-            // Persist in central Media Library with tenant scope
+            const folderContext = await chat_folder_service_1.ChatFolderService.resolveChatFolderHierarchy(tenantId, threadId, currentUserId);
+            // Persist in central Media Library with tenant scope and canonical folder
             const mediaRecord = await media_service_1.MediaService.uploadMedia(file.buffer, originalName, {
-                folder: targetFolder,
+                folder: folderContext.folderPath,
                 tenantId,
                 uploadedBy: currentUserId,
                 mimeType: file.mimetype,
-                tags: ["chat", targetFolder.toLowerCase()],
+                tags: ["chat", "communication", ...folderContext.folderPath.toLowerCase().split("/")],
             });
+            // Link node to Attachments folder in File Manager hierarchy
+            if (folderContext.folderId) {
+                await prisma_1.prisma.mediaFile.update({
+                    where: { id: mediaRecord.id },
+                    data: {
+                        parentId: folderContext.folderId,
+                        systemModule: "chat",
+                    },
+                });
+            }
+            // For Direct Conversations, grant ACL exclusively to chatting participants
+            if (folderContext.aclUsers && folderContext.aclUsers.length > 0) {
+                for (const uid of folderContext.aclUsers) {
+                    const existingAcl = await prisma_1.prisma.fileAcl.findFirst({
+                        where: {
+                            fileId: mediaRecord.id,
+                            principalType: "USER",
+                            principalId: uid,
+                        },
+                    });
+                    if (!existingAcl) {
+                        await prisma_1.prisma.fileAcl.create({
+                            data: {
+                                fileId: mediaRecord.id,
+                                principalType: "USER",
+                                principalId: uid,
+                                permission: "VIEWER",
+                                createdBy: currentUserId,
+                            },
+                        });
+                    }
+                }
+            }
             savedFiles.push({
                 id: mediaRecord.id,
                 mediaId: mediaRecord.id,
