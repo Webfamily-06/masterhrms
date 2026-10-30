@@ -11,7 +11,6 @@ const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") }); // project root .env
 dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
-dotenv_1.default.config(); // cwd fallback
 // Global process error logging (ensures crashes appear in Vercel runtime logs without secret leakage)
 process.on("unhandledRejection", (reason) => {
     console.error("Unhandled Rejection:", reason?.message || reason, reason?.stack || "");
@@ -112,6 +111,7 @@ const commerce_routes_1 = require("./routes/commerce.routes");
 const timesheets_routes_1 = require("./routes/timesheets.routes");
 const settings_routes_1 = require("./routes/settings.routes");
 const media_routes_1 = require("./routes/media.routes");
+const files_routes_1 = require("./routes/files.routes");
 const app_config_routes_1 = require("./routes/app-config.routes");
 const employee_self_service_routes_1 = require("./routes/employee-self-service.routes");
 const company_profile_routes_1 = require("./routes/company-profile.routes");
@@ -141,7 +141,6 @@ const biometric_sync_1 = require("./cron/biometric-sync");
 const biometric_reconcile_cron_1 = require("./cron/biometric-reconcile.cron");
 const subscription_reminder_cron_1 = require("./cron/subscription-reminder.cron");
 const calendar_reminder_scheduler_1 = require("./services/calendar-reminder.scheduler");
-dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
 const PORT = process.env.PORT || 4000;
@@ -366,6 +365,8 @@ app.use("/api", subscription_1.requireActiveSubscription);
 app.use("/api/v1/settings", settings_routes_1.settingsRouter);
 app.use("/api/v1/media", media_routes_1.mediaRouter);
 app.use("/api/media", media_routes_1.mediaRouter);
+app.use("/api/v1/files", files_routes_1.filesRouter);
+app.use("/api/files", files_routes_1.filesRouter);
 app.use("/api/v1/public", app_config_routes_1.appConfigRouter);
 app.use("/api/public", app_config_routes_1.appConfigRouter);
 app.use("/api", app_config_routes_1.appConfigRouter);

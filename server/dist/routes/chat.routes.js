@@ -1546,7 +1546,7 @@ exports.chatRouter.get("/messages/:threadId/pinned", auth_1.requireAuth, async (
         if (!authCheck.authorized) {
             return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
         }
-        const pinnedMessages = await prisma_1.prisma.chatMessage.findMany({
+        const rawPinned = await prisma_1.prisma.chatMessage.findMany({
             where: {
                 tenantId,
                 threadId,
@@ -1554,6 +1554,10 @@ exports.chatRouter.get("/messages/:threadId/pinned", auth_1.requireAuth, async (
                 isDeletedForEveryone: false,
             },
             orderBy: { pinnedAt: "desc" },
+        });
+        const pinnedMessages = rawPinned.filter((m) => {
+            const deletedFor = m.deletedForUserIds || [];
+            return !deletedFor.includes(currentUserId);
         });
         return res.json(pinnedMessages);
     }
@@ -1573,7 +1577,7 @@ exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (r
         if (!authCheck.authorized) {
             return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
         }
-        const messages = await prisma_1.prisma.chatMessage.findMany({
+        const rawMessages = await prisma_1.prisma.chatMessage.findMany({
             where: {
                 tenantId,
                 threadId,
@@ -1582,6 +1586,10 @@ exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (r
             },
             orderBy: { createdAt: "desc" },
             take: 200,
+        });
+        const messages = rawMessages.filter((m) => {
+            const deletedFor = m.deletedForUserIds || [];
+            return !deletedFor.includes(currentUserId);
         });
         const allFiles = [];
         for (const msg of messages) {
@@ -1838,9 +1846,11 @@ exports.chatRouter.post("/messages", auth_1.requireAuth, async (req, res) => {
             update: { lastReadAt: new Date() },
         }).catch(() => { });
         // Realtime broadcast via Socket.io
+        const broadcastAt = Date.now();
         (0, socket_1.broadcastToTenant)(tenantId, "chat:message", {
             threadId: msg.threadId,
             message: msg,
+            broadcastAt,
         });
         // If direct message, trigger push notification for recipient
         if (threadId.startsWith("direct_")) {
@@ -1913,7 +1923,10 @@ exports.chatRouter.post("/messages", auth_1.requireAuth, async (req, res) => {
                 message: msg,
             }).catch(() => { });
         });
-        console.log(`[PERF_ROUTE] prisma create: ${Date.now() - _tPre}ms | total handler: ${Date.now() - _t0}ms`);
+        const _tDb = Date.now() - _tPre;
+        const _tTotal = Date.now() - _t0;
+        res.setHeader("Server-Timing", `db;dur=${_tDb}, total;dur=${_tTotal}`);
+        console.log(`[PERF_ROUTE] prisma create: ${_tDb}ms | total handler: ${_tTotal}ms`);
         if (clientTempId && typeof clientTempId === "string") {
             recentClientTempIds.set(`${tenantId}:${threadId}:${clientTempId}`, msg);
             if (recentClientTempIds.size > 2000) {
@@ -2104,7 +2117,7 @@ exports.chatRouter.post("/messages/:id/pin", auth_1.requireAuth, async (req, res
         return res.status(500).json({ error: err.message });
     }
 });
-// POST /api/chat/messages/:id/react - Add or toggle emoji reaction
+// POST /api/chat/messages/:id/react - Add or toggle emoji reaction with row-level locking
 exports.chatRouter.post("/messages/:id/react", auth_1.requireAuth, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
@@ -2114,91 +2127,111 @@ exports.chatRouter.post("/messages/:id/react", auth_1.requireAuth, async (req, r
         if (!emoji || typeof emoji !== "string") {
             return res.status(400).json({ error: "emoji is required" });
         }
-        const existing = await prisma_1.prisma.chatMessage.findFirst({
-            where: { id, tenantId },
-        });
-        if (!existing) {
-            return res.status(404).json({ error: "Message not found" });
-        }
-        const authCheck = await checkThreadAuthorization(existing.threadId, tenantId, currentUserId, req.user?.roles);
-        if (!authCheck.authorized) {
-            return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
-        }
-        // Reaction structure: Array of { emoji: string, userIds: string[], count: number, users: Array<{ userId: string, fullName: string, avatarUrl?: string | null }> }
-        let rawReactions = [];
-        if (Array.isArray(existing.reactions)) {
-            rawReactions = existing.reactions;
-        }
-        else if (existing.reactions && typeof existing.reactions === "object") {
-            rawReactions = Object.entries(existing.reactions).map(([k, v]) => ({
-                emoji: k,
-                userIds: Array.isArray(v) ? v : (v?.userIds || []),
-                count: Array.isArray(v) ? v.length : (v?.count || 0),
-                users: Array.isArray(v?.users) ? v.users : [],
-            }));
-        }
-        // Look up reacting user profile
-        const profile = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true, avatarUrl: true },
-        });
-        const senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
-        const senderAvatar = profile?.avatarUrl || null;
-        let reactions = rawReactions.map((r) => ({
-            emoji: r.emoji,
-            userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
-            count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
-            users: Array.isArray(r.users) ? [...r.users] : [],
-        }));
-        const existingReaction = reactions.find((r) => r.emoji === emoji);
-        if (existingReaction) {
-            if (existingReaction.userIds.includes(currentUserId)) {
-                // Toggle OFF: remove user reaction
-                existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
-                existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
+        // Resolve profile from req.user / memory cache / DB
+        const userProfile = req.user?.profile;
+        let senderName = userProfile?.fullName || req.user?.fullName;
+        let senderAvatar = userProfile?.avatarUrl || req.user?.avatarUrl || null;
+        if (!senderName) {
+            const pKey = `${tenantId}:${currentUserId}`;
+            const cached = exports.profileMemoryCache.get(pKey);
+            if (cached && cached.expiresAt > Date.now()) {
+                senderName = cached.fullName;
+                senderAvatar = cached.avatarUrl;
             }
             else {
-                // Toggle ON: add user reaction
-                existingReaction.userIds.push(currentUserId);
-                if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
-                    existingReaction.users.push({
-                        userId: currentUserId,
-                        fullName: senderName,
-                        avatarUrl: senderAvatar,
-                    });
-                }
+                const profile = await prisma_1.prisma.profile.findFirst({
+                    where: { userId: currentUserId, tenantId },
+                    select: { fullName: true, avatarUrl: true },
+                });
+                senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
+                senderAvatar = profile?.avatarUrl || null;
+                exports.profileMemoryCache.set(pKey, { fullName: senderName, avatarUrl: senderAvatar, expiresAt: Date.now() + 300000 });
             }
-            existingReaction.count = existingReaction.userIds.length;
         }
-        else {
-            reactions.push({
-                emoji,
-                userIds: [currentUserId],
-                count: 1,
-                users: [{
-                        userId: currentUserId,
-                        fullName: senderName,
-                        avatarUrl: senderAvatar,
-                    }],
+        // Execute in transaction with row-level lock (FOR UPDATE) to prevent lost updates under concurrency
+        const result = await prisma_1.prisma.$transaction(async (tx) => {
+            const rows = await tx.$queryRawUnsafe('SELECT id, thread_id, tenant_id, reactions FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
+            if (!rows || rows.length === 0) {
+                return { status: 404, error: "Message not found" };
+            }
+            const row = rows[0];
+            const threadId = row.thread_id;
+            const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+            if (!authCheck.authorized) {
+                return { status: 403, error: "Access denied", code: "CHAT_UNAUTHORIZED" };
+            }
+            let rawReactions = [];
+            if (Array.isArray(row.reactions)) {
+                rawReactions = row.reactions;
+            }
+            else if (row.reactions && typeof row.reactions === "object") {
+                rawReactions = Object.entries(row.reactions).map(([k, v]) => ({
+                    emoji: k,
+                    userIds: Array.isArray(v) ? v : (v?.userIds || []),
+                    count: Array.isArray(v) ? v.length : (v?.count || 0),
+                    users: Array.isArray(v?.users) ? v.users : [],
+                }));
+            }
+            let reactions = rawReactions.map((r) => ({
+                emoji: r.emoji,
+                userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
+                count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
+                users: Array.isArray(r.users) ? [...r.users] : [],
+            }));
+            const existingReaction = reactions.find((r) => r.emoji === emoji);
+            if (existingReaction) {
+                if (existingReaction.userIds.includes(currentUserId)) {
+                    // Toggle OFF: remove user reaction
+                    existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
+                    existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
+                }
+                else {
+                    // Toggle ON: add user reaction
+                    existingReaction.userIds.push(currentUserId);
+                    if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
+                        existingReaction.users.push({
+                            userId: currentUserId,
+                            fullName: senderName,
+                            avatarUrl: senderAvatar,
+                        });
+                    }
+                }
+                existingReaction.count = existingReaction.userIds.length;
+            }
+            else {
+                reactions.push({
+                    emoji,
+                    userIds: [currentUserId],
+                    count: 1,
+                    users: [{
+                            userId: currentUserId,
+                            fullName: senderName,
+                            avatarUrl: senderAvatar,
+                        }],
+                });
+            }
+            // Filter out reactions with 0 userIds
+            reactions = reactions.filter((r) => r.userIds.length > 0);
+            const updated = await tx.chatMessage.update({
+                where: { id },
+                data: { reactions },
             });
-        }
-        // Filter out reactions with 0 userIds
-        reactions = reactions.filter((r) => r.userIds.length > 0);
-        const updated = await prisma_1.prisma.chatMessage.update({
-            where: { id },
-            data: { reactions },
+            return { status: 200, threadId, reactions, updated };
         });
+        if (result.status !== 200) {
+            return res.status(result.status).json({ error: result.error, code: result.code });
+        }
         (0, socket_1.broadcastToTenant)(tenantId, "chat:reaction", {
             id,
-            threadId: existing.threadId,
-            reactions,
+            threadId: result.threadId,
+            reactions: result.reactions,
         });
         await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:reaction", {
             id,
-            threadId: existing.threadId,
-            reactions,
+            threadId: result.threadId,
+            reactions: result.reactions,
         });
-        return res.json({ success: true, reactions });
+        return res.json(result.updated);
     }
     catch (err) {
         return res.status(500).json({ error: err.message });

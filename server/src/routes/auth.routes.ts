@@ -21,7 +21,8 @@ import {
   getBaseDomain,
   getEffectiveRequestHost,
 } from "../lib/workspace-host";
-import { requireAuth, requireSuperAdmin, AuthRequest } from "../middleware/auth";
+import { requireAuth, requireSuperAdmin, AuthRequest, invalidateAuthCache } from "../middleware/auth";
+import { invalidateChatProfileCache } from "./chat.routes";
 import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
 import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
@@ -1709,6 +1710,10 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
       },
     });
 
+    // Invalidate 60-second auth cache and 5-minute chat profile cache immediately on profile/password change
+    invalidateAuthCache(req.user!.userId, req.tenantId);
+    invalidateChatProfileCache(req.user!.userId, req.tenantId);
+
     return res.json({
       success: true,
       user: {
@@ -1720,6 +1725,21 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
     });
   } catch (err: any) {
     return res.status(err instanceof z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+  }
+});
+
+// POST /api/auth/logout - Immediately clear server-side authorization cache
+authRouter.post("/logout", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const tenantId = req.user?.tenantId || req.tenantId;
+    if (userId) {
+      invalidateAuthCache(userId, tenantId || undefined);
+      invalidateChatProfileCache(userId, tenantId || undefined);
+    }
+    return res.json({ success: true, message: "Logged out and authorization cache cleared." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Logout failed" });
   }
 });
 

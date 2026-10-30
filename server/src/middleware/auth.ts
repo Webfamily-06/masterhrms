@@ -23,6 +23,7 @@ export interface AuthRequest extends Request {
     id?: string;
     workspaceRole?: string;
     permissions?: string[];
+    profile?: { fullName?: string | null; avatarUrl?: string | null } | null;
   };
 }
 
@@ -183,6 +184,12 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       roles,
       permissions: userPermissions,
       isImpersonating,
+      profile: account.profile
+        ? {
+            fullName: account.profile.fullName || account.email?.split("@")[0] || "User",
+            avatarUrl: account.profile.avatarUrl || null,
+          }
+        : undefined,
     };
     (req.user as any).id = userId;
     next();

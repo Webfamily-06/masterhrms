@@ -1,10 +1,13 @@
-import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { getUploadsRoot, MediaService } from "../media/media.service";
 import { broadcastToTenant } from "../../socket";
+import { FileInvariantsService } from "./file-invariants.service";
+import { QuotaService } from "./quota.service";
+import { StorageProviderFactory } from "../storage/storage-provider.factory";
+import { OutboxService } from "../outbox.service";
 
 const SIGNED_URL_SECRET = process.env.JWT_SECRET || "masterhrms-file-download-secret-signing-key";
 
@@ -12,6 +15,9 @@ export interface ListFilesOptions {
   tenantId: string | null;
   userId: string;
   isSuper?: boolean;
+  userRoles?: string[];
+  userPermissions?: string[];
+  view?: "my" | "shared-with-me" | "trash" | "org";
   parentId?: string | null;
   folder?: string;
   search?: string;
@@ -26,7 +32,8 @@ export interface ListFilesOptions {
 
 export class FilesService {
   /**
-   * List files and folders with full tenant isolation, search, filters, pagination & per-user star attribution.
+   * List files and folders with full tenant isolation, view filtering,
+   * search, pagination, and Windows Explorer sorting (folders first).
    */
   static async listFiles(options: ListFilesOptions) {
     const page = Math.max(1, options.page || 1);
@@ -45,20 +52,81 @@ export class FilesService {
       where.tenantId = options.tenantId;
     }
 
-    // 2. Trash state: default to active (non-deleted) files
-    if (options.trashed) {
-      where.deletedAt = { not: null };
+    const view = options.view || "my";
+
+    // 2. View-specific scoping & Privacy by Default
+    if (view === "trash" || options.trashed) {
+      where.OR = [{ status: "TRASHED" }, { deletedAt: { not: null } }];
     } else {
+      where.status = { not: "TRASHED" };
       where.deletedAt = null;
+
+      if (view === "my") {
+        where.OR = [
+          { ownerId: options.userId },
+          { uploadedBy: options.userId },
+          { isFolder: true, parentId: options.parentId || null },
+        ];
+      } else if (view === "shared-with-me") {
+        where.OR = [
+          {
+            shares: {
+              some: {
+                sharedWith: options.userId,
+                revokedAt: null,
+              },
+            },
+          },
+          {
+            acls: {
+              some: {
+                principalType: "USER",
+                principalId: options.userId,
+              },
+            },
+          },
+        ];
+      } else if (view === "org") {
+        // Tenant Admin or explicit files.admin.view_all permission required
+        const isTenantAdmin =
+          options.userRoles?.includes("tenant_admin") ||
+          options.userRoles?.includes("admin") ||
+          options.isSuper;
+        const hasAdminPermission =
+          isTenantAdmin || options.userPermissions?.includes("files.admin.view_all");
+
+        if (!hasAdminPermission) {
+          const err: any = new Error(
+            "Access denied: Organization-wide file view requires Tenant Administrator or files.admin.view_all privileges."
+          );
+          err.status = 403;
+          throw err;
+        }
+
+        // Audited access
+        if (options.tenantId) {
+          await prisma.fileActivity.create({
+            data: {
+              fileId: options.parentId || "root",
+              tenantId: options.tenantId,
+              actorId: options.userId,
+              action: "ORG_VIEW_ACCESSED",
+              metaJson: {
+                timestamp: new Date().toISOString(),
+                parentId: options.parentId || "root",
+              },
+            },
+          });
+        }
+      }
     }
 
-    // 3. Parent Folder vs Category browsing
-    // If browsing within a specific folder ID
-    if (options.parentId !== undefined && !options.trashed && !options.starred && !options.search) {
+    // 3. Parent Folder browsing
+    if (options.parentId !== undefined && !options.trashed && view !== "trash" && !options.search) {
       where.parentId = options.parentId;
     }
 
-    // 4. Starred filter: filter to files where FileStar exists for this user
+    // 4. Starred filter
     if (options.starred) {
       where.stars = {
         some: {
@@ -82,14 +150,13 @@ export class FilesService {
       ];
     }
 
-    // Sorting
+    // 7. Sorting
     const orderBy: any = {};
     const orderDirection = options.sortOrder === "asc" ? "asc" : "desc";
 
-    // Folders always precede files when sorting in directory view
     switch (options.sortBy) {
       case "name":
-        orderBy.fileName = orderDirection;
+        orderBy.nameKey = orderDirection;
         break;
       case "size":
         orderBy.fileSize = orderDirection;
@@ -98,7 +165,7 @@ export class FilesService {
         orderBy.createdAt = orderDirection;
         break;
       case "type":
-        orderBy.mimeType = orderDirection;
+        orderBy.type = orderDirection;
         break;
       case "updatedAt":
       default:
@@ -111,6 +178,11 @@ export class FilesService {
       prisma.mediaFile.findMany({
         where,
         include: {
+          versions: {
+            orderBy: { versionNo: "desc" },
+            take: 1,
+          },
+          fileLinks: true,
           usages: {
             select: {
               id: true,
@@ -127,6 +199,8 @@ export class FilesService {
             select: {
               children: true,
               usages: true,
+              fileLinks: true,
+              versions: true,
             },
           },
         },
@@ -136,29 +210,43 @@ export class FilesService {
       }),
     ]);
 
-    const items = rawItems.map((item) => ({
-      id: item.id,
-      tenantId: item.tenantId,
-      name: item.fileName,
-      fileName: item.fileName,
-      mimeType: item.mimeType,
-      fileSize: item.fileSize,
-      formattedSize: item.isFolder ? `${item._count.children} items` : FilesService.formatBytes(item.fileSize),
-      url: item.url,
-      filePath: item.filePath,
-      folder: item.folder,
-      isFolder: item.isFolder,
-      parentId: item.parentId,
-      category: item.category,
-      isStarred: item.stars.length > 0,
-      tags: item.tags,
-      uploadedBy: item.uploadedBy,
-      usageCount: item._count.usages,
-      usages: item.usages,
-      deletedAt: item.deletedAt,
-      createdAt: item.createdAt,
-      updatedAt: item.updatedAt,
-    }));
+    const items = rawItems.map((item: any) => {
+      const isFolder = item.isFolder || item.type === "FOLDER";
+      return {
+        id: item.id,
+        tenantId: item.tenantId,
+        name: item.fileName,
+        fileName: item.fileName,
+        extension: item.extension,
+        type: item.type || (isFolder ? "FOLDER" : "FILE"),
+        ownerType: item.ownerType,
+        ownerId: item.ownerId,
+        mimeType: item.mimeType,
+        fileSize: item.fileSize,
+        formattedSize: isFolder ? `${item._count.children} items` : FilesService.formatBytes(item.fileSize),
+        url: item.url,
+        filePath: item.filePath,
+        folder: item.folder,
+        isFolder,
+        parentId: item.parentId,
+        materializedPath: item.materializedPath,
+        depth: item.depth,
+        category: item.category,
+        isStarred: item.stars.length > 0,
+        tags: item.tags,
+        status: item.status,
+        version: item.version,
+        currentVersionId: item.currentVersionId,
+        uploadedBy: item.uploadedBy,
+        usageCount: item._count.usages + item._count.fileLinks,
+        usages: item.usages,
+        links: item.fileLinks,
+        trashedAt: item.trashedAt || item.deletedAt,
+        deletedAt: item.deletedAt,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      };
+    });
 
     return {
       items,
@@ -172,10 +260,50 @@ export class FilesService {
   }
 
   /**
+   * Retrieves breadcrumb ancestry from root to the given node.
+   */
+  static async getBreadcrumbPath(nodeId: string, tenantId: string | null) {
+    const node = await prisma.mediaFile.findUnique({
+      where: { id: nodeId },
+    });
+
+    if (!node) {
+      const err: any = new Error("Item not found.");
+      err.status = 404;
+      throw err;
+    }
+
+    if (tenantId && node.tenantId && node.tenantId !== tenantId) {
+      const err: any = new Error("Item not found.");
+      err.status = 404;
+      throw err;
+    }
+
+    const pathParts = (node.materializedPath || `/${node.id}`).split("/").filter(Boolean);
+    const ancestors = await prisma.mediaFile.findMany({
+      where: { id: { in: pathParts } },
+      select: { id: true, fileName: true, type: true, isFolder: true, parentId: true },
+    });
+
+    const ancestorMap = new Map(ancestors.map((a) => [a.id, a]));
+    const crumbs = pathParts
+      .map((id) => ancestorMap.get(id))
+      .filter(Boolean)
+      .map((item) => ({
+        id: item!.id,
+        name: item!.fileName,
+        type: item!.type || (item!.isFolder ? "FOLDER" : "FILE"),
+        parentId: item!.parentId,
+      }));
+
+    return crumbs;
+  }
+
+  /**
    * Get storage usage statistics and category breakdown
    */
   static async getStats(tenantId: string | null, isSuper = false) {
-    const where: any = { deletedAt: null };
+    const where: any = { deletedAt: null, status: "ACTIVE" };
     if (!isSuper) {
       where.tenantId = tenantId;
     } else if (tenantId) {
@@ -207,8 +335,7 @@ export class FilesService {
       categorySizes[cat] = (categorySizes[cat] || 0) + (f.fileSize || 0);
     }
 
-    // Default 10 GB quota per workspace
-    const quotaBytes = 10 * 1024 * 1024 * 1024;
+    const quotaBytes = Number(await QuotaService.getTenantQuotaBytes(tenantId));
     const percentUsed = Math.min(100, Math.round((totalSizeBytes / quotaBytes) * 100));
 
     return {
@@ -224,7 +351,7 @@ export class FilesService {
   }
 
   /**
-   * Create a new folder
+   * Create a new folder with Windows Explorer naming rules and sibling uniqueness.
    */
   static async createFolder(options: {
     tenantId: string | null;
@@ -233,85 +360,121 @@ export class FilesService {
     name: string;
     parentId?: string | null;
   }) {
-    const rawName = (options.name || "").trim();
-    if (!rawName || rawName.length > 255) {
-      throw new Error("Folder name must be between 1 and 255 characters.");
+    // 1. Validate Windows folder name
+    const validation = FileInvariantsService.validateFileName(options.name);
+    if (!validation.isValid) {
+      const err: any = new Error(validation.error);
+      err.code = validation.code;
+      err.status = 400;
+      throw err;
     }
-    if (/[\\/:*?"<>|]/.test(rawName) || rawName.includes("..")) {
-      throw new Error("Folder name contains invalid characters.");
-    }
+
+    const rawName = options.name.trim();
+    const nameKey = FileInvariantsService.computeNameKey(rawName);
 
     if (!options.isSuper && !options.tenantId) {
       throw new Error("Tenant context is required to create a folder.");
     }
 
-    // Check parent exists and belongs to same tenant
+    // 2. Validate Parent Folder
     let parentFolder = "general";
+    let materializedPath = "";
+    let depth = 0;
+
     if (options.parentId) {
       const parent = await prisma.mediaFile.findUnique({
         where: { id: options.parentId },
       });
-      if (!parent || parent.deletedAt) {
-        throw new Error("Parent folder does not exist.");
+      if (!parent || parent.deletedAt || parent.status === "TRASHED") {
+        throw new Error("Parent folder does not exist or has been trashed.");
       }
       if (!options.isSuper && parent.tenantId !== options.tenantId) {
         throw new Error("Access denied: Parent folder belongs to another workspace.");
       }
-      if (!parent.isFolder) {
+      if (!parent.isFolder && parent.type !== "FOLDER") {
         throw new Error("Target parent is a file, not a folder.");
       }
       parentFolder = `${parent.folder}/${parent.fileName}`;
+      materializedPath = parent.materializedPath || `/${parent.id}`;
+      depth = (parent.depth || 0) + 1;
     }
 
-    // Duplicate check in same parent
-    const existing = await prisma.mediaFile.findFirst({
-      where: {
-        tenantId: options.tenantId,
-        parentId: options.parentId || null,
-        fileName: rawName,
-        isFolder: true,
-        deletedAt: null,
-      },
-    });
-    if (existing) {
-      const err: any = new Error(`A folder named "${rawName}" already exists in this location.`);
-      err.status = 409;
-      throw err;
-    }
+    const folderId = crypto.randomUUID();
+    const finalMaterializedPath = materializedPath ? `${materializedPath}/${folderId}` : `/${folderId}`;
 
-    const folderRecord = await prisma.mediaFile.create({
-      data: {
-        tenantId: options.tenantId,
-        storageDisk: "LOCAL",
-        filePath: `${parentFolder}/${rawName}`,
-        url: "",
-        fileName: rawName,
-        mimeType: "inode/directory",
-        fileSize: 0,
-        checksumSha: "",
-        folder: parentFolder,
-        tags: ["folder"],
-        uploadedBy: options.userId,
-        isFolder: true,
-        parentId: options.parentId || null,
-        category: "Folders",
-      },
+    // 3. Atomically check sibling uniqueness & create folder
+    const folderRecord = await prisma.$transaction(async (tx) => {
+      await FileInvariantsService.assertSiblingUniqueness(
+        tx,
+        options.tenantId,
+        options.parentId || null,
+        nameKey
+      );
+
+      const created = await tx.mediaFile.create({
+        data: {
+          id: folderId,
+          tenantId: options.tenantId,
+          nameKey,
+          fileName: rawName,
+          mimeType: "inode/directory",
+          fileSize: 0,
+          filePath: `${parentFolder}/${rawName}`,
+          url: "",
+          checksumSha: "",
+          folder: parentFolder,
+          tags: ["folder"],
+          uploadedBy: options.userId,
+          ownerType: options.tenantId ? "USER" : "SYSTEM",
+          ownerId: options.userId,
+          type: "FOLDER",
+          status: "ACTIVE",
+          isFolder: true,
+          parentId: options.parentId || null,
+          materializedPath: finalMaterializedPath,
+          depth,
+          category: "Folders",
+        },
+      });
+
+      if (options.tenantId) {
+        await OutboxService.createOutboxEvent(
+          {
+            tenantId: options.tenantId,
+            eventType: "file.created",
+            entityType: "MediaFile",
+            entityId: created.id,
+            actorId: options.userId,
+            payload: {
+              id: created.id,
+              name: created.fileName,
+              type: "FOLDER",
+              parentId: created.parentId,
+            },
+          },
+          tx
+        );
+      }
+
+      return created;
     });
 
     if (options.tenantId) {
-      broadcastToTenant(options.tenantId, "file:created", {
-        type: "folder",
-        id: folderRecord.id,
-        name: folderRecord.fileName,
-        parentId: folderRecord.parentId,
-      });
+      try {
+        broadcastToTenant(options.tenantId, "file:created", {
+          type: "folder",
+          id: folderRecord.id,
+          name: folderRecord.fileName,
+          parentId: folderRecord.parentId,
+        });
+      } catch {}
     }
 
     return folderRecord;
   }
 
   /**
-   * Rename a file or folder
+   * Rename a file or folder with Windows Explorer naming rules and system folder protection.
    */
   static async renameItem(options: {
     id: string;
@@ -320,18 +483,22 @@ export class FilesService {
     isSuper?: boolean;
     newName: string;
   }) {
-    const rawName = (options.newName || "").trim();
-    if (!rawName || rawName.length > 255) {
-      throw new Error("Name must be between 1 and 255 characters.");
+    // 1. Validate Windows filename
+    const validation = FileInvariantsService.validateFileName(options.newName);
+    if (!validation.isValid) {
+      const err: any = new Error(validation.error);
+      err.code = validation.code;
+      err.status = 400;
+      throw err;
     }
-    if (/[\\/:*?"<>|]/.test(rawName) || rawName.includes("..")) {
-      throw new Error("Name contains invalid characters.");
-    }
+
+    const rawName = options.newName.trim();
+    const nameKey = FileInvariantsService.computeNameKey(rawName);
 
     const item = await prisma.mediaFile.findUnique({
       where: { id: options.id },
     });
-    if (!item || item.deletedAt) {
+    if (!item || item.deletedAt || item.status === "TRASHED") {
       const err: any = new Error("File or folder not found.");
       err.status = 404;
       throw err;
@@ -343,52 +510,79 @@ export class FilesService {
       throw err;
     }
 
-    // Preserve extension if it is a file and user didn't specify extension
-    let finalName = rawName;
-    if (!item.isFolder) {
-      const origExt = path.extname(item.fileName);
-      if (origExt && !finalName.endsWith(origExt)) {
-        finalName = `${finalName}${origExt}`;
-      }
-    }
-
-    // Check duplicate in same parent
-    const duplicate = await prisma.mediaFile.findFirst({
-      where: {
-        tenantId: item.tenantId,
-        parentId: item.parentId,
-        fileName: finalName,
-        id: { not: item.id },
-        deletedAt: null,
-      },
-    });
-    if (duplicate) {
-      const err: any = new Error(`An item named "${finalName}" already exists in this folder.`);
-      err.status = 409;
+    if (item.systemModule || item.systemPage) {
+      const err: any = new Error("System folders and files cannot be renamed.");
+      err.status = 403;
       throw err;
     }
 
-    const updated = await prisma.mediaFile.update({
-      where: { id: item.id },
-      data: {
-        fileName: finalName,
-        updatedAt: new Date(),
-      },
+    // Preserve extension if file and user omitted it
+    let finalName = rawName;
+    if (!item.isFolder && item.type !== "FOLDER") {
+      const origExt = path.extname(item.fileName);
+      if (origExt && !finalName.toLowerCase().endsWith(origExt.toLowerCase())) {
+        finalName = `${finalName}${origExt}`;
+      }
+    }
+    const finalNameKey = FileInvariantsService.computeNameKey(finalName);
+    const newExt = path.extname(finalName).replace(".", "").toLowerCase();
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Sibling uniqueness check
+      await FileInvariantsService.assertSiblingUniqueness(
+        tx,
+        item.tenantId,
+        item.parentId,
+        finalNameKey,
+        item.id
+      );
+
+      const res = await tx.mediaFile.update({
+        where: { id: item.id },
+        data: {
+          fileName: finalName,
+          nameKey: finalNameKey,
+          extension: newExt,
+          updatedAt: new Date(),
+        },
+      });
+
+      if (item.tenantId) {
+        await OutboxService.createOutboxEvent(
+          {
+            tenantId: item.tenantId,
+            eventType: "file.updated",
+            entityType: "MediaFile",
+            entityId: item.id,
+            actorId: options.userId,
+            payload: {
+              id: item.id,
+              fileName: finalName,
+              action: "rename",
+            },
+          },
+          tx
+        );
+      }
+
+      return res;
     });
 
     if (item.tenantId) {
-      broadcastToTenant(item.tenantId, "file:updated", {
-        id: updated.id,
-        name: updated.fileName,
-        updatedAt: updated.updatedAt,
-      });
+      try {
+        broadcastToTenant(item.tenantId, "file:updated", {
+          id: updated.id,
+          name: updated.fileName,
+          updatedAt: updated.updatedAt,
+        });
+      } catch {}
     }
 
     return updated;
   }
 
   /**
-   * Move file or folder to a new parent folder
+   * Move file or folder to a new parent folder with cycle prevention and depth checking.
    */
   static async moveItem(options: {
     id: string;
@@ -400,7 +594,7 @@ export class FilesService {
     const item = await prisma.mediaFile.findUnique({
       where: { id: options.id },
     });
-    if (!item || item.deletedAt) {
+    if (!item || item.deletedAt || item.status === "TRASHED") {
       const err: any = new Error("Item not found.");
       err.status = 404;
       throw err;
@@ -412,61 +606,84 @@ export class FilesService {
       throw err;
     }
 
-    // Target parent validation
-    if (options.targetParentId) {
-      if (options.targetParentId === item.id) {
-        throw new Error("Cannot move a folder into itself.");
-      }
+    const updated = await prisma.$transaction(async (tx) => {
+      // 1. Hierarchy move invariants & cycle prevention
+      const { newMaterializedPath, newDepth } = await FileInvariantsService.assertValidMove(
+        tx,
+        item.id,
+        options.targetParentId
+      );
 
-      const target = await prisma.mediaFile.findUnique({
-        where: { id: options.targetParentId },
+      // 2. Sibling uniqueness check in destination
+      await FileInvariantsService.assertSiblingUniqueness(
+        tx,
+        item.tenantId,
+        options.targetParentId,
+        item.nameKey || FileInvariantsService.computeNameKey(item.fileName),
+        item.id
+      );
+
+      const oldPath = item.materializedPath || `/${item.id}`;
+      const depthDiff = newDepth - (item.depth || 0);
+
+      // 3. Update node
+      const movedNode = await tx.mediaFile.update({
+        where: { id: item.id },
+        data: {
+          parentId: options.targetParentId || null,
+          materializedPath: newMaterializedPath,
+          depth: newDepth,
+          updatedAt: new Date(),
+        },
       });
-      if (!target || target.deletedAt) {
-        throw new Error("Destination folder does not exist.");
-      }
-      if (!options.isSuper && target.tenantId !== options.tenantId) {
-        throw new Error("Destination folder belongs to another workspace.");
-      }
-      if (!target.isFolder) {
-        throw new Error("Destination target is not a folder.");
+
+      // 4. If folder, update all descendant materializedPaths recursively
+      if (item.isFolder || item.type === "FOLDER") {
+        await FileInvariantsService.updateDescendantPaths(
+          tx,
+          item.id,
+          oldPath,
+          newMaterializedPath,
+          depthDiff
+        );
       }
 
-      // Circular nesting check if moving a folder
-      if (item.isFolder) {
-        let currentParent: string | null = target.parentId;
-        while (currentParent) {
-          if (currentParent === item.id) {
-            throw new Error("Cannot move a folder into one of its own subfolders.");
-          }
-          const pRecord: any = await prisma.mediaFile.findUnique({
-            where: { id: currentParent },
-            select: { parentId: true },
-          });
-          currentParent = pRecord?.parentId || null;
-        }
+      // 5. Outbox Event
+      if (item.tenantId) {
+        await OutboxService.createOutboxEvent(
+          {
+            tenantId: item.tenantId,
+            eventType: "file.moved",
+            entityType: "MediaFile",
+            entityId: item.id,
+            actorId: options.userId,
+            payload: {
+              id: item.id,
+              targetParentId: options.targetParentId,
+              materializedPath: newMaterializedPath,
+            },
+          },
+          tx
+        );
       }
-    }
 
-    const updated = await prisma.mediaFile.update({
-      where: { id: item.id },
-      data: {
-        parentId: options.targetParentId || null,
-        updatedAt: new Date(),
-      },
+      return movedNode;
     });
 
     if (item.tenantId) {
-      broadcastToTenant(item.tenantId, "file:moved", {
-        id: updated.id,
-        parentId: updated.parentId,
-      });
+      try {
+        broadcastToTenant(item.tenantId, "file:moved", {
+          id: updated.id,
+          parentId: updated.parentId,
+        });
+      } catch {}
     }
 
     return updated;
   }
 
   /**
-   * Toggle star status for a specific user
+   * Toggle star status for a specific user.
    */
   static async toggleStar(options: {
     fileId: string;
@@ -477,7 +694,7 @@ export class FilesService {
     const file = await prisma.mediaFile.findUnique({
       where: { id: options.fileId },
     });
-    if (!file || file.deletedAt) {
+    if (!file || file.deletedAt || file.status === "TRASHED") {
       const err: any = new Error("File not found.");
       err.status = 404;
       throw err;
@@ -511,12 +728,34 @@ export class FilesService {
           tenantId: options.tenantId,
         },
       });
+
+      // Update FileRecent
+      if (options.tenantId) {
+        await prisma.fileRecent.upsert({
+          where: {
+            userId_fileId: {
+              userId: options.userId,
+              fileId: options.fileId,
+            },
+          },
+          create: {
+            fileId: options.fileId,
+            userId: options.userId,
+            tenantId: options.tenantId,
+            accessedAt: new Date(),
+          },
+          update: {
+            accessedAt: new Date(),
+          },
+        });
+      }
+
       return { isStarred: true };
     }
   }
 
   /**
-   * Move items to trash (soft delete) with in-use safety check
+   * Soft delete items to Trash with cascading child updates and quota accounting.
    */
   static async trashItems(options: {
     ids: string[];
@@ -525,13 +764,14 @@ export class FilesService {
     isSuper?: boolean;
     force?: boolean;
   }) {
-    const results = [];
+    const results: string[] = [];
+
     for (const id of options.ids) {
       const file = await prisma.mediaFile.findUnique({
         where: { id },
-        include: { usages: true },
+        include: { usages: true, fileLinks: true },
       });
-      if (!file || file.deletedAt) continue;
+      if (!file || file.deletedAt || file.status === "TRASHED") continue;
 
       if (!options.isSuper && file.tenantId !== options.tenantId) {
         const err: any = new Error("Forbidden: Access denied to asset in another workspace.");
@@ -539,34 +779,112 @@ export class FilesService {
         throw err;
       }
 
-      // Check if file is in active use
-      if (file.usages.length > 0 && !options.force) {
-        const err: any = new Error(`Cannot delete "${file.fileName}": file is currently in use by ${file.usages.length} item(s).`);
-        err.status = 409;
-        err.code = "MEDIA_IN_USE";
-        err.usages = file.usages;
+      if (file.systemModule || file.systemPage) {
+        const err: any = new Error("System folders and files cannot be moved to trash.");
+        err.status = 403;
         throw err;
       }
 
-      await prisma.mediaFile.update({
-        where: { id },
-        data: {
-          deletedAt: new Date(),
-          originalFolder: file.folder,
-        },
+      // Check if file is in active use
+      const totalLinks = file.usages.length + file.fileLinks.length;
+      if (totalLinks > 0 && !options.force) {
+        const err: any = new Error(
+          `Cannot delete "${file.fileName}": file is currently in use by ${totalLinks} item(s).`
+        );
+        err.status = 409;
+        err.code = "MEDIA_IN_USE";
+        err.usages = file.usages;
+        err.fileLinks = file.fileLinks;
+        throw err;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // Soft delete target
+        await tx.mediaFile.update({
+          where: { id },
+          data: {
+            status: "TRASHED",
+            deletedAt: new Date(),
+            trashedAt: new Date(),
+            trashedBy: options.userId,
+            originalFolder: file.folder,
+            originalParentId: file.parentId,
+          },
+        });
+
+        // Quota adjustment
+        if (!file.isFolder && file.type !== "FOLDER") {
+          await QuotaService.trashFileBytes(
+            tx,
+            file.tenantId,
+            file.ownerId || options.userId,
+            file.fileSize || 0
+          );
+        }
+
+        // If folder, cascade to descendants
+        if (file.isFolder || file.type === "FOLDER") {
+          const folderPath = file.materializedPath || `/${file.id}`;
+          const descendants = await tx.mediaFile.findMany({
+            where: {
+              materializedPath: { startsWith: `${folderPath}/` },
+              status: "ACTIVE",
+            },
+          });
+
+          for (const desc of descendants) {
+            await tx.mediaFile.update({
+              where: { id: desc.id },
+              data: {
+                status: "TRASHED",
+                deletedAt: new Date(),
+                trashedAt: new Date(),
+                trashedBy: options.userId,
+                trashedByCascade: true,
+              },
+            });
+
+            if (!desc.isFolder && desc.type !== "FOLDER") {
+              await QuotaService.trashFileBytes(
+                tx,
+                desc.tenantId,
+                desc.ownerId || options.userId,
+                desc.fileSize || 0
+              );
+            }
+          }
+        }
+
+        // Outbox event
+        if (file.tenantId) {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId: file.tenantId,
+              eventType: "file.trashed",
+              entityType: "MediaFile",
+              entityId: file.id,
+              actorId: options.userId,
+              payload: { id: file.id, fileName: file.fileName },
+            },
+            tx
+          );
+        }
       });
+
       results.push(id);
     }
 
     if (options.tenantId) {
-      broadcastToTenant(options.tenantId, "file:trashed", { ids: results });
+      try {
+        broadcastToTenant(options.tenantId, "file:trashed", { ids: results });
+      } catch {}
     }
 
     return { trashedCount: results.length, ids: results };
   }
 
   /**
-   * Restore items from trash
+   * Restore items from Trash with cascaded descendant restoration.
    */
   static async restoreItems(options: {
     ids: string[];
@@ -574,10 +892,11 @@ export class FilesService {
     userId: string;
     isSuper?: boolean;
   }) {
-    const results = [];
+    const results: string[] = [];
+
     for (const id of options.ids) {
       const file = await prisma.mediaFile.findUnique({ where: { id } });
-      if (!file || !file.deletedAt) continue;
+      if (!file || (file.status !== "TRASHED" && !file.deletedAt)) continue;
 
       if (!options.isSuper && file.tenantId !== options.tenantId) {
         const err: any = new Error("Forbidden: Access denied.");
@@ -585,21 +904,177 @@ export class FilesService {
         throw err;
       }
 
-      await prisma.mediaFile.update({
-        where: { id },
-        data: {
-          deletedAt: null,
-          folder: file.originalFolder || file.folder,
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.mediaFile.update({
+          where: { id },
+          data: {
+            status: "ACTIVE",
+            deletedAt: null,
+            trashedAt: null,
+            trashedBy: null,
+            trashedByCascade: false,
+            parentId: file.originalParentId || file.parentId,
+            folder: file.originalFolder || file.folder,
+          },
+        });
+
+        // Quota adjustment
+        if (!file.isFolder && file.type !== "FOLDER") {
+          await QuotaService.restoreFileBytes(
+            tx,
+            file.tenantId,
+            file.ownerId || options.userId,
+            file.fileSize || 0
+          );
+        }
+
+        // If folder, restore cascaded descendants
+        if (file.isFolder || file.type === "FOLDER") {
+          const folderPath = file.materializedPath || `/${file.id}`;
+          const descendants = await tx.mediaFile.findMany({
+            where: {
+              materializedPath: { startsWith: `${folderPath}/` },
+              trashedByCascade: true,
+            },
+          });
+
+          for (const desc of descendants) {
+            await tx.mediaFile.update({
+              where: { id: desc.id },
+              data: {
+                status: "ACTIVE",
+                deletedAt: null,
+                trashedAt: null,
+                trashedBy: null,
+                trashedByCascade: false,
+              },
+            });
+
+            if (!desc.isFolder && desc.type !== "FOLDER") {
+              await QuotaService.restoreFileBytes(
+                tx,
+                desc.tenantId,
+                desc.ownerId || options.userId,
+                desc.fileSize || 0
+              );
+            }
+          }
+        }
+
+        // Outbox event
+        if (file.tenantId) {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId: file.tenantId,
+              eventType: "file.restored",
+              entityType: "MediaFile",
+              entityId: file.id,
+              actorId: options.userId,
+              payload: { id: file.id, fileName: file.fileName },
+            },
+            tx
+          );
+        }
       });
+
       results.push(id);
     }
 
     if (options.tenantId) {
-      broadcastToTenant(options.tenantId, "file:restored", { ids: results });
+      try {
+        broadcastToTenant(options.tenantId, "file:restored", { ids: results });
+      } catch {}
     }
 
     return { restoredCount: results.length, ids: results };
+  }
+
+  /**
+   * Permanently purge a file or folder and its physical versions from object storage.
+   */
+  static async deleteItemPermanently(options: {
+    id: string;
+    tenantId: string | null;
+    userId: string;
+    isSuper?: boolean;
+  }) {
+    const file = await prisma.mediaFile.findUnique({
+      where: { id: options.id },
+      include: { versions: true, fileLinks: true, usages: true },
+    });
+
+    if (!file) {
+      const err: any = new Error("File or folder not found.");
+      err.status = 404;
+      throw err;
+    }
+
+    if (!options.isSuper && file.tenantId !== options.tenantId) {
+      const err: any = new Error("File not found.");
+      err.status = 404;
+      throw err;
+    }
+
+    const storageProvider = StorageProviderFactory.getProvider();
+    const isFromTrash = file.status === "TRASHED" || !!file.deletedAt;
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete versions from object storage
+      for (const version of file.versions) {
+        if (version.storageKey) {
+          try {
+            await storageProvider.deleteObject(version.storageKey);
+          } catch (e) {
+            console.warn(`[DeletePermanent] Failed to purge storage key: ${version.storageKey}`, e);
+          }
+        }
+      }
+
+      // 2. Adjust quota bytes
+      if (!file.isFolder && file.type !== "FOLDER") {
+        await QuotaService.purgeFileBytes(
+          tx,
+          file.tenantId,
+          file.ownerId || options.userId,
+          file.fileSize || 0,
+          isFromTrash
+        );
+      }
+
+      // 3. Delete DB records
+      await tx.fileLink.deleteMany({ where: { fileId: file.id } });
+      await tx.mediaUsage.deleteMany({ where: { mediaId: file.id } });
+      await tx.fileStar.deleteMany({ where: { fileId: file.id } });
+      await tx.fileAcl.deleteMany({ where: { fileId: file.id } });
+      await tx.fileShare.deleteMany({ where: { fileId: file.id } });
+      await tx.fileRecent.deleteMany({ where: { fileId: file.id } });
+      await tx.fileActivity.deleteMany({ where: { fileId: file.id } });
+      await tx.fileVersion.deleteMany({ where: { fileId: file.id } });
+      await tx.mediaFile.delete({ where: { id: file.id } });
+
+      // 4. Outbox event
+      if (file.tenantId) {
+        await OutboxService.createOutboxEvent(
+          {
+            tenantId: file.tenantId,
+            eventType: "file.deleted",
+            entityType: "MediaFile",
+            entityId: file.id,
+            actorId: options.userId,
+            payload: { id: file.id, fileName: file.fileName },
+          },
+          tx
+        );
+      }
+    });
+
+    if (file.tenantId) {
+      try {
+        broadcastToTenant(file.tenantId, "file:deleted", { id: file.id });
+      } catch {}
+    }
+
+    return { success: true, id: file.id, message: "Item permanently deleted." };
   }
 
   /**
@@ -640,7 +1115,7 @@ export class FilesService {
   }
 
   /**
-   * Upload single or multiple files into File Manager
+   * Fallback multipart upload for small files or legacy callers.
    */
   static async uploadFile(options: {
     buffer: Buffer;
@@ -657,77 +1132,191 @@ export class FilesService {
       throw new Error("Tenant context is required to upload files.");
     }
 
+    // Windows filename check
+    const validation = FileInvariantsService.validateFileName(options.originalFilename);
+    if (!validation.isValid) {
+      const err: any = new Error(validation.error);
+      err.code = validation.code;
+      err.status = 400;
+      throw err;
+    }
+
     let folderPath = options.folder || "uploads";
+    let materializedPath = "";
+    let depth = 0;
+
     if (options.parentId) {
       const parent = await prisma.mediaFile.findUnique({
         where: { id: options.parentId },
       });
-      if (!parent || parent.deletedAt) {
+      if (!parent || parent.deletedAt || parent.status === "TRASHED") {
         throw new Error("Target parent folder does not exist.");
       }
       if (!options.isSuper && parent.tenantId !== options.tenantId) {
         throw new Error("Access denied: Parent folder belongs to another workspace.");
       }
-      if (!parent.isFolder) {
+      if (!parent.isFolder && parent.type !== "FOLDER") {
         throw new Error("Target parent is not a folder.");
       }
       folderPath = `${parent.folder}/${parent.fileName}`;
+      materializedPath = parent.materializedPath || `/${parent.id}`;
+      depth = (parent.depth || 0) + 1;
     }
 
-    // Use MediaService to validate buffer and store file physically and create MediaFile record
-    const mediaRecord = await MediaService.uploadMedia(options.buffer, options.originalFilename, {
-      folder: folderPath,
-      tags: options.tags || ["file-manager"],
-      tenantId: options.tenantId,
-      uploadedBy: options.userId,
+    const nameKey = FileInvariantsService.computeNameKey(options.originalFilename);
+    const ext = path.extname(options.originalFilename).replace(".", "").toLowerCase();
+
+    // Check quota reservation
+    await prisma.$transaction(async (tx) => {
+      await FileInvariantsService.assertSiblingUniqueness(
+        tx,
+        options.tenantId,
+        options.parentId || null,
+        nameKey
+      );
+      await QuotaService.reserveUploadBytes(tx, options.tenantId, options.userId, options.buffer.length);
     });
 
-    const category = options.category || FilesService.deriveCategory(mediaRecord.mimeType, options.originalFilename);
-
-    // Update parentId and category
-    const updated = await prisma.mediaFile.update({
-      where: { id: mediaRecord.id },
-      data: {
-        parentId: options.parentId || null,
-        category,
-      },
-    });
-
-    if (options.tenantId) {
-      broadcastToTenant(options.tenantId, "file:created", {
-        type: "file",
-        id: updated.id,
-        name: updated.fileName,
-        parentId: updated.parentId,
-        category: updated.category,
-        url: updated.url,
+    try {
+      // Store file physically
+      const mediaRecord = await MediaService.uploadMedia(options.buffer, options.originalFilename, {
+        folder: folderPath,
+        tags: options.tags || ["file-manager"],
+        tenantId: options.tenantId,
+        uploadedBy: options.userId,
       });
-    }
 
-    return {
-      ...updated,
-      formattedSize: FilesService.formatBytes(updated.fileSize),
-      isStarred: false,
-    };
+      const category =
+        options.category || FilesService.deriveCategory(mediaRecord.mimeType, options.originalFilename);
+      const finalMaterializedPath = materializedPath
+        ? `${materializedPath}/${mediaRecord.id}`
+        : `/${mediaRecord.id}`;
+
+      // In transaction: commit quota and update record
+      const finalFile = await prisma.$transaction(async (tx) => {
+        // Create initial FileVersion
+        const version = await tx.fileVersion.create({
+          data: {
+            fileId: mediaRecord.id,
+            versionNo: 1,
+            storageKey: mediaRecord.filePath,
+            sizeBytes: BigInt(mediaRecord.fileSize),
+            checksum: mediaRecord.checksumSha || null,
+            createdBy: options.userId,
+            isCurrent: true,
+          },
+        });
+
+        // Update MediaFile with F1 fields
+        const updated = await tx.mediaFile.update({
+          where: { id: mediaRecord.id },
+          data: {
+            nameKey,
+            extension: ext,
+            type: "FILE",
+            ownerType: options.tenantId ? "USER" : "SYSTEM",
+            ownerId: options.userId,
+            status: "ACTIVE",
+            parentId: options.parentId || null,
+            materializedPath: finalMaterializedPath,
+            depth,
+            category,
+            currentVersionId: version.id,
+            version: 1,
+          },
+        });
+
+        // Commit quota bytes
+        await QuotaService.commitUploadBytes(
+          tx,
+          options.tenantId,
+          options.userId,
+          mediaRecord.fileSize
+        );
+
+        if (options.tenantId) {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId: options.tenantId,
+              eventType: "file.created",
+              entityType: "MediaFile",
+              entityId: updated.id,
+              actorId: options.userId,
+              payload: {
+                id: updated.id,
+                fileName: updated.fileName,
+                sizeBytes: updated.fileSize,
+              },
+            },
+            tx
+          );
+        }
+
+        return updated;
+      });
+
+      if (options.tenantId) {
+        try {
+          broadcastToTenant(options.tenantId, "file:created", {
+            type: "file",
+            id: finalFile.id,
+            name: finalFile.fileName,
+            parentId: finalFile.parentId,
+            category: finalFile.category,
+            url: finalFile.url,
+          });
+        } catch {}
+      }
+
+      return {
+        ...finalFile,
+        formattedSize: FilesService.formatBytes(finalFile.fileSize),
+        isStarred: false,
+      };
+    } catch (err) {
+      // Release reservation on failure
+      await prisma.$transaction(async (tx) => {
+        await QuotaService.releaseReservedBytes(
+          tx,
+          options.tenantId,
+          options.userId,
+          options.buffer.length
+        );
+      });
+      throw err;
+    }
   }
 
   /**
-   * Get single file / folder metadata
+   * Get single file / folder metadata with Privacy By Default:
+   * Unauthorized lookups return 404 (not 403) to prevent existence leakage.
    */
-  static async getItem(id: string, tenantId: string | null, userId: string, isSuper = false) {
+  static async getItem(
+    id: string,
+    tenantId: string | null,
+    userId: string,
+    isSuper = false,
+    userRoles: string[] = [],
+    userPermissions: string[] = []
+  ) {
     const item = await prisma.mediaFile.findUnique({
       where: { id },
       include: {
+        versions: {
+          orderBy: { versionNo: "desc" },
+        },
+        fileLinks: true,
         usages: true,
         stars: {
           where: { userId },
           select: { id: true },
         },
+        acls: true,
         shares: {
           where: { revokedAt: null },
         },
         _count: {
-          select: { children: true, usages: true },
+          select: { children: true, usages: true, fileLinks: true, versions: true },
         },
       },
     });
@@ -738,40 +1327,188 @@ export class FilesService {
       throw err;
     }
 
+    // Tenant check
     if (!isSuper && item.tenantId && item.tenantId !== tenantId) {
-      // Check if item is shared with this user or their role
-      const isShared = item.shares.some((s) => s.sharedWith === userId);
-      if (!isShared) {
-        const err: any = new Error("Forbidden: Access denied to asset in another workspace.");
-        err.status = 403;
-        throw err;
-      }
+      const err: any = new Error("Item not found.");
+      err.status = 404;
+      throw err;
     }
 
+    // Ownership & Share check
+    const isOwner =
+      item.ownerId === userId || item.uploadedBy === userId || !item.tenantId;
+    const isTenantAdmin =
+      userRoles.includes("tenant_admin") || userRoles.includes("admin") || isSuper;
+    const hasOrgPermission =
+      isTenantAdmin || userPermissions.includes("files.admin.view_all");
+    const isSharedUser =
+      item.shares.some((s) => s.sharedWith === userId) ||
+      item.acls.some((a: any) => a.principalType === "USER" && a.principalId === userId);
+
+    if (!isOwner && !hasOrgPermission && !isSharedUser) {
+      // Privacy by default: Return 404 to avoid leaking existence of private files
+      const err: any = new Error("Item not found.");
+      err.status = 404;
+      throw err;
+    }
+
+    // Audit log if Tenant Admin views non-owned file
+    if (!isOwner && hasOrgPermission && tenantId) {
+      await prisma.fileActivity.create({
+        data: {
+          fileId: item.id,
+          tenantId,
+          actorId: userId,
+          action: "ADMIN_VIEW_ACCESSED",
+          metaJson: { fileName: item.fileName, ownerId: item.ownerId },
+        },
+      });
+    }
+
+    const isFolder = item.isFolder || item.type === "FOLDER";
     return {
       id: item.id,
       tenantId: item.tenantId,
       name: item.fileName,
       fileName: item.fileName,
+      extension: item.extension,
+      type: item.type || (isFolder ? "FOLDER" : "FILE"),
+      ownerType: item.ownerType,
+      ownerId: item.ownerId,
       mimeType: item.mimeType,
       fileSize: item.fileSize,
-      formattedSize: item.isFolder ? `${item._count.children} items` : FilesService.formatBytes(item.fileSize),
+      formattedSize: isFolder ? `${item._count.children} items` : FilesService.formatBytes(item.fileSize),
       url: item.url,
       filePath: item.filePath,
       folder: item.folder,
-      isFolder: item.isFolder,
+      isFolder,
       parentId: item.parentId,
+      materializedPath: item.materializedPath,
+      depth: item.depth,
       category: item.category,
       isStarred: item.stars.length > 0,
       tags: item.tags,
+      status: item.status,
+      version: item.version,
+      currentVersionId: item.currentVersionId,
+      versions: item.versions,
       uploadedBy: item.uploadedBy,
-      usageCount: item._count.usages,
+      usageCount: item._count.usages + item._count.fileLinks,
       usages: item.usages,
+      links: item.fileLinks,
       shares: item.shares,
+      acls: item.acls,
+      trashedAt: item.trashedAt || item.deletedAt,
       deletedAt: item.deletedAt,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     };
+  }
+
+  /**
+   * Generates an authorized time-limited download URL via the StorageProvider.
+   */
+  static async getDownloadUrl(options: {
+    fileId: string;
+    tenantId: string | null;
+    userId: string;
+    isSuper?: boolean;
+    userRoles?: string[];
+    userPermissions?: string[];
+    expiresInSeconds?: number;
+  }) {
+    const item = await this.getItem(
+      options.fileId,
+      options.tenantId,
+      options.userId,
+      options.isSuper,
+      options.userRoles,
+      options.userPermissions
+    );
+
+    if (item.type === "FOLDER" || item.isFolder) {
+      const err: any = new Error("Cannot download a folder directly.");
+      err.status = 400;
+      throw err;
+    }
+
+    const latestVersion = item.versions?.[0];
+    const storageKey = latestVersion?.storageKey || item.filePath;
+    const storageProvider = StorageProviderFactory.getProvider();
+    const expiresIn = options.expiresInSeconds || 300;
+
+    const signedUrl = await storageProvider.getSignedDownloadUrl(
+      storageKey,
+      item.fileName,
+      expiresIn
+    );
+
+    if (options.tenantId) {
+      await prisma.fileActivity.create({
+        data: {
+          fileId: item.id,
+          tenantId: options.tenantId,
+          actorId: options.userId,
+          action: "FILE_DOWNLOAD",
+          metaJson: { fileName: item.fileName, storageKey },
+        },
+      });
+    }
+
+    return { signedUrl, expiresInSeconds: expiresIn, fileName: item.fileName };
+  }
+
+  /**
+   * Generates an authorized time-limited preview URL via the StorageProvider.
+   */
+  static async getPreviewUrl(options: {
+    fileId: string;
+    tenantId: string | null;
+    userId: string;
+    isSuper?: boolean;
+    userRoles?: string[];
+    userPermissions?: string[];
+    expiresInSeconds?: number;
+  }) {
+    const item = await this.getItem(
+      options.fileId,
+      options.tenantId,
+      options.userId,
+      options.isSuper,
+      options.userRoles,
+      options.userPermissions
+    );
+
+    if (item.type === "FOLDER" || item.isFolder) {
+      const err: any = new Error("Cannot preview a folder.");
+      err.status = 400;
+      throw err;
+    }
+
+    const latestVersion = item.versions?.[0];
+    const storageKey = latestVersion?.storageKey || item.filePath;
+    const storageProvider = StorageProviderFactory.getProvider();
+    const expiresIn = options.expiresInSeconds || 300;
+
+    const signedUrl = await storageProvider.getSignedPreviewUrl(
+      storageKey,
+      item.mimeType,
+      expiresIn
+    );
+
+    if (options.tenantId) {
+      await prisma.fileActivity.create({
+        data: {
+          fileId: item.id,
+          tenantId: options.tenantId,
+          actorId: options.userId,
+          action: "FILE_PREVIEW",
+          metaJson: { fileName: item.fileName, mimeType: item.mimeType },
+        },
+      });
+    }
+
+    return { signedUrl, expiresInSeconds: expiresIn, mimeType: item.mimeType };
   }
 
   /**
@@ -790,15 +1527,15 @@ export class FilesService {
     const file = await prisma.mediaFile.findUnique({
       where: { id: options.fileId },
     });
-    if (!file || file.deletedAt) {
+    if (!file || file.deletedAt || file.status === "TRASHED") {
       const err: any = new Error("File not found.");
       err.status = 404;
       throw err;
     }
 
     if (!options.isSuper && file.tenantId !== options.tenantId) {
-      const err: any = new Error("Forbidden: Access denied.");
-      err.status = 403;
+      const err: any = new Error("File not found.");
+      err.status = 404;
       throw err;
     }
 
@@ -815,11 +1552,13 @@ export class FilesService {
     });
 
     if (options.tenantId) {
-      broadcastToTenant(options.tenantId, "file:shared", {
-        fileId: file.id,
-        shareId: share.id,
-        sharedWith: share.sharedWith,
-      });
+      try {
+        broadcastToTenant(options.tenantId, "file:shared", {
+          fileId: file.id,
+          shareId: share.id,
+          sharedWith: share.sharedWith,
+        });
+      } catch {}
     }
 
     return share;
@@ -831,7 +1570,7 @@ export class FilesService {
   static async listShares(fileId: string, tenantId: string | null, isSuper = false) {
     const file = await prisma.mediaFile.findUnique({ where: { id: fileId } });
     if (!file) throw new Error("File not found");
-    if (!isSuper && file.tenantId !== tenantId) throw new Error("Forbidden");
+    if (!isSuper && file.tenantId !== tenantId) throw new Error("File not found");
 
     return prisma.fileShare.findMany({
       where: {
@@ -854,33 +1593,6 @@ export class FilesService {
       where: { id: shareId },
       data: { revokedAt: new Date() },
     });
-  }
-
-  /**
-   * Generate an authorized short-lived download/preview token
-   */
-  static generateSignedDownloadUrl(options: {
-    fileId: string;
-    tenantId: string | null;
-    userId: string;
-    expiresInSeconds?: number;
-  }): string {
-    const exp = Math.floor(Date.now() / 1000) + (options.expiresInSeconds || 300); // 5 min default
-    const payload = `${options.fileId}:${options.tenantId || "null"}:${options.userId}:${exp}`;
-    const sig = crypto.createHmac("sha256", SIGNED_URL_SECRET).update(payload).digest("hex");
-    return `/api/v1/files/${options.fileId}/stream?exp=${exp}&sig=${sig}&uid=${options.userId}`;
-  }
-
-  /**
-   * Verify short-lived download token signature and expiry
-   */
-  static verifySignedToken(fileId: string, tenantId: string | null, userId: string, exp: number, sig: string): boolean {
-    if (Math.floor(Date.now() / 1000) > exp) {
-      return false; // Expired
-    }
-    const payload = `${fileId}:${tenantId || "null"}:${userId}:${exp}`;
-    const expectedSig = crypto.createHmac("sha256", SIGNED_URL_SECRET).update(payload).digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expectedSig, "hex"));
   }
 
   /**

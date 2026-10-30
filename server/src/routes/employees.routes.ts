@@ -2,7 +2,7 @@ import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../prisma";
-import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
+import { requireAuth, requirePermission, AuthRequest, invalidateAuthCache } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { requireWithinLimit } from "../middleware/limits";
@@ -623,6 +623,7 @@ employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
           await tx.userRole.deleteMany({ where: { userId: employee.userId } });
           await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
           await tx.user.delete({ where: { id: employee.userId } });
+          invalidateAuthCache(employee.userId, employee.tenantId);
         }
       }
     });

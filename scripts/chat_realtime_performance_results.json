@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-10-28T10:01:14.889Z",
+  "timestamp": "2026-10-29T18:54:55.882Z",
   "total": 18,
-  "passed": 18,
+  "passed": 17,
   "results": [
     {
       "id": 1,
       "title": "Realtime text exchange & latency measurement (<500 ms)",
-      "passed": true,
-      "details": "Min: 219ms, p50: 388ms, p95: 1411ms, Max: 1411ms (Samples: 10)"
+      "passed": false,
+      "details": "Min: 262ms, p50: 631ms, p95: 930ms, Max: 930ms (Samples: 10)"
     },
     {
       "id": 2,
@@ -97,7 +97,7 @@
       "id": 16,
       "title": "Socket transport resilience & history fetch pagination",
       "passed": true,
-      "details": "Fetched 9 messages with cursor 20fa2212-872a-4a93-a619-775872fa42d7"
+      "details": "Fetched 9 messages with cursor 00515b07-92c5-476c-9b20-89623fa1350b"
     },
     {
       "id": 17,

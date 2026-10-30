@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, AuthRequest, invalidateAuthCache } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { getWorkspacePolicy } from "../services/workspace-policy.service";
@@ -483,6 +483,9 @@ workspaceRouter.put("/roles/:id", requireWorkspaceAdminGuard, async (req: AuthRe
       }
     }
 
+    // Invalidate auth cache for this workspace so updated permissions take effect immediately
+    invalidateAuthCache(undefined, tenantId);
+
     return res.json({ message: "Role updated successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update role" });
@@ -579,6 +582,9 @@ workspaceRouter.delete("/roles/:id", requireWorkspaceAdminGuard, async (req: Aut
 
     await prisma.rolePermission.deleteMany({ where: { roleId: id } });
     await prisma.workspaceRole.delete({ where: { id } });
+
+    // Invalidate auth cache for this workspace so deleted role takes effect immediately
+    invalidateAuthCache(undefined, tenantId);
 
     return res.json({ message: "Role deleted successfully" });
   } catch (err: any) {
@@ -790,6 +796,9 @@ workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, async (re
         role: { select: { id: true, name: true } },
       },
     });
+
+    // Invalidate auth cache for this user so updated role takes effect immediately
+    invalidateAuthCache(userId, tenantId);
 
     return res.json({
       message: "Role successfully assigned to user",

@@ -457,6 +457,8 @@ exports.workspaceRouter.put("/roles/:id", requireWorkspaceAdminGuard, async (req
                 });
             }
         }
+        // Invalidate auth cache for this workspace so updated permissions take effect immediately
+        (0, auth_1.invalidateAuthCache)(undefined, tenantId);
         return res.json({ message: "Role updated successfully" });
     }
     catch (err) {
@@ -540,6 +542,8 @@ exports.workspaceRouter.delete("/roles/:id", requireWorkspaceAdminGuard, async (
         }
         await prisma_1.prisma.rolePermission.deleteMany({ where: { roleId: id } });
         await prisma_1.prisma.workspaceRole.delete({ where: { id } });
+        // Invalidate auth cache for this workspace so deleted role takes effect immediately
+        (0, auth_1.invalidateAuthCache)(undefined, tenantId);
         return res.json({ message: "Role deleted successfully" });
     }
     catch (err) {
@@ -731,6 +735,8 @@ exports.workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, a
                 role: { select: { id: true, name: true } },
             },
         });
+        // Invalidate auth cache for this user so updated role takes effect immediately
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
         return res.json({
             message: "Role successfully assigned to user",
             user: {

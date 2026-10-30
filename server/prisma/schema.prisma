@@ -4875,14 +4875,40 @@ model MediaFile {
   category       String       @default("Documents") @db.VarChar(50)
   originalFolder String?      @map("original_folder") @db.VarChar(100)
 
+  nameKey             String?       @map("name_key") @db.VarChar(255)
+  type                String        @default("FILE") @db.VarChar(20)
+  ownerType           String        @default("USER") @map("owner_type") @db.VarChar(20)
+  ownerId             String?       @map("owner_id") @db.VarChar(36)
+  extension           String        @default("") @db.VarChar(30)
+  currentVersionId    String?       @map("current_version_id") @db.VarChar(36)
+  thumbnailKey        String?       @map("thumbnail_key") @db.VarChar(500)
+  status              String        @default("ACTIVE") @db.VarChar(20)
+  trashedAt           DateTime?     @map("trashed_at")
+  trashedBy           String?       @map("trashed_by") @db.VarChar(36)
+  originalParentId    String?       @map("original_parent_id") @db.VarChar(36)
+  trashedByCascade    Boolean       @default(false) @map("trashed_by_cascade")
+  systemModule        String?       @map("system_module") @db.VarChar(50)
+  systemPage          String?       @map("system_page") @db.VarChar(50)
+  materializedPath    String        @default("/") @map("materialized_path") @db.VarChar(1000)
+  depth               Int           @default(0)
+  version             Int           @default(1)
+
   parent         MediaFile?   @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children       MediaFile[]  @relation("FolderHierarchy")
   stars          FileStar[]
   shares         FileShare[]
+  versions       FileVersion[]
+  acls           FileAcl[]
+  fileLinks      FileLink[]
+  activities     FileActivity[]
+  recents        FileRecent[]
 
   @@index([tenantId, folder])
   @@index([tenantId, parentId])
   @@index([tenantId, isFolder])
+  @@index([tenantId, parentId, nameKey])
+  @@index([tenantId, status])
+  @@index([tenantId, ownerId])
   @@map("media_files")
 }
 
@@ -4928,6 +4954,168 @@ model MediaUsage {
 
   @@unique([mediaId, entityType, entityId, fieldKey])
   @@map("media_usages")
+}
+
+// -----------------------------------------------------------------------------
+// F1 FILE MANAGER CORE MODELS (Windows 11 Explorer Architecture)
+// -----------------------------------------------------------------------------
+
+model FileVersion {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  fileId     String    @map("file_id") @db.VarChar(36)
+  versionNo  Int       @map("version_no")
+  storageKey String    @map("storage_key") @db.VarChar(500)
+  sizeBytes  BigInt    @map("size_bytes")
+  checksum   String?   @db.VarChar(64)
+  createdBy  String    @map("created_by") @db.VarChar(36)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  isCurrent  Boolean   @default(true) @map("is_current")
+  file       MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, versionNo])
+  @@index([fileId, isCurrent])
+  @@map("file_versions")
+}
+
+model FileAcl {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  fileId           String    @map("file_id") @db.VarChar(36)
+  principalType    String    @map("principal_type") @db.VarChar(20) // USER | TEAM | ROLE | ORG | LINK
+  principalId      String?   @map("principal_id") @db.VarChar(36)
+  permission       String    @db.VarChar(20) // VIEWER | EDITOR | MANAGER
+  inherit          Boolean   @default(true)
+  expiresAt        DateTime? @map("expires_at")
+  linkTokenHash    String?   @map("link_token_hash") @db.VarChar(64)
+  linkPasswordHash String?   @map("link_password_hash") @db.VarChar(255)
+  linkScope        String?   @map("link_scope") @db.VarChar(20) // INTERNAL | EXTERNAL
+  createdBy        String    @map("created_by") @db.VarChar(36)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  file             MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId, principalType, principalId])
+  @@map("file_acls")
+}
+
+model FileTeam {
+  id           String           @id @default(uuid()) @db.VarChar(36)
+  tenantId     String           @map("tenant_id") @db.VarChar(36)
+  name         String           @db.VarChar(100)
+  description  String?          @db.VarChar(255)
+  rootFolderId String?          @map("root_folder_id") @db.VarChar(36)
+  quotaBytes   BigInt?          @map("quota_bytes")
+  createdBy    String           @map("created_by") @db.VarChar(36)
+  createdAt    DateTime         @default(now()) @map("created_at")
+  members      FileTeamMember[]
+
+  @@index([tenantId])
+  @@map("file_teams")
+}
+
+model FileTeamMember {
+  teamId    String   @map("team_id") @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  role      String   @default("VIEWER") @db.VarChar(20) // MANAGER | CONTRIBUTOR | VIEWER
+  createdAt DateTime @default(now()) @map("created_at")
+  team      FileTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@map("file_team_members")
+}
+
+model FileLink {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  fileId     String    @map("file_id") @db.VarChar(36)
+  module     String    @db.VarChar(50)
+  pageKey    String    @map("page_key") @db.VarChar(50)
+  entityType String    @map("entity_type") @db.VarChar(50)
+  entityId   String    @map("entity_id") @db.VarChar(36)
+  fieldKey   String    @map("field_key") @db.VarChar(50)
+  linkedBy   String?   @map("linked_by") @db.VarChar(36)
+  linkedAt   DateTime  @default(now()) @map("linked_at")
+  file       MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, entityType, entityId, fieldKey])
+  @@index([entityType, entityId])
+  @@map("file_links")
+}
+
+model FileUploadSession {
+  id               String   @id @default(uuid()) @db.VarChar(36)
+  tenantId         String   @map("tenant_id") @db.VarChar(36)
+  userId           String   @map("user_id") @db.VarChar(36)
+  fileId           String   @map("file_id") @db.VarChar(36)
+  parentId         String?  @map("parent_id") @db.VarChar(36)
+  name             String   @db.VarChar(255)
+  sizeBytes        BigInt   @map("size_bytes")
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  storageKey       String   @map("storage_key") @db.VarChar(500)
+  providerUploadId String?  @map("provider_upload_id") @db.VarChar(255)
+  uploadUrl        String?  @map("upload_url") @db.Text
+  uploadToken      String?  @map("upload_token") @db.VarChar(255)
+  partsJson        Json?    @map("parts_json")
+  status           String   @default("INITIATED") @db.VarChar(20) // INITIATED | UPLOADING | COMPLETED | ABORTED | EXPIRED
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, userId, status])
+  @@map("file_upload_sessions")
+}
+
+model StorageQuota {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  tenantId   String   @map("tenant_id") @db.VarChar(36)
+  userId     String?  @map("user_id") @db.VarChar(36) // null = tenant level
+  quotaBytes BigInt   @map("quota_bytes")
+  source     String   @default("DEFAULT") @db.VarChar(20) // PLAN | DEFAULT | OVERRIDE | PACK
+  updatedBy  String?  @map("updated_by") @db.VarChar(36)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId])
+  @@map("storage_quotas")
+}
+
+model StorageUsage {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  tenantId      String   @map("tenant_id") @db.VarChar(36)
+  userId        String?  @map("user_id") @db.VarChar(36) // null = tenant level
+  usedBytes     BigInt   @default(0) @map("used_bytes")
+  reservedBytes BigInt   @default(0) @map("reserved_bytes")
+  trashBytes    BigInt   @default(0) @map("trash_bytes")
+  fileCount     Int      @default(0) @map("file_count")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userId])
+  @@map("storage_usages")
+}
+
+model FileRecent {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  userId     String    @map("user_id") @db.VarChar(36)
+  fileId     String    @map("file_id") @db.VarChar(36)
+  tenantId   String    @map("tenant_id") @db.VarChar(36)
+  accessedAt DateTime  @default(now()) @map("accessed_at")
+  file       MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fileId])
+  @@index([userId, accessedAt])
+  @@map("file_recents")
+}
+
+model FileActivity {
+  id        String    @id @default(uuid()) @db.VarChar(36)
+  fileId    String    @map("file_id") @db.VarChar(36)
+  tenantId  String    @map("tenant_id") @db.VarChar(36)
+  actorId   String    @map("actor_id") @db.VarChar(36)
+  action    String    @db.VarChar(50) // create | upload | rename | move | trash | restore | delete | share | download | preview
+  metaJson  Json?     @map("meta_json")
+  ip        String?   @db.VarChar(45)
+  userAgent String?   @map("user_agent") @db.VarChar(255)
+  createdAt DateTime  @default(now()) @map("created_at")
+  file      MediaFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId, createdAt])
+  @@index([tenantId, createdAt])
+  @@map("file_activities")
 }
 
 model EmployeeChangeRequest {

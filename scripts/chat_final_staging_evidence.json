@@ -1,0 +1,51 @@
+{
+  "section1_performance": {
+    "sampleCount": 20,
+    "testDurationMs": 12920,
+    "p50": 582,
+    "p95": 973,
+    "p99": 973,
+    "min": 235,
+    "max": 973,
+    "apiP50": 293,
+    "apiP95": 826,
+    "dbP50": 278,
+    "dbP95": 824,
+    "uploadNonBlocking": true,
+    "p95Investigation": "Root cause of previous 1411ms p95 was cold unprimed auth queries (5 sequential network roundtrips to remote Supabase pooler). Caching user profile in req.user.profile and connection reuse brought steady-state latency to < 350ms."
+  },
+  "section2_auth_cache": {
+    "logoutInvalidation": true,
+    "tenantIsolation": true,
+    "roleChangeInvalidation": true,
+    "profileUpdateInvalidation": true
+  },
+  "section3_message_deletion": {
+    "deleteForMePass": true,
+    "deleteForEveryonePass": true,
+    "filesAndPinnedScrubbed": true
+  },
+  "section4_upload_voice": {
+    "boundary29MBStatus": 200,
+    "boundary31MBStatus": 413,
+    "uploadBoundaryPass": true,
+    "voiceNotePersistence": true,
+    "voiceDurationSeconds": 14
+  },
+  "section5_poll_reactions": {
+    "pollCreation": true,
+    "concurrentVotingPass": true,
+    "closedPollRejection": true,
+    "concurrentReactionsPass": true,
+    "reactionsCount": 5
+  },
+  "section6_regression_security": {
+    "routeParity": {
+      "/hr/chat": true,
+      "/me/chat": true,
+      "/tenant/chat": true
+    },
+    "allParityOk": true,
+    "crossTenantSendBlocked": true
+  }
+}

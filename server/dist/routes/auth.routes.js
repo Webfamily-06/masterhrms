@@ -19,6 +19,7 @@ const login_history_service_1 = require("../services/login-history.service");
 const tenant_provisioning_1 = require("../lib/tenant-provisioning");
 const workspace_host_1 = require("../lib/workspace-host");
 const auth_1 = require("../middleware/auth");
+const chat_routes_1 = require("./chat.routes");
 const oauth_factory_1 = require("../services/factories/oauth.factory");
 Object.defineProperty(exports, "OAuthFactory", { enumerable: true, get: function () { return oauth_factory_1.OAuthFactory; } });
 const two_factor_service_1 = require("../modules/two-factor-auth/two-factor.service");
@@ -1532,6 +1533,9 @@ exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
                 roles: true,
             },
         });
+        // Invalidate 60-second auth cache and 5-minute chat profile cache immediately on profile/password change
+        (0, auth_1.invalidateAuthCache)(req.user.userId, req.tenantId);
+        (0, chat_routes_1.invalidateChatProfileCache)(req.user.userId, req.tenantId);
         return res.json({
             success: true,
             user: {
@@ -1544,6 +1548,21 @@ exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
     }
     catch (err) {
         return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
+    }
+});
+// POST /api/auth/logout - Immediately clear server-side authorization cache
+exports.authRouter.post("/logout", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id;
+        const tenantId = req.user?.tenantId || req.tenantId;
+        if (userId) {
+            (0, auth_1.invalidateAuthCache)(userId, tenantId || undefined);
+            (0, chat_routes_1.invalidateChatProfileCache)(userId, tenantId || undefined);
+        }
+        return res.json({ success: true, message: "Logged out and authorization cache cleared." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Logout failed" });
     }
 });
 // ─── OAuth 2.0 Configuration & Social Login Handlers ─────────────────────────

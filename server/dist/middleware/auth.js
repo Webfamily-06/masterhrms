@@ -179,6 +179,12 @@ async function requireAuth(req, res, next) {
             roles,
             permissions: userPermissions,
             isImpersonating,
+            profile: account.profile
+                ? {
+                    fullName: account.profile.fullName || account.email?.split("@")[0] || "User",
+                    avatarUrl: account.profile.avatarUrl || null,
+                }
+                : undefined,
         };
         req.user.id = userId;
         next();

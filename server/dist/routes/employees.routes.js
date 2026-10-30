@@ -530,6 +530,7 @@ exports.employeesRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
                     await tx.userRole.deleteMany({ where: { userId: employee.userId } });
                     await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
                     await tx.user.delete({ where: { id: employee.userId } });
+                    (0, auth_1.invalidateAuthCache)(employee.userId, employee.tenantId);
                 }
             }
         });

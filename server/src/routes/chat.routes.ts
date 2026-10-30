@@ -1830,7 +1830,7 @@ chatRouter.get("/messages/:threadId/pinned", requireAuth, async (req: AuthReques
       return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
     }
 
-    const pinnedMessages = await prisma.chatMessage.findMany({
+    const rawPinned = await prisma.chatMessage.findMany({
       where: {
         tenantId,
         threadId,
@@ -1838,6 +1838,11 @@ chatRouter.get("/messages/:threadId/pinned", requireAuth, async (req: AuthReques
         isDeletedForEveryone: false,
       },
       orderBy: { pinnedAt: "desc" },
+    });
+
+    const pinnedMessages = rawPinned.filter((m: any) => {
+      const deletedFor = (m.deletedForUserIds as string[]) || [];
+      return !deletedFor.includes(currentUserId);
     });
 
     return res.json(pinnedMessages);
@@ -1860,7 +1865,7 @@ chatRouter.get("/messages/:threadId/files", requireAuth, async (req: AuthRequest
       return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
     }
 
-    const messages = await prisma.chatMessage.findMany({
+    const rawMessages = await prisma.chatMessage.findMany({
       where: {
         tenantId,
         threadId,
@@ -1869,6 +1874,11 @@ chatRouter.get("/messages/:threadId/files", requireAuth, async (req: AuthRequest
       },
       orderBy: { createdAt: "desc" },
       take: 200,
+    });
+
+    const messages = rawMessages.filter((m: any) => {
+      const deletedFor = (m.deletedForUserIds as string[]) || [];
+      return !deletedFor.includes(currentUserId);
     });
 
     const allFiles: any[] = [];
@@ -2158,9 +2168,11 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
     }).catch(() => {});
 
     // Realtime broadcast via Socket.io
+    const broadcastAt = Date.now();
     broadcastToTenant(tenantId, "chat:message", {
       threadId: msg.threadId,
       message: msg,
+      broadcastAt,
     });
 
     // If direct message, trigger push notification for recipient
@@ -2239,7 +2251,10 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       }).catch(() => {});
     });
 
-    console.log(`[PERF_ROUTE] prisma create: ${Date.now() - _tPre}ms | total handler: ${Date.now() - _t0}ms`);
+    const _tDb = Date.now() - _tPre;
+    const _tTotal = Date.now() - _t0;
+    res.setHeader("Server-Timing", `db;dur=${_tDb}, total;dur=${_tTotal}`);
+    console.log(`[PERF_ROUTE] prisma create: ${_tDb}ms | total handler: ${_tTotal}ms`);
     if (clientTempId && typeof clientTempId === "string") {
       recentClientTempIds.set(`${tenantId}:${threadId}:${clientTempId}`, msg);
       if (recentClientTempIds.size > 2000) {
@@ -2456,7 +2471,7 @@ chatRouter.post("/messages/:id/pin", requireAuth, async (req: AuthRequest, res: 
   }
 });
 
-// POST /api/chat/messages/:id/react - Add or toggle emoji reaction
+// POST /api/chat/messages/:id/react - Add or toggle emoji reaction with row-level locking
 chatRouter.post("/messages/:id/react", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
@@ -2468,104 +2483,131 @@ chatRouter.post("/messages/:id/react", requireAuth, async (req: AuthRequest, res
       return res.status(400).json({ error: "emoji is required" });
     }
 
-    const existing = await prisma.chatMessage.findFirst({
-      where: { id, tenantId },
-    });
+    // Resolve profile from req.user / memory cache / DB
+    const userProfile = (req.user as any)?.profile;
+    let senderName = userProfile?.fullName || (req.user as any)?.fullName;
+    let senderAvatar = userProfile?.avatarUrl || (req.user as any)?.avatarUrl || null;
 
-    if (!existing) {
-      return res.status(404).json({ error: "Message not found" });
-    }
-
-    const authCheck = await checkThreadAuthorization(existing.threadId, tenantId, currentUserId, req.user?.roles);
-    if (!authCheck.authorized) {
-      return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
-    }
-
-    // Reaction structure: Array of { emoji: string, userIds: string[], count: number, users: Array<{ userId: string, fullName: string, avatarUrl?: string | null }> }
-    let rawReactions: any[] = [];
-    if (Array.isArray(existing.reactions)) {
-      rawReactions = existing.reactions;
-    } else if (existing.reactions && typeof existing.reactions === "object") {
-      rawReactions = Object.entries(existing.reactions).map(([k, v]: [string, any]) => ({
-        emoji: k,
-        userIds: Array.isArray(v) ? v : (v?.userIds || []),
-        count: Array.isArray(v) ? v.length : (v?.count || 0),
-        users: Array.isArray(v?.users) ? v.users : [],
-      }));
-    }
-
-    // Look up reacting user profile
-    const profile = await prisma.profile.findFirst({
-      where: { userId: currentUserId, tenantId },
-      select: { fullName: true, avatarUrl: true },
-    });
-    const senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
-    const senderAvatar = profile?.avatarUrl || null;
-
-    let reactions: Array<{
-      emoji: string;
-      userIds: string[];
-      count: number;
-      users: Array<{ userId: string; fullName: string; avatarUrl?: string | null }>;
-    }> = rawReactions.map((r: any) => ({
-      emoji: r.emoji,
-      userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
-      count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
-      users: Array.isArray(r.users) ? [...r.users] : [],
-    }));
-
-    const existingReaction = reactions.find((r) => r.emoji === emoji);
-    if (existingReaction) {
-      if (existingReaction.userIds.includes(currentUserId)) {
-        // Toggle OFF: remove user reaction
-        existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
-        existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
+    if (!senderName) {
+      const pKey = `${tenantId}:${currentUserId}`;
+      const cached = profileMemoryCache.get(pKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        senderName = cached.fullName;
+        senderAvatar = cached.avatarUrl;
       } else {
-        // Toggle ON: add user reaction
-        existingReaction.userIds.push(currentUserId);
-        if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
-          existingReaction.users.push({
+        const profile = await prisma.profile.findFirst({
+          where: { userId: currentUserId, tenantId },
+          select: { fullName: true, avatarUrl: true },
+        });
+        senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
+        senderAvatar = profile?.avatarUrl || null;
+        profileMemoryCache.set(pKey, { fullName: senderName, avatarUrl: senderAvatar, expiresAt: Date.now() + 300000 });
+      }
+    }
+
+    // Execute in transaction with row-level lock (FOR UPDATE) to prevent lost updates under concurrency
+    const result = await prisma.$transaction(async (tx: any) => {
+      const rows: any[] = await tx.$queryRawUnsafe(
+        'SELECT id, thread_id, tenant_id, reactions FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE',
+        id,
+        tenantId
+      );
+
+      if (!rows || rows.length === 0) {
+        return { status: 404, error: "Message not found" };
+      }
+
+      const row = rows[0];
+      const threadId = row.thread_id;
+
+      const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+      if (!authCheck.authorized) {
+        return { status: 403, error: "Access denied", code: "CHAT_UNAUTHORIZED" };
+      }
+
+      let rawReactions: any[] = [];
+      if (Array.isArray(row.reactions)) {
+        rawReactions = row.reactions;
+      } else if (row.reactions && typeof row.reactions === "object") {
+        rawReactions = Object.entries(row.reactions).map(([k, v]: [string, any]) => ({
+          emoji: k,
+          userIds: Array.isArray(v) ? v : (v?.userIds || []),
+          count: Array.isArray(v) ? v.length : (v?.count || 0),
+          users: Array.isArray(v?.users) ? v.users : [],
+        }));
+      }
+
+      let reactions: Array<{
+        emoji: string;
+        userIds: string[];
+        count: number;
+        users: Array<{ userId: string; fullName: string; avatarUrl?: string | null }>;
+      }> = rawReactions.map((r: any) => ({
+        emoji: r.emoji,
+        userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
+        count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
+        users: Array.isArray(r.users) ? [...r.users] : [],
+      }));
+
+      const existingReaction = reactions.find((r) => r.emoji === emoji);
+      if (existingReaction) {
+        if (existingReaction.userIds.includes(currentUserId)) {
+          // Toggle OFF: remove user reaction
+          existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
+          existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
+        } else {
+          // Toggle ON: add user reaction
+          existingReaction.userIds.push(currentUserId);
+          if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
+            existingReaction.users.push({
+              userId: currentUserId,
+              fullName: senderName,
+              avatarUrl: senderAvatar,
+            });
+          }
+        }
+        existingReaction.count = existingReaction.userIds.length;
+      } else {
+        reactions.push({
+          emoji,
+          userIds: [currentUserId],
+          count: 1,
+          users: [{
             userId: currentUserId,
             fullName: senderName,
             avatarUrl: senderAvatar,
-          });
-        }
+          }],
+        });
       }
-      existingReaction.count = existingReaction.userIds.length;
-    } else {
-      reactions.push({
-        emoji,
-        userIds: [currentUserId],
-        count: 1,
-        users: [{
-          userId: currentUserId,
-          fullName: senderName,
-          avatarUrl: senderAvatar,
-        }],
+
+      // Filter out reactions with 0 userIds
+      reactions = reactions.filter((r) => r.userIds.length > 0);
+
+      const updated = await tx.chatMessage.update({
+        where: { id },
+        data: { reactions },
       });
-    }
 
-    // Filter out reactions with 0 userIds
-    reactions = reactions.filter((r) => r.userIds.length > 0);
-
-    const updated = await prisma.chatMessage.update({
-      where: { id },
-      data: { reactions },
+      return { status: 200, threadId, reactions, updated };
     });
+
+    if (result.status !== 200) {
+      return res.status(result.status).json({ error: result.error, code: result.code });
+    }
 
     broadcastToTenant(tenantId, "chat:reaction", {
       id,
-      threadId: existing.threadId,
-      reactions,
+      threadId: result.threadId,
+      reactions: result.reactions,
     });
 
     await PusherService.triggerTenantEvent(tenantId, "chat:reaction", {
       id,
-      threadId: existing.threadId,
-      reactions,
+      threadId: result.threadId,
+      reactions: result.reactions,
     });
 
-    return res.json({ success: true, reactions });
+    return res.json(result.updated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
