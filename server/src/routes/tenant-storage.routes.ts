@@ -339,3 +339,57 @@ tenantStorageRouter.put("/quotas/users/:targetUserId", requireAuth, async (req: 
     return res.status(status).json({ error: err.message || "Failed to update user quota." });
   }
 });
+
+/**
+ * GET /api/v1/tenant/storage/activity
+ * Real-time storage audit events and file activity timeline.
+ */
+tenantStorageRouter.get("/activity", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { tenantId, isAdmin } = getTenantContext(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context is required." });
+    }
+    if (!isAdmin) {
+      return res.status(403).json({ error: "Storage administration requires administrator privileges." });
+    }
+
+    const limit = req.query.limit ? Number(req.query.limit) : 25;
+    const activities = await StorageAdminService.getStorageActivity(tenantId, limit);
+    return res.json({ activities, data: activities });
+  } catch (err: any) {
+    console.error("[Tenant Storage Activity Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve storage activity." });
+  }
+});
+
+/**
+ * GET /api/v1/tenant/storage/dashboard
+ * Aggregated tenant dashboard endpoint returning summary, quotas, departments, teams, and activity in one call.
+ */
+tenantStorageRouter.get("/dashboard", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { tenantId, isAdmin } = getTenantContext(req);
+    if (!tenantId) {
+      return res.status(400).json({ error: "Tenant context is required." });
+    }
+    if (!isAdmin) {
+      return res.status(403).json({ error: "Storage administration requires administrator privileges." });
+    }
+
+    const [summary, departments, activities] = await Promise.all([
+      StorageAdminService.getTenantStorageSummary(tenantId),
+      StorageUsageEngine.calculateDepartmentBreakdown(tenantId),
+      StorageAdminService.getStorageActivity(tenantId, 15),
+    ]);
+
+    return res.json({
+      summary,
+      departments,
+      activities,
+    });
+  } catch (err: any) {
+    console.error("[Tenant Storage Dashboard Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve storage dashboard." });
+  }
+});

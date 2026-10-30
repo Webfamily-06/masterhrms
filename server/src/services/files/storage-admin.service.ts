@@ -745,4 +745,41 @@ export class StorageAdminService {
       },
     });
   }
+
+  /**
+   * Authoritative chronological audit trail of recent file and storage activities.
+   */
+  public static async getStorageActivity(tenantId: string, limit = 25) {
+    const activities = await prisma.fileActivity.findMany({
+      where: {
+        file: { tenantId },
+      },
+      include: {
+        file: {
+          select: {
+            id: true,
+            fileName: true,
+            fileSize: true,
+            mimeType: true,
+            folder: true,
+            isFolder: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    return activities.map((act) => ({
+      id: act.id,
+      fileId: act.fileId,
+      fileName: act.file?.fileName || "File",
+      fileSize: act.file?.fileSize || 0,
+      formattedSize: this.formatBytes(act.file?.fileSize || 0),
+      action: act.action,
+      details: act.details,
+      actorId: act.actorId,
+      createdAt: act.createdAt.toISOString(),
+    }));
+  }
 }

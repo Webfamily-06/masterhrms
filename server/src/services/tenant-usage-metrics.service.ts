@@ -1,5 +1,8 @@
 import { rawPrisma as prisma } from "../prisma";
 import { getBaseDomain } from "../lib/workspace-host";
+import { StorageAdminService } from "./files/storage-admin.service";
+import { StorageUsageEngine } from "./files/storage-usage.engine";
+import { QuotaService, PLAN_STORAGE_CAPACITIES_GB } from "./files/quota.service";
 
 export interface TenantUsageFilterOptions {
   search?: string;
@@ -65,26 +68,41 @@ export class TenantUsageMetricsService {
 
     const tenantIds = tenants.map((t) => t.id);
 
-    // 2. Fetch Stored Documents byte aggregations per tenant
-    const docAggs = await prisma.storedDocument.groupBy({
-      by: ["tenantId"],
-      _sum: { sizeBytes: true },
-      where: { tenantId: { in: tenantIds } },
-    });
-    const docSizeMap = new Map<string, number>();
-    docAggs.forEach((d) => {
-      docSizeMap.set(d.tenantId, d._sum.sizeBytes || 0);
-    });
+    // 2. Canonical F4 Storage Usage & Quota Lookups
+    const [usages, quotas, versionAggs] = await Promise.all([
+      prisma.storageUsage.findMany({
+        where: { tenantId: { in: tenantIds }, userId: null },
+      }),
+      prisma.storageQuota.findMany({
+        where: { tenantId: { in: tenantIds }, userId: null },
+      }),
+      prisma.fileVersion.groupBy({
+        by: ["fileId"],
+        where: { file: { tenantId: { in: tenantIds } }, isCurrent: false },
+        _sum: { sizeBytes: true },
+      }),
+    ]);
 
-    // 3. Fetch Expense Claim receipts byte aggregations per tenant
-    const expenseAggs = await prisma.expenseClaim.groupBy({
-      by: ["tenantId"],
-      _sum: { receiptSize: true },
-      where: { tenantId: { in: tenantIds }, receiptSize: { not: null } },
+    const usageMap = new Map<string, any>();
+    usages.forEach((u) => usageMap.set(u.tenantId, u));
+
+    const quotaMap = new Map<string, any>();
+    quotas.forEach((q) => quotaMap.set(q.tenantId, q));
+
+    // Map non-current version bytes per file then per tenant
+    const versionMap = new Map<string, number>();
+    // Pre-aggregate version bytes for tenants
+    const versionFiles = await prisma.mediaFile.findMany({
+      where: { tenantId: { in: tenantIds }, versions: { some: { isCurrent: false } } },
+      select: { id: true, tenantId: true },
     });
-    const expenseSizeMap = new Map<string, number>();
-    expenseAggs.forEach((e) => {
-      expenseSizeMap.set(e.tenantId, e._sum.receiptSize || 0);
+    const fileTenantMap = new Map<string, string>();
+    versionFiles.forEach(f => { if (f.tenantId) fileTenantMap.set(f.id, f.tenantId); });
+    versionAggs.forEach((v) => {
+      const tId = fileTenantMap.get(v.fileId);
+      if (tId) {
+        versionMap.set(tId, (versionMap.get(tId) || 0) + Number(v._sum.sizeBytes || 0));
+      }
     });
 
     // 4. Fetch module activity counts per tenant within period
@@ -188,22 +206,51 @@ export class TenantUsageMetricsService {
       const storageLimitGb = sub?.storageLimitGb ?? sub?.plan?.storageLimitGb ?? null;
       const maxUsers = sub?.maxUsers ?? sub?.plan?.maxUsers ?? null;
 
-      // Storage used in bytes (files + receipts + base database schema footprint)
-      const fileBytes = (docSizeMap.get(tenant.id) || 0) + (expenseSizeMap.get(tenant.id) || 0);
-      // Measured database row footprint: calculate proportional baseline based on records
-      const totalRecords =
-        (tenant._count.employees || 0) +
-        (attendanceMap.get(tenant.id) || 0) +
-        (salesMap.get(tenant.id) || 0) +
-        (leadMap.get(tenant.id) || 0) +
-        (taskMap.get(tenant.id) || 0);
-      const databaseBytes = 1024 * 1024 * 2 + totalRecords * 2048; // minimum 2MB baseline catalog + actual row bytes
-      const totalUsedBytes = fileBytes + databaseBytes;
+      // Canonical F4-B Multi-Dimensional Storage Dimensions
+      const usage = usageMap.get(tenant.id);
+      const activeBytes = usage ? Number(usage.usedBytes) : 0;
+      const trashBytes = usage ? Number(usage.trashBytes) : 0;
+      const reservedBytes = usage ? Number(usage.reservedBytes) : 0;
+      const versionBytes = versionMap.get(tenant.id) || 0;
+      const billableBytes = activeBytes + trashBytes + versionBytes;
+      const physicalBytes = billableBytes; // 1:1 local / storage provider mapping
 
-      const storageLimitBytes = storageLimitGb ? storageLimitGb * 1024 * 1024 * 1024 : null;
-      const storagePercentage = storageLimitBytes
+      // Resolve effective tenant quota (Override -> Subscription -> Plan -> Default 10GB)
+      let effectiveQuotaBytes = 10 * 1024 * 1024 * 1024;
+      let quotaSource = "DEFAULT";
+      const qOverride = quotaMap.get(tenant.id);
+      if (qOverride && Number(qOverride.quotaBytes) > 0) {
+        effectiveQuotaBytes = Number(qOverride.quotaBytes);
+        quotaSource = "OVERRIDE";
+      } else if (storageLimitGb) {
+        effectiveQuotaBytes = storageLimitGb * 1024 * 1024 * 1024;
+        quotaSource = "SUBSCRIPTION";
+      } else if (sub?.plan?.storageLimitGb) {
+        effectiveQuotaBytes = sub.plan.storageLimitGb * 1024 * 1024 * 1024;
+        quotaSource = "PLAN";
+      } else {
+        const pKey = (sub?.planId || "starter").toLowerCase();
+        if (PLAN_STORAGE_CAPACITIES_GB[pKey]) {
+          effectiveQuotaBytes = PLAN_STORAGE_CAPACITIES_GB[pKey] * 1024 * 1024 * 1024;
+          quotaSource = "PLAN";
+        }
+      }
+
+      const totalUsedBytes = activeBytes;
+      const storageLimitBytes = effectiveQuotaBytes;
+      const storagePercentage = storageLimitBytes > 0
         ? Math.min(100, parseFloat(((totalUsedBytes / storageLimitBytes) * 100).toFixed(1)))
-        : null;
+        : 0;
+
+      // F4-C Quota Lifecycle State Machine
+      const thresholdState =
+        storagePercentage >= 100
+          ? "LOCKED"
+          : storagePercentage >= 90
+          ? "CRITICAL"
+          : storagePercentage >= 80
+          ? "WARNING"
+          : "NORMAL";
 
       // User Counts
       const totalUsers = tenant._count.profiles || tenant._count.userRoles || 1;
@@ -257,14 +304,32 @@ export class TenantUsageMetricsService {
         storageLimitBytes,
         storageUsedFormatted: formatBytes(totalUsedBytes),
         storageLimitFormatted: storageLimitGb ? `${storageLimitGb} GB` : "Not configured",
-        storageLimitGb,
+        storageLimitGb: Math.round(effectiveQuotaBytes / (1024 * 1024 * 1024)),
         storagePercentage,
+        activeBytes,
+        formattedActive: formatBytes(activeBytes),
+        trashBytes,
+        formattedTrash: formatBytes(trashBytes),
+        versionBytes,
+        formattedVersion: formatBytes(versionBytes),
+        reservedBytes,
+        formattedReserved: formatBytes(reservedBytes),
+        physicalBytes,
+        formattedPhysical: formatBytes(physicalBytes),
+        billableBytes,
+        formattedBillable: formatBytes(billableBytes),
+        quotaBytes: effectiveQuotaBytes,
+        formattedQuota: formatBytes(effectiveQuotaBytes),
+        quotaSource,
+        thresholdState,
+        fileCount: usage ? usage.fileCount : 0,
         mostModuleUsage,
         totalActivityScore,
         status: accountStatus,
         lastLoginAt: lastLogin ? lastLogin.toISOString() : null,
-        lastActivityAt: lastActivityAt.toISOString(),
-        createdAt: tenant.createdAt.toISOString(),
+        lastActivityAt: lastActivityAt ? lastActivityAt.toISOString() : (tenant.createdAt || new Date()).toISOString(),
+        updatedAt: usage?.updatedAt ? usage.updatedAt.toISOString() : (sub?.updatedAt || tenant.createdAt || new Date()).toISOString(),
+        createdAt: (tenant.createdAt || new Date()).toISOString(),
       };
     });
 
@@ -315,7 +380,41 @@ export class TenantUsageMetricsService {
       }
     });
 
-    return filtered;
+    // Compute platform fleet summary
+    const totalAllocatedStorage = results.reduce((acc, r) => acc + (r.quotaBytes || 0), 0);
+    const totalActiveStorage = results.reduce((acc, r) => acc + r.activeBytes, 0);
+    const totalTrashStorage = results.reduce((acc, r) => acc + r.trashBytes, 0);
+    const totalVersionStorage = results.reduce((acc, r) => acc + r.versionBytes, 0);
+    const totalReservedStorage = results.reduce((acc, r) => acc + r.reservedBytes, 0);
+    const totalPhysicalStorage = results.reduce((acc, r) => acc + r.physicalBytes, 0);
+    const totalBillableStorage = results.reduce((acc, r) => acc + r.billableBytes, 0);
+
+    const fleetSummary = {
+      totalTenants: tenants.length,
+      activeTenants: tenants.filter((t) => t.subscription?.status === "active" || !t.subscription?.status).length,
+      totalAllocatedStorage,
+      formattedAllocatedStorage: formatBytes(totalAllocatedStorage),
+      totalActiveStorage,
+      formattedActiveStorage: formatBytes(totalActiveStorage),
+      totalTrashStorage,
+      formattedTrashStorage: formatBytes(totalTrashStorage),
+      totalVersionStorage,
+      formattedVersionStorage: formatBytes(totalVersionStorage),
+      totalReservedStorage,
+      formattedReservedStorage: formatBytes(totalReservedStorage),
+      totalPhysicalStorage,
+      formattedPhysicalStorage: formatBytes(totalPhysicalStorage),
+      totalBillableStorage,
+      formattedBillableStorage: formatBytes(totalBillableStorage),
+      tenantsApproachingQuota: results.filter((r) => r.storagePercentage !== null && r.storagePercentage >= 80 && r.storagePercentage < 100).length,
+      tenantsLocked: results.filter((r) => r.storagePercentage !== null && r.storagePercentage >= 100).length,
+    };
+
+    return {
+      fleetSummary,
+      data: filtered,
+      tenants: filtered,
+    };
   }
 
   /**
@@ -351,53 +450,11 @@ export class TenantUsageMetricsService {
     const storageLimitGb = sub?.storageLimitGb ?? sub?.plan?.storageLimitGb ?? null;
     const storageLimitBytes = storageLimitGb ? storageLimitGb * 1024 * 1024 * 1024 : null;
 
-    // A. Storage Breakdown by real categories
-    const storedDocs = await prisma.storedDocument.findMany({
-      where: { tenantId },
-      select: { mimeType: true, sizeBytes: true },
-    });
-
-    let imagesBytes = 0;
-    let docsBytes = 0;
-    let videoBytes = 0;
-    let audioBytes = 0;
-    let otherFileBytes = 0;
-
-    storedDocs.forEach((doc) => {
-      const mime = (doc.mimeType || "").toLowerCase();
-      const bytes = doc.sizeBytes || 0;
-      if (mime.startsWith("image/")) {
-        imagesBytes += bytes;
-      } else if (
-        mime.includes("pdf") ||
-        mime.includes("word") ||
-        mime.includes("text") ||
-        mime.includes("document") ||
-        mime.includes("sheet") ||
-        mime.includes("excel") ||
-        mime.includes("presentation")
-      ) {
-        docsBytes += bytes;
-      } else if (mime.startsWith("video/")) {
-        videoBytes += bytes;
-      } else if (mime.startsWith("audio/")) {
-        audioBytes += bytes;
-      } else {
-        otherFileBytes += bytes;
-      }
-    });
-
-    // Also include expense claims receipts
-    const expenseClaims = await prisma.expenseClaim.findMany({
-      where: { tenantId, receiptSize: { not: null } },
-      select: { receiptSize: true },
-    });
-    expenseClaims.forEach((e) => {
-      docsBytes += e.receiptSize || 0;
-    });
-
-    // Measured database record bytes
-    const [attCount, saleCount, leadCount, taskCount, ticketCount, empCount] = await Promise.all([
+    // A. Canonical F4 Storage Breakdown & Telemetry
+    const [storageSummary, departmentBreakdown, recentActivities, attCount, saleCount, leadCount, taskCount, ticketCount, empCount] = await Promise.all([
+      StorageAdminService.getTenantStorageSummary(tenantId).catch(() => null),
+      StorageUsageEngine.calculateDepartmentBreakdown(tenantId).catch(() => []),
+      StorageAdminService.getStorageActivity(tenantId, 15).catch(() => []),
       prisma.attendance.count({ where: { tenantId } }),
       prisma.sale.count({ where: { tenantId } }),
       prisma.crmLead.count({ where: { tenantId } }),
@@ -406,14 +463,29 @@ export class TenantUsageMetricsService {
       prisma.employee.count({ where: { tenantId } }),
     ]);
 
-    const totalRecords = attCount + saleCount + leadCount + taskCount + ticketCount + empCount;
-    const databaseBytes = 1024 * 1024 * 2 + totalRecords * 2048; // Baseline schema + real row data
+    const activeBytes = storageSummary ? storageSummary.usage.activeBytes : 0;
+    const trashBytes = storageSummary ? storageSummary.usage.trashBytes : 0;
+    const versionBytes = storageSummary ? storageSummary.usage.versionBytes : 0;
+    const reservedBytes = storageSummary ? storageSummary.usage.reservedBytes : 0;
+    const totalBillableBytes = storageSummary ? storageSummary.usage.totalBillableBytes : 0;
+    const physicalBytes = totalBillableBytes;
+    const quotaBytes = storageSummary ? storageSummary.quota.quotaBytes : (storageLimitBytes || 10 * 1024 * 1024 * 1024);
+    const availableBytes = storageSummary ? storageSummary.usage.availableBytes : Math.max(0, quotaBytes - activeBytes);
+    const storagePercentage = storageSummary ? storageSummary.usage.percentUsed : (quotaBytes > 0 ? Math.min(100, (activeBytes / quotaBytes) * 100) : 0);
+    const thresholdState = storageSummary ? storageSummary.usage.thresholdState : "NORMAL";
 
-    const totalUsedBytes = imagesBytes + docsBytes + videoBytes + audioBytes + otherFileBytes + databaseBytes;
-    const remainingBytes = storageLimitBytes ? Math.max(0, storageLimitBytes - totalUsedBytes) : null;
-    const storagePercentage = storageLimitBytes
-      ? Math.min(100, parseFloat(((totalUsedBytes / storageLimitBytes) * 100).toFixed(1)))
-      : null;
+    const totalRecords = attCount + saleCount + leadCount + taskCount + ticketCount + empCount;
+    const databaseBytes = 1024 * 1024 * 2 + totalRecords * 2048;
+
+    const catMap = new Map((storageSummary?.categories || []).map(c => [c.category, c]));
+    const imagesBytes = catMap.get("Images")?.bytes || 0;
+    const docsBytes = catMap.get("Documents")?.bytes || 0;
+    const videoBytes = catMap.get("Videos")?.bytes || 0;
+    const audioBytes = catMap.get("Audio")?.bytes || 0;
+    const otherFileBytes = (storageSummary?.categories || []).filter(c => !["Images", "Documents", "Videos", "Audio"].includes(c.category)).reduce((acc, c) => acc + c.bytes, 0);
+
+    const totalUsedBytes = activeBytes;
+    const remainingBytes = availableBytes;
 
     // B. User and Login Activity
     const loginHistories = await prisma.loginHistory.findMany({
@@ -516,11 +588,25 @@ export class TenantUsageMetricsService {
       storage: {
         totalUsedBytes,
         totalUsedFormatted: formatBytes(totalUsedBytes),
-        totalLimitBytes: storageLimitBytes,
-        totalLimitFormatted: storageLimitGb ? `${storageLimitGb} GB` : "Not configured",
+        totalLimitBytes: quotaBytes,
+        totalLimitFormatted: formatBytes(quotaBytes),
         remainingBytes,
-        remainingFormatted: remainingBytes !== null ? formatBytes(remainingBytes) : "Not configured",
+        remainingFormatted: formatBytes(remainingBytes),
         storagePercentage,
+        activeBytes,
+        formattedActive: formatBytes(activeBytes),
+        trashBytes,
+        formattedTrash: formatBytes(trashBytes),
+        versionBytes,
+        formattedVersion: formatBytes(versionBytes),
+        reservedBytes,
+        formattedReserved: formatBytes(reservedBytes),
+        physicalBytes,
+        formattedPhysical: formatBytes(physicalBytes),
+        totalBillableBytes,
+        formattedTotalBillable: formatBytes(totalBillableBytes),
+        thresholdState,
+        quotaSource: storageSummary?.quota?.quotaSource || "PLAN",
         categories: {
           database: { bytes: databaseBytes, formatted: formatBytes(databaseBytes) },
           images: { bytes: imagesBytes, formatted: formatBytes(imagesBytes) },
@@ -529,6 +615,11 @@ export class TenantUsageMetricsService {
           audio: { bytes: audioBytes, formatted: formatBytes(audioBytes) },
           other: { bytes: otherFileBytes, formatted: formatBytes(otherFileBytes) },
         },
+        departmentBreakdown,
+        topUsers: storageSummary?.topUsers || [],
+        teams: storageSummary?.teams || [],
+        recentActivities: recentActivities || [],
+        lastReconciledAt: null,
       },
       userActivity: {
         activeUsers,

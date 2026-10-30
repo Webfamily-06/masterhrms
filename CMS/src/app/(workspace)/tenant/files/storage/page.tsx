@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { getSocketClient } from '@/lib/socket';
 import { toast } from 'sonner';
 import {
   HardDrive,
@@ -41,7 +42,7 @@ const Chart = lazy(() => import('react-apexcharts'));
 
 export default function TenantStorageAdministrationPage() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'teams' | 'governance' | 'analytics' | 'reconcile'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'teams' | 'governance' | 'analytics' | 'reconcile' | 'activity'>('overview');
   const [isReconciling, setIsReconciling] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [overrideQuotaGb, setOverrideQuotaGb] = useState('10');
@@ -53,6 +54,60 @@ export default function TenantStorageAdministrationPage() {
   const [deptQuotaGb, setDeptQuotaGb] = useState('20');
   const [isSavingDeptQuota, setIsSavingDeptQuota] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+
+  // Real-time Socket.IO Sync State
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+
+  // Connect to Socket.IO and listen for tenant storage & file events
+  useEffect(() => {
+    let socket: any;
+    try {
+      socket = getSocketClient();
+      if (socket.connected) {
+        setSocketConnected(true);
+      }
+      const onConnect = () => setSocketConnected(true);
+      const onDisconnect = () => setSocketConnected(false);
+
+      const handleTenantStorageUpdate = () => {
+        setLastSyncedAt(new Date());
+        qc.invalidateQueries({ queryKey: ['tenant-storage-summary'] });
+        qc.invalidateQueries({ queryKey: ['tenant-storage-activity'] });
+        qc.invalidateQueries({ queryKey: ['tenant-storage-governance'] });
+        qc.invalidateQueries({ queryKey: ['tenant-storage-analytics'] });
+        qc.invalidateQueries({ queryKey: ['tenant-storage-reconcile-audit'] });
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('disconnect', onDisconnect);
+      socket.on('storage:tenant:update', handleTenantStorageUpdate);
+      socket.on('file:uploaded', handleTenantStorageUpdate);
+      socket.on('file:trashed', handleTenantStorageUpdate);
+      socket.on('file:restored', handleTenantStorageUpdate);
+      socket.on('file:deleted', handleTenantStorageUpdate);
+      socket.on('quota:warning', handleTenantStorageUpdate);
+      socket.on('quota:critical', handleTenantStorageUpdate);
+      socket.on('quota:locked', handleTenantStorageUpdate);
+      socket.on('quota:updated', handleTenantStorageUpdate);
+
+      return () => {
+        socket.off('connect', onConnect);
+        socket.off('disconnect', onDisconnect);
+        socket.off('storage:tenant:update', handleTenantStorageUpdate);
+        socket.off('file:uploaded', handleTenantStorageUpdate);
+        socket.off('file:trashed', handleTenantStorageUpdate);
+        socket.off('file:restored', handleTenantStorageUpdate);
+        socket.off('file:deleted', handleTenantStorageUpdate);
+        socket.off('quota:warning', handleTenantStorageUpdate);
+        socket.off('quota:critical', handleTenantStorageUpdate);
+        socket.off('quota:locked', handleTenantStorageUpdate);
+        socket.off('quota:updated', handleTenantStorageUpdate);
+      };
+    } catch (e) {
+      console.warn('[TenantStorage] Socket error:', e);
+    }
+  }, [qc]);
 
   // 1. Fetch Tenant Storage Summary
   const { data: summary, isLoading, isFetching, refetch } = useQuery({
@@ -108,6 +163,16 @@ export default function TenantStorageAdministrationPage() {
       return (res as any)?.data ?? res;
     },
   });
+
+  // 5. Fetch Storage Activity Timeline
+  const { data: activityData, isLoading: isActivityLoading, refetch: refetchActivity } = useQuery({
+    queryKey: ['tenant-storage-activity'],
+    queryFn: async () => {
+      const res = await api.get('/api/v1/tenant/storage/activity?limit=50');
+      return (res as any)?.data ?? res;
+    },
+  });
+  const activities = Array.isArray(activityData) ? activityData : (activityData?.activities || activityData?.data || []);
 
   // Save Team Quota
   const handleSaveTeamQuota = async () => {
@@ -242,10 +307,21 @@ export default function TenantStorageAdministrationPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Real-time Storage Sync Pill */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-card border border-border/60 shadow-2xs">
+            <span className={`w-2 h-2 rounded-full ${socketConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+            <span className="text-foreground">
+              {socketConnected ? "Live Storage Sync" : "Reconnecting..."}
+            </span>
+            <span className="text-[10px] font-mono text-muted-foreground">
+              {lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={() => { refetch(); refetchActivity(); refetchGovernance(); }}
             disabled={isFetching}
             className="gap-2 h-9 text-xs font-semibold"
           >
@@ -436,6 +512,17 @@ export default function TenantStorageAdministrationPage() {
         >
           <TrendingUp className="w-4 h-4" />
           Growth & Forecasting
+        </button>
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`py-2.5 px-4 border-b-2 transition-colors flex items-center gap-2 ${
+            activeTab === 'activity'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          Storage Activity
         </button>
         <button
           onClick={() => setActiveTab('reconcile')}
@@ -1064,6 +1151,88 @@ export default function TenantStorageAdministrationPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Tab Content 7: Storage Activity Timeline ── */}
+      {activeTab === 'activity' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4 text-primary" />
+                Storage Audit & Activity Timeline
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Chronological immutable record of file modifications, uploads, restorations, deletions, and ACL adjustments.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchActivity()}
+              disabled={isActivityLoading}
+              className="h-8 text-xs gap-1.5 shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isActivityLoading ? 'animate-spin text-primary' : ''}`} />
+              Refresh Activity
+            </Button>
+          </div>
+
+          <div className="rounded-xl border border-border/60 bg-card overflow-hidden shadow-xs">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-border/80 bg-secondary/40 text-muted-foreground font-semibold">
+                  <th className="py-3 px-4">Action</th>
+                  <th className="py-3 px-4">File Name / Identifier</th>
+                  <th className="py-3 px-4">File Size</th>
+                  <th className="py-3 px-4">Actor</th>
+                  <th className="py-3 px-4">Event Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {activities.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      <Clock className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                      <p className="font-medium text-foreground">No storage activities recorded yet.</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Actions like uploading or modifying files will log here automatically.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  activities.map((act: any) => (
+                    <tr key={act.id} className="hover:bg-accent/30 transition-colors">
+                      <td className="py-3 px-4">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                          {act.action}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-foreground">
+                        {act.fileName || act.fileId}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-medium text-muted-foreground">
+                        {act.formattedSize || (act.fileSize ? `${Math.round(act.fileSize / 1024)} KB` : '—')}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[11px] text-muted-foreground">
+                        {act.actorId ? act.actorId.slice(0, 8) + '...' : 'System'}
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground whitespace-nowrap">
+                        {new Date(act.createdAt).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

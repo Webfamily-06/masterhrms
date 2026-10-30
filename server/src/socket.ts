@@ -782,6 +782,23 @@ export function getOnlineUsersForTenant(tenantId: string): string[] {
 export function broadcastToTenant(tenantId: string, event: string, payload: any) {
   if (!ioInstance) return;
   ioInstance.to(`tenant:${tenantId}`).emit(event, payload);
+  // Forward storage, file, and quota events to Super Admin platform room
+  if (
+    event.startsWith("file:") ||
+    event.startsWith("file.") ||
+    event.startsWith("storage:") ||
+    event.startsWith("storage.") ||
+    event.startsWith("quota:") ||
+    event.startsWith("quota.")
+  ) {
+    ioInstance.to("platform:admin").emit("storage:platform:update", {
+      tenantId,
+      event,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+    ioInstance.to("platform:admin").emit(event, { tenantId, ...payload });
+  }
 }
 
 export function broadcastToUser(userId: string, event: string, payload: any) {

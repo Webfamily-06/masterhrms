@@ -152,6 +152,24 @@ export class OutboxService {
             if (recipientUserId) {
               io.to(`user:${recipientUserId}`).emit(event.eventType, envelope);
             }
+
+            // 4. Dispatch storage, file, and quota events to Super Admin platform room
+            if (
+              event.eventType.startsWith("storage.") ||
+              event.eventType.startsWith("storage:") ||
+              event.eventType.startsWith("quota.") ||
+              event.eventType.startsWith("quota:") ||
+              event.eventType.startsWith("file.") ||
+              event.eventType.startsWith("file:")
+            ) {
+              io.to("platform:admin").emit("storage:platform:update", {
+                tenantId: event.tenantId,
+                eventType: event.eventType,
+                payload: event.payload,
+                occurredAt: event.occurredAt || event.createdAt,
+              });
+              io.to("platform:admin").emit(event.eventType, envelope);
+            }
           }
 
           // Mark event as processed
