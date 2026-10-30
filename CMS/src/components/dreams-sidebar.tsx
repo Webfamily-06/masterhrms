@@ -1275,6 +1275,15 @@ export function DreamsSidebar({
                     </li>
                     <li>
                       <Link
+                        to="/tenant/files"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/files" && "active")}
+                      >
+                        File Manager
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
                         to="/tenant/support"
                         onClick={onCloseMobile}
                         className={cn(currentPath === "/tenant/support" && "active")}

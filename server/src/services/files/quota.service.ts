@@ -1,4 +1,7 @@
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
+import { OutboxService } from "../outbox.service";
+import { QuotaGovernanceService } from "./quota-governance.service";
+
 const prisma = rawPrisma || proxiedPrisma;
 
 export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
@@ -14,13 +17,13 @@ export const PLAN_STORAGE_CAPACITIES_GB: Record<string, number> = {
 
 export class QuotaExceededError extends Error {
   public readonly code = "QUOTA_EXCEEDED";
-  public readonly scope: "TENANT" | "USER" | "FILE_SIZE";
+  public readonly scope: "TENANT" | "USER" | "FILE_SIZE" | "TEAM" | "DEPARTMENT";
   public readonly requestedBytes: number;
   public readonly availableBytes: bigint;
 
   constructor(
     message: string,
-    scope: "TENANT" | "USER" | "FILE_SIZE",
+    scope: "TENANT" | "USER" | "FILE_SIZE" | "TEAM" | "DEPARTMENT",
     requestedBytes: number,
     availableBytes: bigint
   ) {
@@ -39,6 +42,16 @@ export class QuotaService {
   public static async getTenantQuotaBytes(tenantId: string | null): Promise<bigint> {
     if (!tenantId) {
       return BigInt(1000) * BigInt(1024 * 1024 * 1024); // 1 TB platform ceiling
+    }
+
+    const override = await prisma.storageQuota.findFirst({
+      where: {
+        tenantId,
+        userId: null,
+      },
+    });
+    if (override && override.quotaBytes > BigInt(0)) {
+      return override.quotaBytes;
     }
 
     const subscription = await prisma.tenantSubscription.findUnique({
@@ -89,18 +102,26 @@ export class QuotaService {
     userId: string | null
   ) {
     const tid = tenantId || "platform";
+    const isPool = userId === null || userId === "tenant_pool" || !userId;
+    const canonicalUserId = isPool ? null : userId;
+
     let usage = await tx.storageUsage.findFirst({
-      where: {
-        tenantId: tid,
-        userId: userId ?? null,
-      },
+      where: isPool
+        ? {
+            tenantId: tid,
+            userId: null,
+          }
+        : {
+            tenantId: tid,
+            userId: canonicalUserId,
+          },
     });
 
     if (!usage) {
       usage = await tx.storageUsage.create({
         data: {
           tenantId: tid,
-          userId: userId ?? null,
+          userId: canonicalUserId,
           usedBytes: BigInt(0),
           trashBytes: BigInt(0),
           reservedBytes: BigInt(0),
@@ -114,12 +135,14 @@ export class QuotaService {
 
   /**
    * Atomically verifies quota and reserves bytes for an in-flight upload session.
+   * Supports 5-tier governance cascade: Platform, Tenant, Department, Team, User.
    */
   public static async reserveUploadBytes(
     tx: any,
     tenantId: string | null,
     userId: string,
-    sizeBytes: number
+    sizeBytes: number,
+    options?: { teamId?: string; departmentId?: string }
   ): Promise<void> {
     if (sizeBytes > MAX_FILE_SIZE_BYTES) {
       throw new QuotaExceededError(
@@ -142,6 +165,28 @@ export class QuotaService {
         const available = tenantQuotaBytes > (tenantUsage.usedBytes + tenantUsage.reservedBytes)
           ? tenantQuotaBytes - (tenantUsage.usedBytes + tenantUsage.reservedBytes)
           : BigInt(0);
+
+        try {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId,
+              eventType: "quota.blocked",
+              entityType: "TENANT_QUOTA",
+              entityId: tenantId,
+              actorId: userId,
+              payload: {
+                tenantId,
+                userId,
+                scope: "TENANT",
+                requestedBytes: sizeBytes,
+                availableBytes: available.toString(),
+                timestamp: new Date().toISOString(),
+              },
+            },
+            tx
+          );
+        } catch (e) {}
+
         throw new QuotaExceededError(
           `Tenant storage quota exceeded. Plan limit reached.`,
           "TENANT",
@@ -151,21 +196,148 @@ export class QuotaService {
       }
     }
 
-    // 2. Check User Quota
-    const userQuotaBytes = await this.getUserQuotaBytes(tenantId, userId);
-    const userUsage = await this.getOrCreateUsage(tx, tenantId, userId);
+    // 2. Check Contextual Scope: Team, Department, or User
+    if (tenantId && options?.teamId) {
+      const teamQuotaBytes = await QuotaGovernanceService.getTeamQuotaBytes(tenantId, options.teamId);
+      const team = await tx.fileTeam.findUnique({ where: { id: options.teamId } });
+      const teamFiles = await tx.mediaFile.findMany({
+        where: {
+          tenantId,
+          status: "ACTIVE",
+          deletedAt: null,
+          isFolder: false,
+          OR: [
+            { ownerType: "TEAM", ownerId: options.teamId },
+            ...(team?.rootFolderId ? [{ materializedPath: { contains: `/${team.rootFolderId}/` } }] : []),
+          ],
+        },
+        select: { fileSize: true },
+      });
+      const teamUsedBytes = teamFiles.reduce((acc: bigint, f: any) => acc + BigInt(f.fileSize || 0), BigInt(0));
+      if (teamUsedBytes + bigSizeBytes > teamQuotaBytes) {
+        const available = teamQuotaBytes > teamUsedBytes ? teamQuotaBytes - teamUsedBytes : BigInt(0);
 
-    const projectedUserBytes = userUsage.usedBytes + userUsage.reservedBytes + bigSizeBytes;
-    if (projectedUserBytes > userQuotaBytes) {
-      const available = userQuotaBytes > (userUsage.usedBytes + userUsage.reservedBytes)
-        ? userQuotaBytes - (userUsage.usedBytes + userUsage.reservedBytes)
-        : BigInt(0);
-      throw new QuotaExceededError(
-        `User storage allocation exceeded. Your 5 GB allocation is full.`,
-        "USER",
-        sizeBytes,
-        available
-      );
+        try {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId,
+              eventType: "quota.blocked",
+              entityType: "TEAM_QUOTA",
+              entityId: options.teamId,
+              actorId: userId,
+              payload: {
+                tenantId,
+                teamId: options.teamId,
+                userId,
+                scope: "TEAM",
+                requestedBytes: sizeBytes,
+                availableBytes: available.toString(),
+                timestamp: new Date().toISOString(),
+              },
+            },
+            tx
+          );
+        } catch (e) {}
+
+        throw new QuotaExceededError(
+          `Team folder storage allocation exceeded (${(Number(teamQuotaBytes) / (1024 * 1024 * 1024)).toFixed(1)} GB limit).`,
+          "TEAM",
+          sizeBytes,
+          available
+        );
+      }
+    } else if (tenantId && options?.departmentId) {
+      const deptQuotaBytes = await QuotaGovernanceService.getDepartmentQuotaBytes(tenantId, options.departmentId);
+      const deptEmployees = await tx.employee.findMany({
+        where: { tenantId, departmentId: options.departmentId },
+        select: { userId: true },
+      });
+      const userIds = deptEmployees.map((e: any) => e.userId).filter(Boolean);
+      const deptFiles = await tx.mediaFile.findMany({
+        where: {
+          tenantId,
+          status: "ACTIVE",
+          deletedAt: null,
+          isFolder: false,
+          ownerType: "USER",
+          ownerId: { in: userIds },
+        },
+        select: { fileSize: true },
+      });
+      const deptUsedBytes = deptFiles.reduce((acc: bigint, f: any) => acc + BigInt(f.fileSize || 0), BigInt(0));
+      if (deptUsedBytes + bigSizeBytes > deptQuotaBytes) {
+        const available = deptQuotaBytes > deptUsedBytes ? deptQuotaBytes - deptUsedBytes : BigInt(0);
+
+        try {
+          await OutboxService.createOutboxEvent(
+            {
+              tenantId,
+              eventType: "quota.blocked",
+              entityType: "DEPARTMENT_QUOTA",
+              entityId: options.departmentId,
+              actorId: userId,
+              payload: {
+                tenantId,
+                departmentId: options.departmentId,
+                userId,
+                scope: "DEPARTMENT",
+                requestedBytes: sizeBytes,
+                availableBytes: available.toString(),
+                timestamp: new Date().toISOString(),
+              },
+            },
+            tx
+          );
+        } catch (e) {}
+
+        throw new QuotaExceededError(
+          `Department storage allocation exceeded (${(Number(deptQuotaBytes) / (1024 * 1024 * 1024)).toFixed(1)} GB limit).`,
+          "DEPARTMENT",
+          sizeBytes,
+          available
+        );
+      }
+    } else {
+      // Personal User Quota check
+      const userQuotaBytes = await this.getUserQuotaBytes(tenantId, userId);
+      const userUsage = await this.getOrCreateUsage(tx, tenantId, userId);
+
+      const projectedUserBytes = userUsage.usedBytes + userUsage.reservedBytes + bigSizeBytes;
+      if (projectedUserBytes > userQuotaBytes) {
+        const available = userQuotaBytes > (userUsage.usedBytes + userUsage.reservedBytes)
+          ? userQuotaBytes - (userUsage.usedBytes + userUsage.reservedBytes)
+          : BigInt(0);
+
+        try {
+          if (tenantId) {
+            await OutboxService.createOutboxEvent(
+              {
+                tenantId,
+                eventType: "quota.blocked",
+                entityType: "USER_QUOTA",
+                entityId: userId,
+                actorId: userId,
+                payload: {
+                  tenantId,
+                  userId,
+                  scope: "USER",
+                  requestedBytes: sizeBytes,
+                  availableBytes: available.toString(),
+                  timestamp: new Date().toISOString(),
+                },
+              },
+              tx
+            );
+          }
+        } catch (e) {}
+
+        throw new QuotaExceededError(
+          `User storage allocation exceeded. Your 5 GB allocation is full.`,
+          "USER",
+          sizeBytes,
+          available
+        );
+      }
     }
 
     // 3. Atomically increment reservations
@@ -199,7 +371,7 @@ export class QuotaService {
     if (tenantId) {
       const tenantUsage = await this.getOrCreateUsage(tx, tenantId, null);
       const decr = tenantUsage.reservedBytes >= bigSizeBytes ? bigSizeBytes : tenantUsage.reservedBytes;
-      await tx.storageUsage.update({
+      const updatedTenantUsage = await tx.storageUsage.update({
         where: { id: tenantUsage.id },
         data: {
           reservedBytes: { decrement: decr },
@@ -207,6 +379,21 @@ export class QuotaService {
           fileCount: { increment: 1 },
         },
       });
+
+      const tenantQuotaBytes = await this.getTenantQuotaBytes(tenantId);
+      const percentUsed = tenantQuotaBytes > BigInt(0)
+        ? Math.min(
+            100,
+            parseFloat(
+              (
+                ((Number(updatedTenantUsage.usedBytes) + Number(updatedTenantUsage.reservedBytes)) /
+                  Number(tenantQuotaBytes)) *
+                100
+              ).toFixed(1)
+            )
+          )
+        : 0;
+      await QuotaGovernanceService.evaluateAndTransitionState(tx, tenantId, percentUsed);
     }
 
     // User update
@@ -268,13 +455,28 @@ export class QuotaService {
     if (tenantId) {
       const tenantUsage = await this.getOrCreateUsage(tx, tenantId, null);
       const decr = tenantUsage.usedBytes >= bigSizeBytes ? bigSizeBytes : tenantUsage.usedBytes;
-      await tx.storageUsage.update({
+      const updatedTenantUsage = await tx.storageUsage.update({
         where: { id: tenantUsage.id },
         data: {
           usedBytes: { decrement: decr },
           trashBytes: { increment: bigSizeBytes },
         },
       });
+
+      const tenantQuotaBytes = await this.getTenantQuotaBytes(tenantId);
+      const percentUsed = tenantQuotaBytes > BigInt(0)
+        ? Math.min(
+            100,
+            parseFloat(
+              (
+                ((Number(updatedTenantUsage.usedBytes) + Number(updatedTenantUsage.reservedBytes)) /
+                  Number(tenantQuotaBytes)) *
+                100
+              ).toFixed(1)
+            )
+          )
+        : 0;
+      await QuotaGovernanceService.evaluateAndTransitionState(tx, tenantId, percentUsed);
     }
 
     const userUsage = await this.getOrCreateUsage(tx, tenantId, userId);
@@ -300,15 +502,43 @@ export class QuotaService {
     const bigSizeBytes = BigInt(sizeBytes);
 
     if (tenantId) {
+      const tenantQuotaBytes = await this.getTenantQuotaBytes(tenantId);
       const tenantUsage = await this.getOrCreateUsage(tx, tenantId, null);
+      const projectedBytes = tenantUsage.usedBytes + tenantUsage.reservedBytes + bigSizeBytes;
+      if (projectedBytes > tenantQuotaBytes) {
+        const available = tenantQuotaBytes > (tenantUsage.usedBytes + tenantUsage.reservedBytes)
+          ? tenantQuotaBytes - (tenantUsage.usedBytes + tenantUsage.reservedBytes)
+          : BigInt(0);
+        throw new QuotaExceededError(
+          `Cannot restore file: storage quota would be exceeded.`,
+          "TENANT",
+          sizeBytes,
+          available
+        );
+      }
+
       const decr = tenantUsage.trashBytes >= bigSizeBytes ? bigSizeBytes : tenantUsage.trashBytes;
-      await tx.storageUsage.update({
+      const updatedTenantUsage = await tx.storageUsage.update({
         where: { id: tenantUsage.id },
         data: {
           trashBytes: { decrement: decr },
           usedBytes: { increment: bigSizeBytes },
         },
       });
+
+      const percentUsed = tenantQuotaBytes > BigInt(0)
+        ? Math.min(
+            100,
+            parseFloat(
+              (
+                ((Number(updatedTenantUsage.usedBytes) + Number(updatedTenantUsage.reservedBytes)) /
+                  Number(tenantQuotaBytes)) *
+                100
+              ).toFixed(1)
+            )
+          )
+        : 0;
+      await QuotaGovernanceService.evaluateAndTransitionState(tx, tenantId, percentUsed);
     }
 
     const userUsage = await this.getOrCreateUsage(tx, tenantId, userId);
@@ -336,9 +566,10 @@ export class QuotaService {
 
     if (tenantId) {
       const tenantUsage = await this.getOrCreateUsage(tx, tenantId, null);
+      let updatedTenantUsage;
       if (fromTrash) {
         const decr = tenantUsage.trashBytes >= bigSizeBytes ? bigSizeBytes : tenantUsage.trashBytes;
-        await tx.storageUsage.update({
+        updatedTenantUsage = await tx.storageUsage.update({
           where: { id: tenantUsage.id },
           data: {
             trashBytes: { decrement: decr },
@@ -347,7 +578,7 @@ export class QuotaService {
         });
       } else {
         const decr = tenantUsage.usedBytes >= bigSizeBytes ? bigSizeBytes : tenantUsage.usedBytes;
-        await tx.storageUsage.update({
+        updatedTenantUsage = await tx.storageUsage.update({
           where: { id: tenantUsage.id },
           data: {
             usedBytes: { decrement: decr },
@@ -355,6 +586,21 @@ export class QuotaService {
           },
         });
       }
+
+      const tenantQuotaBytes = await this.getTenantQuotaBytes(tenantId);
+      const percentUsed = tenantQuotaBytes > BigInt(0)
+        ? Math.min(
+            100,
+            parseFloat(
+              (
+                ((Number(updatedTenantUsage.usedBytes) + Number(updatedTenantUsage.reservedBytes)) /
+                  Number(tenantQuotaBytes)) *
+                100
+              ).toFixed(1)
+            )
+          )
+        : 0;
+      await QuotaGovernanceService.evaluateAndTransitionState(tx, tenantId, percentUsed);
     }
 
     const userUsage = await this.getOrCreateUsage(tx, tenantId, userId);

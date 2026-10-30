@@ -74,13 +74,7 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Pipeline", path: "/apps/taskboard/pipeline", permission: "hrm.dashboard.view" },
         ],
       },
-      {
-        label: "File Manager",
-        children: [
-          { label: "List View", path: "/apps/file-manager/list-view", permission: "hrm.dashboard.view" },
-          { label: "Grid View", path: "/apps/file-manager/grid-view", permission: "hrm.dashboard.view" },
-        ],
-      },
+      { label: "File Manager", path: "/hr/files", permission: "hrm.dashboard.view" },
       HR_TODO_NAV_GROUP,
       { label: "All Apps Catalog", path: "/apps/integrations/all-apps", permission: "hrm.dashboard.view" },
     ],
@@ -273,7 +267,6 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Email Accounts", path: "/settings/email-accounts", permission: "hrm.dashboard.view" },
         ],
       },
-      { label: "Media Library", path: "/hr/media", permission: "hrm.dashboard.view" },
       { label: "My Profile", path: "/hr/profile", permission: "hrm.dashboard.view" },
     ],
   },

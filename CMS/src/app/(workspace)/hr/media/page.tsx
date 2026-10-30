@@ -1,7 +1,20 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { TenantMediaPage } from "@/components/media/tenant-media-page";
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
+export default function HrMediaRedirectPage() {
+  const router = useRouter();
 
-export default TenantMediaPage;
+  useEffect(() => {
+    router.replace('/hr/files');
+  }, [router]);
+
+  return (
+    <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <p className="text-xs text-muted-foreground">Redirecting to File Manager...</p>
+    </div>
+  );
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useSession, useCurrentProfile } from "@/lib/session";
@@ -10,12 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -34,11 +38,19 @@ import {
 } from "@/components/ui/select";
 import {
   Folder,
+  FolderOpen,
   FolderPlus,
+  FolderUp,
+  FolderInput,
   FileText,
+  FileSpreadsheet,
+  FileCode,
+  FileEdit,
   Image as ImageIcon,
+  Film,
   Video,
   Music,
+  Headphones,
   Archive,
   Upload,
   Search,
@@ -46,16 +58,21 @@ import {
   Trash2,
   Share2,
   MoreVertical,
-  List,
-  Grid,
+  List as ListIcon,
+  LayoutGrid,
+  Table as TableIcon,
   Info,
   Download,
   Check,
+  CheckSquare,
   ChevronRight,
+  ChevronLeft,
+  ChevronUp,
   RefreshCw,
   X,
   ExternalLink,
   AlertTriangle,
+  AlertCircle,
   Loader2,
   Eye,
   Copy,
@@ -64,11 +81,24 @@ import {
   Move,
   Edit2,
   RotateCcw,
+  PanelRight,
+  ArrowUpDown,
+  Home,
+  Clock,
+  CornerDownRight,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ShareDialog } from "./share-dialog";
 import { cn } from "@/lib/utils";
 
-export type FileManagerView = "list" | "grid";
+// Canonical MasterHRMS system font stack
+const SYSTEM_FONT_STACK =
+  "var(--font-sans), 'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+// Views supported by Windows 11 File Explorer
+export type FileManagerView = "details" | "grid" | "list";
+
 export type FileCategory =
   | "All"
   | "Documents"
@@ -77,7 +107,11 @@ export type FileCategory =
   | "Audio"
   | "Archives"
   | "Starred"
-  | "Trash";
+  | "Trash"
+  | "Recent"
+  | "Shared"
+  | "Teams"
+  | "Chat";
 
 export interface FileItem {
   id: string;
@@ -112,17 +146,19 @@ export interface StorageStats {
   quotaBytes: number;
   formattedQuota: string;
   percentUsed: number;
+  lifecycleState?: "NORMAL" | "WARNING" | "CRITICAL" | "LOCKED";
+  thresholdState?: "NORMAL" | "WARNING" | "CRITICAL" | "LOCKED";
   categoryBreakdown: Record<string, number>;
 }
 
 export interface UnifiedFileManagerProps {
   initialView?: FileManagerView;
-  role?: "hr" | "me" | "tenant" | "admin";
+  role?: "hr" | "me" | "tenant" | "admin" | "super";
   baseRoute?: string;
 }
 
 export function UnifiedFileManager({
-  initialView = "list",
+  initialView = "details",
   role = "hr",
   baseRoute = "/hr/files",
 }: UnifiedFileManagerProps) {
@@ -130,22 +166,47 @@ export function UnifiedFileManager({
   const { user } = useSession();
   const profile = useCurrentProfile();
 
-  // View state
-  const [view, setView] = useState<FileManagerView>(initialView);
+  // Multi-View state with preference persistence
+  const [view, setView] = useState<FileManagerView>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("master_hrms_file_view") as FileManagerView;
+      if (saved === "details" || saved === "grid" || saved === "list") return saved;
+    }
+    return initialView || "details";
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("master_hrms_file_view", view);
+    }
+  }, [view]);
+
+  // Navigation & Category filter state
   const [category, setCategory] = useState<FileCategory>("All");
   const [currentFolder, setCurrentFolder] = useState<{ id: string; name: string } | null>(null);
-  const [breadcrumbs, setBreadcrumbs] = useState<Array<{ id: string | null; name: string }>>([
-    { id: null, name: "All Files" },
+  const [folderHistory, setFolderHistory] = useState<Array<{ id: string | null; name: string }>>([
+    { id: null, name: role === "me" ? "My Files" : "Home" },
   ]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  // Search & Sorting state
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"updatedAt" | "name" | "size" | "type">("updatedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
-  // Selection & Inspector
-  const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
-  const [showInspector, setShowInspector] = useState(false);
+  // Selection state (Multi-Selection support)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [showInspector, setShowInspector] = useState(true);
 
-  // Modal states
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    item: FileItem | null;
+  } | null>(null);
+
+  // Action Dialogs
   const [isNewFolderOpen, setIsNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [isRenameOpen, setIsRenameOpen] = useState(false);
@@ -153,24 +214,27 @@ export function UnifiedFileManager({
   const [renameValue, setRenameValue] = useState("");
 
   const [isMoveOpen, setIsMoveOpen] = useState(false);
-  const [moveTarget, setMoveTarget] = useState<FileItem | null>(null);
+  const [moveTargets, setMoveTargets] = useState<FileItem[]>([]);
   const [selectedDestinationFolder, setSelectedDestinationFolder] = useState<string>("root");
 
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteTargets, setDeleteTargets] = useState<FileItem[]>([]);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<FileItem | null>(null);
-  const [shareWithEmail, setShareWithEmail] = useState("");
-  const [shareRole, setShareRole] = useState("all");
-  const [shareAccessLevel, setShareAccessLevel] = useState("view");
-  const [shareExpiryDays, setShareExpiryDays] = useState("30");
+  const [isPermanentDeleteOpen, setIsPermanentDeleteOpen] = useState(false);
+  const [permanentDeleteTargets, setPermanentDeleteTargets] = useState<FileItem[]>([]);
+  const [isEmptyTrashConfirm, setIsEmptyTrashConfirm] = useState(false);
 
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewTarget, setPreviewTarget] = useState<FileItem | null>(null);
-
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<FileItem | null>(null);
+  const [previewSignedUrl, setPreviewSignedUrl] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   // 1. Fetch Storage Stats
   const { data: stats } = useQuery<StorageStats>({
@@ -180,7 +244,6 @@ export function UnifiedFileManager({
         const res = await api.get("/v1/files/stats");
         return res;
       } catch (e) {
-        console.warn("Could not fetch storage stats:", e);
         return {
           totalFiles: 0,
           totalFolders: 0,
@@ -208,6 +271,7 @@ export function UnifiedFileManager({
       searchQuery,
       sortBy,
       sortOrder,
+      role,
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -218,6 +282,16 @@ export function UnifiedFileManager({
           params.append("starred", "true");
         } else if (category === "Trash") {
           params.append("trashed", "true");
+        } else if (category === "Recent") {
+          // Recent: sorted by date modified across root and folders
+          params.append("limit", "50");
+        } else if (category === "Shared") {
+          params.append("view", "shared-with-me");
+          params.append("category", "Shared");
+        } else if (category === "Teams") {
+          params.append("category", "Teams");
+        } else if (category === "Chat") {
+          params.append("category", "Chat");
         } else {
           if (category !== "All") {
             params.append("category", category);
@@ -229,9 +303,17 @@ export function UnifiedFileManager({
           }
         }
       }
+
+      // Role scoped views
+      if (role === "tenant") {
+        params.append("view", "org");
+      } else if (role === "me") {
+        params.append("view", "my");
+      }
+
       params.append("sortBy", sortBy);
       params.append("sortOrder", sortOrder);
-      params.append("limit", "100");
+      params.append("limit", "150");
 
       const res = await api.get(`/v1/files?${params.toString()}`);
       return res || { items: [], pagination: {} };
@@ -252,25 +334,10 @@ export function UnifiedFileManager({
     enabled: isMoveOpen,
   });
 
-  // 4. Fetch Shares for Share Dialog
-  const { data: activeShares = [], refetch: refetchShares } = useQuery<any[]>({
-    queryKey: ["file-shares", shareTarget?.id],
-    queryFn: async () => {
-      if (!shareTarget?.id) return [];
-      try {
-        const res = await api.get(`/v1/files/${shareTarget.id}/shares`);
-        return Array.isArray(res) ? res : [];
-      } catch {
-        return [];
-      }
-    },
-    enabled: isShareOpen && !!shareTarget?.id,
-  });
-
   // Real-time Socket.IO subscriptions
   useEffect(() => {
     const socket = getSocketClient();
-    const handleMutation = (event: any) => {
+    const handleMutation = () => {
       qc.invalidateQueries({ queryKey: ["files-list"] });
       qc.invalidateQueries({ queryKey: ["files-stats"] });
     };
@@ -280,7 +347,12 @@ export function UnifiedFileManager({
     socket.on("file:moved", handleMutation);
     socket.on("file:trashed", handleMutation);
     socket.on("file:restored", handleMutation);
-    socket.on("file:shared", handleMutation);
+    socket.on("file:deleted", handleMutation);
+    socket.on("file:acl:updated", handleMutation);
+    socket.on("file:team:created", handleMutation);
+    socket.on("file:team:updated", handleMutation);
+    socket.on("file:team:deleted", handleMutation);
+    socket.on("storage.usage.updated", handleMutation);
 
     return () => {
       socket.off("file:created", handleMutation);
@@ -288,7 +360,12 @@ export function UnifiedFileManager({
       socket.off("file:moved", handleMutation);
       socket.off("file:trashed", handleMutation);
       socket.off("file:restored", handleMutation);
-      socket.off("file:shared", handleMutation);
+      socket.off("file:deleted", handleMutation);
+      socket.off("file:acl:updated", handleMutation);
+      socket.off("file:team:created", handleMutation);
+      socket.off("file:team:updated", handleMutation);
+      socket.off("file:team:deleted", handleMutation);
+      socket.off("storage.usage.updated", handleMutation);
     };
   }, [qc]);
 
@@ -296,31 +373,270 @@ export function UnifiedFileManager({
   const folders = useMemo(() => items.filter((i) => i.isFolder), [items]);
   const regularFiles = useMemo(() => items.filter((i) => !i.isFolder), [items]);
 
+  // Derived Selection items
+  const selectedItems = useMemo(() => {
+    return items.filter((i) => selectedIds.has(i.id));
+  }, [items, selectedIds]);
+
+  const activeInspectorItem = useMemo(() => {
+    if (selectedItems.length === 1) return selectedItems[0];
+    if (lastSelectedId) return items.find((i) => i.id === lastSelectedId) || null;
+    return null;
+  }, [selectedItems, lastSelectedId, items]);
+
+  // Close context menu on outside click or pointerdown
+  useEffect(() => {
+    const handleOutside = (e: MouseEvent | PointerEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener("pointerdown", handleOutside);
+    window.addEventListener("resize", () => setContextMenu(null));
+    return () => {
+      window.removeEventListener("pointerdown", handleOutside);
+      window.removeEventListener("resize", () => setContextMenu(null));
+    };
+  }, []);
+
+  // Fetch signed preview URL for active inspector item
+  useEffect(() => {
+    let active = true;
+    if (activeInspectorItem && !activeInspectorItem.isFolder && showInspector) {
+      setIsLoadingPreview(true);
+      api
+        .get(`/v1/files/nodes/${activeInspectorItem.id}/preview`)
+        .then((res) => {
+          if (active && res?.signedUrl) {
+            setPreviewSignedUrl(res.signedUrl);
+          }
+        })
+        .catch(() => {
+          if (active) setPreviewSignedUrl(activeInspectorItem.url || null);
+        })
+        .finally(() => {
+          if (active) setIsLoadingPreview(false);
+        });
+    } else {
+      setPreviewSignedUrl(null);
+      setIsLoadingPreview(false);
+    }
+    return () => {
+      active = false;
+    };
+  }, [activeInspectorItem, showInspector]);
+
+  // Keyboard navigation & Shortcuts (Ctrl+A, Delete, F2, Escape, Enter)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input or textarea
+      if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      // Ctrl+A / Cmd+A: Select All
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setSelectedIds(new Set(items.map((i) => i.id)));
+        return;
+      }
+
+      // Escape: Clear selection / close menus
+      if (e.key === "Escape") {
+        setSelectedIds(new Set());
+        setContextMenu(null);
+        return;
+      }
+
+      // Delete: Move selected to Recycle Bin, or Permanently Delete if inside Trash or Shift key pressed
+      if (e.key === "Delete" && selectedIds.size > 0) {
+        e.preventDefault();
+        if (category === "Trash" || e.shiftKey) {
+          setPermanentDeleteTargets(selectedItems);
+          setIsEmptyTrashConfirm(false);
+          setIsPermanentDeleteOpen(true);
+        } else {
+          setDeleteTargets(selectedItems);
+          setIsDeleteOpen(true);
+        }
+        return;
+      }
+
+      // F2: Rename single selected item
+      if (e.key === "F2" && selectedItems.length === 1) {
+        e.preventDefault();
+        const target = selectedItems[0];
+        setRenameTarget(target);
+        setRenameValue(target.fileName);
+        setIsRenameOpen(true);
+        return;
+      }
+
+      // Enter: Open single selected folder or preview single selected file
+      if (e.key === "Enter" && selectedItems.length === 1) {
+        e.preventDefault();
+        const target = selectedItems[0];
+        if (target.isFolder) {
+          handleOpenFolder(target);
+        } else {
+          setPreviewTarget(target);
+          setIsPreviewModalOpen(true);
+        }
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [items, selectedIds, selectedItems, category]);
+
   // Navigate into folder
   const handleOpenFolder = (folderItem: FileItem) => {
-    setCurrentFolder({ id: folderItem.id, name: folderItem.fileName });
-    setBreadcrumbs((prev) => [...prev, { id: folderItem.id, name: folderItem.fileName }]);
+    const newEntry = { id: folderItem.id, name: folderItem.fileName };
+    const nextHistory = folderHistory.slice(0, historyIndex + 1);
+    nextHistory.push(newEntry);
+
+    setFolderHistory(nextHistory);
+    setHistoryIndex(nextHistory.length - 1);
+    setCurrentFolder(newEntry);
     setCategory("All");
-    setSelectedItem(null);
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
   };
 
-  // Breadcrumb navigation click
-  const handleBreadcrumbClick = (index: number) => {
-    const target = breadcrumbs[index];
-    const newCrumbs = breadcrumbs.slice(0, index + 1);
-    setBreadcrumbs(newCrumbs);
-    if (target.id === null) {
+  // Navigate Up one folder level
+  const handleNavigateUp = () => {
+    if (historyIndex > 0) {
+      const parent = folderHistory[historyIndex - 1];
+      setHistoryIndex(historyIndex - 1);
+      setCurrentFolder(parent.id ? { id: parent.id, name: parent.name } : null);
+      setSelectedIds(new Set());
+    } else if (currentFolder) {
       setCurrentFolder(null);
-    } else {
-      setCurrentFolder({ id: target.id, name: target.name });
+      setSelectedIds(new Set());
     }
-    setSelectedItem(null);
+  };
+
+  // Back in history
+  const handleHistoryBack = () => {
+    if (historyIndex > 0) {
+      const prev = folderHistory[historyIndex - 1];
+      setHistoryIndex(historyIndex - 1);
+      setCurrentFolder(prev.id ? { id: prev.id, name: prev.name } : null);
+      setSelectedIds(new Set());
+    }
+  };
+
+  // Forward in history
+  const handleHistoryForward = () => {
+    if (historyIndex < folderHistory.length - 1) {
+      const next = folderHistory[historyIndex + 1];
+      setHistoryIndex(historyIndex + 1);
+      setCurrentFolder(next.id ? { id: next.id, name: next.name } : null);
+      setSelectedIds(new Set());
+    }
+  };
+
+  // Jump to specific breadcrumb segment
+  const handleJumpToSegment = (index: number) => {
+    const target = folderHistory[index];
+    const nextHistory = folderHistory.slice(0, index + 1);
+    setFolderHistory(nextHistory);
+    setHistoryIndex(index);
+    setCurrentFolder(target.id ? { id: target.id, name: target.name } : null);
+    setSelectedIds(new Set());
+  };
+
+  // Multi-Selection handler (single, ctrl, shift)
+  const handleSelectItem = (
+    item: FileItem,
+    e: React.MouseEvent,
+    forceCheckbox = false
+  ) => {
+    e.stopPropagation();
+
+    if (e.ctrlKey || e.metaKey || forceCheckbox) {
+      // Toggle selection
+      const next = new Set(selectedIds);
+      if (next.has(item.id)) {
+        next.delete(item.id);
+      } else {
+        next.add(item.id);
+      }
+      setSelectedIds(next);
+      setLastSelectedId(item.id);
+    } else if (e.shiftKey && lastSelectedId) {
+      // Range selection
+      const itemIds = items.map((i) => i.id);
+      const startIdx = itemIds.indexOf(lastSelectedId);
+      const endIdx = itemIds.indexOf(item.id);
+      if (startIdx !== -1 && endIdx !== -1) {
+        const [low, high] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const range = itemIds.slice(low, high + 1);
+        setSelectedIds(new Set(range));
+      }
+    } else {
+      // Single selection
+      setSelectedIds(new Set([item.id]));
+      setLastSelectedId(item.id);
+    }
+  };
+
+  // Select all toggle
+  const handleToggleSelectAll = (forceSelect?: boolean | "indeterminate") => {
+    if (forceSelect === true) {
+      setSelectedIds(new Set(items.map((i) => i.id)));
+      return;
+    }
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map((i) => i.id)));
+    }
+  };
+
+  // Right-click context menu with boundary safety
+  const handleContextMenu = (e: React.MouseEvent, item: FileItem | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (item && !selectedIds.has(item.id)) {
+      setSelectedIds(new Set([item.id]));
+      setLastSelectedId(item.id);
+    }
+
+    const menuWidth = 240;
+    const menuHeight = item ? 360 : 280;
+    const x = Math.min(e.clientX, window.innerWidth - menuWidth - 12);
+    const y = Math.min(e.clientY, window.innerHeight - menuHeight - 12);
+
+    setContextMenu({
+      x: Math.max(12, x),
+      y: Math.max(12, y),
+      item,
+    });
+  };
+
+  // Windows 11 Filename validation
+  const validateWindowsName = (name: string): { isValid: boolean; error?: string } => {
+    if (!name || !name.trim()) return { isValid: false, error: "Name cannot be empty." };
+    if (/[\\/:*?"<>|]/.test(name)) {
+      return { isValid: false, error: 'A file name cannot contain any of the following: \\ / : * ? " < > |' };
+    }
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(name.trim())) {
+      return { isValid: false, error: `"${name}" is a reserved system device name.` };
+    }
+    if (name.endsWith(".") || name.endsWith(" ")) {
+      return { isValid: false, error: "Name cannot end with a period or space." };
+    }
+    return { isValid: true };
   };
 
   // Create folder
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) {
-      return toast.error("Please enter a folder name.");
+    const val = validateWindowsName(newFolderName);
+    if (!val.isValid) {
+      return toast.error(val.error);
     }
     try {
       await api.post("/v1/files/folder", {
@@ -342,6 +658,14 @@ export function UnifiedFileManager({
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    // Validate filenames
+    for (let i = 0; i < files.length; i++) {
+      const v = validateWindowsName(files[i].name);
+      if (!v.isValid) {
+        return toast.error(`File "${files[i].name}": ${v.error}`);
+      }
+    }
+
     setIsUploading(true);
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
@@ -359,11 +683,15 @@ export function UnifiedFileManager({
       toast.success(`Successfully uploaded ${files.length} file(s)!`);
       qc.invalidateQueries({ queryKey: ["files-list"] });
       qc.invalidateQueries({ queryKey: ["files-stats"] });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err: any) {
-      toast.error(err.message || "Failed to upload file(s).");
+      const errMsg = err?.response?.data?.error || err.message || "Failed to upload file(s).";
+      const isQuota = errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("exceeded") || errMsg.toLowerCase().includes("limit reached");
+      if (isQuota) {
+        toast.error(errMsg, { duration: 6000 });
+      } else {
+        toast.error(errMsg);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -384,6 +712,11 @@ export function UnifiedFileManager({
   // Rename item
   const handleRename = async () => {
     if (!renameTarget || !renameValue.trim()) return;
+    const val = validateWindowsName(renameValue.trim());
+    if (!val.isValid) {
+      return toast.error(val.error);
+    }
+
     try {
       await api.patch(`/v1/files/${renameTarget.id}/rename`, {
         newName: renameValue.trim(),
@@ -398,258 +731,641 @@ export function UnifiedFileManager({
     }
   };
 
-  // Move item
+  // Move items (single or batch)
   const handleMove = async () => {
-    if (!moveTarget) return;
+    if (moveTargets.length === 0) return;
     try {
-      await api.patch(`/v1/files/${moveTarget.id}/move`, {
-        targetParentId: selectedDestinationFolder === "root" ? null : selectedDestinationFolder,
-      });
-      toast.success(`Moved "${moveTarget.fileName}" successfully.`);
+      const targetParentId = selectedDestinationFolder === "root" ? null : selectedDestinationFolder;
+      for (const target of moveTargets) {
+        await api.patch(`/v1/files/${target.id}/move`, { targetParentId });
+      }
+      toast.success(`Moved ${moveTargets.length} item(s) successfully.`);
       setIsMoveOpen(false);
-      setMoveTarget(null);
+      setMoveTargets([]);
+      setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["files-list"] });
     } catch (err: any) {
-      toast.error(err.message || "Failed to move item.");
+      toast.error(err.message || "Failed to move item(s).");
     }
   };
 
-  // Trash or restore item
-  const handleTrashOrRestore = async (item: FileItem, restore = false) => {
+  // Batch Trash or Restore
+  const handleBatchTrashOrRestore = async (restore = false, customTargets?: FileItem[]) => {
+    const targets = customTargets && customTargets.length > 0 ? customTargets : (deleteTargets.length > 0 ? deleteTargets : selectedItems);
+    if (targets.length === 0) return;
+
     try {
+      const ids = targets.map((t) => t.id);
       if (restore) {
-        await api.post("/v1/files/restore", { ids: [item.id] });
-        toast.success(`Restored "${item.fileName}".`);
+        await api.post("/v1/files/restore", { ids });
+        toast.success(`Restored ${ids.length} item(s) from Recycle Bin.`);
       } else {
-        await api.post("/v1/files/trash", { ids: [item.id] });
-        toast.success(`Moved "${item.fileName}" to Trash.`);
+        await api.post("/v1/files/trash", { ids });
+        toast.success(`Moved ${ids.length} item(s) to Recycle Bin.`);
       }
       setIsDeleteOpen(false);
-      setDeleteTarget(null);
-      if (selectedItem?.id === item.id) setSelectedItem(null);
+      setDeleteTargets([]);
+      setSelectedIds(new Set());
       qc.invalidateQueries({ queryKey: ["files-list"] });
       qc.invalidateQueries({ queryKey: ["files-stats"] });
     } catch (err: any) {
       if (err.code === "MEDIA_IN_USE") {
-        toast.error(`Cannot delete: this file is currently used in ${err.usages?.length || 1} place(s).`);
+        toast.error(`Cannot delete: asset is actively used in ${err.usages?.length || 1} system record(s).`);
       } else {
         toast.error(err.message || "Operation failed.");
       }
     }
   };
 
-  // Download item with signed URL
+  // Permanent Purge Delete (for Recycle Bin items or Empty Recycle Bin)
+  const handlePermanentDelete = async () => {
+    try {
+      if (isEmptyTrashConfirm) {
+        await api.post("/v1/files/purge", { emptyTrash: true });
+        toast.success("Recycle Bin emptied successfully.");
+      } else {
+        const ids = permanentDeleteTargets.map((t) => t.id);
+        if (ids.length === 0) return;
+        await api.post("/v1/files/purge", { ids });
+        toast.success(`Permanently deleted ${ids.length} item(s).`);
+      }
+      setIsPermanentDeleteOpen(false);
+      setPermanentDeleteTargets([]);
+      setIsEmptyTrashConfirm(false);
+      setSelectedIds(new Set());
+      qc.invalidateQueries({ queryKey: ["files-list"] });
+      qc.invalidateQueries({ queryKey: ["files-stats"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to permanently delete item(s).");
+    }
+  };
+
+  // Download item with authorized signed URL
   const handleDownload = async (item: FileItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      const res = await api.get(`/v1/files/${item.id}/signed-url`);
-      if (res?.signedUrl) {
+      const res = await api.get(`/v1/files/nodes/${item.id}/download`);
+      const downloadUrl = res?.signedUrl || item.url;
+      if (downloadUrl) {
         const link = document.createElement("a");
-        link.href = res.signedUrl;
+        link.href = downloadUrl;
         link.setAttribute("download", item.fileName);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-      } else {
-        window.open(item.url, "_blank");
       }
     } catch {
       window.open(item.url, "_blank");
     }
   };
 
-  // Add share
-  const handleAddShare = async () => {
-    if (!shareTarget) return;
+  // Copy signed link
+  const handleCopySignedLink = async (item: FileItem) => {
     try {
-      let expiresAt: string | null = null;
-      if (shareExpiryDays !== "never") {
-        const d = new Date();
-        d.setDate(d.getDate() + parseInt(shareExpiryDays, 10));
-        expiresAt = d.toISOString();
-      }
-
-      await api.post(`/v1/files/${shareTarget.id}/share`, {
-        sharedWith: shareWithEmail.trim() || null,
-        sharedRole: shareRole === "all" ? null : shareRole,
-        accessLevel: shareAccessLevel,
-        expiresAt,
-      });
-
-      toast.success("Share permission granted.");
-      setShareWithEmail("");
-      refetchShares();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to share file.");
-    }
-  };
-
-  // Revoke share
-  const handleRevokeShare = async (shareId: string) => {
-    if (!shareTarget) return;
-    try {
-      await api.delete(`/v1/files/${shareTarget.id}/share/${shareId}`);
-      toast.success("Share access revoked.");
-      refetchShares();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to revoke share.");
-    }
-  };
-
-  // Copy signed share link
-  const handleCopyShareLink = async (item: FileItem) => {
-    try {
-      const res = await api.get(`/v1/files/${item.id}/signed-url?expiresIn=604800`); // 7 days
-      if (res?.signedUrl) {
-        const fullUrl = `${window.location.origin}${res.signedUrl}`;
-        await navigator.clipboard.writeText(fullUrl);
-        toast.success("Temporary 7-day share link copied to clipboard!");
+      const res = await api.get(`/v1/files/nodes/${item.id}/download?expiresIn=604800`);
+      const link = res?.signedUrl || item.url;
+      if (link) {
+        await navigator.clipboard.writeText(link);
+        toast.success("Time-limited secure link copied to clipboard!");
       }
     } catch (err: any) {
-      toast.error(err.message || "Failed to generate share link.");
+      toast.error("Failed to generate link.");
     }
   };
 
-  // Get icon by category / mime
-  const getItemIcon = (item: FileItem) => {
+  // Friendly type label
+  const getFriendlyType = (item: FileItem) => {
+    if (item.isFolder) return "File folder";
+    const ext = item.fileName.split(".").pop()?.toUpperCase() || "";
+    if (item.mimeType.includes("pdf")) return "PDF Document";
+    if (item.mimeType.includes("image")) return `${ext || "PNG"} Image`;
+    if (item.mimeType.includes("video")) return `${ext || "MP4"} Video`;
+    if (item.mimeType.includes("audio")) return `${ext || "MP3"} Audio`;
+    if (item.mimeType.includes("sheet") || item.mimeType.includes("excel") || ext === "CSV") return "Spreadsheet";
+    if (item.mimeType.includes("zip") || item.mimeType.includes("tar") || ext === "ZIP") return "Compressed Archive";
+    if (ext === "DOCX" || ext === "DOC" || item.mimeType.includes("word")) return "Microsoft Word Document";
+    return `${ext} Document`;
+  };
+
+  // Icon generator for authentic Windows 11 Explorer look
+  const getItemIcon = (item: FileItem, large = false) => {
+    const imgSize = large ? "size-12 sm:size-14" : "size-5";
+    const containerCls = large
+      ? "size-16 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
+      : "size-8 rounded-lg flex items-center justify-center shrink-0 transition-transform";
+
     if (item.isFolder) {
       return (
-        <div className="size-10 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 flex items-center justify-center shrink-0">
-          <Folder className="size-5 fill-amber-500/20" />
+        <div className={cn(containerCls, "bg-primary/5")}>
+          <img
+            src="/FILE-MANAGER/Folder.ico"
+            alt="Folder"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
         </div>
       );
     }
+
     const cat = item.category || "Documents";
-    switch (cat) {
-      case "Images":
-        return (
-          <div className="size-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shrink-0">
-            <ImageIcon className="size-5" />
-          </div>
-        );
-      case "Videos":
-        return (
-          <div className="size-10 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center shrink-0">
-            <Video className="size-5" />
-          </div>
-        );
-      case "Audio":
-        return (
-          <div className="size-10 rounded-xl bg-pink-100 dark:bg-pink-950/60 text-pink-600 flex items-center justify-center shrink-0">
-            <Music className="size-5" />
-          </div>
-        );
-      case "Archives":
-        return (
-          <div className="size-10 rounded-xl bg-orange-100 dark:bg-orange-950/60 text-orange-600 flex items-center justify-center shrink-0">
-            <Archive className="size-5" />
-          </div>
-        );
-      case "Documents":
-      default:
-        if (item.mimeType.includes("pdf")) {
-          return (
-            <div className="size-10 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 flex items-center justify-center shrink-0 font-bold text-xs">
-              PDF
-            </div>
-          );
-        }
-        if (item.mimeType.includes("sheet") || item.mimeType.includes("excel") || item.fileName.endsWith(".csv")) {
-          return (
-            <div className="size-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 flex items-center justify-center shrink-0 font-bold text-xs">
-              XLS
-            </div>
-          );
-        }
-        return (
-          <div className="size-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shrink-0">
-            <FileText className="size-5" />
-          </div>
-        );
+    const mime = (item.mimeType || "").toLowerCase();
+    const name = (item.fileName || "").toLowerCase();
+
+    // Spreadsheets (Excel, CSV)
+    if (
+      mime.includes("sheet") ||
+      mime.includes("excel") ||
+      mime.includes("csv") ||
+      name.endsWith(".xlsx") ||
+      name.endsWith(".xls") ||
+      name.endsWith(".csv")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-emerald-500/5")}>
+          <img
+            src="/FILE-MANAGER/excel.svg"
+            alt="Spreadsheet"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
     }
+
+    // PDF Documents
+    if (mime.includes("pdf") || name.endsWith(".pdf")) {
+      return (
+        <div className={cn(containerCls, "bg-rose-500/5")}>
+          <img
+            src="/FILE-MANAGER/pdf.svg"
+            alt="PDF"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Word Documents (DOCX, DOC) & Office Documents
+    if (
+      mime.includes("word") ||
+      mime.includes("officedocument.wordprocessingml") ||
+      name.endsWith(".docx") ||
+      name.endsWith(".doc") ||
+      name.endsWith(".dotx") ||
+      name.endsWith(".dot") ||
+      name.endsWith(".odt")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-blue-600/5")}>
+          <img
+            src="/FILE-MANAGER/docx_icon.svg"
+            alt="Word Document"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Code & Script Files
+    if (
+      mime.includes("javascript") ||
+      mime.includes("typescript") ||
+      mime.includes("json") ||
+      mime.includes("html") ||
+      mime.includes("css") ||
+      mime.includes("xml") ||
+      mime.includes("sql") ||
+      name.endsWith(".js") ||
+      name.endsWith(".ts") ||
+      name.endsWith(".tsx") ||
+      name.endsWith(".jsx") ||
+      name.endsWith(".json") ||
+      name.endsWith(".html") ||
+      name.endsWith(".css") ||
+      name.endsWith(".sql") ||
+      name.endsWith(".py") ||
+      name.endsWith(".env") ||
+      name.endsWith(".config")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-primary/5")}>
+          <img
+            src="/FILE-MANAGER/config.ico"
+            alt="Configuration"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Executable / Applications
+    if (
+      name.endsWith(".exe") ||
+      name.endsWith(".msi") ||
+      name.endsWith(".bat") ||
+      name.endsWith(".cmd") ||
+      name.endsWith(".sh") ||
+      name.endsWith(".bin")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-primary/5")}>
+          <img
+            src="/FILE-MANAGER/exe.ico"
+            alt="Application"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Images
+    if (cat === "Images" || mime.includes("image")) {
+      return (
+        <div className={cn(containerCls, "bg-sky-500/5")}>
+          <img
+            src="/FILE-MANAGER/Photos%20file.ico"
+            alt="Image"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Videos
+    if (cat === "Videos" || mime.includes("video")) {
+      return (
+        <div className={cn(containerCls, "bg-indigo-500/5")}>
+          <img
+            src="/FILE-MANAGER/Video%20file.ico"
+            alt="Video"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Audio
+    if (cat === "Audio" || mime.includes("audio")) {
+      return (
+        <div className={cn(containerCls, "bg-amber-500/5")}>
+          <img
+            src="/FILE-MANAGER/Audio%20file.ico"
+            alt="Audio"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Archives / Compressed
+    if (
+      cat === "Archives" ||
+      mime.includes("zip") ||
+      mime.includes("compressed") ||
+      mime.includes("tar") ||
+      name.endsWith(".zip") ||
+      name.endsWith(".rar") ||
+      name.endsWith(".7z") ||
+      name.endsWith(".tar") ||
+      name.endsWith(".gz")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-amber-500/5")}>
+          <img
+            src="/FILE-MANAGER/Zip.ico"
+            alt="Archive"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // General Documents
+    if (cat === "Documents" || mime.includes("document")) {
+      return (
+        <div className={cn(containerCls, "bg-blue-600/5")}>
+          <img
+            src="/FILE-MANAGER/docx_icon.svg"
+            alt="Document"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Text & Notes (.txt, .rtf, .md, .log)
+    if (
+      mime.includes("text") ||
+      name.endsWith(".txt") ||
+      name.endsWith(".rtf") ||
+      name.endsWith(".md") ||
+      name.endsWith(".log")
+    ) {
+      return (
+        <div className={cn(containerCls, "bg-blue-500/5")}>
+          <img
+            src="/FILE-MANAGER/Notes.ico"
+            alt="Text Document"
+            className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+            loading="lazy"
+            draggable={false}
+          />
+        </div>
+      );
+    }
+
+    // Fallback Generic File
+    return (
+      <div className={cn(containerCls, "bg-muted/40")}>
+        <img
+          src="/FILE-MANAGER/Blank.ico"
+          alt="File"
+          className={cn("object-contain select-none pointer-events-none drop-shadow-xs", imgSize)}
+          loading="lazy"
+          draggable={false}
+        />
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] min-h-[600px] bg-background text-foreground">
-      {/* Hidden file input */}
+    <div
+      ref={containerRef}
+      onContextMenu={(e) => handleContextMenu(e, null)}
+      style={{ fontFamily: SYSTEM_FONT_STACK }}
+      className="flex flex-col h-[calc(100vh-74px)] min-h-[640px] bg-background text-foreground select-none font-sans overflow-hidden border border-border/80 rounded-xl shadow-xs"
+    >
+      {/* Hidden file inputs */}
+      <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileUpload} />
       <input
-        ref={fileInputRef}
+        ref={folderInputRef}
         type="file"
-        multiple
+        // @ts-ignore
+        webkitdirectory="true"
+        directory="true"
         className="hidden"
         onChange={handleFileUpload}
       />
 
-      {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border bg-card/60 backdrop-blur-sm">
-        {/* Left: Breadcrumbs & Title */}
-        <div className="flex items-center gap-2 overflow-x-auto py-1">
-          <div className="flex items-center gap-1.5 text-sm font-medium">
-            <HardDrive className="size-4 text-primary shrink-0 mr-1" />
-            {breadcrumbs.map((crumb, idx) => (
-              <React.Fragment key={crumb.id || "root"}>
-                {idx > 0 && <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />}
-                <button
-                  type="button"
-                  onClick={() => handleBreadcrumbClick(idx)}
-                  className={cn(
-                    "px-2 py-1 rounded-md text-sm transition-colors",
-                    idx === breadcrumbs.length - 1
-                      ? "font-semibold text-foreground bg-accent/60"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                  )}
-                >
-                  {crumb.name}
-                </button>
-              </React.Fragment>
-            ))}
+      {/* ----------------------------------------------------------------------- */}
+      {/* A. WINDOWS 11 COMMAND / RIBBON BAR                                      */}
+      {/* ----------------------------------------------------------------------- */}
+      <header
+        style={{ fontFamily: SYSTEM_FONT_STACK }}
+        className="flex flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 border-b border-border/80 bg-card/75 backdrop-blur-md shrink-0 font-sans"
+      >
+        {role === "super" && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/25 text-xs font-semibold text-primary mr-2 shadow-2xs">
+            <HardDrive className="size-3.5" />
+            <span>Platform Media & Assets (Global Scope)</span>
           </div>
-        </div>
+        )}
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {category !== "Trash" ? (
+            <>
+              {/* New Button Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60"
+                  >
+                    <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span>New</span>
+                    <ChevronRight className="size-3 rotate-90 opacity-60 ml-0.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  style={{ fontFamily: SYSTEM_FONT_STACK }}
+                  className="w-48 text-xs font-sans"
+                >
+                  <DropdownMenuItem onClick={() => setIsNewFolderOpen(true)} className="gap-2">
+                    <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} /> Folder
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2">
+                    <Upload className="size-4 text-primary" /> Upload Files
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => folderInputRef.current?.click()} className="gap-2">
+                    <img src="/FILE-MANAGER/Folder%20Downloads.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} /> Upload Folder
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-        {/* Right: Actions & View Toggle */}
-        <div className="flex items-center gap-2">
-          {/* Search Box */}
-          <div className="relative w-48 sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search files & folders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
-            {searchQuery && (
+              <div className="h-4 w-px bg-border/80 mx-1" />
+
+              {/* Move to (active when items selected) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => {
+                  setMoveTargets(selectedItems);
+                  setSelectedDestinationFolder("root");
+                  setIsMoveOpen(true);
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Move to folder"
+              >
+                <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span className="hidden sm:inline">Move</span>
+              </Button>
+
+              {/* Share Button (active when 1 item selected) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedItems.length !== 1}
+                onClick={() => {
+                  if (selectedItems.length === 1) {
+                    setShareTarget(selectedItems[0]);
+                    setIsShareOpen(true);
+                  }
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Share with people, teams, or create public link"
+              >
+                <Share2 className="size-3.5 text-primary" />
+                <span className="hidden sm:inline">Share</span>
+              </Button>
+
+              {/* Copy Link (active when 1 file selected) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedItems.length !== 1 || selectedItems[0]?.isFolder}
+                onClick={() => selectedItems[0] && handleCopySignedLink(selectedItems[0])}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Copy secure link"
+              >
+                <img src="/FILE-MANAGER/Link.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span className="hidden sm:inline">Copy link</span>
+              </Button>
+
+              {/* Rename (active when exactly 1 item selected, F2) */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedItems.length !== 1}
+                onClick={() => {
+                  if (selectedItems.length === 1) {
+                    setRenameTarget(selectedItems[0]);
+                    setRenameValue(selectedItems[0].fileName);
+                    setIsRenameOpen(true);
+                  }
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Rename (F2)"
+              >
+                <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span className="hidden md:inline">Rename</span>
+              </Button>
+
+              {/* Recycle Bin / Delete Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => {
+                  setDeleteTargets(selectedItems);
+                  setIsDeleteOpen(true);
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                title="Move to Recycle Bin (Delete)"
+              >
+                <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span className="hidden sm:inline">Delete</span>
+              </Button>
+            </>
+          ) : (
+            <>
+              {/* Recycle Bin specific actions */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => handleBatchTrashOrRestore(true)}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs text-primary hover:bg-primary/10 disabled:opacity-40"
+                title="Restore selected items"
+              >
+                <RotateCcw className="size-3.5" />
+                <span>Restore selected ({selectedIds.size})</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={items.length === 0}
+                onClick={() => handleBatchTrashOrRestore(true, items)}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Restore all items in Recycle Bin"
+              >
+                <RotateCcw className="size-3.5" />
+                <span className="hidden sm:inline">Restore all items</span>
+              </Button>
+
+              <div className="h-4 w-px bg-border/80 mx-1" />
+
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={() => {
+                  setPermanentDeleteTargets(selectedItems);
+                  setIsEmptyTrashConfirm(false);
+                  setIsPermanentDeleteOpen(true);
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                title="Permanently delete selected items (Shift+Delete)"
+              >
+                <Trash2 className="size-3.5" />
+                <span>Delete permanently</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={items.length === 0}
+                onClick={() => {
+                  setPermanentDeleteTargets([]);
+                  setIsEmptyTrashConfirm(true);
+                  setIsPermanentDeleteOpen(true);
+                }}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                title="Permanently delete all items in Recycle Bin"
+              >
+                <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span className="hidden sm:inline">Empty Recycle Bin</span>
+              </Button>
+            </>
+          )}
+
+          {/* Selection indicator pill */}
+          {selectedIds.size > 0 && (
+            <Badge variant="secondary" className="text-[11px] h-6 px-2 font-normal gap-1 bg-primary/10 text-primary border-primary/20">
+              <span>{selectedIds.size} selected</span>
               <button
                 type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                onClick={() => setSelectedIds(new Set())}
+                className="hover:text-destructive ml-1"
+                title="Clear selection"
               >
-                <X className="size-4" />
+                <X className="size-3" />
               </button>
-            )}
-          </div>
+            </Badge>
+          )}
+        </div>
 
+        {/* Ribbon Right Actions: Sort, View Switcher, Preview Toggle, Refresh */}
+        <div className="flex items-center gap-1">
           {/* Sort Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5 hidden sm:flex">
-                <span>Sort</span>
-                <ChevronRight className="size-3.5 rotate-90" />
+              <Button variant="ghost" size="sm" className="h-8 px-2 gap-1 text-xs hover:bg-accent/60">
+                <ArrowUpDown className="size-3.5 text-muted-foreground" />
+                <span className="hidden lg:inline">Sort</span>
+                <ChevronRight className="size-3 rotate-90 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setSortBy("updatedAt"); setSortOrder("desc"); }}>
-                Date Modified (Newest)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { setSortBy("updatedAt"); setSortOrder("asc"); }}>
-                Date Modified (Oldest)
-              </DropdownMenuItem>
+            <DropdownMenuContent
+              align="end"
+              style={{ fontFamily: SYSTEM_FONT_STACK }}
+              className="w-44 text-xs font-sans"
+            >
               <DropdownMenuItem onClick={() => { setSortBy("name"); setSortOrder("asc"); }}>
                 Name (A to Z)
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => { setSortBy("name"); setSortOrder("desc"); }}>
                 Name (Z to A)
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setSortBy("updatedAt"); setSortOrder("desc"); }}>
+                Date modified (Newest)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortBy("updatedAt"); setSortOrder("asc"); }}>
+                Date modified (Oldest)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => { setSortBy("size"); setSortOrder("desc"); }}>
                 Size (Largest)
               </DropdownMenuItem>
@@ -659,294 +1375,877 @@ export function UnifiedFileManager({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center border border-border rounded-lg p-0.5 bg-muted/40">
+          {/* 1-Click Segmented View Mode Switcher */}
+          <div className="flex items-center bg-muted/60 p-0.5 rounded-md border border-border/50">
             <Button
-              variant={view === "list" ? "secondary" : "ghost"}
+              type="button"
+              variant={view === "details" ? "secondary" : "ghost"}
               size="icon"
-              className="size-8"
-              onClick={() => setView("list")}
-              title="List View"
+              className={cn("size-7 rounded-sm", view === "details" ? "bg-background text-primary shadow-xs font-medium" : "text-muted-foreground hover:text-foreground")}
+              onClick={() => setView("details")}
+              title="Details View"
             >
-              <List className="size-4" />
+              <TableIcon className="size-3.5" />
             </Button>
             <Button
+              type="button"
               variant={view === "grid" ? "secondary" : "ghost"}
               size="icon"
-              className="size-8"
+              className={cn("size-7 rounded-sm", view === "grid" ? "bg-background text-primary shadow-xs font-medium" : "text-muted-foreground hover:text-foreground")}
               onClick={() => setView("grid")}
               title="Grid View"
             >
-              <Grid className="size-4" />
+              <LayoutGrid className="size-3.5" />
+            </Button>
+            <Button
+              type="button"
+              variant={view === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className={cn("size-7 rounded-sm", view === "list" ? "bg-background text-primary shadow-xs font-medium" : "text-muted-foreground hover:text-foreground")}
+              onClick={() => setView("list")}
+              title="List View"
+            >
+              <ListIcon className="size-3.5" />
             </Button>
           </div>
 
+          {/* Multi-View Mode Switcher (Details, Grid, List) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-2 gap-1 text-xs hover:bg-accent/60">
+                {view === "details" && <TableIcon className="size-3.5 text-primary" />}
+                {view === "grid" && <LayoutGrid className="size-3.5 text-primary" />}
+                {view === "list" && <ListIcon className="size-3.5 text-primary" />}
+                <span className="capitalize hidden lg:inline">{view}</span>
+                <ChevronRight className="size-3 rotate-90 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              style={{ fontFamily: SYSTEM_FONT_STACK }}
+              className="w-36 text-xs font-sans"
+            >
+              <DropdownMenuItem onClick={() => setView("details")} className="gap-2">
+                <TableIcon className="size-4" /> Details
+                {view === "details" && <Check className="size-3.5 ml-auto text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setView("grid")} className="gap-2">
+                <LayoutGrid className="size-4" /> Grid / Tiles
+                {view === "grid" && <Check className="size-3.5 ml-auto text-primary" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setView("list")} className="gap-2">
+                <ListIcon className="size-4" /> Compact List
+                {view === "list" && <Check className="size-3.5 ml-auto text-primary" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Toggle Details / Preview Pane */}
+          <Button
+            variant={showInspector ? "secondary" : "ghost"}
+            size="icon"
+            className="size-8"
+            onClick={() => setShowInspector(!showInspector)}
+            title="Toggle Details pane"
+          >
+            <img src="/FILE-MANAGER/Info.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+          </Button>
+
           {/* Refresh Button */}
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
-            className="size-9"
+            className="size-8"
             onClick={() => refetch()}
-            title="Refresh"
+            title="Refresh (F5)"
           >
-            <RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
-          </Button>
-
-          {/* New Folder Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 gap-1.5"
-            onClick={() => setIsNewFolderOpen(true)}
-          >
-            <FolderPlus className="size-4 text-amber-500" />
-            <span className="hidden md:inline">New Folder</span>
-          </Button>
-
-          {/* Upload Button */}
-          <Button
-            variant="default"
-            size="sm"
-            className="h-9 gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90"
-            disabled={isUploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {isUploading ? (
-              <Loader2 className="size-4 animate-spin" />
+            {isLoading ? (
+              <RefreshCw className="size-3.5 animate-spin" />
             ) : (
-              <Upload className="size-4" />
+              <img src="/FILE-MANAGER/History.ico" alt="Refresh" className="size-3.5 object-contain shrink-0" draggable={false} />
             )}
-            <span>{isUploading ? "Uploading..." : "Upload"}</span>
           </Button>
+        </div>
+      </header>
+
+      {/* ----------------------------------------------------------------------- */}
+      {/* C. WINDOWS 11 BREADCRUMB / ADDRESS BAR & SEARCH                         */}
+      {/* ----------------------------------------------------------------------- */}
+      <div
+        style={{ fontFamily: SYSTEM_FONT_STACK }}
+        className="flex items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans"
+      >
+        {/* Navigation History Buttons */}
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-md"
+            disabled={historyIndex <= 0}
+            onClick={handleHistoryBack}
+            title="Back (Alt+Left)"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-md"
+            disabled={historyIndex >= folderHistory.length - 1}
+            onClick={handleHistoryForward}
+            title="Forward (Alt+Right)"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 rounded-md"
+            disabled={!currentFolder}
+            onClick={handleNavigateUp}
+            title="Up to parent folder (Alt+Up)"
+          >
+            <ChevronUp className="size-4" />
+          </Button>
+        </div>
+
+        {/* Windows 11 Breadcrumbs Address Bar Container */}
+        <div className="flex-1 flex items-center h-8 px-2 rounded-lg border border-border/80 bg-background/60 shadow-2xs overflow-hidden">
+          <img
+            src="/FILE-MANAGER/Drives/Hardrive.ico"
+            alt="Drive"
+            className="size-3.5 object-contain shrink-0 mr-1.5"
+            draggable={false}
+          />
+          <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+            {folderHistory.map((seg, idx) => (
+              <React.Fragment key={seg.id || "root"}>
+                {idx > 0 && <ChevronRight className="size-3 text-muted-foreground/60 shrink-0" />}
+                <button
+                  type="button"
+                  onClick={() => handleJumpToSegment(idx)}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded text-xs transition-colors",
+                    idx === historyIndex
+                      ? "font-semibold text-primary bg-primary/10 border border-primary/20"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/30"
+                  )}
+                >
+                  {seg.name}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* Search Box on Right */}
+        <div className="relative w-44 sm:w-60 shrink-0">
+          <img
+            src="/FILE-MANAGER/Search.ico"
+            alt=""
+            className="absolute left-2.5 top-2.5 size-3.5 object-contain pointer-events-none"
+            draggable={false}
+          />
+          <Input
+            type="text"
+            placeholder={`Search ${currentFolder ? currentFolder.name : "files"}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-8 pr-7 h-8 text-xs bg-background/60"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main Container: Sidebar + Content */}
+      {/* ----------------------------------------------------------------------- */}
+      {/* MAIN EXPLORER BODY: SIDEBAR + CONTENT VIEW + DETAILS PANE               */}
+      {/* ----------------------------------------------------------------------- */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Category Sidebar */}
-        <aside className="w-56 border-r border-border bg-card/40 p-3 hidden md:flex flex-col justify-between shrink-0">
-          <div className="space-y-1">
-            <div className="text-xs font-semibold text-muted-foreground px-3 py-2 uppercase tracking-wider">
-              Categories
+        {/* --------------------------------------------------------------------- */}
+        {/* B. NAVIGATION SIDEBAR                                                 */}
+        {/* --------------------------------------------------------------------- */}
+        <aside
+          style={{ fontFamily: SYSTEM_FONT_STACK }}
+          className="w-52 border-r border-border/80 bg-card/40 p-2.5 hidden md:flex flex-col justify-between shrink-0 font-sans"
+        >
+          <div className="space-y-4">
+            {/* Quick Access / System Navigation */}
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+                <img src="/FILE-MANAGER/Quick%20Access.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span>Quick Access</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("All");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Home" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "All" && !currentFolder
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Desktop.ico"
+                  alt="Home"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Home</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("All");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "My Files" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  role === "me" && category === "All" && !currentFolder
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Folder%20User.ico"
+                  alt="My Files"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>My Files</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Recent");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Recent" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Recent"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Recent.ico"
+                  alt="Recent"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Recent</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Starred");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Starred" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Starred"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Folder%20Favourites.ico"
+                  alt="Starred"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Starred</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Shared");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Shared with Me" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Shared"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Folder%20Links.ico"
+                  alt="Shared with Me"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Shared with Me</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Teams");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Team Folders" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Teams"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Users.ico"
+                  alt="Team Folders"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Team Folders</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Chat");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Chat Attachments" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Chat"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Folder%20Shared.ico"
+                  alt="Chat Attachments"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Chat Attachments</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Trash");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Recycle Bin" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Trash"
+                    ? "bg-destructive text-destructive-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Trash%20Empty.ico"
+                  alt="Recycle Bin"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>Recycle Bin</span>
+              </button>
             </div>
-            {(
-              [
-                { id: "All", label: "All Files", icon: HardDrive },
-                { id: "Documents", label: "Documents", icon: FileText },
-                { id: "Images", label: "Images", icon: ImageIcon },
-                { id: "Videos", label: "Videos", icon: Video },
-                { id: "Audio", label: "Audio", icon: Music },
-                { id: "Archives", label: "Archives", icon: Archive },
-                { id: "Starred", label: "Starred", icon: Star },
-                { id: "Trash", label: "Trash", icon: Trash2 },
-              ] as const
-            ).map((cat) => {
-              const Icon = cat.icon;
-              const isActive = category === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => {
-                    setCategory(cat.id);
-                    setCurrentFolder(null);
-                    setBreadcrumbs([{ id: null, name: cat.label }]);
-                    setSelectedItem(null);
-                  }}
-                  className={cn(
-                    "flex items-center justify-between w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className={cn("size-4", cat.id === "Starred" && "text-amber-400")} />
+
+            {/* Categories Section */}
+            <div className="space-y-0.5">
+              <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+                Categories
+              </div>
+              {(
+                [
+                  { id: "Documents", label: "Documents", iconSrc: "/FILE-MANAGER/Folder%20Documents.ico" },
+                  { id: "Images", label: "Images", iconSrc: "/FILE-MANAGER/Folder%20Pictures.ico" },
+                  { id: "Videos", label: "Videos", iconSrc: "/FILE-MANAGER/Folder%20Videos.ico" },
+                  { id: "Audio", label: "Audio", iconSrc: "/FILE-MANAGER/Folder%20Music.ico" },
+                  { id: "Archives", label: "Archives", iconSrc: "/FILE-MANAGER/Zip.ico" },
+                ] as const
+              ).map((cat) => {
+                const isActive = category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setCategory(cat.id);
+                      setCurrentFolder(null);
+                      setFolderHistory([{ id: null, name: cat.label }]);
+                      setHistoryIndex(0);
+                      setSelectedIds(new Set());
+                    }}
+                    className={cn(
+                      "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                      isActive
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                    )}
+                  >
+                    <img
+                      src={cat.iconSrc}
+                      alt={cat.label}
+                      className="size-4 object-contain shrink-0"
+                      draggable={false}
+                    />
                     <span>{cat.label}</span>
-                  </div>
-                  {cat.id === "Starred" && (
-                    <span className="text-xs opacity-70">★</span>
-                  )}
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Storage Quota Card */}
+          {/* Storage Quota Meter */}
           {stats && (
-            <div className="mt-4 p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2">
+            <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-foreground">Storage Quota</span>
-                <span className="text-muted-foreground">{stats.percentUsed}% used</span>
+                <span className="font-semibold text-foreground">Storage</span>
+                <div className="flex items-center gap-1.5">
+                  {stats.lifecycleState === "LOCKED" ? (
+                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider animate-pulse">
+                      Locked
+                    </Badge>
+                  ) : stats.lifecycleState === "CRITICAL" ? (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
+                      Critical
+                    </Badge>
+                  ) : stats.lifecycleState === "WARNING" ? (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                      Warning
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-normal text-muted-foreground border-border/60">
+                      Normal
+                    </Badge>
+                  )}
+                  <span className="text-muted-foreground font-mono">{stats.percentUsed}%</span>
+                </div>
               </div>
-              <Progress value={stats.percentUsed} className="h-1.5" />
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <Progress
+                value={stats.percentUsed}
+                className={cn(
+                  "h-1.5",
+                  stats.percentUsed >= 100
+                    ? "[&>div]:bg-destructive"
+                    : stats.percentUsed >= 90
+                    ? "[&>div]:bg-orange-500"
+                    : stats.percentUsed >= 80
+                    ? "[&>div]:bg-amber-500"
+                    : ""
+                )}
+              />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
                 <span>{stats.formattedTotalSize}</span>
                 <span>{stats.formattedQuota}</span>
-              </div>
-              <div className="pt-1 border-t border-border/40 text-[10px] text-muted-foreground flex justify-between">
-                <span>{stats.totalFiles} files</span>
-                <span>{stats.totalFolders} folders</span>
               </div>
             </div>
           )}
         </aside>
 
-        {/* Center: File List / Grid Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        {/* --------------------------------------------------------------------- */}
+        {/* D. MULTI-VIEW CONTENT AREA                                            */}
+        {/* --------------------------------------------------------------------- */}
+        <main
+          onClick={() => {
+            // Click on blank space clears selection
+            setSelectedIds(new Set());
+          }}
+          onContextMenu={(e) => handleContextMenu(e, null)}
+          style={{ fontFamily: SYSTEM_FONT_STACK }}
+          className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 font-sans"
+        >
+          {/* Storage Quota Alerts */}
+          {stats?.lifecycleState === "LOCKED" && (
+            <div className="flex items-center gap-3 p-3.5 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-xs md:text-sm font-medium">
+              <AlertTriangle className="size-4 shrink-0 text-destructive animate-bounce" />
+              <div className="flex-1">
+                <span className="font-semibold">Workspace Storage Locked (100% Full):</span> New uploads are blocked until storage is freed. You can permanently purge items from the Recycle Bin or upgrade the workspace storage allocation.
+              </div>
+            </div>
+          )}
+          {stats?.lifecycleState === "CRITICAL" && (
+            <div className="flex items-center gap-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl text-orange-700 dark:text-orange-400 text-xs md:text-sm font-medium">
+              <AlertCircle className="size-4 shrink-0 text-orange-600 dark:text-orange-400" />
+              <div className="flex-1">
+                <span className="font-semibold">Storage Capacity Critical ({stats.percentUsed}%):</span> Your workspace is approaching its capacity ceiling. New uploads will lock at 100%.
+              </div>
+            </div>
+          )}
+          {stats?.lifecycleState === "WARNING" && (
+            <div className="flex items-center gap-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-800 dark:text-amber-400 text-xs font-medium">
+              <AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="flex-1">
+                <span className="font-semibold">Storage Notice:</span> Workspace storage consumption is at {stats.percentUsed}%.
+              </div>
+            </div>
+          )}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
               <Loader2 className="size-8 animate-spin text-primary" />
-              <p className="text-sm">Loading workspace files...</p>
+              <p className="text-xs">Loading items...</p>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-72 border-2 border-dashed border-border rounded-2xl p-6 text-center space-y-3 bg-card/20">
-              <div className="size-14 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground">
-                <FolderPlus className="size-7" />
-              </div>
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center h-80 border-2 border-dashed border-border rounded-2xl p-6 text-center space-y-3 bg-card/20">
+              <img
+                src="/FILE-MANAGER/Folder%203D.ico"
+                alt="Empty Folder"
+                className="size-16 object-contain drop-shadow-md mx-auto pointer-events-none select-none"
+                draggable={false}
+              />
               <div className="space-y-1">
-                <h3 className="text-base font-semibold text-foreground">
-                  {searchQuery ? "No matching files found" : "No files or folders here"}
+                <h3 className="text-sm font-semibold text-foreground">
+                  {searchQuery ? "No matching files or folders" : "This folder is empty"}
                 </h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
+                <p className="text-xs text-muted-foreground max-w-sm">
                   {searchQuery
-                    ? `No assets matched "${searchQuery}". Try a different keyword.`
-                    : "Upload files or create folders to organize your workspace documents."}
+                    ? `No items matched "${searchQuery}". Check your spelling or try another query.`
+                    : "Drag files here, or use the command ribbon above to upload files and create folders."}
                 </p>
               </div>
               <div className="flex items-center gap-2 pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsNewFolderOpen(true)}
-                  className="gap-1.5"
-                >
-                  <FolderPlus className="size-4" />
-                  New Folder
+                <Button size="sm" variant="outline" onClick={() => setIsNewFolderOpen(true)} className="gap-1.5 text-xs h-8">
+                  <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-3.5 object-contain" draggable={false} /> New Folder
                 </Button>
-                <Button
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="gap-1.5"
-                >
-                  <Upload className="size-4" />
-                  Upload Files
+                <Button size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1.5 text-xs h-8">
+                  <Upload className="size-3.5" /> Upload Files
                 </Button>
               </div>
             </div>
           ) : (
             <>
-              {/* Folders Section (if any) */}
-              {folders.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>Folders ({folders.length})</span>
+              {/* Folders Group (shown in Grid and Details views if folders exist) */}
+              {folders.length > 0 && view === "grid" && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Folders ({folders.length})
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {folders.map((folder) => (
-                      <div
-                        key={folder.id}
-                        onDoubleClick={() => handleOpenFolder(folder)}
-                        onClick={() => {
-                          setSelectedItem(folder);
-                          setShowInspector(true);
-                        }}
-                        className={cn(
-                          "group relative flex items-center justify-between p-3 rounded-xl border border-border bg-card hover:bg-accent/40 transition-all cursor-pointer shadow-sm hover:shadow",
-                          selectedItem?.id === folder.id && "border-primary ring-1 ring-primary bg-accent/30"
-                        )}
-                      >
-                        <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                    {folders.map((folder) => {
+                      const isSelected = selectedIds.has(folder.id);
+                      return (
+                        <div
+                          key={folder.id}
+                          onDoubleClick={() => handleOpenFolder(folder)}
+                          onClick={(e) => handleSelectItem(folder, e)}
+                          onContextMenu={(e) => handleContextMenu(e, folder)}
+                          className={cn(
+                            "group relative flex items-center gap-3 p-2.5 rounded-xl border border-border/80 bg-card hover:bg-accent/40 transition-all cursor-pointer shadow-2xs",
+                            isSelected && "border-primary ring-1.5 ring-primary bg-primary/10"
+                          )}
+                        >
                           {getItemIcon(folder)}
-                          <div className="truncate">
-                            <div className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          <div className="truncate flex-1 min-w-0">
+                            <div className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                               {folder.fileName}
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="text-[10px] text-muted-foreground">
                               {folder.formattedSize}
                             </div>
                           </div>
+                          {/* Checkbox indicator */}
+                          <div
+                            onClick={(e) => handleSelectItem(folder, e, true)}
+                            className={cn(
+                              "size-4 rounded border border-muted-foreground/30 flex items-center justify-center transition-opacity shrink-0",
+                              isSelected ? "bg-primary border-primary text-primary-foreground opacity-100" : "opacity-0 group-hover:opacity-100"
+                            )}
+                          >
+                            {isSelected && <Check className="size-3" />}
+                          </div>
                         </div>
-
-                        {/* Folder Action Dropdown */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreVertical className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleOpenFolder(folder)}>
-                              <Eye className="size-4 mr-2" /> Open Folder
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setRenameTarget(folder);
-                                setRenameValue(folder.fileName);
-                                setIsRenameOpen(true);
-                              }}
-                            >
-                              <Edit2 className="size-4 mr-2" /> Rename
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setMoveTarget(folder);
-                                setSelectedDestinationFolder("root");
-                                setIsMoveOpen(true);
-                              }}
-                            >
-                              <Move className="size-4 mr-2" /> Move
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => {
-                                setDeleteTarget(folder);
-                                setIsDeleteOpen(true);
-                              }}
-                            >
-                              <Trash2 className="size-4 mr-2" /> Move to Trash
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Files Section */}
-              {regularFiles.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    <span>Files ({regularFiles.length})</span>
-                  </div>
+              {/* --------------------------------------------------------------- */}
+              {/* 1. DETAILS VIEW (Table layout with sortable columns)           */}
+              {/* --------------------------------------------------------------- */}
+              {view === "details" && (
+                <div className="border border-border/80 rounded-xl bg-card overflow-hidden shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-border/80 bg-muted/30 text-muted-foreground font-semibold">
+                          <th className="py-2.5 px-3 w-8 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={
+                                items.length > 0 && selectedIds.size === items.length
+                                  ? true
+                                  : selectedIds.size > 0
+                                  ? "indeterminate"
+                                  : false
+                              }
+                              onCheckedChange={handleToggleSelectAll}
+                              aria-label="Select all"
+                            />
+                          </th>
+                          <th
+                            className="py-2.5 px-3 cursor-pointer hover:text-foreground"
+                            onClick={() => {
+                              setSortBy("name");
+                              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span>Name</span>
+                              {sortBy === "name" && (
+                                <ArrowUpDown className="size-3 text-primary" />
+                              )}
+                            </div>
+                          </th>
+                          <th
+                            className="py-2.5 px-3 hidden sm:table-cell cursor-pointer hover:text-foreground"
+                            onClick={() => {
+                              setSortBy("updatedAt");
+                              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span>Date modified</span>
+                              {sortBy === "updatedAt" && (
+                                <ArrowUpDown className="size-3 text-primary" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-2.5 px-3 hidden md:table-cell">Type</th>
+                          <th
+                            className="py-2.5 px-3 text-right hidden sm:table-cell cursor-pointer hover:text-foreground"
+                            onClick={() => {
+                              setSortBy("size");
+                              setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+                            }}
+                          >
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span>Size</span>
+                              {sortBy === "size" && (
+                                <ArrowUpDown className="size-3 text-primary" />
+                              )}
+                            </div>
+                          </th>
+                          <th className="py-2.5 px-3 text-right w-16">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {items.map((item) => {
+                          const isSelected = selectedIds.has(item.id);
+                          return (
+                            <tr
+                              key={item.id}
+                              onClick={(e) => handleSelectItem(item, e)}
+                              onDoubleClick={() => {
+                                if (item.isFolder) handleOpenFolder(item);
+                                else {
+                                  setPreviewTarget(item);
+                                  setIsPreviewModalOpen(true);
+                                }
+                              }}
+                              onContextMenu={(e) => handleContextMenu(e, item)}
+                              className={cn(
+                                "group hover:bg-accent/40 transition-colors cursor-pointer",
+                                isSelected && "bg-primary/10 hover:bg-primary/15 border-l-2 border-primary"
+                              )}
+                            >
+                              {/* Checkbox */}
+                              <td className="py-2 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => {
+                                    const next = new Set(selectedIds);
+                                    if (isSelected) next.delete(item.id);
+                                    else next.add(item.id);
+                                    setSelectedIds(next);
+                                    setLastSelectedId(item.id);
+                                  }}
+                                />
+                              </td>
 
-                  {view === "grid" ? (
-                    /* Grid View */
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                      {regularFiles.map((file) => (
+                              {/* Name with icon & star */}
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2.5">
+                                  {getItemIcon(item)}
+                                  <span className="font-medium text-foreground truncate max-w-xs sm:max-w-md">
+                                    {item.fileName}
+                                  </span>
+                                  {!item.isFolder && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleToggleStar(item, e)}
+                                      className={cn(
+                                        "opacity-0 group-hover:opacity-100 transition-opacity ml-1",
+                                        item.isStarred && "opacity-100 text-primary fill-primary"
+                                      )}
+                                      title={item.isStarred ? "Unstar" : "Star"}
+                                    >
+                                      <Star className={cn("size-3.5", item.isStarred ? "fill-primary text-primary" : "text-muted-foreground hover:text-primary")} />
+                                    </button>
+                                  )}
+                                  {item.usageCount > 0 && (
+                                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-primary/10 text-primary border-primary/20">
+                                      In Use
+                                    </Badge>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Date modified */}
+                              <td className="py-2 px-3 text-muted-foreground hidden sm:table-cell">
+                                {new Date(item.updatedAt).toLocaleDateString()}
+                              </td>
+
+                              {/* Type */}
+                              <td className="py-2 px-3 text-muted-foreground hidden md:table-cell">
+                                {getFriendlyType(item)}
+                              </td>
+
+                              {/* Size */}
+                              <td className="py-2 px-3 text-right font-mono text-muted-foreground hidden sm:table-cell">
+                                {item.isFolder ? "—" : item.formattedSize}
+                              </td>
+
+                              {/* Actions Dropdown */}
+                              <td className="py-2 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="size-7 opacity-0 group-hover:opacity-100">
+                                      <MoreVertical className="size-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    style={{ fontFamily: SYSTEM_FONT_STACK }}
+                                    className="text-xs font-sans"
+                                  >
+                                    {category === "Trash" || item.deletedAt ? (
+                                      <>
+                                        <DropdownMenuItem onClick={() => handleBatchTrashOrRestore(true, [item])}>
+                                          <RotateCcw className="size-4 mr-2 text-primary" /> Restore
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onClick={() => {
+                                            setPermanentDeleteTargets([item]);
+                                            setIsEmptyTrashConfirm(false);
+                                            setIsPermanentDeleteOpen(true);
+                                          }}
+                                        >
+                                          <Trash2 className="size-4 mr-2" /> Delete Permanently
+                                        </DropdownMenuItem>
+                                      </>
+                                    ) : (
+                                      <>
+                                        {item.isFolder ? (
+                                          <DropdownMenuItem onClick={() => handleOpenFolder(item)}>
+                                            <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Open Folder
+                                          </DropdownMenuItem>
+                                        ) : (
+                                          <>
+                                            <DropdownMenuItem onClick={() => { setShareTarget(item); setIsShareOpen(true); }}>
+                                              <Share2 className="size-4 mr-2 text-primary" /> Share
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => { setPreviewTarget(item); setIsPreviewModalOpen(true); }}>
+                                              <Eye className="size-4 mr-2 text-primary" /> Preview
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleDownload(item)}>
+                                              <Download className="size-4 mr-2 text-primary" /> Download
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleCopySignedLink(item)}>
+                                              <img src="/FILE-MANAGER/Link.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Copy link
+                                            </DropdownMenuItem>
+                                          </>
+                                        )}
+                                        <DropdownMenuItem onClick={() => { setRenameTarget(item); setRenameValue(item.fileName); setIsRenameOpen(true); }}>
+                                          <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Rename
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => { setMoveTargets([item]); setSelectedDestinationFolder("root"); setIsMoveOpen(true); }}>
+                                          <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Move
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onClick={() => { setDeleteTargets([item]); setIsDeleteOpen(true); }}
+                                        >
+                                          <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Delete
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* --------------------------------------------------------------- */}
+              {/* 2. GRID / TILES VIEW (Card grid with preview thumbnails)      */}
+              {/* --------------------------------------------------------------- */}
+              {view === "grid" && regularFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Files ({regularFiles.length})
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
+                    {regularFiles.map((file) => {
+                      const isSelected = selectedIds.has(file.id);
+                      return (
                         <div
                           key={file.id}
-                          onClick={() => {
-                            setSelectedItem(file);
-                            setShowInspector(true);
-                          }}
+                          onClick={(e) => handleSelectItem(file, e)}
                           onDoubleClick={() => {
                             setPreviewTarget(file);
-                            setIsPreviewOpen(true);
+                            setIsPreviewModalOpen(true);
                           }}
+                          onContextMenu={(e) => handleContextMenu(e, file)}
                           className={cn(
-                            "group relative flex flex-col justify-between p-3 rounded-2xl border border-border bg-card hover:bg-accent/30 transition-all cursor-pointer shadow-sm hover:shadow",
-                            selectedItem?.id === file.id && "border-primary ring-1 ring-primary bg-accent/20"
+                            "group relative flex flex-col justify-between p-2.5 rounded-xl border border-border/80 bg-card hover:bg-accent/30 transition-all cursor-pointer shadow-2xs",
+                            isSelected && "border-primary ring-1.5 ring-primary bg-primary/5 shadow-xs"
                           )}
                         >
-                          {/* Card Top: Preview or Thumbnail */}
-                          <div className="relative aspect-square w-full rounded-xl bg-muted/40 flex items-center justify-center overflow-hidden mb-2">
+                          {/* Thumbnail / Icon Container */}
+                          <div className="relative aspect-square w-full rounded-lg bg-muted/30 border border-border/40 flex items-center justify-center overflow-hidden mb-2">
                             {file.category === "Images" && file.url ? (
                               <img
                                 src={file.url}
@@ -955,308 +2254,189 @@ export function UnifiedFileManager({
                                 loading="lazy"
                               />
                             ) : (
-                              <div className="scale-125">{getItemIcon(file)}</div>
+                              getItemIcon(file, true)
                             )}
 
-                            {/* Star badge on top-left */}
+                            {/* Checkbox badge on top-left */}
+                            <div
+                              onClick={(e) => handleSelectItem(file, e, true)}
+                              className={cn(
+                                "absolute top-1.5 left-1.5 size-5 rounded border border-border bg-background/90 flex items-center justify-center transition-opacity shadow-xs",
+                                isSelected ? "bg-primary border-primary text-primary-foreground opacity-100" : "opacity-0 group-hover:opacity-100"
+                              )}
+                            >
+                              {isSelected && <Check className="size-3.5" />}
+                            </div>
+
+                            {/* Star badge on top-right */}
                             <button
                               type="button"
                               onClick={(e) => handleToggleStar(file, e)}
                               className={cn(
-                                "absolute top-2 left-2 size-7 rounded-full flex items-center justify-center backdrop-blur-md transition-opacity",
+                                "absolute top-1.5 right-1.5 size-5 rounded-full flex items-center justify-center backdrop-blur-md transition-opacity",
                                 file.isStarred
-                                  ? "bg-amber-400 text-white opacity-100"
-                                  : "bg-black/30 text-white/80 opacity-0 group-hover:opacity-100 hover:text-amber-400"
+                                  ? "bg-primary text-primary-foreground opacity-100 shadow-xs"
+                                  : "bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-background"
                               )}
-                              title={file.isStarred ? "Starred" : "Star"}
                             >
-                              <Star className={cn("size-3.5", file.isStarred && "fill-current")} />
+                              <Star className={cn("size-3", file.isStarred && "fill-current")} />
                             </button>
-
-                            {/* Usages badge on top-right */}
-                            {file.usageCount > 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="absolute top-2 right-2 text-[10px] h-5 px-1.5 bg-background/80 backdrop-blur-md"
-                              >
-                                In Use
-                              </Badge>
-                            )}
                           </div>
 
-                          {/* Card Bottom: File Info */}
-                          <div className="space-y-1">
+                          {/* File Label */}
+                          <div className="space-y-0.5">
                             <div className="text-xs font-semibold text-foreground truncate" title={file.fileName}>
                               {file.fileName}
                             </div>
-                            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
                               <span>{file.formattedSize}</span>
                               <span>{new Date(file.updatedAt).toLocaleDateString()}</span>
                             </div>
                           </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-                          {/* 3-dots Context Menu */}
-                          <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                <Button variant="ghost" size="icon" className="size-7 bg-background/80 shadow-xs">
-                                  <MoreVertical className="size-3.5" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => { setPreviewTarget(file); setIsPreviewOpen(true); }}>
-                                  <Eye className="size-4 mr-2" /> Preview
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownload(file)}>
-                                  <Download className="size-4 mr-2" /> Download
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleToggleStar(file)}>
-                                  <Star className={cn("size-4 mr-2", file.isStarred && "fill-amber-400 text-amber-400")} />
-                                  {file.isStarred ? "Unstar" : "Star"}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setShareTarget(file); setIsShareOpen(true); }}>
-                                  <Share2 className="size-4 mr-2" /> Share
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setRenameTarget(file); setRenameValue(file.fileName); setIsRenameOpen(true); }}>
-                                  <Edit2 className="size-4 mr-2" /> Rename
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setMoveTarget(file); setSelectedDestinationFolder("root"); setIsMoveOpen(true); }}>
-                                  <Move className="size-4 mr-2" /> Move
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {file.deletedAt ? (
-                                  <DropdownMenuItem onClick={() => handleTrashOrRestore(file, true)}>
-                                    <RotateCcw className="size-4 mr-2 text-emerald-600" /> Restore
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={() => { setDeleteTarget(file); setIsDeleteOpen(true); }}
-                                  >
-                                    <Trash2 className="size-4 mr-2" /> Move to Trash
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+              {/* --------------------------------------------------------------- */}
+              {/* 3. LIST VIEW (Compact dense rows)                             */}
+              {/* --------------------------------------------------------------- */}
+              {view === "list" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {items.map((item) => {
+                    const isSelected = selectedIds.has(item.id);
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={(e) => handleSelectItem(item, e)}
+                        onDoubleClick={() => {
+                          if (item.isFolder) handleOpenFolder(item);
+                          else {
+                            setPreviewTarget(item);
+                            setIsPreviewModalOpen(true);
+                          }
+                        }}
+                        onContextMenu={(e) => handleContextMenu(e, item)}
+                        className={cn(
+                          "group flex items-center gap-2.5 p-2 rounded-lg border border-border/80 bg-card hover:bg-accent/40 transition-colors cursor-pointer",
+                          isSelected && "border-primary ring-1 ring-primary bg-primary/5 shadow-xs"
+                        )}
+                      >
+                        {getItemIcon(item)}
+                        <div className="truncate flex-1 min-w-0">
+                          <div className="text-xs font-medium text-foreground truncate group-hover:text-primary">
+                            {item.fileName}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                            <span>{item.formattedSize}</span>
+                            <span>•</span>
+                            <span>{new Date(item.updatedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    /* List View */
-                    <div className="border border-border rounded-2xl bg-card overflow-hidden shadow-xs">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                          <thead>
-                            <tr className="border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              <th className="py-3 px-4 w-10"></th>
-                              <th className="py-3 px-4">Name</th>
-                              <th className="py-3 px-4 hidden sm:table-cell">Category</th>
-                              <th className="py-3 px-4 hidden md:table-cell">Size</th>
-                              <th className="py-3 px-4 hidden lg:table-cell">Modified</th>
-                              <th className="py-3 px-4 hidden sm:table-cell">Status</th>
-                              <th className="py-3 px-4 text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {regularFiles.map((file) => (
-                              <tr
-                                key={file.id}
-                                onClick={() => {
-                                  setSelectedItem(file);
-                                  setShowInspector(true);
-                                }}
-                                onDoubleClick={() => {
-                                  setPreviewTarget(file);
-                                  setIsPreviewOpen(true);
-                                }}
-                                className={cn(
-                                  "group hover:bg-accent/30 transition-colors cursor-pointer",
-                                  selectedItem?.id === file.id && "bg-accent/40"
-                                )}
-                              >
-                                {/* Star Column */}
-                                <td className="py-3 px-4 w-10 text-center" onClick={(e) => handleToggleStar(file, e)}>
-                                  <Star
-                                    className={cn(
-                                      "size-4 transition-colors cursor-pointer",
-                                      file.isStarred
-                                        ? "text-amber-400 fill-amber-400"
-                                        : "text-muted-foreground/30 hover:text-amber-400"
-                                    )}
-                                  />
-                                </td>
-
-                                {/* Name Column */}
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-3">
-                                    {getItemIcon(file)}
-                                    <div className="truncate max-w-xs sm:max-w-sm font-medium text-foreground">
-                                      <span className="truncate block">{file.fileName}</span>
-                                    </div>
-                                  </div>
-                                </td>
-
-                                {/* Category Column */}
-                                <td className="py-3 px-4 hidden sm:table-cell text-muted-foreground">
-                                  <Badge variant="outline" className="text-xs font-normal">
-                                    {file.category || "Documents"}
-                                  </Badge>
-                                </td>
-
-                                {/* Size Column */}
-                                <td className="py-3 px-4 hidden md:table-cell text-muted-foreground font-mono text-xs">
-                                  {file.formattedSize}
-                                </td>
-
-                                {/* Modified Column */}
-                                <td className="py-3 px-4 hidden lg:table-cell text-muted-foreground text-xs">
-                                  {new Date(file.updatedAt).toLocaleDateString()}
-                                </td>
-
-                                {/* In-Use Badge Column */}
-                                <td className="py-3 px-4 hidden sm:table-cell">
-                                  {file.usageCount > 0 ? (
-                                    <Badge variant="secondary" className="text-[10px] bg-primary/10 text-primary">
-                                      In Use ({file.usageCount})
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground/60">—</span>
-                                  )}
-                                </td>
-
-                                {/* Actions Column */}
-                                <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                  <div className="flex items-center justify-end gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8"
-                                      onClick={() => handleDownload(file)}
-                                      title="Download"
-                                    >
-                                      <Download className="size-4 text-muted-foreground hover:text-foreground" />
-                                    </Button>
-
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="size-8">
-                                          <MoreVertical className="size-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => { setPreviewTarget(file); setIsPreviewOpen(true); }}>
-                                          <Eye className="size-4 mr-2" /> Preview
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleDownload(file)}>
-                                          <Download className="size-4 mr-2" /> Download
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setShareTarget(file); setIsShareOpen(true); }}>
-                                          <Share2 className="size-4 mr-2" /> Share
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setRenameTarget(file); setRenameValue(file.fileName); setIsRenameOpen(true); }}>
-                                          <Edit2 className="size-4 mr-2" /> Rename
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setMoveTarget(file); setSelectedDestinationFolder("root"); setIsMoveOpen(true); }}>
-                                          <Move className="size-4 mr-2" /> Move
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        {file.deletedAt ? (
-                                          <DropdownMenuItem onClick={() => handleTrashOrRestore(file, true)}>
-                                            <RotateCcw className="size-4 mr-2 text-emerald-600" /> Restore
-                                          </DropdownMenuItem>
-                                        ) : (
-                                          <DropdownMenuItem
-                                            className="text-destructive focus:text-destructive"
-                                            onClick={() => { setDeleteTarget(file); setIsDeleteOpen(true); }}
-                                          >
-                                            <Trash2 className="size-4 mr-2" /> Move to Trash
-                                          </DropdownMenuItem>
-                                        )}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <div
+                          onClick={(e) => handleSelectItem(item, e, true)}
+                          className={cn(
+                            "size-4 rounded border border-muted-foreground/30 flex items-center justify-center shrink-0 transition-opacity",
+                            isSelected ? "bg-primary border-primary text-primary-foreground opacity-100" : "opacity-0 group-hover:opacity-100"
+                          )}
+                        >
+                          {isSelected && <Check className="size-3" />}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
               )}
             </>
           )}
         </main>
 
-        {/* Right Details Inspector Drawer */}
-        {showInspector && selectedItem && (
-          <aside className="w-80 border-l border-border bg-card/60 p-5 flex flex-col justify-between shrink-0 overflow-y-auto">
-            <div className="space-y-5">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-foreground">File Details</h4>
+        {/* --------------------------------------------------------------------- */}
+        {/* E. PREVIEW / DETAILS PANE (Collapsible inspector)                     */}
+        {/* --------------------------------------------------------------------- */}
+        {showInspector && activeInspectorItem && (
+          <aside
+            style={{ fontFamily: SYSTEM_FONT_STACK }}
+            className="w-80 border-l border-border/80 bg-card/65 backdrop-blur-md p-4 flex flex-col justify-between shrink-0 overflow-y-auto font-sans"
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-border/80">
+                <div className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <img src="/FILE-MANAGER/Info.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                  <span>Details Pane</span>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="size-6 text-muted-foreground hover:text-foreground"
                   onClick={() => setShowInspector(false)}
+                  title="Close details pane"
                 >
-                  <X className="size-4" />
+                  <X className="size-3.5" />
                 </Button>
               </div>
 
-              {/* Preview Thumbnail */}
-              <div className="aspect-video w-full rounded-xl bg-muted/40 border border-border flex items-center justify-center overflow-hidden">
-                {selectedItem.category === "Images" && selectedItem.url ? (
+              {/* Rich Preview Box */}
+              <div className="aspect-video w-full rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center overflow-hidden">
+                {isLoadingPreview ? (
+                  <Loader2 className="size-6 animate-spin text-primary" />
+                ) : activeInspectorItem.isFolder ? (
+                  <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
+                ) : activeInspectorItem.category === "Images" && (previewSignedUrl || activeInspectorItem.url) ? (
                   <img
-                    src={selectedItem.url}
-                    alt={selectedItem.fileName}
+                    src={previewSignedUrl || activeInspectorItem.url}
+                    alt={activeInspectorItem.fileName}
                     className="w-full h-full object-contain"
                   />
+                ) : activeInspectorItem.mimeType?.includes("video") && previewSignedUrl ? (
+                  <video controls src={previewSignedUrl} className="w-full h-full object-contain" />
+                ) : activeInspectorItem.mimeType?.includes("audio") && previewSignedUrl ? (
+                  <audio controls src={previewSignedUrl} className="w-64" />
                 ) : (
-                  <div className="scale-150">{getItemIcon(selectedItem)}</div>
+                  <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
                 )}
               </div>
 
-              {/* Metadata Details */}
-              <div className="space-y-3 text-xs">
+              {/* Sanitized Metadata List */}
+              <div className="space-y-2.5 text-xs">
                 <div>
-                  <div className="text-muted-foreground font-medium mb-0.5">Name</div>
-                  <div className="font-semibold text-foreground break-all">{selectedItem.fileName}</div>
+                  <div className="text-[11px] font-medium text-muted-foreground">Name</div>
+                  <div className="font-semibold text-foreground break-all">{activeInspectorItem.fileName}</div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">Type</div>
-                    <div className="text-foreground">{selectedItem.mimeType || "Directory"}</div>
+                    <div className="text-[11px] font-medium text-muted-foreground">Type</div>
+                    <div className="text-foreground">{getFriendlyType(activeInspectorItem)}</div>
                   </div>
                   <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">Size</div>
-                    <div className="text-foreground font-mono">{selectedItem.formattedSize}</div>
+                    <div className="text-[11px] font-medium text-muted-foreground">Size</div>
+                    <div className="text-foreground font-mono">{activeInspectorItem.formattedSize}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">Category</div>
-                    <div className="text-foreground">{selectedItem.category}</div>
+                    <div className="text-[11px] font-medium text-muted-foreground">Category</div>
+                    <div className="text-foreground">{activeInspectorItem.category}</div>
                   </div>
                   <div>
-                    <div className="text-muted-foreground font-medium mb-0.5">Modified</div>
-                    <div className="text-foreground">{new Date(selectedItem.updatedAt).toLocaleDateString()}</div>
+                    <div className="text-[11px] font-medium text-muted-foreground">Modified</div>
+                    <div className="text-foreground">{new Date(activeInspectorItem.updatedAt).toLocaleDateString()}</div>
                   </div>
                 </div>
 
-                {/* Usages Section */}
-                {selectedItem.usages && selectedItem.usages.length > 0 && (
-                  <div className="p-2.5 rounded-lg bg-accent/30 border border-border space-y-1.5">
-                    <div className="font-semibold text-primary flex items-center gap-1.5">
+                {/* In-Use Usages Section */}
+                {activeInspectorItem.usages && activeInspectorItem.usages.length > 0 && (
+                  <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 space-y-1">
+                    <div className="font-semibold text-primary flex items-center gap-1.5 text-xs">
                       <Check className="size-3.5" />
-                      Active Usages ({selectedItem.usages.length})
+                      In Use ({activeInspectorItem.usages.length} reference{activeInspectorItem.usages.length > 1 ? "s" : ""})
                     </div>
-                    <ul className="space-y-1 text-[11px] text-muted-foreground">
-                      {selectedItem.usages.map((u, idx) => (
+                    <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+                      {activeInspectorItem.usages.map((u, idx) => (
                         <li key={u.id || idx}>
                           • {u.entityType} ({u.fieldKey})
                         </li>
@@ -1267,129 +2447,538 @@ export function UnifiedFileManager({
               </div>
             </div>
 
-            {/* Bottom Actions */}
-            <div className="pt-4 border-t border-border space-y-2">
-              {!selectedItem.isFolder && (
+            {/* Bottom Actions inside Inspector */}
+            <div className="pt-3 border-t border-border/80 space-y-2">
+              {category === "Trash" || activeInspectorItem.deletedAt ? (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full gap-1.5"
-                    onClick={() => {
-                      setPreviewTarget(selectedItem);
-                      setIsPreviewOpen(true);
-                    }}
+                    className="w-full gap-1.5 h-8 text-xs text-primary hover:bg-primary/10"
+                    onClick={() => handleBatchTrashOrRestore(true, [activeInspectorItem])}
                   >
-                    <Eye className="size-4" /> Preview
+                    <RotateCcw className="size-3.5" /> Restore
                   </Button>
                   <Button
                     size="sm"
-                    className="w-full gap-1.5"
-                    onClick={() => handleDownload(selectedItem)}
+                    variant="destructive"
+                    className="w-full gap-1.5 h-8 text-xs"
+                    onClick={() => {
+                      setPermanentDeleteTargets([activeInspectorItem]);
+                      setIsEmptyTrashConfirm(false);
+                      setIsPermanentDeleteOpen(true);
+                    }}
                   >
-                    <Download className="size-4" /> Download
+                    <Trash2 className="size-3.5" /> Delete Permanently
                   </Button>
                 </div>
-              )}
+              ) : (
+                <>
+                  {!activeInspectorItem.isFolder && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full gap-1.5 h-8 text-xs"
+                        onClick={() => {
+                          setPreviewTarget(activeInspectorItem);
+                          setIsPreviewModalOpen(true);
+                        }}
+                      >
+                        <Eye className="size-3.5" /> Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="w-full gap-1.5 h-8 text-xs"
+                        onClick={() => handleDownload(activeInspectorItem)}
+                      >
+                        <Download className="size-3.5" /> Download
+                      </Button>
+                    </div>
+                  )}
 
-              <Button
-                size="sm"
-                variant="ghost"
-                className="w-full justify-start text-xs gap-2"
-                onClick={() => handleCopyShareLink(selectedItem)}
-              >
-                <Copy className="size-3.5" /> Copy Signed Link
-              </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start text-xs gap-2 h-8"
+                    onClick={() => {
+                      setShareTarget(activeInspectorItem);
+                      setIsShareOpen(true);
+                    }}
+                  >
+                    <Share2 className="size-3.5 text-primary" />
+                    <span>Manage Access & Share</span>
+                  </Button>
+                                    <Button
+                    size="sm"
+                    variant="ghost"
+                    className="w-full justify-start text-xs gap-2 h-8"
+                    onClick={() => handleCopySignedLink(activeInspectorItem)}
+                  >
+                    <img src="/FILE-MANAGER/Link.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                    <span>Copy Secure Link</span>
+                  </Button>
+                </>
+              )}
             </div>
           </aside>
         )}
       </div>
 
-      {/* DIALOG: New Folder */}
+      {/* ----------------------------------------------------------------------- */}
+      {/* WINDOWS 11 RIGHT-CLICK CONTEXT MENU                                    */}
+      {/* ----------------------------------------------------------------------- */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{
+            top: `${contextMenu.y}px`,
+            left: `${contextMenu.x}px`,
+            fontFamily: SYSTEM_FONT_STACK,
+          }}
+          className="fixed z-50 w-56 rounded-xl border border-border/80 bg-popover/95 text-popover-foreground shadow-xl text-xs backdrop-blur-md p-1.5 animate-in fade-in-0 zoom-in-95 select-none font-sans"
+          onClick={(e) => e.stopPropagation()}
+        >
+            {contextMenu.item ? (
+              category === "Trash" || contextMenu.item.deletedAt ? (
+                <>
+                  <div
+                    onClick={() => {
+                      handleBatchTrashOrRestore(true, [contextMenu.item!]);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-primary hover:bg-primary/10 cursor-pointer transition-colors"
+                  >
+                    <RotateCcw className="size-4" />
+                    <span className="font-medium">Restore</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      setPermanentDeleteTargets([contextMenu.item!]);
+                      setIsEmptyTrashConfirm(false);
+                      setIsPermanentDeleteOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="size-4" />
+                    <span className="font-medium">Delete Permanently</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-destructive/80 bg-destructive/10 px-1.5 py-0.5 rounded border border-destructive/20">
+                      Shift+Del
+                    </kbd>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      setShowInspector(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Info.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Properties</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      Alt+Enter
+                    </kbd>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {contextMenu.item.isFolder ? (
+                    <div
+                      onClick={() => {
+                        handleOpenFolder(contextMenu.item!);
+                        setContextMenu(null);
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                    >
+                      <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                      <span className="font-medium">Open</span>
+                      <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                        Enter
+                      </kbd>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        onClick={() => {
+                          setShareTarget(contextMenu.item);
+                          setIsShareOpen(true);
+                          setContextMenu(null);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <Share2 className="size-4 text-primary" />
+                        <span className="font-medium">Share...</span>
+                      </div>
+                      <div
+                        onClick={() => {
+                          setPreviewTarget(contextMenu.item);
+                          setIsPreviewModalOpen(true);
+                          setContextMenu(null);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <Eye className="size-4 text-primary" />
+                        <span className="font-medium">Preview</span>
+                        <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                          Space
+                        </kbd>
+                      </div>
+                      <div
+                        onClick={() => {
+                          handleDownload(contextMenu.item!);
+                          setContextMenu(null);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <Download className="size-4 text-primary" />
+                        <span className="font-medium">Download</span>
+                      </div>
+                      <div
+                        onClick={() => {
+                          handleCopySignedLink(contextMenu.item!);
+                          setContextMenu(null);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <img src="/FILE-MANAGER/Link.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                        <span className="font-medium">Copy Secure Link</span>
+                      </div>
+                      <div
+                        onClick={() => {
+                          handleToggleStar(contextMenu.item!);
+                          setContextMenu(null);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                      >
+                        <Star
+                          className={cn(
+                            "size-4 text-primary",
+                            contextMenu.item.isStarred && "fill-primary"
+                          )}
+                        />
+                        <span className="font-medium">
+                          {contextMenu.item.isStarred ? "Unstar" : "Star"}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div
+                    onClick={() => {
+                      setRenameTarget(contextMenu.item);
+                      setRenameValue(contextMenu.item!.fileName);
+                      setIsRenameOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Rename</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      F2
+                    </kbd>
+                  </div>
+                  <div
+                    onClick={() => {
+                      setMoveTargets([contextMenu.item!]);
+                      setSelectedDestinationFolder("root");
+                      setIsMoveOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Move to...</span>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      setDeleteTargets([contextMenu.item!]);
+                      setIsDeleteOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Move to Recycle Bin</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-destructive/80 bg-destructive/10 px-1.5 py-0.5 rounded border border-destructive/20">
+                      Del
+                    </kbd>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      setShowInspector(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Info.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Properties</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      Alt+Enter
+                    </kbd>
+                  </div>
+                </>
+              )
+            ) : (
+              /* Canvas context menu */
+              category === "Trash" ? (
+                <>
+                  <div
+                    onClick={() => {
+                      setView(view === "details" ? "grid" : view === "grid" ? "list" : "details");
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <LayoutGrid className="size-4 text-primary" />
+                    <span className="font-medium">Switch View ({view})</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      refetch();
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/History.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Refresh</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      F5
+                    </kbd>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      handleBatchTrashOrRestore(true, items);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <RotateCcw className="size-4 text-primary" />
+                    <span className="font-medium">Restore All Items</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      setPermanentDeleteTargets([]);
+                      setIsEmptyTrashConfirm(true);
+                      setIsPermanentDeleteOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-destructive hover:bg-destructive/10 cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Empty Recycle Bin</span>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      handleToggleSelectAll(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
+                  >
+                    <CheckSquare className="size-4 text-muted-foreground" />
+                    <span className="font-medium">Select All</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      Ctrl+A
+                    </kbd>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    onClick={() => {
+                      setView(view === "details" ? "grid" : view === "grid" ? "list" : "details");
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <LayoutGrid className="size-4 text-primary" />
+                    <span className="font-medium">Switch View ({view})</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      refetch();
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/History.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Refresh</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      F5
+                    </kbd>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      setIsNewFolderOpen(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">New Folder</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      Ctrl+Shift+N
+                    </kbd>
+                  </div>
+                  <div
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <Upload className="size-4 text-primary" />
+                    <span className="font-medium">Upload Files</span>
+                  </div>
+                  <div
+                    onClick={() => {
+                      folderInputRef.current?.click();
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-popover-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  >
+                    <img src="/FILE-MANAGER/Folder%20Downloads.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+                    <span className="font-medium">Upload Folder</span>
+                  </div>
+                  <div className="h-px bg-border/60 my-1" />
+                  <div
+                    onClick={() => {
+                      handleToggleSelectAll(true);
+                      setContextMenu(null);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer transition-colors"
+                  >
+                    <CheckSquare className="size-4 text-muted-foreground" />
+                    <span className="font-medium">Select All</span>
+                    <kbd className="ml-auto text-[10px] font-mono text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/60">
+                      Ctrl+A
+                    </kbd>
+                  </div>
+                </>
+              )
+            )}
+          </div>
+        )}
+
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: CREATE NEW FOLDER                                              */}
+      {/* ----------------------------------------------------------------------- */}
       <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
           <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-            <DialogDescription>
-              Create a folder inside {currentFolder ? `"${currentFolder.name}"` : "the root directory"}.
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+              Create New Folder
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Folder will be created in {currentFolder ? `"${currentFolder.name}"` : "the root directory"}.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="folder-name">Folder Name</Label>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="folder-name" className="text-xs">Folder Name</Label>
               <Input
                 id="folder-name"
-                placeholder="e.g. Employee Documents, Q4 Invoices"
+                placeholder="e.g. Employee Documents, Payroll Reports"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                className="text-xs h-9"
                 autoFocus
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewFolderOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsNewFolderOpen(false)} className="text-xs">
               Cancel
             </Button>
-            <Button onClick={handleCreateFolder}>Create Folder</Button>
+            <Button size="sm" onClick={handleCreateFolder} className="text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+              Create Folder
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Rename */}
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: RENAME ITEM                                                    */}
+      {/* ----------------------------------------------------------------------- */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
           <DialogHeader>
-            <DialogTitle>Rename Item</DialogTitle>
-            <DialogDescription>Enter a new name for "{renameTarget?.fileName}".</DialogDescription>
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+              Rename Item
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Enter a new name for "{renameTarget?.fileName}".
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="rename-input">New Name</Label>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rename-input" className="text-xs">New Name</Label>
               <Input
                 id="rename-input"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleRename()}
+                className="text-xs h-9"
                 autoFocus
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsRenameOpen(false)} className="text-xs">
               Cancel
             </Button>
-            <Button onClick={handleRename}>Save Changes</Button>
+            <Button size="sm" onClick={handleRename} className="text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Move */}
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: MOVE ITEM(S)                                                   */}
+      {/* ----------------------------------------------------------------------- */}
       <Dialog open={isMoveOpen} onOpenChange={setIsMoveOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
           <DialogHeader>
-            <DialogTitle>Move Item</DialogTitle>
-            <DialogDescription>
-              Select destination folder for "{moveTarget?.fileName}".
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
+              <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+              Move {moveTargets.length} Item(s)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Select destination folder.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Destination</Label>
-              <Select
-                value={selectedDestinationFolder}
-                onValueChange={setSelectedDestinationFolder}
-              >
-                <SelectTrigger>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Destination Folder</Label>
+              <Select value={selectedDestinationFolder} onValueChange={setSelectedDestinationFolder}>
+                <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select folder" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="root">📁 Root / Top Level</SelectItem>
+                <SelectContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="text-xs font-sans">
+                  <SelectItem value="root">
+                    <span className="flex items-center gap-2">
+                      <img src="/FILE-MANAGER/Drives/Hardrive.ico" alt="" className="size-3.5 object-contain inline-block shrink-0" />
+                      <span>Root Directory</span>
+                    </span>
+                  </SelectItem>
                   {folderList
-                    .filter((f) => f.id !== moveTarget?.id)
+                    .filter((f) => !moveTargets.some((m) => m.id === f.id))
                     .map((f) => (
                       <SelectItem key={f.id} value={f.id}>
-                        📁 {f.fileName}
+                        <span className="flex items-center gap-2">
+                          <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-3.5 object-contain inline-block shrink-0" />
+                          <span>{f.fileName}</span>
+                        </span>
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -1397,174 +2986,135 @@ export function UnifiedFileManager({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMoveOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => setIsMoveOpen(false)} className="text-xs">
               Cancel
             </Button>
-            <Button onClick={handleMove}>Move Here</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG: Share */}
-      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Share File</DialogTitle>
-            <DialogDescription>
-              Grant access to "{shareTarget?.fileName}" for team members or external collaborators.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {/* Quick Share Link */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-accent/30 border border-border">
-              <div className="text-xs">
-                <div className="font-semibold text-foreground">Time-limited Share Link</div>
-                <div className="text-muted-foreground">7-day secure access token</div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => shareTarget && handleCopyShareLink(shareTarget)}
-                className="gap-1.5"
-              >
-                <Copy className="size-3.5" /> Copy Link
-              </Button>
-            </div>
-
-            {/* Grant Permission Form */}
-            <div className="space-y-3 pt-2">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Grant Access
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="share-email" className="text-xs">User Email / ID (optional)</Label>
-                  <Input
-                    id="share-email"
-                    placeholder="user@masterhrms.com"
-                    value={shareWithEmail}
-                    onChange={(e) => setShareWithEmail(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Role Scope</Label>
-                  <Select value={shareRole} onValueChange={setShareRole}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Entire Workspace</SelectItem>
-                      <SelectItem value="hr_admin">HR Administrators</SelectItem>
-                      <SelectItem value="manager">Managers</SelectItem>
-                      <SelectItem value="employee">Employees</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Access Level</Label>
-                  <Select value={shareAccessLevel} onValueChange={setShareAccessLevel}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="view">View Only</SelectItem>
-                      <SelectItem value="download">View & Download</SelectItem>
-                      <SelectItem value="edit">Full Edit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Expiry</Label>
-                  <Select value={shareExpiryDays} onValueChange={setShareExpiryDays}>
-                    <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7">7 Days</SelectItem>
-                      <SelectItem value="30">30 Days</SelectItem>
-                      <SelectItem value="90">90 Days</SelectItem>
-                      <SelectItem value="never">Never (Permanent)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <Button size="sm" onClick={handleAddShare} className="w-full mt-2">
-                Grant Permission
-              </Button>
-            </div>
-
-            {/* Active Shares List */}
-            {activeShares.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-border">
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Active Permissions ({activeShares.length})
-                </div>
-                <div className="max-h-36 overflow-y-auto space-y-2">
-                  {activeShares.map((s) => (
-                    <div
-                      key={s.id}
-                      className="flex items-center justify-between p-2 rounded-lg bg-card border border-border text-xs"
-                    >
-                      <div>
-                        <span className="font-medium text-foreground">
-                          {s.sharedWith || s.sharedRole || "Workspace Members"}
-                        </span>
-                        <span className="text-muted-foreground ml-2">({s.accessLevel})</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-destructive hover:text-destructive"
-                        onClick={() => handleRevokeShare(s.id)}
-                      >
-                        Revoke
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsShareOpen(false)}>
-              Done
+            <Button size="sm" onClick={handleMove} className="text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+              Move Here
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Preview Modal */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4">
-          <DialogHeader className="pb-2 border-b border-border">
-            <DialogTitle className="truncate text-base">{previewTarget?.fileName}</DialogTitle>
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: DELETE / TRASH CONFIRMATION                                    */}
+      {/* ----------------------------------------------------------------------- */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive text-sm font-semibold">
+              <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
+              Move to Recycle Bin
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-xs space-y-2 text-muted-foreground pt-1">
+                <div>
+                  Are you sure you want to move {deleteTargets.length} item(s) to the Recycle Bin?
+                </div>
+                {deleteTargets.some((t) => t.usageCount && t.usageCount > 0) && (
+                  <div className="p-2 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold flex items-center gap-1.5">
+                    <ShieldAlert className="size-4 shrink-0" />
+                    Warning: One or more selected files are linked to active system records (branding, chat, documents).
+                  </div>
+                )}
+              </div>
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 flex items-center justify-center p-4 overflow-auto min-h-[300px]">
-            {previewTarget?.category === "Images" && previewTarget.url ? (
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setIsDeleteOpen(false)} className="text-xs">
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={() => handleBatchTrashOrRestore(false)} className="text-xs">
+              Move to Recycle Bin
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: PERMANENT PURGE DELETE CONFIRMATION                            */}
+      {/* ----------------------------------------------------------------------- */}
+      <Dialog open={isPermanentDeleteOpen} onOpenChange={setIsPermanentDeleteOpen}>
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive text-sm font-semibold">
+              <ShieldAlert className="size-5 shrink-0 text-destructive" />
+              {isEmptyTrashConfirm ? "Empty Recycle Bin?" : "Permanently Delete Item(s)?"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="text-xs space-y-2.5 text-muted-foreground pt-1">
+                {isEmptyTrashConfirm ? (
+                  <div>
+                    Are you sure you want to permanently delete all <strong>{items.length}</strong> item(s) in the Recycle Bin?
+                  </div>
+                ) : (
+                  <div>
+                    Are you sure you want to permanently delete <strong>{permanentDeleteTargets.length}</strong> selected item(s)?
+                    <ul className="mt-2 max-h-32 overflow-y-auto space-y-1 rounded border border-border/60 bg-muted/30 p-2 font-mono text-[11px]">
+                      {permanentDeleteTargets.map((t) => (
+                        <li key={t.id} className="truncate flex items-center gap-1.5 text-foreground">
+                          <span className="text-destructive">•</span>
+                          <span className="truncate">{t.fileName}</span>
+                          <span className="text-muted-foreground text-[10px]">({t.formattedSize})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="p-2.5 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold flex items-start gap-2">
+                  <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                  <div>
+                    <strong>This action cannot be undone.</strong> The file(s) and their object storage data will be permanently purged from the workspace. Quota will be freed immediately.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setIsPermanentDeleteOpen(false)} className="text-xs">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handlePermanentDelete}
+              className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isEmptyTrashConfirm ? "Empty Recycle Bin" : "Delete Permanently"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: FULL PREVIEW MODAL                                             */}
+      {/* ----------------------------------------------------------------------- */}
+      <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
+        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4 font-sans">
+          <DialogHeader className="pb-2 border-b border-border">
+            <DialogTitle className="truncate text-sm font-semibold">{previewTarget?.fileName}</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 flex items-center justify-center p-4 overflow-auto min-h-[320px]">
+            {previewTarget?.category === "Images" && (previewSignedUrl || previewTarget.url) ? (
               <img
-                src={previewTarget.url}
+                src={previewSignedUrl || previewTarget.url}
                 alt={previewTarget.fileName}
                 className="max-h-[70vh] max-w-full rounded-lg object-contain"
               />
-            ) : previewTarget?.category === "Videos" && previewTarget.url ? (
+            ) : previewTarget?.mimeType?.includes("video") && (previewSignedUrl || previewTarget.url) ? (
               <video controls className="max-h-[70vh] max-w-full rounded-lg">
-                <source src={previewTarget.url} type={previewTarget.mimeType} />
+                <source src={previewSignedUrl || previewTarget.url} type={previewTarget.mimeType} />
                 Your browser does not support HTML5 video.
               </video>
-            ) : previewTarget?.category === "Audio" && previewTarget.url ? (
+            ) : previewTarget?.mimeType?.includes("audio") && (previewSignedUrl || previewTarget.url) ? (
               <div className="p-6 rounded-2xl bg-card border border-border flex flex-col items-center gap-4">
                 <Music className="size-12 text-primary" />
-                <audio controls src={previewTarget.url} className="w-72" />
+                <audio controls src={previewSignedUrl || previewTarget.url} className="w-72" />
               </div>
-            ) : previewTarget?.mimeType === "application/pdf" && previewTarget.url ? (
+            ) : previewTarget?.mimeType === "application/pdf" && (previewSignedUrl || previewTarget.url) ? (
               <iframe
-                src={previewTarget.url}
+                src={previewSignedUrl || previewTarget.url}
                 className="w-full h-[65vh] rounded-lg border border-border"
                 title={previewTarget.fileName}
               />
@@ -1574,7 +3124,7 @@ export function UnifiedFileManager({
                   <File className="size-8 text-muted-foreground" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-foreground">{previewTarget?.fileName}</h4>
+                  <h4 className="font-semibold text-sm text-foreground">{previewTarget?.fileName}</h4>
                   <p className="text-xs text-muted-foreground mt-1">
                     Direct browser preview is not available for this file type.
                   </p>
@@ -1586,16 +3136,17 @@ export function UnifiedFileManager({
             )}
           </div>
           <DialogFooter className="pt-2 border-t border-border flex items-center justify-between sm:justify-between">
-            <span className="text-xs text-muted-foreground">{previewTarget?.formattedSize}</span>
+            <span className="text-xs text-muted-foreground font-mono">{previewTarget?.formattedSize}</span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => previewTarget && handleDownload(previewTarget)}
+                className="text-xs h-8"
               >
-                <Download className="size-4 mr-2" /> Download
+                <Download className="size-3.5 mr-1.5" /> Download
               </Button>
-              <Button size="sm" onClick={() => setIsPreviewOpen(false)}>
+              <Button size="sm" onClick={() => setIsPreviewModalOpen(false)} className="text-xs h-8">
                 Close
               </Button>
             </div>
@@ -1603,37 +3154,15 @@ export function UnifiedFileManager({
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG: Delete / Move to Trash Confirmation */}
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="size-5" />
-              Move to Trash
-            </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to move "{deleteTarget?.fileName}" to Trash?
-              {deleteTarget?.usageCount && deleteTarget.usageCount > 0 ? (
-                <div className="mt-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs font-semibold">
-                  ⚠️ Warning: This file is currently linked to {deleteTarget.usageCount} active system record(s).
-                </div>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => deleteTarget && handleTrashOrRestore(deleteTarget, false)}
-            >
-              Move to Trash
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ----------------------------------------------------------------------- */}
+      {/* DIALOG: SHARE & COLLABORATION MODAL                                    */}
+      {/* ----------------------------------------------------------------------- */}
+      <ShareDialog
+        open={isShareOpen}
+        onOpenChange={setIsShareOpen}
+        fileItem={shareTarget}
+        onAclChanged={() => refetch()}
+      />
     </div>
   );
 }
-

@@ -8,13 +8,13 @@ export default function MediaRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/hr/media');
+    router.replace('/tenant/files');
   }, [router]);
 
   return (
     <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2">
       <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      <p className="text-xs text-muted-foreground">Redirecting...</p>
+      <p className="text-xs text-muted-foreground">Redirecting to File Manager...</p>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { UrlPreviewService } from "../services/url-preview.service";
 import { NotificationService } from "../services/notification.service";
 import { getUploadsRoot, MediaService } from "../services/media/media.service";
 import { recordSystemEvent } from "../services/chat-system-events.service";
+import { ChatFolderService } from "../services/files/chat-folder.service";
 
 export const chatRouter = Router();
 
@@ -1628,32 +1629,57 @@ chatRouter.post(
           });
         }
 
-        // Logical folder classification under /media:
-        // - Images -> Chat/Images/
-        // - Audio -> Chat/Audio/
-        // - PDFs and Documents -> Chat/Documents/
-        let targetFolder = "Chat/Documents";
-        const mime = (file.mimetype || "").toLowerCase();
-        if (
-          mime.startsWith("image/") ||
-          ["png", "jpg", "jpeg", "webp", "gif", "ico", "svg"].includes(ext)
-        ) {
-          targetFolder = "Chat/Images";
-        } else if (
-          mime.startsWith("audio/") ||
-          ["mp3", "wav", "ogg", "weba", "webm", "m4a", "aac"].includes(ext)
-        ) {
-          targetFolder = "Chat/Audio";
+        // Resolve canonical Organization Chat folder hierarchy
+        const threadId = req.body?.threadId || (req.query?.threadId as string);
+        const folderContext = await ChatFolderService.resolveChatFolderHierarchy(
+          tenantId,
+          threadId,
+          currentUserId
+        );
+
+        // Persist in central Media Library with tenant scope and canonical folder
+        const mediaRecord = await MediaService.uploadMedia(file.buffer, originalName, {
+          folder: folderContext.folderPath,
+          tenantId,
+          uploadedBy: currentUserId,
+          mimeType: file.mimetype,
+          tags: ["chat", "communication", ...folderContext.folderPath.toLowerCase().split("/")],
+        });
+
+        // Link node to Attachments folder in File Manager hierarchy
+        if (folderContext.folderId) {
+          await prisma.mediaFile.update({
+            where: { id: mediaRecord.id },
+            data: {
+              parentId: folderContext.folderId,
+              systemModule: "chat",
+            },
+          });
         }
 
-      // Persist in central Media Library with tenant scope
-      const mediaRecord = await MediaService.uploadMedia(file.buffer, originalName, {
-        folder: targetFolder,
-        tenantId,
-        uploadedBy: currentUserId,
-        mimeType: file.mimetype,
-        tags: ["chat", targetFolder.toLowerCase()],
-      });
+        // For Direct Conversations, grant ACL exclusively to chatting participants
+        if (folderContext.aclUsers && folderContext.aclUsers.length > 0) {
+          for (const uid of folderContext.aclUsers) {
+            const existingAcl = await prisma.fileAcl.findFirst({
+              where: {
+                fileId: mediaRecord.id,
+                principalType: "USER",
+                principalId: uid,
+              },
+            });
+            if (!existingAcl) {
+              await prisma.fileAcl.create({
+                data: {
+                  fileId: mediaRecord.id,
+                  principalType: "USER",
+                  principalId: uid,
+                  permission: "VIEWER",
+                  createdBy: currentUserId,
+                },
+              });
+            }
+          }
+        }
 
       savedFiles.push({
         id: mediaRecord.id,

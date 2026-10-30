@@ -70,7 +70,7 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
     ],
   },
   { to: '/super/case-studies', label: 'Case Studies', iconClass: 'ph-briefcase', group: 'Marketing & CMS' },
-  { to: '/super/media', label: 'Media Library', iconClass: 'ph-image', group: 'Marketing & CMS' },
+  { to: '/super/files', label: 'File Manager', iconClass: 'ph-folder-notch-open', group: 'Marketing & CMS' },
 
   // ── Communications & Support Tickets
   { to: '/super/tenant-support-tickets', label: 'Tenant Support Tickets', iconClass: 'ph-ticket', group: 'Communications' },
@@ -87,6 +87,7 @@ const ALL_SUPER_SEARCH_ITEMS: SuperNavItem[] = [
   { to: '/super/settings', label: 'Platform Settings', iconClass: 'ph-gear', group: 'System Controls' },
   { to: '/super/analytics', label: 'Platform Analytics', iconClass: 'ph-chart-line-up', group: 'System Controls' },
   { to: '/super/languages', label: 'Localization (i18n)', iconClass: 'ph-globe', group: 'System Controls' },
+  { to: '/super/files/storage', label: 'Storage Administration', iconClass: 'ph-hard-drive', group: 'System Controls' },
   { to: '/super/backup', label: 'Database Backups', iconClass: 'ph-database', group: 'System Controls' },
   { to: '/super/api-docs', label: 'API Reference', iconClass: 'ph-code', group: 'System Controls' },
   { to: '/super/developer', label: 'Developer & Web APIs', iconClass: 'ph-terminal-window', group: 'System Controls' },

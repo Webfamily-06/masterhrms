@@ -214,7 +214,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
       qc.invalidateQueries({ queryKey: ['current-session-user'] });
       toast.success(`Successfully signed in${searchProvider ? ` with ${searchProvider.toUpperCase()}` : ''}!`);
       const { roles, isImpersonating } = extractRolesFromToken(searchToken);
-      router.push(resolveDefaultRoute(roles, redirect, { isImpersonating }));
+      const targetRoute = resolveDefaultRoute(roles, redirect, { isImpersonating });
+      window.location.href = targetRoute;
       return;
     }
 
@@ -225,7 +226,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     const token = typeof window !== 'undefined' ? (localStorage.getItem('hrms_auth_token') || localStorage.getItem('auth_token')) : null;
     if (token && mode === 'signin') {
       const { roles, isImpersonating } = extractRolesFromToken(token);
-      router.push(resolveDefaultRoute(roles, redirect, { isImpersonating }));
+      const targetRoute = resolveDefaultRoute(roles, redirect, { isImpersonating });
+      window.location.href = targetRoute;
     }
   }, [searchToken, searchError, searchProvider, router, redirect, qc, mode, isResetFlow]);
 
@@ -292,7 +294,9 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
           const isImpersonating = res.isImpersonating || extractRolesFromToken(res.token).isImpersonating;
 
           // If logging in on root domain, redirect to tenant workspace (ONLY for non-super-admins)
-          if (!isSuperAdmin && res.workspaceUrl && typeof window !== 'undefined') {
+          // On localhost/127.0.0.1 without custom domain, skip subdomain redirection to avoid NXDOMAIN DNS errors on Windows
+          const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+          if (!isLocalhost && !isSuperAdmin && res.workspaceUrl && typeof window !== 'undefined') {
             try {
               const currentOrigin = window.location.origin.toLowerCase();
               const targetOrigin = new URL(res.workspaceUrl).origin.toLowerCase();
@@ -303,7 +307,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
             } catch {}
           }
 
-          router.push(resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating }));
+          const targetRoute = resolveDefaultRoute(verifiedRoles, redirect, { isImpersonating });
+          window.location.href = targetRoute;
         }
       }
     } catch (err: any) {

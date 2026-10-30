@@ -6,6 +6,14 @@ import crypto from "crypto";
 dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
 dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
 
+// Global BigInt JSON serialization support for Express API boundaries
+if (!(BigInt.prototype as any).toJSON) {
+  (BigInt.prototype as any).toJSON = function () {
+    const intVal = Number(this);
+    return Number.isSafeInteger(intVal) ? intVal : this.toString();
+  };
+}
+
 // Global process error logging (ensures crashes appear in Vercel runtime logs without secret leakage)
 process.on("unhandledRejection", (reason: any) => {
   console.error("Unhandled Rejection:", reason?.message || reason, reason?.stack || "");
@@ -47,6 +55,8 @@ import { statutoryReturnsRouter } from "./routes/statutory-returns.routes";
 import { invoicesRouter } from "./routes/invoices.routes";
 import { crmRouter } from "./routes/crm.routes";
 import { superRouter } from "./routes/super.routes";
+import { superStorageRouter } from "./routes/super-storage.routes";
+import { tenantStorageRouter } from "./routes/tenant-storage.routes";
 import { addonsRouter } from "./routes/addons.routes";
 import { emailRouter } from "./routes/email.routes";
 import { userEmailAccountsRouter } from "./routes/user-email-accounts.routes";
@@ -110,6 +120,7 @@ import { timesheetsRouter } from "./routes/timesheets.routes";
 import { settingsRouter } from "./routes/settings.routes";
 import { mediaRouter } from "./routes/media.routes";
 import { filesRouter } from "./routes/files.routes";
+import { publicFilesRouter } from "./routes/public-files.routes";
 import { appConfigRouter } from "./routes/app-config.routes";
 import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes";
 import { companyProfileRouter } from "./routes/company-profile.routes";
@@ -395,6 +406,12 @@ app.use("/api/v1/media", mediaRouter);
 app.use("/api/media", mediaRouter);
 app.use("/api/v1/files", filesRouter);
 app.use("/api/files", filesRouter);
+app.use("/api/v1/super/storage", superStorageRouter);
+app.use("/api/super/storage", superStorageRouter);
+app.use("/api/v1/tenant/storage", tenantStorageRouter);
+app.use("/api/tenant/storage", tenantStorageRouter);
+app.use("/api/v1/public/files", publicFilesRouter);
+app.use("/api/public/files", publicFilesRouter);
 app.use("/api/v1/public", appConfigRouter);
 app.use("/api/public", appConfigRouter);
 app.use("/api", appConfigRouter);
@@ -411,7 +428,7 @@ app.use("/api/company-profile", companyProfileRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/commerce", commerceRouter);
 app.post("/api/webhooks/razorpay", handleRazorpayWebhook);
-app.use("/api/auth", authRateLimiter, authRouter);
+app.use(["/api/auth", "/api/v1/auth"], authRateLimiter, authRouter);
 app.use("/api/workspace/custom-domain", tenantDomainRouter);
 app.use("/api/workspace", workspaceRoutingRouter);
 app.use("/api", workspaceRoutingRouter);

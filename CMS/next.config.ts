@@ -51,6 +51,36 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
+        source: '/super/media',
+        destination: '/super/files',
+        permanent: false,
+      },
+      {
+        source: '/hr/media',
+        destination: '/hr/files',
+        permanent: false,
+      },
+      {
+        source: '/me/media',
+        destination: '/me/files',
+        permanent: false,
+      },
+      {
+        source: '/media',
+        destination: '/tenant/files',
+        permanent: false,
+      },
+      {
+        source: '/apps/file-manager/list-view',
+        destination: '/hr/files?view=list',
+        permanent: false,
+      },
+      {
+        source: '/apps/file-manager/grid-view',
+        destination: '/hr/files?view=grid',
+        permanent: false,
+      },
+      {
         source: '/testimonial',
         destination: '/#testimonials',
         permanent: false,

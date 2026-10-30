@@ -204,7 +204,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       { label: "My Contracts", path: "/me/documents/contracts", icon: "ph-signature" },
       { label: "Document Acknowledgements", path: "/me/documents/acknowledgements", icon: "ph-seal-check" },
       { label: "Document Requests", path: "/me/documents/requests", icon: "ph-file-arrow-up" },
-      { label: "Shared Files & My Files", path: "/me/media", icon: "ph-hard-drives" },
+      { label: "File Manager", path: "/me/files", icon: "ph-folder-notch-open" },
     ],
   },
 ];

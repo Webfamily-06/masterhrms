@@ -30,7 +30,11 @@ export class LocalStorageProvider implements IStorageProvider {
 
   private resolvePhysicalPath(storageKey: string): string {
     const safeKey = storageKey.replace(/^[/\\]+/, "");
-    return path.resolve(this.baseDir, safeKey);
+    const inFiles = path.resolve(this.baseDir, safeKey);
+    if (fs.existsSync(inFiles)) return inFiles;
+    const inRoot = path.resolve(getUploadsRoot(), safeKey);
+    if (fs.existsSync(inRoot)) return inRoot;
+    return inFiles;
   }
 
   /**

@@ -5,6 +5,8 @@ import fs from "fs";
 import express from "express";
 import { requireAuth } from "../middleware/auth";
 import { FilesService } from "../services/files/files.service";
+import { FileAclService } from "../services/files/file-acl.service";
+import { FileTeamService } from "../services/files/file-team.service";
 import { UploadSessionService } from "../services/files/upload-session.service";
 import { QuotaService } from "../services/files/quota.service";
 import { StorageProviderFactory } from "../services/storage/storage-provider.factory";
@@ -84,7 +86,7 @@ filesRouter.get("/usage/tenant", requireAuth, async (req: any, res: Response) =>
     }
 
     const quotaBytes = await QuotaService.getTenantQuotaBytes(tenantId);
-    const usage = await QuotaService.getOrCreateUsage(prisma, tenantId, "tenant_pool");
+    const usage = await QuotaService.getOrCreateUsage(prisma, tenantId, null);
 
     const used = Number(usage.usedBytes);
     const trash = Number(usage.trashBytes);
@@ -276,7 +278,7 @@ filesRouter.get("/nodes/:id", requireAuth, async (req: any, res: Response) => {
  * GET /api/v1/files/nodes/:id/download
  * Generates an authorized signed download URL via StorageProvider.
  */
-filesRouter.get("/nodes/:id/download", requireAuth, async (req: any, res: Response) => {
+filesRouter.get(["/nodes/:id/download", "/:id/signed-url", "/:id/download"], requireAuth, async (req: any, res: Response) => {
   try {
     const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
     const { id } = req.params;
@@ -303,7 +305,7 @@ filesRouter.get("/nodes/:id/download", requireAuth, async (req: any, res: Respon
  * GET /api/v1/files/nodes/:id/preview
  * Generates an authorized signed preview URL via StorageProvider.
  */
-filesRouter.get("/nodes/:id/preview", requireAuth, async (req: any, res: Response) => {
+filesRouter.get(["/nodes/:id/preview", "/:id/preview"], requireAuth, async (req: any, res: Response) => {
   try {
     const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
     const { id } = req.params;
@@ -794,6 +796,53 @@ filesRouter.post("/restore", requireAuth, async (req: any, res: Response) => {
 });
 
 // ============================================================================
+/**
+ * POST /api/v1/files/purge
+ * Permanently purges specified items by ID or empties the entire trash.
+ */
+filesRouter.post("/purge", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId } = getAuthContext(req);
+    const ids: string[] = req.body.ids || (req.body.id ? [req.body.id] : []);
+    const emptyTrash = Boolean(req.body.emptyTrash);
+
+    let targetIds = ids;
+    if (emptyTrash) {
+      const trashed = await prisma.mediaFile.findMany({
+        where: {
+          tenantId: isSuper ? undefined : tenantId,
+          OR: [{ deletedAt: { not: null } }, { status: "TRASHED" }],
+        },
+        select: { id: true },
+      });
+      targetIds = trashed.map((t) => t.id);
+    }
+
+    if (!targetIds || targetIds.length === 0) {
+      return res.json({ success: true, count: 0, message: "No items to permanently delete." });
+    }
+
+    let purgedCount = 0;
+    for (const id of targetIds) {
+      try {
+        await FilesService.deleteItemPermanently({ id, tenantId, userId, isSuper });
+        purgedCount++;
+      } catch (e: any) {
+        console.warn(`[Purge] Failed to permanently delete item ${id}:`, e?.message || e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      count: purgedCount,
+      message: `Permanently deleted ${purgedCount} item(s).`,
+    });
+  } catch (err: any) {
+    console.error("[Files Bulk Purge Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to permanently delete items." });
+  }
+});
+
 // 6. STREAMING & LOCAL SIGNED ACCESS
 // ============================================================================
 
@@ -828,7 +877,20 @@ filesRouter.get("/stream", async (req: Request, res: Response) => {
 
       const stat = fs.statSync(filePath);
       const filename = encodeURIComponent(downloadName || path.basename(key));
-
+      const ext = path.extname(downloadName || key).toLowerCase();
+      const mimeMap: Record<string, string> = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".txt": "text/plain",
+        ".csv": "text/csv",
+      };
+      res.setHeader("Content-Type", mimeMap[ext] || "application/octet-stream");
       res.setHeader("Content-Length", stat.size);
       res.setHeader(
         "Content-Disposition",
@@ -1017,5 +1079,361 @@ filesRouter.get("/:id", requireAuth, async (req: any, res: Response) => {
   } catch (err: any) {
     console.error("[Files Get Item Legacy Error]:", err);
     return res.status(err.status || 500).json({ error: err.message || "Failed to retrieve item details." });
+  }
+});
+
+
+// ============================================================================
+// 9. PHASE F3: COLLABORATION, ACLs, TEAMS & PUBLIC LINKS
+// ============================================================================
+
+/**
+ * GET /api/v1/files/principals/search
+ * Search tenant users, teams, and departments for the Share dialog.
+ */
+filesRouter.get("/principals/search", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const q = String(req.query.q || "").trim().toLowerCase();
+
+    const [users, teams, departments] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          profile: { tenantId },
+          OR: q
+            ? [
+                { email: { contains: q, mode: "insensitive" } },
+                { profile: { fullName: { contains: q, mode: "insensitive" } } },
+              ]
+            : undefined,
+        },
+        select: {
+          id: true,
+          email: true,
+          profile: { select: { fullName: true, avatarUrl: true } },
+        },
+        take: 20,
+      }),
+      prisma.fileTeam.findMany({
+        where: {
+          tenantId: tenantId || undefined,
+          name: q ? { contains: q, mode: "insensitive" } : undefined,
+        },
+        select: { id: true, name: true, description: true },
+        take: 20,
+      }),
+      prisma.department.findMany({
+        where: {
+          tenantId: tenantId || undefined,
+          name: q ? { contains: q, mode: "insensitive" } : undefined,
+        },
+        select: { id: true, name: true },
+        take: 20,
+      }),
+    ]);
+
+    const roles = [
+      { id: "tenant_admin", name: "Tenant Administrator", type: "ROLE" },
+      { id: "hr_admin", name: "HR Administrator", type: "ROLE" },
+      { id: "department_head", name: "Department Head", type: "ROLE" },
+      { id: "manager", name: "Manager", type: "ROLE" },
+      { id: "employee", name: "Employee", type: "ROLE" },
+    ].filter((r) => !q || r.name.toLowerCase().includes(q) || r.id.includes(q));
+
+    return res.json({
+      users: users.map((u) => ({
+        id: u.id,
+        name: u.profile?.fullName || u.email,
+        email: u.email,
+        avatarUrl: u.profile?.avatarUrl,
+        type: "USER",
+      })),
+      teams: teams.map((t) => ({ id: t.id, name: t.name, description: t.description, type: "TEAM" })),
+      departments: departments.map((d) => ({ id: d.id, name: d.name, type: "DEPARTMENT" })),
+      roles,
+    });
+  } catch (err: any) {
+    console.error("[Principals Search Error]:", err);
+    return res.status(500).json({ error: "Failed to search principals." });
+  }
+});
+
+/**
+ * GET /api/v1/files/:id/acls
+ * List all direct and inherited ACL grants for a file or folder.
+ */
+filesRouter.get("/:id/acls", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const { id } = req.params;
+
+    const acls = await FileAclService.listAcls({
+      fileId: id,
+      tenantId: tenantId!,
+      userId,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    return res.json(acls);
+  } catch (err: any) {
+    console.error("[Files List Acls Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list access list." });
+  }
+});
+
+/**
+ * POST /api/v1/files/:id/acls
+ * Grant or update an ACL grant on a file or folder.
+ */
+filesRouter.post("/:id/acls", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const { id } = req.params;
+    const { principalType, principalId, permission, inherit, expiresAt, message } = req.body;
+
+    if (!principalType || !principalId || !permission) {
+      return res.status(400).json({ error: "principalType, principalId, and permission are required." });
+    }
+
+    const acl = await FileAclService.grantAcl({
+      fileId: id,
+      tenantId: tenantId!,
+      actorId: userId,
+      principalType,
+      principalId,
+      permission,
+      inherit: inherit !== undefined ? Boolean(inherit) : true,
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      message,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    return res.status(201).json(acl);
+  } catch (err: any) {
+    console.error("[Files Grant Acl Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to grant access." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/:id/acls/:aclId
+ * Revoke an ACL grant.
+ */
+filesRouter.delete("/:id/acls/:aclId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const { id, aclId } = req.params;
+
+    const result = await FileAclService.revokeAcl({
+      fileId: id,
+      aclId,
+      tenantId: tenantId!,
+      actorId: userId,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[Files Revoke Acl Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to revoke access." });
+  }
+});
+
+/**
+ * POST /api/v1/files/:id/public-link
+ * Create or replace public link for a file.
+ */
+filesRouter.post("/:id/public-link", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const { id } = req.params;
+    const { password, expiresAt, allowDownload } = req.body;
+
+    const link = await FileAclService.createPublicLink({
+      fileId: id,
+      tenantId: tenantId!,
+      actorId: userId,
+      password,
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      allowDownload,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    return res.status(201).json(link);
+  } catch (err: any) {
+    console.error("[Files Create Public Link Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to create public link." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/:id/public-link
+ * Revoke the active public link.
+ */
+filesRouter.delete("/:id/public-link", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const { id } = req.params;
+
+    const result = await FileAclService.revokePublicLink({
+      fileId: id,
+      tenantId: tenantId!,
+      actorId: userId,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[Files Revoke Public Link Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to revoke public link." });
+  }
+});
+
+/**
+ * GET /api/v1/files/teams
+ * List all collaborative teams for the tenant.
+ */
+filesRouter.get("/teams", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const isAdmin = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
+
+    const teams = await FileTeamService.listTeams({
+      tenantId: tenantId!,
+      userId,
+      isSuper,
+      isAdmin,
+    });
+    return res.json(teams);
+  } catch (err: any) {
+    console.error("[Files List Teams Error]:", err);
+    return res.status(500).json({ error: "Failed to list teams." });
+  }
+});
+
+/**
+ * POST /api/v1/files/teams
+ * Create a new collaborative team and its root folder.
+ */
+filesRouter.post("/teams", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { name, description } = req.body;
+
+    const team = await FileTeamService.createTeam({
+      tenantId: tenantId!,
+      name,
+      description,
+      createdBy: userId,
+    });
+    return res.status(201).json(team);
+  } catch (err: any) {
+    console.error("[Files Create Team Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to create team." });
+  }
+});
+
+/**
+ * GET /api/v1/files/teams/:teamId
+ * Get team details and members.
+ */
+filesRouter.get("/teams/:teamId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const { teamId } = req.params;
+    const isAdmin = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
+
+    const team = await FileTeamService.getTeam({
+      teamId,
+      tenantId: tenantId!,
+      userId,
+      isSuper,
+      isAdmin,
+    });
+    return res.json(team);
+  } catch (err: any) {
+    console.error("[Files Get Team Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to get team." });
+  }
+});
+
+/**
+ * POST /api/v1/files/teams/:teamId/members
+ * Add or update member in team.
+ */
+filesRouter.post("/teams/:teamId/members", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const { teamId } = req.params;
+    const { userId: targetUserId, role } = req.body;
+    const isAdmin = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
+
+    const member = await FileTeamService.addMember({
+      teamId,
+      tenantId: tenantId!,
+      actorId: userId,
+      userId: targetUserId,
+      role: role || "VIEWER",
+      isSuper,
+      isAdmin,
+    });
+    return res.status(201).json(member);
+  } catch (err: any) {
+    console.error("[Files Add Team Member Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to add team member." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/teams/:teamId/members/:userId
+ * Remove member from team.
+ */
+filesRouter.delete("/teams/:teamId/members/:targetUserId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const { teamId, targetUserId } = req.params;
+    const isAdmin = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
+
+    const result = await FileTeamService.removeMember({
+      teamId,
+      tenantId: tenantId!,
+      actorId: userId,
+      userId: targetUserId,
+      isSuper,
+      isAdmin,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[Files Remove Team Member Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to remove team member." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/teams/:teamId
+ * Delete a team safely without deleting files.
+ */
+filesRouter.delete("/teams/:teamId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const { teamId } = req.params;
+    const isAdmin = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
+
+    const result = await FileTeamService.deleteTeam({
+      teamId,
+      tenantId: tenantId!,
+      actorId: userId,
+      isSuper,
+      isAdmin,
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[Files Delete Team Error]:", err);
+    return res.status(err.status || 400).json({ error: err.message || "Failed to delete team." });
   }
 });

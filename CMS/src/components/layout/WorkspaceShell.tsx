@@ -226,6 +226,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "Tenant Custom Domains", url: "/tenant/domain", group: "Platform", icon: Globe },
   { title: "Tenant Integrations Hub", url: "/tenant/integrations", group: "Platform", icon: Sparkles },
   { title: "Tenant Data & Backups", url: "/tenant/data", group: "Platform", icon: Database },
+  { title: "Storage Administration", url: "/tenant/files/storage", group: "Platform", icon: HardDrive },
   { title: "Tenant Security Audit Logs", url: "/tenant/audit-logs", group: "Platform", icon: History },
   { title: "Tenant Priority Support", url: "/tenant/support", group: "Platform", icon: HelpCircle },
   { title: "Ban IP Address", url: "/ban-ip-address", group: "Platform", icon: ShieldAlert },

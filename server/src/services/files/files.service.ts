@@ -1,3 +1,4 @@
+import { FileAclService } from "./file-acl.service";
 import path from "path";
 import crypto from "crypto";
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
@@ -6,6 +7,7 @@ import { getUploadsRoot, MediaService } from "../media/media.service";
 import { broadcastToTenant } from "../../socket";
 import { FileInvariantsService } from "./file-invariants.service";
 import { QuotaService } from "./quota.service";
+import { QuotaGovernanceService } from "./quota-governance.service";
 import { StorageProviderFactory } from "../storage/storage-provider.factory";
 import { OutboxService } from "../outbox.service";
 
@@ -50,6 +52,9 @@ export class FilesService {
       where.tenantId = options.tenantId;
     } else if (options.tenantId) {
       where.tenantId = options.tenantId;
+    } else {
+      // Super Admin viewing platform media repository (Strict Isolation: tenantId = NULL)
+      where.tenantId = null;
     }
 
     const view = options.view || "my";
@@ -67,7 +72,20 @@ export class FilesService {
           { uploadedBy: options.userId },
           { isFolder: true, parentId: options.parentId || null },
         ];
-      } else if (view === "shared-with-me") {
+      } else if (view === "shared-with-me" || options.category === "Shared") {
+        const [teamMembers, employee] = await Promise.all([
+          prisma.fileTeamMember.findMany({
+            where: { userId: options.userId },
+            select: { teamId: true },
+          }),
+          prisma.employee.findFirst({
+            where: { userId: options.userId, tenantId: options.tenantId || undefined },
+            select: { departmentId: true },
+          }),
+        ]);
+        const teamIds = teamMembers.map((m: any) => m.teamId);
+        const deptId = employee?.departmentId;
+
         where.OR = [
           {
             shares: {
@@ -80,11 +98,37 @@ export class FilesService {
           {
             acls: {
               some: {
-                principalType: "USER",
-                principalId: options.userId,
+                AND: [
+                  {
+                    OR: [
+                      { principalType: "USER", principalId: options.userId },
+                      ...(teamIds.length > 0 ? [{ principalType: "TEAM", principalId: { in: teamIds } }] : []),
+                      ...(deptId ? [{ principalType: "DEPARTMENT", principalId: deptId }] : []),
+                      ...(options.userRoles?.length ? [{ principalType: "ROLE", principalId: { in: options.userRoles } }] : []),
+                    ],
+                  },
+                  {
+                    OR: [
+                      { expiresAt: null },
+                      { expiresAt: { gt: new Date() } },
+                    ],
+                  },
+                ],
               },
             },
           },
+        ];
+      } else if (options.category === "Team" || options.category === "Teams") {
+        const teamMembers = await prisma.fileTeamMember.findMany({
+          where: { userId: options.userId },
+          select: { teamId: true },
+        });
+        const teamIds = teamMembers.map((m: any) => m.teamId);
+
+        where.OR = [
+          { category: "Team" },
+          { ownerType: "TEAM" },
+          ...(teamIds.length > 0 ? [{ ownerId: { in: teamIds } }] : []),
         ];
       } else if (view === "org") {
         // Tenant Admin or explicit files.admin.view_all permission required
@@ -102,6 +146,17 @@ export class FilesService {
           err.status = 403;
           throw err;
         }
+
+        // Privacy by Default: Exclude private direct-message attachments from general organization browsing
+        where.NOT = [
+          {
+            AND: [
+              { folder: { contains: "Direct Conversations", mode: "insensitive" } },
+              { ownerId: { not: options.userId } },
+              { uploadedBy: { not: options.userId } }
+            ]
+          }
+        ];
 
         // Audited access
         if (options.tenantId) {
@@ -121,8 +176,13 @@ export class FilesService {
       }
     }
 
-    // 3. Parent Folder browsing
-    if (options.parentId !== undefined && !options.trashed && view !== "trash" && !options.search) {
+    // 3. Parent Folder browsing & Folder/Chat filtering
+    if (options.category === "Chat") {
+      where.folder = { contains: "Organization Chat", mode: "insensitive" };
+      where.isFolder = false;
+    } else if (options.folder) {
+      where.folder = { contains: options.folder, mode: "insensitive" };
+    } else if (options.parentId !== undefined && !options.trashed && view !== "trash" && view !== "shared-with-me" && options.category !== "Shared" && !options.search) {
       where.parentId = options.parentId;
     }
 
@@ -136,7 +196,7 @@ export class FilesService {
     }
 
     // 5. Category filter
-    if (options.category && options.category !== "All") {
+    if (options.category && options.category !== "All" && options.category !== "Shared" && options.category !== "Teams" && options.category !== "Team" && options.category !== "Chat") {
       where.category = options.category;
     }
 
@@ -241,6 +301,7 @@ export class FilesService {
         usageCount: item._count.usages + item._count.fileLinks,
         usages: item.usages,
         links: item.fileLinks,
+        userPermission: item.ownerId === options.userId || !item.tenantId ? "OWNER" : (options.isSuper ? "OWNER" : "VIEWER"),
         trashedAt: item.trashedAt || item.deletedAt,
         deletedAt: item.deletedAt,
         createdAt: item.createdAt,
@@ -330,13 +391,17 @@ export class FilesService {
     };
 
     for (const f of allFiles) {
-      totalSizeBytes += f.fileSize || 0;
+      const size = Number(f.fileSize || 0);
+      totalSizeBytes += size;
       const cat = f.category && categorySizes[f.category] !== undefined ? f.category : "Documents";
-      categorySizes[cat] = (categorySizes[cat] || 0) + (f.fileSize || 0);
+      categorySizes[cat] = (categorySizes[cat] || 0) + size;
     }
 
     const quotaBytes = Number(await QuotaService.getTenantQuotaBytes(tenantId));
-    const percentUsed = Math.min(100, Math.round((totalSizeBytes / quotaBytes) * 100));
+    const percentUsed = quotaBytes > 0
+      ? Math.min(100, parseFloat(((totalSizeBytes / quotaBytes) * 100).toFixed(1)))
+      : 0;
+    const lifecycleState = QuotaGovernanceService.resolveThresholdLevel(percentUsed);
 
     return {
       totalFiles,
@@ -346,6 +411,8 @@ export class FilesService {
       quotaBytes,
       formattedQuota: FilesService.formatBytes(quotaBytes),
       percentUsed,
+      lifecycleState,
+      thresholdState: lifecycleState,
       categoryBreakdown: categorySizes,
     };
   }
@@ -1334,23 +1401,17 @@ export class FilesService {
       throw err;
     }
 
-    // Ownership & Share check
-    const isOwner =
-      item.ownerId === userId || item.uploadedBy === userId || !item.tenantId;
-    const isTenantAdmin =
-      userRoles.includes("tenant_admin") || userRoles.includes("admin") || isSuper;
-    const hasOrgPermission =
-      isTenantAdmin || userPermissions.includes("files.admin.view_all");
-    const isSharedUser =
-      item.shares.some((s) => s.sharedWith === userId) ||
-      item.acls.some((a: any) => a.principalType === "USER" && a.principalId === userId);
-
-    if (!isOwner && !hasOrgPermission && !isSharedUser) {
-      // Privacy by default: Return 404 to avoid leaking existence of private files
-      const err: any = new Error("Item not found.");
-      err.status = 404;
-      throw err;
-    }
+    // Server-enforced ACL & Permission check with upward inheritance
+    const { permission } = await FileAclService.resolvePermission({
+      fileId: id,
+      tenantId,
+      userId,
+      isSuper,
+      userRoles,
+      userPermissions,
+    });
+    const isOwner = permission === "OWNER";
+    const hasOrgPermission = isSuper || userRoles.includes("tenant_admin") || userRoles.includes("admin");
 
     // Audit log if Tenant Admin views non-owned file
     if (!isOwner && hasOrgPermission && tenantId) {
@@ -1368,6 +1429,7 @@ export class FilesService {
     const isFolder = item.isFolder || item.type === "FOLDER";
     return {
       id: item.id,
+      userPermission: permission,
       tenantId: item.tenantId,
       name: item.fileName,
       fileName: item.fileName,

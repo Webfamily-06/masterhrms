@@ -1,7 +1,20 @@
-"use client";
+'use client';
 
-import { UnifiedFileManager } from "@/components/apps/file-manager/unified-file-manager";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function FileManagerListPage() {
-  return <UnifiedFileManager initialView="list" baseRoute="/apps/file-manager/list-view" />;
+export default function FileManagerListRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/hr/files');
+  }, [router]);
+
+  return (
+    <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <p className="text-xs text-muted-foreground">Redirecting to File Manager...</p>
+    </div>
+  );
 }

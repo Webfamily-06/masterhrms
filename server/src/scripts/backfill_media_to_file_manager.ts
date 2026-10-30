@@ -139,26 +139,33 @@ export async function runBackfill() {
     const trashBytes = trashedFiles.reduce((acc, f) => acc + BigInt(f.fileSize || 0), BigInt(0));
 
     // Upsert tenant storage usage
-    await prisma.storageUsage.upsert({
+    const existingUsage = await prisma.storageUsage.findFirst({
       where: {
-        tenantId_userId: {
-          tenantId,
-          userId: "tenant_pool",
-        },
-      },
-      create: {
         tenantId,
-        userId: "tenant_pool",
-        usedBytes,
-        trashBytes,
-        fileCount,
-      },
-      update: {
-        usedBytes,
-        trashBytes,
-        fileCount,
+        userId: null,
       },
     });
+
+    if (existingUsage) {
+      await prisma.storageUsage.update({
+        where: { id: existingUsage.id },
+        data: {
+          usedBytes,
+          trashBytes,
+          fileCount,
+        },
+      });
+    } else {
+      await prisma.storageUsage.create({
+        data: {
+          tenantId,
+          userId: null,
+          usedBytes,
+          trashBytes,
+          fileCount,
+        },
+      });
+    }
 
     // Resolve tenant plan quota
     const subscription = await prisma.tenantSubscription.findUnique({
@@ -175,24 +182,31 @@ export async function runBackfill() {
 
     const quotaBytes = BigInt(quotaGb) * BigInt(1024 * 1024 * 1024);
 
-    await prisma.storageQuota.upsert({
+    const existingQuota = await prisma.storageQuota.findFirst({
       where: {
-        tenantId_userId: {
-          tenantId,
-          userId: "tenant_pool",
-        },
-      },
-      create: {
         tenantId,
-        userId: "tenant_pool",
-        quotaBytes,
-        source: subscription?.planId ? "PLAN" : "DEFAULT",
-      },
-      update: {
-        quotaBytes,
-        source: subscription?.planId ? "PLAN" : "DEFAULT",
+        userId: null,
       },
     });
+
+    if (existingQuota) {
+      await prisma.storageQuota.update({
+        where: { id: existingQuota.id },
+        data: {
+          quotaBytes,
+          source: subscription?.planId ? "PLAN" : "DEFAULT",
+        },
+      });
+    } else {
+      await prisma.storageQuota.create({
+        data: {
+          tenantId,
+          userId: null,
+          quotaBytes,
+          source: subscription?.planId ? "PLAN" : "DEFAULT",
+        },
+      });
+    }
   }
 
   console.log(`[BACKFILL] Processed storage usages and quotas for ${tenants.length} tenants.`);

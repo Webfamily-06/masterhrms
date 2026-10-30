@@ -5088,6 +5088,37 @@ model StorageUsage {
   @@map("storage_usages")
 }
 
+model StorageSnapshot {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  tenantId      String?  @map("tenant_id") @db.VarChar(36)
+  usedBytes     BigInt   @map("used_bytes")
+  trashBytes    BigInt   @map("trash_bytes")
+  versionBytes  BigInt   @default(0) @map("version_bytes")
+  reservedBytes BigInt   @default(0) @map("reserved_bytes")
+  fileCount     Int      @default(0) @map("file_count")
+  folderCount   Int      @default(0) @map("folder_count")
+  quotaBytes    BigInt   @map("quota_bytes")
+  snapshotDate  DateTime @map("snapshot_date") @db.Date
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, snapshotDate])
+  @@index([snapshotDate])
+  @@map("storage_snapshots")
+}
+
+model StorageAlertState {
+  id                String    @id @default(uuid()) @db.VarChar(36)
+  tenantId          String    @map("tenant_id") @db.VarChar(36)
+  currentLevel      String    @default("NORMAL") @map("current_level") @db.VarChar(20)
+  lastNotifiedLevel String    @default("NORMAL") @map("last_notified_level") @db.VarChar(20)
+  lastNotifiedAt    DateTime? @map("last_notified_at")
+  resolvedAt        DateTime? @map("resolved_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([tenantId])
+  @@map("storage_alert_states")
+}
+
 model FileRecent {
   id         String    @id @default(uuid()) @db.VarChar(36)
   userId     String    @map("user_id") @db.VarChar(36)
