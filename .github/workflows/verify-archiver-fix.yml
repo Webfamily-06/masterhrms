@@ -9,6 +9,14 @@ on:
       - "package-lock.json"
       - ".github/workflows/verify-archiver-fix.yml"
       - "server/src/services/files/streaming-archival.service.ts"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "server/package.json"
+      - "package-lock.json"
+      - ".github/workflows/verify-archiver-fix.yml"
+      - "server/src/services/files/streaming-archival.service.ts"
   workflow_dispatch:
 
 permissions:
