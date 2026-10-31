@@ -37,30 +37,20 @@ try {
 catch (err) {
     console.warn(`[STORAGE WARNING]: Could not initialize base storage directory at ${exports.STORAGE_ROOT_DIR}: ${err?.message}`);
 }
+const crypto_config_1 = require("../../lib/crypto-config");
 /**
- * Derives a 256-bit AES key from environment variables or JWT secret with salt.
+ * Resolves the active 256-bit AES encryption key for local encrypted storage.
  */
 function getEncryptionKey() {
-    const customKey = process.env.STORAGE_ENCRYPTION_KEY;
-    if (customKey && customKey.length === 64) {
-        return Buffer.from(customKey, 'hex');
-    }
-    const secret = process.env.JWT_SECRET || 'master-hrms-default-storage-encryption-key-salt';
-    return crypto_1.default.scryptSync(secret, 'master-hrms-storage-salt-v1', 32);
+    return (0, crypto_config_1.getStorageEncryptionKeys)().active;
 }
 /**
- * Returns active encryption key followed by any legacy keys in the rotation ring.
+ * Returns active encryption key followed by any legacy keys in the rotation ring
+ * to ensure backward compatibility with previously stored files.
  */
 function getDecryptionKeys() {
-    const keys = [getEncryptionKey()];
-    const ring = process.env.STORAGE_ENCRYPTION_KEY_RING;
-    if (ring) {
-        const hexKeys = ring.split(',').map((k) => k.trim()).filter((k) => k.length === 64);
-        for (const hex of hexKeys) {
-            keys.push(Buffer.from(hex, 'hex'));
-        }
-    }
-    return keys;
+    const { active, legacy } = (0, crypto_config_1.getStorageEncryptionKeys)();
+    return [active, ...legacy];
 }
 /**
  * Local Encrypted Disk Storage Engine with AES-256-GCM and Tenant Directory Partitioning.

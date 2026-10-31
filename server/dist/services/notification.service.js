@@ -4,6 +4,7 @@ exports.NotificationService = void 0;
 const tenant_context_1 = require("../context/tenant-context");
 const prisma_1 = require("../prisma");
 const socket_1 = require("../socket");
+const pusher_service_1 = require("./pusher.service");
 class NotificationService {
     /**
      * Creates an in-app notification record and emits realtime event to user's authorized room.
@@ -72,31 +73,39 @@ class NotificationService {
                 metadataJson: params.metadata ?? null,
             },
         });
-        // Realtime push to the user's private room with comprehensive payload
+        // Realtime push to the user's private room with comprehensive payload.
+        // Pusher remains available when this process does not own a Socket.IO
+        // instance (for example a scheduler/worker process).
+        const payload = {
+            id: notification.id,
+            tenantId: notification.tenantId,
+            userId: notification.userId,
+            title: notification.title,
+            body: notification.body,
+            description: notification.body,
+            module: notification.module,
+            type: notification.module,
+            channel: notification.channel,
+            linkTo: notification.linkTo,
+            metadataJson: notification.metadataJson,
+            createdAt: notification.createdAt,
+            timestamp: notification.createdAt,
+            read: Boolean(notification.readAt),
+        };
         const io = (0, socket_1.getIO)();
         if (io) {
-            const payload = {
-                id: notification.id,
-                tenantId: notification.tenantId,
-                userId: notification.userId,
-                title: notification.title,
-                body: notification.body,
-                description: notification.body,
-                module: notification.module,
-                type: notification.module,
-                channel: notification.channel,
-                linkTo: notification.linkTo,
-                metadataJson: notification.metadataJson,
-                createdAt: notification.createdAt,
-                timestamp: notification.createdAt,
-                read: Boolean(notification.readAt),
-            };
             io.to(`user:${targetUserId}`).emit("notification:new", payload);
             io.to(`tenant:${params.tenantId}`).emit("tenant:notification", {
                 userId: targetUserId,
                 notificationId: notification.id,
             });
         }
+        // Socket.IO is the primary in-app transport. Pusher is the resilient
+        // secondary transport used by clients that are subscribed to the private
+        // user channel (for example after a transient Socket.IO disconnect).
+        // Delivery must never make notification persistence fail.
+        void pusher_service_1.PusherService.triggerUserEvent(params.tenantId, targetUserId, "notification:new", payload)
+            .catch(() => { });
         return notification;
     }
     static async sendNotification(params) {

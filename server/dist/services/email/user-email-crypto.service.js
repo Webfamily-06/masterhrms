@@ -10,13 +10,10 @@ exports.isPrivateIp = isPrivateIp;
 exports.validateHostForSsrf = validateHostForSsrf;
 const crypto_1 = __importDefault(require("crypto"));
 const promises_1 = __importDefault(require("dns/promises"));
+const crypto_config_1 = require("../../lib/crypto-config");
 // ─── AES-256-GCM Secret Encryption Engine ────────────────────────
-const ENCRYPTION_SALT = "master-hrms-user-email-secret-salt-v1";
 function getDerivedEncryptionKey() {
-    const rawKeyMaterial = process.env.ENCRYPTION_KEY ||
-        process.env.JWT_SECRET ||
-        "master-hrms-32-char-encryption-key-phrase!";
-    return crypto_1.default.scryptSync(rawKeyMaterial, ENCRYPTION_SALT, 32);
+    return (0, crypto_config_1.getEmailCryptoKeys)().active;
 }
 function encryptEmailSecret(plaintext) {
     if (typeof plaintext !== "string") {
@@ -34,11 +31,10 @@ function encryptEmailSecret(plaintext) {
         authTag,
     };
 }
-function decryptEmailSecret(encrypted) {
+function decryptEmailSecret(encrypted, customKey) {
     if (!encrypted.ciphertext || !encrypted.iv || !encrypted.authTag) {
         throw new Error("Missing ciphertext, IV, or authentication tag for decryption");
     }
-    const key = getDerivedEncryptionKey();
     const iv = Buffer.from(encrypted.iv, "hex");
     const authTag = Buffer.from(encrypted.authTag, "hex");
     if (iv.length !== 12) {
@@ -47,11 +43,21 @@ function decryptEmailSecret(encrypted) {
     if (authTag.length !== 16) {
         throw new Error(`Invalid auth tag length: expected 16 bytes, got ${authTag.length}`);
     }
-    const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(authTag);
-    let plaintext = decipher.update(encrypted.ciphertext, "hex", "utf8");
-    plaintext += decipher.final("utf8");
-    return plaintext;
+    const { active, legacy } = (0, crypto_config_1.getEmailCryptoKeys)();
+    const candidateKeys = customKey ? [customKey] : [active, ...legacy];
+    for (const key of candidateKeys) {
+        try {
+            const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, iv);
+            decipher.setAuthTag(authTag);
+            let plaintext = decipher.update(encrypted.ciphertext, "hex", "utf8");
+            plaintext += decipher.final("utf8");
+            return plaintext;
+        }
+        catch {
+            // Try next legacy key
+        }
+    }
+    throw new Error("Failed to decrypt email credential: ciphertext authentication failed across all configured keys.");
 }
 // ─── SSRF Protection & Host Validation ─────────────────────────────
 const BLOCKED_HOST_PATTERNS = [

@@ -17,13 +17,10 @@ const mailer_factory_1 = require("../factories/mailer.factory");
 const oauth_factory_1 = require("../factories/oauth.factory");
 const storage_factory_1 = require("../factories/storage.factory");
 const sms_factory_1 = require("../factories/sms.factory");
+const crypto_config_1 = require("../../lib/crypto-config");
 // ─── AES-256-GCM Secret Encryption Engine ────────────────────────
-const ENCRYPTION_SALT = "master-hrms-settings-secret-salt-v1";
 function getDerivedEncryptionKey() {
-    const rawKeyMaterial = process.env.ENCRYPTION_KEY ||
-        process.env.JWT_SECRET ||
-        "master-hrms-32-char-encryption-key-phrase!";
-    return crypto_1.default.scryptSync(rawKeyMaterial, ENCRYPTION_SALT, 32);
+    return (0, crypto_config_1.getSettingsEncryptionKeys)().active;
 }
 function encryptSecret(plaintext, customKey) {
     if (typeof plaintext !== "string") {
@@ -46,7 +43,6 @@ function decryptSecret(ciphertext, ivHex, authTagHex, customKey) {
     if (!ciphertext || !ivHex || !authTagHex) {
         throw new Error("Missing ciphertext, IV, or authentication tag for decryption");
     }
-    const key = customKey || getDerivedEncryptionKey();
     const iv = Buffer.from(ivHex, "hex");
     const authTag = Buffer.from(authTagHex, "hex");
     if (iv.length !== 12) {
@@ -55,11 +51,21 @@ function decryptSecret(ciphertext, ivHex, authTagHex, customKey) {
     if (authTag.length !== 16) {
         throw new Error(`Invalid auth tag length: expected 16 bytes, got ${authTag.length}`);
     }
-    const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(authTag);
-    let plaintext = decipher.update(ciphertext, "hex", "utf8");
-    plaintext += decipher.final("utf8");
-    return plaintext;
+    const { active, legacy } = (0, crypto_config_1.getSettingsEncryptionKeys)();
+    const candidateKeys = customKey ? [customKey] : [active, ...legacy];
+    for (const key of candidateKeys) {
+        try {
+            const decipher = crypto_1.default.createDecipheriv("aes-256-gcm", key, iv);
+            decipher.setAuthTag(authTag);
+            let plaintext = decipher.update(ciphertext, "hex", "utf8");
+            plaintext += decipher.final("utf8");
+            return plaintext;
+        }
+        catch {
+            // Try next candidate key
+        }
+    }
+    throw new Error("Failed to decrypt settings secret: authentication tag failed across all configured keys.");
 }
 // ─── In-Memory TTL Cache Store ─────────────────────────────────────
 // NOTE ON MULTI-PROCESS CONSISTENCY:

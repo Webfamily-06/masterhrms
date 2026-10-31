@@ -12,20 +12,18 @@ import crypto from "crypto";
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
 import { FilesService } from "../files/files.service";
 import { DocumentPreviewService } from "../files/document-preview.service";
+import { getConnectorEncryptionKeys } from "../../lib/crypto-config";
 
 const prisma = rawPrisma || proxiedPrisma;
-
-const ENCRYPTION_KEY = process.env.TOKEN_ENCRYPTION_KEY
-  ? Buffer.from(process.env.TOKEN_ENCRYPTION_KEY, "hex")
-  : crypto.scryptSync(process.env.JWT_SECRET || "masterhrms-token-key-salt", "salt", 32);
 
 export class ExternalConnectorsService {
   /**
    * AES-256-GCM Encryption for OAuth tokens
    */
   static encryptToken(plainText: string): string {
+    const { active } = getConnectorEncryptionKeys();
     const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv("aes-256-gcm", ENCRYPTION_KEY, iv);
+    const cipher = crypto.createCipheriv("aes-256-gcm", active, iv);
     let encrypted = cipher.update(plainText, "utf8", "hex");
     encrypted += cipher.final("hex");
     const tag = cipher.getAuthTag();
@@ -34,16 +32,28 @@ export class ExternalConnectorsService {
 
   /**
    * AES-256-GCM Decryption for OAuth tokens
+   * Attempts primary active key first, then gracefully tries legacy keys
+   * to guarantee zero downtime and prevent decryption failures for existing records.
    */
   static decryptToken(cipherText: string): string {
     const parts = cipherText.split(":");
     if (parts.length !== 3) return cipherText; // Fallback for unencrypted tokens in test
     const [ivHex, tagHex, encryptedHex] = parts;
-    const decipher = crypto.createDecipheriv("aes-256-gcm", ENCRYPTION_KEY, Buffer.from(ivHex, "hex"));
-    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-    let decrypted = decipher.update(encryptedHex, "hex", "utf8");
-    decrypted += decipher.final("utf8");
-    return decrypted;
+    const { active, legacy } = getConnectorEncryptionKeys();
+    const candidateKeys = [active, ...legacy];
+
+    for (const key of candidateKeys) {
+      try {
+        const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+        decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+        let decrypted = decipher.update(encryptedHex, "hex", "utf8");
+        decrypted += decipher.final("utf8");
+        return decrypted;
+      } catch {
+        // Try next candidate key
+      }
+    }
+    throw new Error("Failed to decrypt connector token: ciphertext authentication failed across all configured keys.");
   }
 
   /**

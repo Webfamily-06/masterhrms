@@ -14,6 +14,7 @@ const jwt_1 = require("./lib/jwt");
 const workspace_policy_service_1 = require("./services/workspace-policy.service");
 const chat_system_events_service_1 = require("./services/chat-system-events.service");
 const notification_service_1 = require("./services/notification.service");
+const pusher_service_1 = require("./services/pusher.service");
 let ioInstance = null;
 const tenantPresence = new Map();
 const activeCalls = new Map();
@@ -223,21 +224,29 @@ function initSocket(server, allowedOrigins) {
                 socket.emit("call:error", { message: "Recipient user not found in this organization." });
                 return;
             }
-            // Check if target user is currently in an active ringing or connected call
-            let isBusy = false;
+            // A user may be in only one live one-to-one call. Check both sides here
+            // instead of trusting client state, otherwise a caller could create two
+            // concurrent peer connections from different tabs.
+            let busyUserId = null;
             for (const [, session] of activeCalls) {
                 if (session.tenantId === tenantId &&
                     (session.status === "ringing" || session.status === "connected") &&
-                    (session.callerId === targetUserId || session.targetUserId === targetUserId)) {
-                    isBusy = true;
+                    (session.callerId === targetUserId || session.targetUserId === targetUserId ||
+                        session.callerId === socket.data.userId || session.targetUserId === socket.data.userId)) {
+                    busyUserId = session.callerId === targetUserId || session.targetUserId === targetUserId
+                        ? targetUserId
+                        : socket.data.userId;
                     break;
                 }
             }
-            if (isBusy) {
+            if (busyUserId) {
                 socket.emit("call:busy", {
                     callId,
                     targetUserId,
-                    reason: "User is currently on another call.",
+                    busyUserId,
+                    reason: busyUserId === targetUserId
+                        ? "User is currently on another call."
+                        : "You are already in another call.",
                 });
                 return;
             }
@@ -270,7 +279,7 @@ function initSocket(server, allowedOrigins) {
             };
             activeCalls.set(callId, callSession);
             // Deliver incoming call signal to recipient with normalized contract aliases
-            ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", {
+            const incomingPayload = {
                 callId,
                 callType,
                 type: callType,
@@ -283,7 +292,12 @@ function initSocket(server, allowedOrigins) {
                 callerAvatarUrl: callerAvatar,
                 threadId,
                 tenantId,
-            });
+            };
+            ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", incomingPayload);
+            // Pusher is a notification fallback, not the authoritative WebRTC
+            // transport. The recipient still accepts/signals through Socket.IO.
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload)
+                .catch(() => { });
         });
         // 2. ACCEPT CALL
         socket.on("call:accept", (payload) => {
@@ -462,10 +476,15 @@ function initSocket(server, allowedOrigins) {
         // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates)
         socket.on("call:signal", (payload) => {
             const targetUserId = payload?.targetUserId || payload?.toUserId;
-            if (!targetUserId || !payload?.signal)
+            const callId = payload?.callId;
+            const session = callId ? activeCalls.get(callId) : null;
+            if (!targetUserId || !payload?.signal || !callId || !session ||
+                session.tenantId !== socket.data.tenantId ||
+                ![session.callerId, session.targetUserId].includes(socket.data.userId) ||
+                ![session.callerId, session.targetUserId].includes(targetUserId))
                 return;
             ioInstance?.to(`user:${targetUserId}`).emit("call:signal", {
-                callId: payload?.callId,
+                callId,
                 senderId: socket.data.userId,
                 fromUserId: socket.data.userId,
                 signal: payload.signal,

@@ -1,0 +1,16 @@
+{
+  "suite": "signed-url-security",
+  "testedAt": "2026-11-01T01:23:31+05:30",
+  "status": "PASS",
+  "constantTimeVerification": true,
+  "dedicatedSigningSecret": true,
+  "assertions": [
+    { "name": "initiateUpload generates valid signed upload authorization", "result": "PASS" },
+    { "name": "verifyUploadToken accepts valid upload token", "result": "PASS" },
+    { "name": "verifyUploadToken rejects expired upload token", "result": "PASS" },
+    { "name": "verifyUploadToken rejects tampered upload token", "result": "PASS" },
+    { "name": "getSignedDownloadUrl generates verifiable stream URL", "result": "PASS" },
+    { "name": "verifySignature rejects expired download URL", "result": "PASS" },
+    { "name": "verifySignature rejects cross-type signature", "result": "PASS" }
+  ]
+}

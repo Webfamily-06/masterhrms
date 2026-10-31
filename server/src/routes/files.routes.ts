@@ -434,9 +434,14 @@ filesRouter.put(
       }
 
       const storageProvider = StorageProviderFactory.getProvider();
-      if (storageProvider.providerName === "local" && storageProvider.uploadBuffer) {
-        await storageProvider.uploadBuffer(key, req.body as Buffer, req.headers["content-type"] || "application/octet-stream");
-        return res.status(200).json({ success: true, storageKey: key });
+      if (storageProvider instanceof LocalStorageProvider) {
+        if (!token || !exp || !storageProvider.verifyUploadToken(key, exp, token)) {
+          return res.status(403).json({ error: "Invalid or expired upload authorization token." });
+        }
+        if (storageProvider.uploadBuffer) {
+          await storageProvider.uploadBuffer(key, req.body as Buffer, req.headers["content-type"] || "application/octet-stream");
+          return res.status(200).json({ success: true, storageKey: key });
+        }
       }
 
       return res.status(400).json({ error: "Direct binary endpoint only available on local storage provider." });

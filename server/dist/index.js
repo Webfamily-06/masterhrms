@@ -36,6 +36,7 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err?.message || err, err?.stack || "");
 });
+const crypto_config_1 = require("./lib/crypto-config");
 const REQUIRED_ENV_VARS = ["DATABASE_URL", "JWT_SECRET"];
 function getMissingRequiredEnvNames() {
     return REQUIRED_ENV_VARS.filter((name) => !process.env[name] || process.env[name]?.trim() === "");
@@ -43,6 +44,15 @@ function getMissingRequiredEnvNames() {
 const missingOnStartup = getMissingRequiredEnvNames();
 if (missingOnStartup.length > 0) {
     console.error("⚠️ [CONFIG] Missing required environment variables on startup:", missingOnStartup.join(", "));
+}
+const cryptoStartupCheck = (0, crypto_config_1.validateStartupCryptoConfig)();
+if (!cryptoStartupCheck.valid) {
+    console.error("🛑 [CRITICAL SECURITY] Cryptographic configuration errors on startup:", cryptoStartupCheck.errors.join("; "));
+}
+if (cryptoStartupCheck.warnings.length > 0 && process.env.NODE_ENV === "production") {
+    for (const warning of cryptoStartupCheck.warnings) {
+        console.warn("⚠️ [SECURITY NOTICE]:", warning);
+    }
 }
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
@@ -348,6 +358,11 @@ app.get(["/api/health/diag", "/health/diag"], (req, res) => {
         isVercel: Boolean(process.env.VERCEL),
         hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
         hasJwtSecret: Boolean(process.env.JWT_SECRET),
+        hasFileSigningSecret: Boolean(process.env.FILE_SIGNING_SECRET),
+        hasStorageEncryptionKey: Boolean(process.env.STORAGE_ENCRYPTION_KEY),
+        hasConnectorEncryptionKey: Boolean(process.env.CONNECTOR_ENCRYPTION_KEY || process.env.TOKEN_ENCRYPTION_KEY),
+        hasEmailCryptoSecret: Boolean(process.env.EMAIL_CRYPTO_SECRET || process.env.ENCRYPTION_KEY),
+        hasSettingsEncryptionKey: Boolean(process.env.SETTINGS_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY),
         hasCorsOrigin: Boolean(process.env.CORS_ORIGIN),
         hasBaseDomain: Boolean(process.env.BASE_DOMAIN),
         missingRequiredEnv: getMissingRequiredEnvNames(),

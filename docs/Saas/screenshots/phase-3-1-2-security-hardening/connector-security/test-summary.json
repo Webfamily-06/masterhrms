@@ -1,0 +1,12 @@
+{
+  "suite": "connector-security",
+  "testedAt": "2026-11-01T01:23:31+05:30",
+  "status": "PASS",
+  "algorithm": "aes-256-gcm",
+  "legacyTokenFallbackCompatible": true,
+  "assertions": [
+    { "name": "encryptToken and decryptToken round-trip", "result": "PASS" },
+    { "name": "decryptToken falls back gracefully to decrypt legacy tokens", "result": "PASS" },
+    { "name": "decryptToken throws when ciphertext is tampered across all keys", "result": "PASS" }
+  ]
+}

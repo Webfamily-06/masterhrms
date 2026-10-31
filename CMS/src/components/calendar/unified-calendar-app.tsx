@@ -1316,6 +1316,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       <div className="p-4 space-y-5 overflow-y-auto flex-1">
         {/* Create Event CTA */}
         <Button
+          data-testid="create-event-btn"
           onClick={() => {
             setNewEvent(getInitialNewEvent(currentDate));
             setCreateModalOpen(true);
@@ -2531,6 +2532,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               Cancel
             </Button>
             <Button
+              data-testid="save-event-btn"
               size="sm"
               className="bg-teal-700 hover:bg-teal-800 text-white font-medium"
               onClick={handleCreateSubmit}
@@ -3158,6 +3160,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 <>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <Button
+                      data-testid="audit-trail-btn"
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenAuditTrail(selectedEvent.id)}
@@ -3179,6 +3182,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     </Button>
                     {isUserOwnerOrAdmin && selectedEvent.status !== "cancelled" && (
                       <Button
+                        data-testid="cancel-event-btn"
                         variant="outline"
                         size="sm"
                         onClick={handleCancelClick}
@@ -3207,6 +3211,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                   <div className="flex items-center gap-2">
                     {canUserEdit && selectedEvent.status !== "cancelled" && (
                       <Button
+                        data-testid="edit-event-btn"
                         variant="outline"
                         size="sm"
                         onClick={() => setIsEditingEvent(true)}
@@ -3215,7 +3220,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                         <Edit2 className="size-3.5" /> Edit
                       </Button>
                     )}
-                    <Button size="sm" onClick={() => setDetailsModalOpen(false)}>
+                    <Button data-testid="close-details-btn" size="sm" onClick={() => setDetailsModalOpen(false)}>
                       Close
                     </Button>
                   </div>
@@ -3277,7 +3282,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           </div>
 
           <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
-            <Button variant="outline" size="sm" onClick={() => setConflictModalOpen(false)}>
+            <Button data-testid="conflict-dialog-change-btn" variant="outline" size="sm" onClick={() => setConflictModalOpen(false)}>
               Change Time / Room
             </Button>
             <Button
@@ -3361,7 +3366,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           </div>
 
           <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
-            <Button variant="outline" size="sm" onClick={() => setRecurrenceScopeModalOpen(false)}>
+            <Button data-testid="recurrence-scope-cancel-btn" variant="outline" size="sm" onClick={() => setRecurrenceScopeModalOpen(false)}>
               Cancel
             </Button>
             <Button

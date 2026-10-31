@@ -10,7 +10,11 @@ import {
 } from "./storage-provider.interface";
 import { getUploadsRoot } from "../media/media.service";
 
-const SIGNED_URL_SECRET = process.env.JWT_SECRET || "local-storage-secret-signing-key";
+import {
+  getFileSigningSecret,
+  getLegacyFileSigningSecrets,
+  timingSafeEqualHex,
+} from "../../lib/crypto-config";
 
 export class LocalStorageProvider implements IStorageProvider {
   public readonly providerName = "local";
@@ -46,7 +50,7 @@ export class LocalStorageProvider implements IStorageProvider {
     const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
     const token = crypto
-      .createHmac("sha256", SIGNED_URL_SECRET)
+      .createHmac("sha256", getFileSigningSecret())
       .update(`${storageKey}:${expiresAt.getTime()}`)
       .digest("hex");
 
@@ -92,7 +96,7 @@ export class LocalStorageProvider implements IStorageProvider {
   ): Promise<string> {
     const expiresAt = Date.now() + expiresInSeconds * 1000;
     const sig = crypto
-      .createHmac("sha256", SIGNED_URL_SECRET)
+      .createHmac("sha256", getFileSigningSecret())
       .update(`download:${storageKey}:${expiresAt}`)
       .digest("hex");
 
@@ -113,7 +117,7 @@ export class LocalStorageProvider implements IStorageProvider {
   ): Promise<string> {
     const expiresAt = Date.now() + expiresInSeconds * 1000;
     const sig = crypto
-      .createHmac("sha256", SIGNED_URL_SECRET)
+      .createHmac("sha256", getFileSigningSecret())
       .update(`preview:${storageKey}:${expiresAt}`)
       .digest("hex");
 
@@ -154,16 +158,61 @@ export class LocalStorageProvider implements IStorageProvider {
 
   /**
    * Helper to verify HMAC signature on stream requests.
+   * Employs constant-time comparison to prevent timing attacks,
+   * with backward-compatible legacy key support during secret rotation.
    */
   verifySignature(type: "download" | "preview", storageKey: string, exp: number, sig: string): boolean {
     if (Date.now() > exp) {
       return false;
     }
     const expected = crypto
-      .createHmac("sha256", SIGNED_URL_SECRET)
+      .createHmac("sha256", getFileSigningSecret())
       .update(`${type}:${storageKey}:${exp}`)
       .digest("hex");
-    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    if (timingSafeEqualHex(sig, expected)) {
+      return true;
+    }
+
+    // Legacy fallback verification for in-flight requests during key rotation
+    for (const legacySecret of getLegacyFileSigningSecrets()) {
+      const legExpected = crypto
+        .createHmac("sha256", legacySecret)
+        .update(`${type}:${storageKey}:${exp}`)
+        .digest("hex");
+      if (timingSafeEqualHex(sig, legExpected)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Verifies the upload authorization token generated during initiateUpload.
+   */
+  verifyUploadToken(storageKey: string, exp: number, token: string): boolean {
+    if (Date.now() > exp) {
+      return false;
+    }
+    const expected = crypto
+      .createHmac("sha256", getFileSigningSecret())
+      .update(`${storageKey}:${exp}`)
+      .digest("hex");
+    if (timingSafeEqualHex(token, expected)) {
+      return true;
+    }
+
+    for (const legacySecret of getLegacyFileSigningSecrets()) {
+      const legExpected = crypto
+        .createHmac("sha256", legacySecret)
+        .update(`${storageKey}:${exp}`)
+        .digest("hex");
+      if (timingSafeEqualHex(token, legExpected)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   getPhysicalPath(storageKey: string): string {

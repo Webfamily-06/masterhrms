@@ -7,6 +7,7 @@ exports.AiAssistantService = exports.AI_FIELDS_REGISTRY = exports.INITIAL_AI_MOD
 const prisma_1 = require("../prisma");
 const crypto_1 = __importDefault(require("crypto"));
 const entitlements_1 = require("../middleware/entitlements");
+const crypto_config_1 = require("../lib/crypto-config");
 exports.PLATFORM_LANGUAGES = [
     { code: "en", name: "English" },
     { code: "es", name: "Spanish (Español)" },
@@ -149,30 +150,35 @@ exports.AI_FIELDS_REGISTRY = [
     },
 ];
 class AiAssistantService {
-    static ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "hrms-enterprise-master-sec-key-32";
     static encrypt(text) {
+        const { active } = (0, crypto_config_1.getAiEncryptionKeys)();
         const iv = crypto_1.default.randomBytes(16);
-        const key = crypto_1.default.createHash("sha256").update(this.ENCRYPTION_KEY).digest();
+        const key = crypto_1.default.createHash("sha256").update(active).digest();
         const cipher = crypto_1.default.createCipheriv("aes-256-cbc", key, iv);
         let encrypted = cipher.update(text, "utf8", "hex");
         encrypted += cipher.final("hex");
         return `${iv.toString("hex")}:${encrypted}`;
     }
     static decrypt(encrypted) {
-        try {
-            const [ivHex, encHex] = encrypted.split(":");
-            if (!ivHex || !encHex)
-                return "";
-            const iv = Buffer.from(ivHex, "hex");
-            const key = crypto_1.default.createHash("sha256").update(this.ENCRYPTION_KEY).digest();
-            const decipher = crypto_1.default.createDecipheriv("aes-256-cbc", key, iv);
-            let decrypted = decipher.update(encHex, "hex", "utf8");
-            decrypted += decipher.final("utf8");
-            return decrypted;
-        }
-        catch {
+        const [ivHex, encHex] = encrypted.split(":");
+        if (!ivHex || !encHex)
             return "";
+        const iv = Buffer.from(ivHex, "hex");
+        const { active, legacy } = (0, crypto_config_1.getAiEncryptionKeys)();
+        const candidateKeys = [active, ...legacy];
+        for (const rawKey of candidateKeys) {
+            try {
+                const key = crypto_1.default.createHash("sha256").update(rawKey).digest();
+                const decipher = crypto_1.default.createDecipheriv("aes-256-cbc", key, iv);
+                let decrypted = decipher.update(encHex, "hex", "utf8");
+                decrypted += decipher.final("utf8");
+                return decrypted;
+            }
+            catch {
+                // Try next candidate key
+            }
         }
+        return "";
     }
     /**
      * Get shared provider configuration for a tenant

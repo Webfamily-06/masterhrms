@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import crypto from "crypto";
 import { checkTenantEntitlement } from "../middleware/entitlements";
+import { getAiEncryptionKeys } from "../lib/crypto-config";
 
 export type AiProviderName = "openai" | "anthropic" | "gemini";
 
@@ -230,11 +231,10 @@ export const AI_FIELDS_REGISTRY: AiFieldRegistryItem[] = [
 ];
 
 export class AiAssistantService {
-  private static ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || "hrms-enterprise-master-sec-key-32";
-
   private static encrypt(text: string): string {
+    const { active } = getAiEncryptionKeys();
     const iv = crypto.randomBytes(16);
-    const key = crypto.createHash("sha256").update(this.ENCRYPTION_KEY).digest();
+    const key = crypto.createHash("sha256").update(active).digest();
     const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
     let encrypted = cipher.update(text, "utf8", "hex");
     encrypted += cipher.final("hex");
@@ -242,18 +242,24 @@ export class AiAssistantService {
   }
 
   private static decrypt(encrypted: string): string {
-    try {
-      const [ivHex, encHex] = encrypted.split(":");
-      if (!ivHex || !encHex) return "";
-      const iv = Buffer.from(ivHex, "hex");
-      const key = crypto.createHash("sha256").update(this.ENCRYPTION_KEY).digest();
-      const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
-      let decrypted = decipher.update(encHex, "hex", "utf8");
-      decrypted += decipher.final("utf8");
-      return decrypted;
-    } catch {
-      return "";
+    const [ivHex, encHex] = encrypted.split(":");
+    if (!ivHex || !encHex) return "";
+    const iv = Buffer.from(ivHex, "hex");
+    const { active, legacy } = getAiEncryptionKeys();
+    const candidateKeys = [active, ...legacy];
+
+    for (const rawKey of candidateKeys) {
+      try {
+        const key = crypto.createHash("sha256").update(rawKey).digest();
+        const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+        let decrypted = decipher.update(encHex, "hex", "utf8");
+        decrypted += decipher.final("utf8");
+        return decrypted;
+      } catch {
+        // Try next candidate key
+      }
     }
+    return "";
   }
 
   /**

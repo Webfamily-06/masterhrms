@@ -1,0 +1,12 @@
+{
+  "suite": "email-crypto",
+  "testedAt": "2026-11-01T01:23:31+05:30",
+  "status": "PASS",
+  "algorithm": "aes-256-gcm",
+  "legacyCredentialCompatibility": true,
+  "assertions": [
+    { "name": "encryptEmailSecret and decryptEmailSecret round-trip", "result": "PASS" },
+    { "name": "decryptEmailSecret transparently decrypts legacy credentials", "result": "PASS" },
+    { "name": "decryptEmailSecret rejects corrupted auth tag", "result": "PASS" }
+  ]
+}

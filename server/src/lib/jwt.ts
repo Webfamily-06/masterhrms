@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
+import { getJwtSecret } from "./crypto-config";
 
-
-const getJwtSecret = () => process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
 const getJwtExpiresIn = () => process.env.JWT_EXPIRES_IN || "7d";
 
 export interface JwtPayload {

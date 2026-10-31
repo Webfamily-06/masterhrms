@@ -10,8 +10,9 @@ import { QuotaService } from "./quota.service";
 import { QuotaGovernanceService } from "./quota-governance.service";
 import { StorageProviderFactory } from "../storage/storage-provider.factory";
 import { OutboxService } from "../outbox.service";
+import { getFileSigningSecret } from "../../lib/crypto-config";
 
-const SIGNED_URL_SECRET = process.env.JWT_SECRET || "masterhrms-file-download-secret-signing-key";
+const SIGNED_URL_SECRET = getFileSigningSecret();
 
 export interface ListFilesOptions {
   tenantId: string | null;

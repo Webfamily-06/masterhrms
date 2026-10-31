@@ -1,0 +1,1164 @@
+{
+  "metrics": {
+    "totalScenarios": 36,
+    "passedScenarios": 36,
+    "failedScenarios": 0,
+    "totalAssertions": 246,
+    "passedAssertions": 246,
+    "failedAssertions": 0
+  },
+  "results": [
+    {
+      "viewport": "mobile_360",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_01_create_event.png"
+    },
+    {
+      "viewport": "mobile_360",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_02_add_category.png"
+    },
+    {
+      "viewport": "mobile_360",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_03_event_details.png"
+    },
+    {
+      "viewport": "mobile_360",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_04_audit_trail.png"
+    },
+    {
+      "viewport": "mobile_360",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "mobile_360",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_360_05_conflict_modal.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_01_create_event.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_02_add_category.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_03_event_details.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_04_audit_trail.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "mobile_390",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_390_05_conflict_modal.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_01_create_event.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_02_add_category.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_03_event_details.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_04_audit_trail.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "mobile_430",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "mobile_430_05_conflict_modal.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_01_create_event.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_02_add_category.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_03_event_details.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_04_audit_trail.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "tablet_768",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_768_05_conflict_modal.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_01_create_event.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_02_add_category.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_03_event_details.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_04_audit_trail.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "tablet_1023",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "tablet_1023_05_conflict_modal.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "create_event_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_01_create_event.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "add_category_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "clean_dismissal",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_02_add_category.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "event_details_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "vertical_scroll_capable",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_03_event_details.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "audit_trail_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_04_audit_trail.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "recurrence_scope_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "scope_options_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_06_recurrence_scope.png"
+    },
+    {
+      "viewport": "desktop_1024",
+      "dialog": "conflict_resolution_modal",
+      "pass": true,
+      "assertions": [
+        {
+          "name": "dialog_visible",
+          "pass": true
+        },
+        {
+          "name": "width_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "height_within_viewport",
+          "pass": true
+        },
+        {
+          "name": "sticky_footer_accessible",
+          "pass": true
+        },
+        {
+          "name": "no_horizontal_clipping",
+          "pass": true
+        },
+        {
+          "name": "conflict_warnings_rendered",
+          "pass": true
+        }
+      ],
+      "screenshot": "desktop_1024_05_conflict_modal.png"
+    }
+  ]
+}

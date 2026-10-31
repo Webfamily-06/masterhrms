@@ -1,0 +1,27 @@
+{
+  "suite": "calendar-responsive-regression",
+  "testedAt": "2026-11-01T01:36:05+05:30",
+  "status": "PASS",
+  "tests": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "passRate": "100.0%"
+  },
+  "assertions": {
+    "total": 527,
+    "passed": 527,
+    "failed": 0,
+    "categories": {
+      "responsive_layout": { "passed": 130, "total": 130 },
+      "sidebar_and_drawer": { "passed": 125, "total": 125 },
+      "calendar_views": { "passed": 80, "total": 80 },
+      "dialog_viewport_and_scroll": { "passed": 112, "total": 112 },
+      "console_and_runtime": { "passed": 80, "total": 80 }
+    }
+  },
+  "horizontalOverflow": {
+    "maxDeltaPx": 0,
+    "status": "PASS"
+  }
+}

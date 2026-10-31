@@ -37,31 +37,22 @@ try {
   console.warn(`[STORAGE WARNING]: Could not initialize base storage directory at ${STORAGE_ROOT_DIR}: ${err?.message}`);
 }
 
+import { getStorageEncryptionKeys } from '../../lib/crypto-config';
+
 /**
- * Derives a 256-bit AES key from environment variables or JWT secret with salt.
+ * Resolves the active 256-bit AES encryption key for local encrypted storage.
  */
 function getEncryptionKey(): Buffer {
-  const customKey = process.env.STORAGE_ENCRYPTION_KEY;
-  if (customKey && customKey.length === 64) {
-    return Buffer.from(customKey, 'hex');
-  }
-  const secret = process.env.JWT_SECRET || 'master-hrms-default-storage-encryption-key-salt';
-  return crypto.scryptSync(secret, 'master-hrms-storage-salt-v1', 32);
+  return getStorageEncryptionKeys().active;
 }
 
 /**
- * Returns active encryption key followed by any legacy keys in the rotation ring.
+ * Returns active encryption key followed by any legacy keys in the rotation ring
+ * to ensure backward compatibility with previously stored files.
  */
 function getDecryptionKeys(): Buffer[] {
-  const keys: Buffer[] = [getEncryptionKey()];
-  const ring = process.env.STORAGE_ENCRYPTION_KEY_RING;
-  if (ring) {
-    const hexKeys = ring.split(',').map((k) => k.trim()).filter((k) => k.length === 64);
-    for (const hex of hexKeys) {
-      keys.push(Buffer.from(hex, 'hex'));
-    }
-  }
-  return keys;
+  const { active, legacy } = getStorageEncryptionKeys();
+  return [active, ...legacy];
 }
 
 /**

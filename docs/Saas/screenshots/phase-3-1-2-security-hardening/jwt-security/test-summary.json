@@ -1,0 +1,17 @@
+{
+  "suite": "jwt-security",
+  "testedAt": "2026-11-01T01:23:31+05:30",
+  "status": "PASS",
+  "assertions": [
+    { "name": "Generates and verifies authentic user JWT payload", "result": "PASS" },
+    { "name": "Generates and verifies temporary MFA pending tokens", "result": "PASS" },
+    { "name": "Rejects forged or tampered JWT signatures", "result": "PASS" },
+    { "name": "Fails closed in production if JWT_SECRET is unset or empty", "result": "PASS" },
+    { "name": "Fails closed in production if JWT_SECRET is shorter than 32 characters", "result": "PASS" }
+  ],
+  "productionGuards": {
+    "failClosed": true,
+    "minEntropyChars": 32,
+    "secretLoggingPrevented": true
+  }
+}
