@@ -18,6 +18,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -531,7 +538,26 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
   // Mini calendar browsing date
   const [miniCalendarDate, setMiniCalendarDate] = useState<Date>(() => new Date());
   // View mode
-  const [viewMode, setViewMode] = useState<"Month" | "Week" | "Day" | "List">("Month");
+  const [viewMode, setViewMode] = useState<"Month" | "Week" | "Day" | "List">(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      return "List";
+    }
+    return "Month";
+  });
+
+  // Mobile / Tablet Filter Drawer state (< 1024px)
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+
+  // Auto-close filter drawer if viewport is resized to desktop (>= 1024px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setFilterDrawerOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Active Category Filters
   const [activeCategories, setActiveCategories] = useState<Record<string, boolean>>({
@@ -547,6 +573,10 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     team: true,
     general: true,
   });
+
+  const activeCategoryCount = useMemo(() => {
+    return Object.values(activeCategories).filter(Boolean).length;
+  }, [activeCategories]);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -1280,226 +1310,260 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
     return ["Meetings", "Training", "Leave & Time Off", "Holidays", "Birthdays", "General Events"];
   }, [dbCategories]);
 
-  return (
-    <div className="flex h-[calc(100vh-4rem)] bg-background text-foreground overflow-hidden">
-      {/* ─── SIDEBAR ─── */}
-      <aside className="w-64 border-r border-border bg-card flex flex-col justify-between shrink-0">
-        <div className="p-4 space-y-5 overflow-y-auto">
-          {/* Create Event CTA */}
-          <Button
-            onClick={() => {
-              setNewEvent(getInitialNewEvent(currentDate));
-              setCreateModalOpen(true);
-            }}
-            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-xl shadow-xs gap-2 transition-all cursor-pointer"
-          >
-            <Plus className="size-4" /> Create New Event
-          </Button>
+  // Shared Sidebar Content Renderer (used in both desktop aside and mobile sheet)
+  const renderSidebarContent = (isMobileDrawer = false) => (
+    <div className="flex flex-col justify-between h-full">
+      <div className="p-4 space-y-5 overflow-y-auto flex-1">
+        {/* Create Event CTA */}
+        <Button
+          onClick={() => {
+            setNewEvent(getInitialNewEvent(currentDate));
+            setCreateModalOpen(true);
+            if (isMobileDrawer) setFilterDrawerOpen(false);
+          }}
+          className="w-full bg-teal-700 hover:bg-teal-800 text-white font-semibold py-2.5 rounded-xl shadow-xs gap-2 transition-all cursor-pointer"
+        >
+          <Plus className="size-4" /> Create New Event
+        </Button>
 
-          {/* Mini Calendar Browsing Widget */}
-          <div className="border border-border rounded-xl p-3 bg-muted/20">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-foreground">
-                {format(miniCalendarDate, "MMMM yyyy")}
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setMiniCalendarDate((d) => subMonths(d, 1))}
-                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                  title="Previous month"
-                >
-                  <ChevronLeft className="size-3.5" />
-                </button>
-                <button
-                  onClick={() => setMiniCalendarDate((d) => addMonths(d, 1))}
-                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                  title="Next month"
-                >
-                  <ChevronRight className="size-3.5" />
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground font-semibold mb-1">
-              <span>Su</span>
-              <span>Mo</span>
-              <span>Tu</span>
-              <span>We</span>
-              <span>Th</span>
-              <span>Fr</span>
-              <span>Sa</span>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
-              {miniCalendarDays.map((d, i) => {
-                const inMonth = isSameMonth(d, miniCalendarDate);
-                const isSelected = isSameDay(d, currentDate);
-                const isTodayDate = isSameDay(d, new Date());
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentDate(d)}
-                    className={cn(
-                      "py-0.5 rounded cursor-pointer transition-colors font-medium flex items-center justify-center",
-                      isSelected
-                        ? "bg-teal-700 text-white font-bold"
-                        : isTodayDate
-                        ? "border border-teal-600 text-teal-600 font-bold"
-                        : inMonth
-                        ? "text-foreground hover:bg-muted"
-                        : "text-muted-foreground/40 hover:bg-muted/40"
-                    )}
-                  >
-                    {format(d, "d")}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Upcoming Events Section */}
-          <div>
-            <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400 mb-3 flex items-center justify-between">
-              <span>Upcoming Events</span>
-              <Badge variant="outline" className="text-[10px] font-medium">
-                {upcomingEvents.length}
-              </Badge>
-            </h5>
-            <div className="space-y-2">
-              {upcomingEvents.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground italic">No upcoming events scheduled.</p>
-              ) : (
-                upcomingEvents.map((item) => {
-                  const style = categoryStyles[item.category] || DEFAULT_CATEGORY_STYLES[item.category] || DEFAULT_CATEGORY_STYLES.Meetings;
-                  const itemDate = new Date(item.startDate);
-                  const isItemToday = isSameDay(itemDate, new Date());
-                  const isItemTomorrow = isSameDay(itemDate, addDays(new Date(), 1));
-                  const timeLabel = isItemToday
-                    ? `Today, ${format(itemDate, "h:mm a")}`
-                    : isItemTomorrow
-                    ? `Tomorrow, ${format(itemDate, "h:mm a")}`
-                    : format(itemDate, "dd MMM, h:mm a");
-
-                  const isBirthday = item.category?.toLowerCase() === "birthday" || item.id.startsWith("birthday-");
-                  const isTodo = item.sourceDomain === "todo" || item.category?.toLowerCase() === "todo";
-
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => openEventDetails(item)}
-                      className="flex items-start gap-2 text-xs cursor-pointer p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      {isBirthday ? (
-                        item.avatarUrl ? (
-                          <img
-                            src={item.avatarUrl}
-                            alt={item.employeeName || cleanCalendarText(item.title)}
-                            className="size-5 rounded-full object-cover shrink-0 ring-1 ring-rose-400 mt-0.5"
-                          />
-                        ) : (
-                          <div className="size-5 rounded-full bg-rose-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0 mt-0.5">
-                            {item.employeeInitials || "BD"}
-                          </div>
-                        )
-                      ) : isTodo ? (
-                        <div className="size-5 rounded-md bg-sky-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                          <CheckSquare className="size-3" />
-                        </div>
-                      ) : (
-                        <span className={cn("size-2 rounded-full mt-1.5 flex-shrink-0", style.dot)} />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] text-muted-foreground">{timeLabel}</p>
-                        <p className="font-semibold text-foreground text-xs mt-0.5 truncate">{cleanCalendarText(item.title)}</p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Categories Section */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400">Categories</h5>
+        {/* Mini Calendar Browsing Widget */}
+        <div className="border border-border rounded-xl p-3 bg-muted/20">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-foreground">
+              {format(miniCalendarDate, "MMMM yyyy")}
+            </span>
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setNewCategoryModalOpen(true)}
-                className="size-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                title="Add Custom Category"
+                onClick={() => setMiniCalendarDate((d) => subMonths(d, 1))}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Previous month"
               >
-                <Plus className="size-3" />
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <button
+                onClick={() => setMiniCalendarDate((d) => addMonths(d, 1))}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Next month"
+              >
+                <ChevronRight className="size-3.5" />
               </button>
             </div>
-            <div className="space-y-1.5">
-              {Object.keys(activeCategories).map((cat) => {
-                const style = categoryStyles[cat] || DEFAULT_CATEGORY_STYLES[cat] || { dot: "bg-teal-600", label: cat };
-                const count = categoryCounts[cat] || (cat === "Birthday" ? categoryCounts["birthday"] || 0 : 0);
-                return (
-                  <label key={cat} className="flex items-center justify-between text-xs text-foreground cursor-pointer select-none py-0.5 hover:opacity-80">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={activeCategories[cat]}
-                        onChange={() =>
-                          setActiveCategories((prev) => {
-                            const nextVal = !prev[cat];
-                            const next = { ...prev, [cat]: nextVal };
-                            if (cat === "Birthday") next.birthday = nextVal;
-                            if (cat === "birthday") next.Birthday = nextVal;
-                            return next;
-                          })
-                        }
-                        className="rounded border-border text-teal-700 focus:ring-teal-600 size-3.5 cursor-pointer"
-                      />
-                      <span className={cn("size-2 rounded-full", style.dot)} />
-                      <span className="capitalize">{style.label || cat}</span>
-                    </div>
-                    {count > 0 && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full">
-                        {count}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-muted-foreground font-semibold mb-1">
+            <span>Su</span>
+            <span>Mo</span>
+            <span>Tu</span>
+            <span>We</span>
+            <span>Th</span>
+            <span>Fr</span>
+            <span>Sa</span>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
+            {miniCalendarDays.map((d, i) => {
+              const inMonth = isSameMonth(d, miniCalendarDate);
+              const isSelected = isSameDay(d, currentDate);
+              const isTodayDate = isSameDay(d, new Date());
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setCurrentDate(d);
+                    if (isMobileDrawer) setFilterDrawerOpen(false);
+                  }}
+                  className={cn(
+                    "py-0.5 rounded cursor-pointer transition-colors font-medium flex items-center justify-center",
+                    isSelected
+                      ? "bg-teal-700 text-white font-bold"
+                      : isTodayDate
+                      ? "border border-teal-600 text-teal-600 font-bold"
+                      : inMonth
+                      ? "text-foreground hover:bg-muted"
+                      : "text-muted-foreground/40 hover:bg-muted/40"
+                  )}
+                >
+                  {format(d, "d")}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Bottom Toolbar Icons */}
-        <div className="p-3 border-t border-border flex items-center justify-around text-muted-foreground">
-          <button
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
-              queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
-              queryClient.invalidateQueries({ queryKey: ["calendar-categories"] });
-              toast.success("Calendar refreshed from server.");
-            }}
-            className="hover:text-foreground p-1 transition-colors cursor-pointer"
-            title="Refresh Schedules"
-          >
-            <RefreshCw className="size-4" />
-          </button>
-          <button
-            onClick={exportCalendarCSV}
-            className="hover:text-foreground p-1 transition-colors cursor-pointer"
-            title="Export CSV"
-          >
-            <Download className="size-4" />
-          </button>
-          <button
-            onClick={() => toast.info("Master HRMS Enterprise Calendar v2.0 (Real-time Sync & Pusher Active)")}
-            className="hover:text-foreground p-1 transition-colors cursor-pointer"
-            title="Calendar Info"
-          >
-            <BookOpen className="size-4" />
-          </button>
+        {/* Upcoming Events Section */}
+        <div>
+          <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400 mb-3 flex items-center justify-between">
+            <span>Upcoming Events</span>
+            <Badge variant="outline" className="text-[10px] font-medium">
+              {upcomingEvents.length}
+            </Badge>
+          </h5>
+          <div className="space-y-2">
+            {upcomingEvents.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground italic">No upcoming events scheduled.</p>
+            ) : (
+              upcomingEvents.map((item) => {
+                const style = categoryStyles[item.category] || DEFAULT_CATEGORY_STYLES[item.category] || DEFAULT_CATEGORY_STYLES.Meetings;
+                const itemDate = new Date(item.startDate);
+                const isItemToday = isSameDay(itemDate, new Date());
+                const isItemTomorrow = isSameDay(itemDate, addDays(new Date(), 1));
+                const timeLabel = isItemToday
+                  ? `Today, ${format(itemDate, "h:mm a")}`
+                  : isItemTomorrow
+                  ? `Tomorrow, ${format(itemDate, "h:mm a")}`
+                  : format(itemDate, "dd MMM, h:mm a");
+
+                const isBirthday = item.category?.toLowerCase() === "birthday" || item.id.startsWith("birthday-");
+                const isTodo = item.sourceDomain === "todo" || item.category?.toLowerCase() === "todo";
+
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      openEventDetails(item);
+                      if (isMobileDrawer) setFilterDrawerOpen(false);
+                    }}
+                    className="flex items-start gap-2 text-xs cursor-pointer p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    {isBirthday ? (
+                      item.avatarUrl ? (
+                        <img
+                          src={item.avatarUrl}
+                          alt={item.employeeName || cleanCalendarText(item.title)}
+                          className="size-5 rounded-full object-cover shrink-0 ring-1 ring-rose-400 mt-0.5"
+                        />
+                      ) : (
+                        <div className="size-5 rounded-full bg-rose-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0 mt-0.5">
+                          {item.employeeInitials || "BD"}
+                        </div>
+                      )
+                    ) : isTodo ? (
+                      <div className="size-5 rounded-md bg-sky-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                        <CheckSquare className="size-3" />
+                      </div>
+                    ) : (
+                      <span className={cn("size-2 rounded-full mt-1.5 flex-shrink-0", style.dot)} />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-muted-foreground">{timeLabel}</p>
+                      <p className="font-semibold text-foreground text-xs mt-0.5 truncate">{cleanCalendarText(item.title)}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
+
+        {/* Categories Section */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400">Categories</h5>
+            <button
+              onClick={() => {
+                setNewCategoryModalOpen(true);
+                if (isMobileDrawer) setFilterDrawerOpen(false);
+              }}
+              className="size-5 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Add Custom Category"
+            >
+              <Plus className="size-3" />
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {Object.keys(activeCategories).map((cat) => {
+              const style = categoryStyles[cat] || DEFAULT_CATEGORY_STYLES[cat] || { dot: "bg-teal-600", label: cat };
+              const count = categoryCounts[cat] || (cat === "Birthday" ? categoryCounts["birthday"] || 0 : 0);
+              return (
+                <label key={cat} className="flex items-center justify-between text-xs text-foreground cursor-pointer select-none py-0.5 hover:opacity-80">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={activeCategories[cat]}
+                      onChange={() =>
+                        setActiveCategories((prev) => {
+                          const nextVal = !prev[cat];
+                          const next = { ...prev, [cat]: nextVal };
+                          if (cat === "Birthday") next.birthday = nextVal;
+                          if (cat === "birthday") next.Birthday = nextVal;
+                          return next;
+                        })
+                      }
+                      className="rounded border-border text-teal-700 focus:ring-teal-600 size-3.5 cursor-pointer"
+                    />
+                    <span className={cn("size-2 rounded-full", style.dot)} />
+                    <span className="capitalize">{style.label || cat}</span>
+                  </div>
+                  {count > 0 && (
+                    <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full">
+                      {count}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Toolbar Icons */}
+      <div className="p-3 border-t border-border flex items-center justify-around text-muted-foreground shrink-0">
+        <button
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ["calendar-events"] });
+            queryClient.invalidateQueries({ queryKey: ["hr-calendar-composite-events"] });
+            queryClient.invalidateQueries({ queryKey: ["calendar-categories"] });
+            toast.success("Calendar refreshed from server.");
+          }}
+          className="hover:text-foreground p-1 transition-colors cursor-pointer"
+          title="Refresh Schedules"
+        >
+          <RefreshCw className="size-4" />
+        </button>
+        <button
+          onClick={exportCalendarCSV}
+          className="hover:text-foreground p-1 transition-colors cursor-pointer"
+          title="Export CSV"
+        >
+          <Download className="size-4" />
+        </button>
+        <button
+          onClick={() => toast.info("Master HRMS Enterprise Calendar v2.0 (Real-time Sync & Pusher Active)")}
+          className="hover:text-foreground p-1 transition-colors cursor-pointer"
+          title="Calendar Info"
+        >
+          <BookOpen className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex h-[calc(100vh-4rem)] bg-background text-foreground overflow-hidden">
+      {/* ─── DESKTOP SIDEBAR (>= 1024px) ─── */}
+      <aside data-testid="calendar-sidebar" className="hidden lg:flex w-64 border-r border-border bg-card flex-col justify-between shrink-0">
+        {renderSidebarContent(false)}
       </aside>
+
+      {/* ─── MOBILE & TABLET FILTER DRAWER (< 1024px) ─── */}
+      <Sheet open={filterDrawerOpen} onOpenChange={setFilterDrawerOpen}>
+        <SheetContent side="left" className="w-[300px] sm:w-[340px] p-0 flex flex-col justify-between bg-card">
+          <SheetHeader className="p-4 pb-2 border-b border-border">
+            <SheetTitle className="text-sm font-bold flex items-center justify-between">
+              <span>Calendar Filters</span>
+            </SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground">
+              Browse dates, filter categories, and view upcoming events.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden">
+            {renderSidebarContent(true)}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ─── MAIN CALENDAR CONTENT ─── */}
       <main className="flex-1 flex flex-col bg-card overflow-hidden">
-        {/* Header Toolbar */}
-        <div className="h-14 px-6 border-b border-border flex items-center justify-between">
+        {/* Desktop Header Toolbar (>= 1024px) */}
+        <div className="hidden lg:flex h-14 px-6 border-b border-border items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="outline"
@@ -1551,13 +1615,82 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           </div>
         </div>
 
+        {/* Mobile & Tablet Header Toolbar (< 1024px) */}
+        <div className="flex lg:hidden flex-col gap-2 p-3 border-b border-border bg-card">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setFilterDrawerOpen(true)}
+                className="h-8 px-2.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer shrink-0"
+                aria-label="Open Calendar Filters and Schedules"
+              >
+                <Filter className="size-3.5" />
+                <span className="hidden xs:inline">Filters</span>
+                {activeCategoryCount > 0 && (
+                  <span className="size-4 rounded-full bg-teal-700 text-white text-[10px] flex items-center justify-center font-bold">
+                    {activeCategoryCount}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToday}
+                className="h-8 px-2 text-xs font-medium cursor-pointer"
+              >
+                Today
+              </Button>
+              <div className="flex items-center">
+                <button
+                  onClick={handlePrev}
+                  className="size-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Previous"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="size-8 rounded-lg hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  title="Next"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            <h2 className="text-sm sm:text-base font-bold text-foreground truncate text-right">
+              {format(currentDate, "MMMM yyyy")}
+            </h2>
+          </div>
+
+          {/* Segmented View Selector */}
+          <div className="grid grid-cols-4 p-0.5 border border-border rounded-lg bg-muted/30 w-full">
+            {(["Month", "Week", "Day", "List"] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => setViewMode(view)}
+                className={cn(
+                  "py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer text-center",
+                  viewMode === view
+                    ? "bg-teal-700 text-white shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {view}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* ─── SEARCH & ADVANCED FILTERS BAR ─── */}
-        <div className="px-6 py-2.5 border-b border-border bg-muted/10 flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
+        <div className="px-3 sm:px-6 py-2 border-b border-border bg-muted/10 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+          <div className="relative flex-1 min-w-[180px] sm:max-w-sm">
             <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
             <Input
               type="text"
-              placeholder="Search title, description, location..."
+              placeholder="Search title, description..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-8 text-xs bg-background"
@@ -1572,82 +1705,84 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Status:</Label>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-8 text-xs w-[120px] bg-background">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="tentative">Tentative</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+              <Label className="text-xs text-muted-foreground font-medium hidden xs:inline">Status:</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-8 text-xs w-full sm:w-[120px] bg-background">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="tentative">Tentative</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex items-center gap-1.5">
-            <Label className="text-xs text-muted-foreground font-medium">Source:</Label>
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-8 text-xs w-[130px] bg-background">
-                <SelectValue placeholder="All Sources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="calendar">User Events</SelectItem>
-                <SelectItem value="birthday">Birthdays</SelectItem>
-                <SelectItem value="anniversary">Anniversaries</SelectItem>
-                <SelectItem value="interview">Interviews</SelectItem>
-                <SelectItem value="onboarding">Onboarding</SelectItem>
-                <SelectItem value="leave">Leave & PTO</SelectItem>
-                <SelectItem value="holiday">Holidays</SelectItem>
-                <SelectItem value="training">Training</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+              <Label className="text-xs text-muted-foreground font-medium hidden xs:inline">Source:</Label>
+              <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                <SelectTrigger className="h-8 text-xs w-full sm:w-[130px] bg-background">
+                  <SelectValue placeholder="All Sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="calendar">User Events</SelectItem>
+                  <SelectItem value="birthday">Birthdays</SelectItem>
+                  <SelectItem value="anniversary">Anniversaries</SelectItem>
+                  <SelectItem value="interview">Interviews</SelectItem>
+                  <SelectItem value="onboarding">Onboarding</SelectItem>
+                  <SelectItem value="leave">Leave & PTO</SelectItem>
+                  <SelectItem value="holiday">Holidays</SelectItem>
+                  <SelectItem value="training">Training</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          {(searchQuery || statusFilter !== "all" || sourceFilter !== "all") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchQuery("");
-                setStatusFilter("all");
-                setSourceFilter("all");
-              }}
-              className="h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <Filter className="size-3 mr-1" /> Clear Filters
-            </Button>
-          )}
+            {(searchQuery || statusFilter !== "all" || sourceFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setStatusFilter("all");
+                  setSourceFilter("all");
+                }}
+                className="h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer px-2"
+              >
+                <Filter className="size-3 mr-1" /> Clear
+              </Button>
+            )}
 
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                window.open(`/api/calendar/export/ics?startDate=${encodeURIComponent(queryWindowStart)}&endDate=${encodeURIComponent(queryWindowEnd)}`, "_blank");
-              }}
-              className="h-8 text-xs gap-1.5 cursor-pointer"
-              title="Export all events as iCalendar (.ics)"
-            >
-              <Download className="size-3.5" /> Export .ics
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.open(`/api/calendar/export/ics?startDate=${encodeURIComponent(queryWindowStart)}&endDate=${encodeURIComponent(queryWindowEnd)}`, "_blank");
+                }}
+                className="h-8 text-xs gap-1.5 cursor-pointer shrink-0"
+                title="Export all events as iCalendar (.ics)"
+              >
+                <Download className="size-3.5" /> <span className="hidden sm:inline">Export</span> .ics
+              </Button>
+            </div>
           </div>
         </div>
 
         {/* ─── VIEW MODE: MONTH ─── */}
         {viewMode === "Month" && (
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-[11px] font-bold text-muted-foreground uppercase">
-              <span>Sun</span>
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
+            <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase">
+              <span><span className="hidden sm:inline">Sun</span><span className="sm:hidden">S</span></span>
+              <span><span className="hidden sm:inline">Mon</span><span className="sm:hidden">M</span></span>
+              <span><span className="hidden sm:inline">Tue</span><span className="sm:hidden">T</span></span>
+              <span><span className="hidden sm:inline">Wed</span><span className="sm:hidden">W</span></span>
+              <span><span className="hidden sm:inline">Thu</span><span className="sm:hidden">T</span></span>
+              <span><span className="hidden sm:inline">Fri</span><span className="sm:hidden">F</span></span>
+              <span><span className="hidden sm:inline">Sat</span><span className="sm:hidden">S</span></span>
             </div>
 
             <div className="grid grid-cols-7 grid-rows-6 flex-1 divide-x divide-y divide-border overflow-y-auto">
@@ -1676,14 +1811,14 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       setCreateModalOpen(true);
                     }}
                     className={cn(
-                      "min-h-[105px] p-1.5 flex flex-col justify-start transition-colors cursor-pointer hover:bg-muted/10",
+                      "min-h-[64px] sm:min-h-[105px] p-1 sm:p-1.5 flex flex-col justify-start transition-colors cursor-pointer hover:bg-muted/10",
                       !inMonth && "bg-muted/10 text-muted-foreground/60"
                     )}
                   >
-                    <div className="flex justify-end mb-1">
+                    <div className="flex justify-end mb-0.5 sm:mb-1">
                       <span
                         className={cn(
-                          "size-6 flex items-center justify-center text-xs font-semibold rounded-full",
+                          "size-5 sm:size-6 flex items-center justify-center text-[10px] sm:text-xs font-semibold rounded-full",
                           isTodayDate ? "bg-teal-700 text-white font-bold" : "text-foreground"
                         )}
                       >
@@ -1691,7 +1826,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                       </span>
                     </div>
 
-                    <div className="space-y-1 overflow-y-auto max-h-[80px]">
+                    <div className="space-y-0.5 sm:space-y-1 overflow-y-auto max-h-[44px] sm:max-h-[80px]">
                       {dayEvents.map((evt) => {
                         const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
                         const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
@@ -1704,7 +1839,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                               openEventDetails(evt);
                             }}
                             className={cn(
-                              "px-1.5 py-0.5 rounded text-[11px] font-medium truncate cursor-pointer shadow-2xs transition-transform hover:scale-[1.02] flex items-center justify-between gap-1",
+                              "px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[11px] font-medium truncate cursor-pointer shadow-2xs transition-transform hover:scale-[1.02] flex items-center justify-between gap-1",
                               evt.color || "bg-teal-600 text-white"
                             )}
                             title={`${evt.title} (${evt.category})`}
@@ -1715,23 +1850,23 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                                   <img
                                     src={evt.avatarUrl}
                                     alt={evt.employeeName || cleanCalendarText(evt.title)}
-                                    className="size-3.5 rounded-full object-cover shrink-0 ring-1 ring-white/60"
+                                    className="size-3 sm:size-3.5 rounded-full object-cover shrink-0 ring-1 ring-white/60"
                                   />
                                 ) : (
-                                  <span className="size-3.5 rounded-full bg-white/30 text-[8px] font-bold flex items-center justify-center shrink-0">
+                                  <span className="size-3 sm:size-3.5 rounded-full bg-white/30 text-[7px] sm:text-[8px] font-bold flex items-center justify-center shrink-0">
                                     {evt.employeeInitials || "BD"}
                                   </span>
                                 )
                               )}
                               {isTodo && (
-                                <CheckSquare className="size-3 shrink-0 opacity-90 text-white" />
+                                <CheckSquare className="size-2.5 sm:size-3 shrink-0 opacity-90 text-white" />
                               )}
                               <span className={cn("truncate", evt.completed && "line-through opacity-85")}>
                                 {cleanCalendarText(evt.title)}
                               </span>
                             </div>
-                            {evt.isShared && <Share2 className="size-2.5 shrink-0 opacity-80" />}
-                            {evt.reminders && evt.reminders.length > 0 && <Bell className="size-2.5 shrink-0 opacity-80" />}
+                            {evt.isShared && <Share2 className="size-2 sm:size-2.5 shrink-0 opacity-80" />}
+                            {evt.reminders && evt.reminders.length > 0 && <Bell className="size-2 sm:size-2.5 shrink-0 opacity-80" />}
                           </div>
                         );
                       })}
@@ -1745,98 +1880,100 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
         {/* ─── VIEW MODE: WEEK ─── */}
         {viewMode === "Week" && (
-          <div className="flex-1 flex flex-col overflow-y-auto">
-            <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-[11px] font-bold text-muted-foreground uppercase">
-              {weekDays.map((d, i) => (
-                <div key={i} className={cn(isSameDay(d, new Date()) && "text-teal-600 font-bold")}>
-                  {format(d, "EEE dd")}
-                </div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 divide-x divide-border flex-1 min-h-[400px]">
-              {weekDays.map((d, i) => {
-                const dayStr = format(d, "yyyy-MM-dd");
-                const dayEvents = filteredEvents.filter((e) => e.startDate.startsWith(dayStr));
-                return (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      if (dayStr < todayDateStr) {
-                        toast.info("Cannot schedule events before today. Date set to today.");
-                        setNewEvent({
-                          ...getInitialNewEvent(new Date()),
-                          date: todayDateStr,
-                        });
-                      } else {
-                        setNewEvent({
-                          ...getInitialNewEvent(d),
-                          date: dayStr,
-                        });
-                      }
-                      setCreateModalOpen(true);
-                    }}
-                    className="p-2 space-y-2 hover:bg-muted/10 cursor-pointer min-h-[400px]"
-                  >
-                    {dayEvents.map((evt) => {
-                      const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
-                      const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
-                      return (
-                        <div
-                          key={evt.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEventDetails(evt);
-                          }}
-                          className={cn(
-                            "p-2 rounded-lg text-xs font-medium cursor-pointer shadow-xs transition-all hover:opacity-90",
-                            evt.color || "bg-teal-600 text-white"
-                          )}
-                        >
-                          <div className="flex items-center gap-1.5 font-bold truncate">
-                            {isBirthday && (
-                              evt.avatarUrl ? (
-                                <img
-                                  src={evt.avatarUrl}
-                                  alt={evt.employeeName || cleanCalendarText(evt.title)}
-                                  className="size-4 rounded-full object-cover shrink-0 ring-1 ring-white/60"
-                                />
-                              ) : (
-                                <span className="size-4 rounded-full bg-white/30 text-[9px] font-bold flex items-center justify-center shrink-0">
-                                  {evt.employeeInitials || "BD"}
-                                </span>
-                              )
+          <div className="flex-1 flex flex-col overflow-x-auto overflow-y-auto">
+            <div className="min-w-[560px] md:min-w-full flex-1 flex flex-col">
+              <div className="grid grid-cols-7 border-b border-border bg-muted/20 text-center py-2 text-[11px] font-bold text-muted-foreground uppercase">
+                {weekDays.map((d, i) => (
+                  <div key={i} className={cn(isSameDay(d, new Date()) && "text-teal-600 font-bold")}>
+                    {format(d, "EEE dd")}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 divide-x divide-border flex-1 min-h-[400px]">
+                {weekDays.map((d, i) => {
+                  const dayStr = format(d, "yyyy-MM-dd");
+                  const dayEvents = filteredEvents.filter((e) => e.startDate.startsWith(dayStr));
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        if (dayStr < todayDateStr) {
+                          toast.info("Cannot schedule events before today. Date set to today.");
+                          setNewEvent({
+                            ...getInitialNewEvent(new Date()),
+                            date: todayDateStr,
+                          });
+                        } else {
+                          setNewEvent({
+                            ...getInitialNewEvent(d),
+                            date: dayStr,
+                          });
+                        }
+                        setCreateModalOpen(true);
+                      }}
+                      className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 hover:bg-muted/10 cursor-pointer min-h-[400px]"
+                    >
+                      {dayEvents.map((evt) => {
+                        const isBirthday = evt.category?.toLowerCase() === "birthday" || evt.id.startsWith("birthday-");
+                        const isTodo = evt.sourceDomain === "todo" || evt.category?.toLowerCase() === "todo";
+                        return (
+                          <div
+                            key={evt.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEventDetails(evt);
+                            }}
+                            className={cn(
+                              "p-1.5 sm:p-2 rounded-lg text-xs font-medium cursor-pointer shadow-xs transition-all hover:opacity-90",
+                              evt.color || "bg-teal-600 text-white"
                             )}
-                            {isTodo && (
-                              <CheckSquare className="size-3.5 shrink-0 opacity-90 text-white" />
-                            )}
-                            <p className={cn("truncate", evt.completed && "line-through opacity-85")}>
-                              {cleanCalendarText(evt.title)}
+                          >
+                            <div className="flex items-center gap-1.5 font-bold truncate">
+                              {isBirthday && (
+                                evt.avatarUrl ? (
+                                  <img
+                                    src={evt.avatarUrl}
+                                    alt={evt.employeeName || cleanCalendarText(evt.title)}
+                                    className="size-4 rounded-full object-cover shrink-0 ring-1 ring-white/60"
+                                  />
+                                ) : (
+                                  <span className="size-4 rounded-full bg-white/30 text-[9px] font-bold flex items-center justify-center shrink-0">
+                                    {evt.employeeInitials || "BD"}
+                                  </span>
+                                )
+                              )}
+                              {isTodo && (
+                                <CheckSquare className="size-3.5 shrink-0 opacity-90 text-white" />
+                              )}
+                              <p className={cn("truncate", evt.completed && "line-through opacity-85")}>
+                                {cleanCalendarText(evt.title)}
+                              </p>
+                            </div>
+                            <p className="text-[10px] opacity-80 mt-0.5">
+                              {format(new Date(evt.startDate), "h:mm a")}
                             </p>
                           </div>
-                          <p className="text-[10px] opacity-80 mt-0.5">
-                            {format(new Date(evt.startDate), "h:mm a")}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
 
         {/* ─── VIEW MODE: DAY ─── */}
         {viewMode === "Day" && (
-          <div className="flex-1 p-6 overflow-y-auto space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex-1 p-3 sm:p-6 overflow-y-auto space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-3">
               <div>
-                <h3 className="text-lg font-bold">{format(currentDate, "EEEE, MMMM d, yyyy")}</h3>
+                <h3 className="text-base sm:text-lg font-bold">{format(currentDate, "EEEE, MMMM d, yyyy")}</h3>
                 <p className="text-xs text-muted-foreground">Scheduled Sessions, Reminders and Projections</p>
               </div>
               <Button
                 size="sm"
-                className="bg-teal-700 hover:bg-teal-800 text-white text-xs gap-1.5"
+                className="bg-teal-700 hover:bg-teal-800 text-white text-xs gap-1.5 self-start sm:self-auto cursor-pointer"
                 onClick={() => {
                   setNewEvent({
                     ...getInitialNewEvent(currentDate),
@@ -1912,10 +2049,10 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
         {/* ─── VIEW MODE: LIST ─── */}
         {viewMode === "List" && (
-          <div className="p-6 overflow-y-auto space-y-3 flex-1">
-            <div className="flex items-center justify-between mb-2">
+          <div className="p-3 sm:p-6 overflow-y-auto space-y-2.5 sm:space-y-3 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
               <h4 className="font-bold text-sm text-foreground">Scheduled Events Agenda ({filteredEvents.length})</h4>
-              <Button variant="outline" size="sm" onClick={exportCalendarCSV} className="text-xs gap-1.5">
+              <Button variant="outline" size="sm" onClick={exportCalendarCSV} className="text-xs gap-1.5 self-start sm:self-auto cursor-pointer">
                 <Download className="size-3.5" /> Export CSV
               </Button>
             </div>
@@ -1987,7 +2124,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
       {/* ─── CREATE CUSTOM CATEGORY MODAL ─── */}
       <Dialog open={newCategoryModalOpen} onOpenChange={setNewCategoryModalOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="w-[94vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-sm font-bold flex items-center gap-2">
               <Palette className="size-4 text-teal-600" /> Create Calendar Category
@@ -2031,7 +2168,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setNewCategoryModalOpen(false)}>
               Cancel
             </Button>
@@ -2055,7 +2192,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
       {/* ─── CREATE EVENT MODAL ─── */}
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[94vw] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6 flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <CalendarCheck className="size-4 text-teal-600" /> Create New Calendar Event
@@ -2383,7 +2520,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
@@ -2402,7 +2539,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
       {/* ─── EVENT DETAILS / EDIT MODAL ─── */}
       <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
         {selectedEvent && (
-          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[94vw] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6 flex flex-col">
             <DialogHeader>
               <div className="flex items-center justify-between pr-6">
                 <Badge className={cn("text-xs font-semibold", selectedEvent.color || "bg-teal-600 text-white")}>
@@ -2944,7 +3081,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               </div>
             )}
 
-            <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+            <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
               {selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo" ? (
                 <>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -3085,7 +3222,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
       {/* ─── CONFLICT WARNING MODAL ─── */}
       <Dialog open={conflictModalOpen} onOpenChange={setConflictModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[94vw] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2 text-amber-600">
               <AlertCircle className="size-4" /> Scheduling Conflict Detected
@@ -3133,7 +3270,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
           </div>
 
-          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
             <Button variant="outline" size="sm" onClick={() => setConflictModalOpen(false)}>
               Change Time / Room
             </Button>
@@ -3156,7 +3293,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
       {/* ─── RECURRENCE SCOPE MODAL ─── */}
       <Dialog open={recurrenceScopeModalOpen} onOpenChange={setRecurrenceScopeModalOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="w-[94vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <Repeat className="size-4 text-teal-600" />
@@ -3217,7 +3354,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setRecurrenceScopeModalOpen(false)}>
               Cancel
             </Button>
@@ -3246,7 +3383,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
 
       {/* ─── AUDIT TRAIL MODAL ─── */}
       <Dialog open={auditModalOpen} onOpenChange={setAuditModalOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[94vw] sm:max-w-lg max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-base font-bold flex items-center gap-2">
               <History className="size-4 text-teal-600" /> Calendar Event Audit Trail
@@ -3288,7 +3425,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2">
             <Button size="sm" onClick={() => setAuditModalOpen(false)}>
               Close
             </Button>
