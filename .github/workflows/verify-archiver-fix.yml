@@ -1,0 +1,60 @@
+name: Verify Archiver CommonJS runtime fix
+
+on:
+  push:
+    branches:
+      - fix/archiver-v8-esm-runtime
+    paths:
+      - "server/package.json"
+      - "package-lock.json"
+      - ".github/workflows/verify-archiver-fix.yml"
+      - "server/src/services/files/streaming-archival.service.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archiver-runtime-fix
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/archiver-v8-esm-runtime
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Regenerate npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Install from regenerated lockfile
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Verify Archiver loads through CommonJS
+        run: node -e "const archiver = require('archiver'); if (typeof archiver !== 'function') process.exit(1); console.log('Archiver CommonJS load OK');"
+
+      - name: Build backend
+        run: npm run build --workspace=server
+        env:
+          DATABASE_URL: mysql://ci:ci@127.0.0.1:3306/masterhrms
+
+      - name: Commit regenerated lockfile
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore(deps): regenerate lockfile for archiver 7"
+            git push origin HEAD:fix/archiver-v8-esm-runtime
+          else
+            echo "Lockfile already matches package manifests."
+          fi
