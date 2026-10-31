@@ -1,3 +1,12 @@
+
+import { DocumentPreviewService } from "../services/files/document-preview.service";
+import { DocumentAnnotationService } from "../services/files/document-annotation.service";
+import { MalwareScannerService } from "../services/security/malware-scanner.service";
+import { DlpEngineService } from "../services/security/dlp-engine.service";
+import { ExternalConnectorsService } from "../services/storage/external-connectors.service";
+import { StreamingArchivalService } from "../services/files/streaming-archival.service";
+import { BatchOperationsService } from "../services/files/batch-operations.service";
+import { WebdavService } from "../services/webdav/webdav.service";
 import { Router, Request, Response, NextFunction } from "express";
 import multer from "multer";
 import path from "path";
@@ -1721,5 +1730,536 @@ filesRouter.get("/picker/selectable", requireAuth, async (req: any, res: Respons
   } catch (err: any) {
     console.error("[File Picker Selectable Error]:", err);
     return res.status(err.status || 500).json({ error: err.message || "Failed to list selectable files." });
+  }
+});
+
+
+// ============================================================================
+// PHASE F6 ENTERPRISE CAPABILITY ENDPOINTS (TRACKS A, B, C, D)
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// TRACK A: IN-BROWSER RICH PREVIEWS & VERSION-AWARE ANNOTATIONS
+// ----------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/files/nodes/:id/rich-preview
+ * Returns safe in-browser preview data (PDF, DOCX HTML, XLSX tabular, CSV, text, images)
+ * with dynamic confidential watermark tokens.
+ */
+filesRouter.get("/nodes/:id/rich-preview", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const userEmail = req.user?.email || "user@masterhrms.local";
+    const ip = req.ip || req.connection?.remoteAddress || "127.0.0.1";
+
+    const preview = await DocumentPreviewService.generatePreview(id, tenantId, {
+      userEmail,
+      tenantName: (req.user as any)?.tenantName || "Enterprise Workspace",
+      ip: String(ip),
+    });
+
+    return res.json(preview);
+  } catch (err: any) {
+    console.error("[Rich Preview Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to generate rich preview." });
+  }
+});
+
+/**
+ * GET /api/v1/files/nodes/:id/annotations
+ * List version-aware document annotations and replies.
+ */
+filesRouter.get("/nodes/:id/annotations", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const version = req.query.version ? parseInt(String(req.query.version), 10) : undefined;
+
+    const annotations = await DocumentAnnotationService.getAnnotations(tenantId, id, version);
+    return res.json({ annotations });
+  } catch (err: any) {
+    console.error("[Get Annotations Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to load annotations." });
+  }
+});
+
+/**
+ * POST /api/v1/files/nodes/:id/annotations
+ * Add an annotation to a document page with coordinates.
+ */
+filesRouter.post("/nodes/:id/annotations", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+    const { pageNumber, coordinates, content, color, fileVersion } = req.body;
+
+    const annotation = await DocumentAnnotationService.createAnnotation(tenantId!, userId!, {
+      fileId: id,
+      fileVersion,
+      pageNumber,
+      coordinates,
+      content,
+      color,
+    });
+
+    return res.status(201).json({ annotation });
+  } catch (err: any) {
+    console.error("[Create Annotation Error]:", err);
+    return res.status(400).json({ error: err.message || "Failed to create annotation." });
+  }
+});
+
+/**
+ * PATCH /api/v1/files/annotations/:annotationId
+ * Update annotation text, color, or status (resolve).
+ */
+filesRouter.patch("/annotations/:annotationId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId, isSuper } = getAuthContext(req);
+    const { annotationId } = req.params;
+
+    const updated = await DocumentAnnotationService.updateAnnotation(
+      tenantId!,
+      annotationId,
+      userId!,
+      req.body,
+      isSuper
+    );
+
+    return res.json({ annotation: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to update annotation." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/annotations/:annotationId
+ * Delete an annotation.
+ */
+filesRouter.delete("/annotations/:annotationId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId, isSuper } = getAuthContext(req);
+    const { annotationId } = req.params;
+
+    const result = await DocumentAnnotationService.deleteAnnotation(tenantId!, annotationId, userId!, isSuper);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to delete annotation." });
+  }
+});
+
+/**
+ * POST /api/v1/files/annotations/:annotationId/replies
+ * Add a reply to an annotation thread.
+ */
+filesRouter.post("/annotations/:annotationId/replies", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { annotationId } = req.params;
+    const { content } = req.body;
+
+    const reply = await DocumentAnnotationService.addReply(tenantId!, annotationId, userId!, content);
+    return res.status(201).json({ reply });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to add reply." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/annotations/replies/:replyId
+ * Remove a reply.
+ */
+filesRouter.delete("/annotations/replies/:replyId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId, isSuper } = getAuthContext(req);
+    const { replyId } = req.params;
+
+    const result = await DocumentAnnotationService.deleteReply(tenantId!, replyId, userId!, isSuper);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to delete reply." });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// TRACK B: MALWARE SCANNING, QUARANTINE LIFECYCLE & DLP ENGINE
+// ----------------------------------------------------------------------------
+
+/**
+ * POST /api/v1/files/nodes/:id/scan
+ * Trigger on-demand malware scan on a file.
+ */
+filesRouter.post("/nodes/:id/scan", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const { engine } = req.body;
+
+    const result = await MalwareScannerService.scanFile(id, tenantId, engine);
+    return res.json({ result });
+  } catch (err: any) {
+    console.error("[Malware Scan Error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to execute malware scan." });
+  }
+});
+
+/**
+ * GET /api/v1/files/security/quarantine
+ * List quarantined files in the tenant.
+ */
+filesRouter.get("/security/quarantine", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const files = await MalwareScannerService.listQuarantinedFiles(tenantId);
+    return res.json({ files });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list quarantined files." });
+  }
+});
+
+/**
+ * POST /api/v1/files/security/quarantine/:id/release
+ * SecOps admin release of quarantined file.
+ */
+filesRouter.post("/security/quarantine/:id/release", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const released = await MalwareScannerService.releaseQuarantine(tenantId!, id, userId!, reason);
+    return res.json({ file: released, message: "File released from quarantine." });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to release file from quarantine." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/security/quarantine/:id/purge
+ * Permanently delete malicious infected file.
+ */
+filesRouter.delete("/security/quarantine/:id/purge", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+
+    const result = await MalwareScannerService.purgeQuarantinedFile(tenantId!, id, userId!);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to purge quarantined file." });
+  }
+});
+
+/**
+ * GET /api/v1/files/security/dlp/policies
+ * List tenant DLP policies.
+ */
+filesRouter.get("/security/dlp/policies", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const policies = await DlpEngineService.listPolicies(tenantId!);
+    return res.json({ policies });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list DLP policies." });
+  }
+});
+
+/**
+ * POST /api/v1/files/security/dlp/policies
+ * Create a new DLP policy.
+ */
+filesRouter.post("/security/dlp/policies", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const policy = await DlpEngineService.createPolicy(tenantId!, userId!, req.body);
+    return res.status(201).json({ policy });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to create DLP policy." });
+  }
+});
+
+/**
+ * PATCH /api/v1/files/security/dlp/policies/:policyId
+ * Update DLP policy.
+ */
+filesRouter.patch("/security/dlp/policies/:policyId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { policyId } = req.params;
+    const policy = await DlpEngineService.updatePolicy(tenantId!, policyId, req.body);
+    return res.json({ policy });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to update DLP policy." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/security/dlp/policies/:policyId
+ * Delete DLP policy.
+ */
+filesRouter.delete("/security/dlp/policies/:policyId", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { policyId } = req.params;
+    await DlpEngineService.deletePolicy(tenantId!, policyId);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to delete DLP policy." });
+  }
+});
+
+/**
+ * GET /api/v1/files/security/dlp/findings
+ * List DLP violations and findings.
+ */
+filesRouter.get("/security/dlp/findings", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const findings = await DlpEngineService.listFindings(tenantId!, status);
+    return res.json({ findings });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list DLP findings." });
+  }
+});
+
+/**
+ * POST /api/v1/files/security/dlp/findings/:findingId/review
+ * Review and resolve a DLP finding.
+ */
+filesRouter.post("/security/dlp/findings/:findingId/review", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { findingId } = req.params;
+    const updated = await DlpEngineService.reviewFinding(tenantId!, findingId, userId!, req.body);
+    return res.json({ finding: updated });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to review DLP finding." });
+  }
+});
+
+/**
+ * POST /api/v1/files/nodes/:id/dlp-scan
+ * Run DLP check on file.
+ */
+filesRouter.post("/nodes/:id/dlp-scan", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const result = await DlpEngineService.scanFile(tenantId!, id);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to run DLP scan." });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// TRACK C: EXTERNAL CLOUD STORAGE CONNECTORS & SYNC
+// ----------------------------------------------------------------------------
+
+/**
+ * GET /api/v1/files/connectors
+ * List cloud storage connectors for tenant.
+ */
+filesRouter.get("/connectors", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const connections = await ExternalConnectorsService.listConnections(tenantId!);
+    return res.json({ connections });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list connectors." });
+  }
+});
+
+/**
+ * POST /api/v1/files/connectors
+ * Register or connect cloud storage account (Google Drive, OneDrive, Dropbox).
+ */
+filesRouter.post("/connectors", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const connection = await ExternalConnectorsService.createConnection(tenantId!, userId!, req.body);
+    return res.status(201).json({ connection });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to connect external storage." });
+  }
+});
+
+/**
+ * POST /api/v1/files/connectors/:id/test
+ * Test external connector health and token validity.
+ */
+filesRouter.post("/connectors/:id/test", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const result = await ExternalConnectorsService.testConnection(tenantId!, id);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to test connector." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/connectors/:id
+ * Disconnect and remove external storage connector.
+ */
+filesRouter.delete("/connectors/:id", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const result = await ExternalConnectorsService.deleteConnection(tenantId!, id);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to delete connector." });
+  }
+});
+
+/**
+ * GET /api/v1/files/connectors/:id/remote-files
+ * List files available in the remote cloud folder.
+ */
+filesRouter.get("/connectors/:id/remote-files", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId } = getAuthContext(req);
+    const { id } = req.params;
+    const folderId = req.query.folderId ? String(req.query.folderId) : undefined;
+    const files = await ExternalConnectorsService.listRemoteFiles(tenantId!, id, folderId);
+    return res.json({ files });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list remote files." });
+  }
+});
+
+/**
+ * POST /api/v1/files/connectors/:id/import
+ * Ingest file from remote cloud drive into MASTERHRMS file system.
+ */
+filesRouter.post("/connectors/:id/import", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+    const { remoteItem } = req.body;
+
+    const imported = await ExternalConnectorsService.importRemoteFile(tenantId!, userId!, id, remoteItem);
+    return res.status(201).json({ file: imported });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to import remote file." });
+  }
+});
+
+/**
+ * POST /api/v1/files/connectors/:id/sync
+ * Trigger sync and return detected conflicts.
+ */
+filesRouter.post("/connectors/:id/sync", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+    const result = await ExternalConnectorsService.syncConnection(tenantId!, id, userId!);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Sync execution failed." });
+  }
+});
+
+/**
+ * POST /api/v1/files/connectors/conflicts/:conflictId/resolve
+ * Resolve synchronization conflict.
+ */
+filesRouter.post("/connectors/conflicts/:conflictId/resolve", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { conflictId } = req.params;
+    const { resolution } = req.body;
+
+    const resolved = await ExternalConnectorsService.resolveConflict(tenantId!, conflictId, userId!, resolution);
+    return res.json({ conflict: resolved });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to resolve sync conflict." });
+  }
+});
+
+// ----------------------------------------------------------------------------
+// TRACK D: STREAMING ARCHIVAL, BATCH OPERATIONS & WEBDAV TOKENS
+// ----------------------------------------------------------------------------
+
+/**
+ * POST /api/v1/files/batch/archive
+ * Direct streaming ZIP archive generation (zero-memory buffering).
+ */
+filesRouter.post("/batch/archive", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { fileIds, archiveName } = req.body;
+
+    await StreamingArchivalService.streamZipArchive(tenantId, userId!, fileIds, res, archiveName);
+  } catch (err: any) {
+    console.error("[Streaming Archival Error]:", err);
+    if (!res.headersSent) {
+      return res.status(400).json({ error: err.message || "Failed to generate streaming archive." });
+    }
+  }
+});
+
+/**
+ * POST /api/v1/files/batch/actions
+ * Atomic multi-file batch execution (move, trash, restore, star, tag, scan)
+ * with itemized partial-failure report.
+ */
+filesRouter.post("/batch/actions", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const result = await BatchOperationsService.executeBatchAction(tenantId, userId!, req.body);
+    return res.json(result);
+  } catch (err: any) {
+    console.error("[Batch Actions Error]:", err);
+    return res.status(400).json({ error: err.message || "Failed to execute batch action." });
+  }
+});
+
+/**
+ * GET /api/v1/files/webdav/tokens
+ * List active WebDAV access tokens for user.
+ */
+filesRouter.get("/webdav/tokens", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const tokens = await WebdavService.listTokens(tenantId!, userId!);
+    return res.json({ tokens });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to list WebDAV tokens." });
+  }
+});
+
+/**
+ * POST /api/v1/files/webdav/tokens
+ * Create new WebDAV access token.
+ */
+filesRouter.post("/webdav/tokens", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { tokenName } = req.body;
+    const token = await WebdavService.createToken(tenantId!, userId!, tokenName);
+    return res.status(201).json(token);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to create WebDAV token." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/webdav/tokens/:id
+ * Revoke WebDAV token.
+ */
+filesRouter.delete("/webdav/tokens/:id", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    const { id } = req.params;
+    await WebdavService.revokeToken(tenantId!, id, userId!);
+    return res.json({ success: true, message: "Token revoked." });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to revoke token." });
   }
 });

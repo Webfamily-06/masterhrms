@@ -97,6 +97,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDialog } from "./share-dialog";
+import { DocumentPreviewModal } from "@/components/files/document-preview-modal";
+import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // Canonical MasterHRMS system font stack
@@ -730,6 +732,57 @@ export function UnifiedFileManager({
     }
   };
 
+
+  // F6 Batch Download Streaming ZIP
+  const handleBatchDownloadZip = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      toast.loading("Building streaming ZIP archive...", { id: "batch-zip" });
+      const res = await fetch(`${API_URL}/v1/files/batch/archive`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ fileIds: ids, archiveName: `archive_${Date.now()}.zip` }),
+      });
+      if (!res.ok) throw new Error("Failed to generate streaming archive");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `archive_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Streaming ZIP archive downloaded.", { id: "batch-zip" });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to download archive.", { id: "batch-zip" });
+    }
+  };
+
+  // F6 Batch Malware Scan
+  const handleBatchScan = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    try {
+      toast.loading(`Scanning ${ids.length} item(s) for security threats...`, { id: "batch-scan" });
+      const res = await fetch(`${API_URL}/v1/files/batch/actions`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action: "scan", fileIds: ids }),
+      });
+      const d = await res.json();
+      if (d.failed && d.failed.length > 0) {
+        toast.error(`Scan completed with warnings: ${d.failed.length} threat(s) detected.`, { id: "batch-scan" });
+      } else {
+        toast.success(`Scanned ${d.successful?.length || ids.length} file(s). All clean!`, { id: "batch-scan" });
+      }
+      qc.invalidateQueries({ queryKey: ["files-list"] });
+    } catch (err: any) {
+      toast.error(err.message || "Batch scan failed.", { id: "batch-scan" });
+    }
+  };
+
   // Toggle star
   const handleToggleStar = async (item: FileItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -1359,6 +1412,42 @@ export function UnifiedFileManager({
           </button>
         </div>
 
+
+        {/* Enterprise & Security Links (Phase F6) */}
+        <div className="space-y-0.5 pt-2">
+          <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+            Enterprise & Compliance
+          </div>
+          <a
+            href="/tenant/files/security"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+          >
+            <ShieldAlert className="size-4 text-amber-500 shrink-0" />
+            <span>Security & Quarantine</span>
+          </a>
+          <a
+            href="/tenant/files/connectors"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+          >
+            <FolderUp className="size-4 text-blue-500 shrink-0" />
+            <span>Cloud Connectors</span>
+          </a>
+          <a
+            href="/tenant/files/webdav"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+          >
+            <HardDrive className="size-4 text-purple-500 shrink-0" />
+            <span>WebDAV Network Drive</span>
+          </a>
+          <a
+            href="/tenant/files/storage"
+            className="flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+          >
+            <Info className="size-4 text-emerald-500 shrink-0" />
+            <span>Storage & Retention</span>
+          </a>
+        </div>
+
         {/* Categories Section */}
         <div className="space-y-0.5">
           <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
@@ -1755,6 +1844,33 @@ export function UnifiedFileManager({
               >
                 <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
                 <span className="hidden md:inline">Rename</span>
+              </Button>
+
+              
+              {/* F6 Batch Download ZIP */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={handleBatchDownloadZip}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Download selected items as streaming ZIP archive"
+              >
+                <Archive className="size-3.5 text-primary" />
+                <span className="hidden lg:inline">Download ZIP</span>
+              </Button>
+
+              {/* F6 Batch Malware Scan */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={selectedIds.size === 0}
+                onClick={handleBatchScan}
+                className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
+                title="Scan selected files for malware threats"
+              >
+                <ShieldAlert className="size-3.5 text-amber-500" />
+                <span className="hidden xl:inline">Scan</span>
               </Button>
 
               {/* Recycle Bin / Delete Button */}
