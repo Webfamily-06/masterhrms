@@ -8,10 +8,6 @@ exports.verifyToken = verifyToken;
 exports.generateMfaToken = generateMfaToken;
 exports.verifyMfaToken = verifyMfaToken;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const dotenv_1 = __importDefault(require("dotenv"));
-const path_1 = __importDefault(require("path"));
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") });
-dotenv_1.default.config();
 const getJwtSecret = () => process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
 const getJwtExpiresIn = () => process.env.JWT_EXPIRES_IN || "7d";
 function generateToken(payload) {

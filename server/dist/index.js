@@ -5,12 +5,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.server = exports.app = void 0;
 exports.getMissingRequiredEnvNames = getMissingRequiredEnvNames;
-const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") }); // project root .env
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
+// Centralized environment variable initialization (Development / Local environments only)
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const isProduction = process.env.NODE_ENV === "production";
+if (!isServerless && !isProduction) {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const dotenv = require("dotenv");
+        dotenv.config({ path: path_1.default.resolve(__dirname, "../../.env") }); // project root .env
+        dotenv.config({ path: path_1.default.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
+    }
+    catch {
+        // Gracefully ignore if dotenv is omitted or unresolvable
+    }
+}
 // Global BigInt JSON serialization support for Express API boundaries
 if (!BigInt.prototype.toJSON) {
     BigInt.prototype.toJSON = function () {
@@ -528,7 +539,6 @@ app.use((err, req, res, next) => {
     res.status(err.status || 500).json({ error: clientError, requestId });
 });
 let server;
-const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
 if (!isServerless && process.env.NODE_ENV !== "test") {
     exports.server = server = http_1.default.createServer(app);
     (0, socket_1.initSocket)(server, allowedOrigins);
