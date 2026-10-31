@@ -1,0 +1,50 @@
+name: Verify Vercel Archiver runtime bundle
+
+on:
+  push:
+    branches:
+      - fix/vercel-archiver-runtime-bundle
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "server/package.json"
+      - ".github/workflows/verify-vercel-archiver-bundle.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vercel-archiver-runtime-bundle
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Regenerate lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Clean install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build server workspace
+        run: npm run build --workspace=server
+        env:
+          DATABASE_URL: mysql://ci:ci@127.0.0.1:3306/masterhrms
+      - name: Verify Archiver resolves from Vercel server function paths
+        run: |
+          node -e "const path=require('path'); const from=path.resolve('server/dist/services/files'); const resolved=require.resolve('archiver',{paths:[from]}); const archiver=require(resolved); if(typeof archiver!=='function') throw new Error('Archiver export is not callable'); console.log({resolved,commonjs:true});"
+      - name: Commit regenerated lockfile
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore(deps): update root archiver lockfile"
+            git push origin HEAD:fix/vercel-archiver-runtime-bundle
+          fi
