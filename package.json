@@ -1,6 +1,10 @@
 {
   "name": "tanstack_start_ts",
   "private": true,
+  "workspaces": [
+    "server",
+    "CMS"
+  ],
   "sideEffects": false,
   "type": "module",
   "engines": {
