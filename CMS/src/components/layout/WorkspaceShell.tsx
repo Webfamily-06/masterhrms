@@ -509,7 +509,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     }
   }, [mobileOpen]);
 
-  // Global keyboard shortcut: ⌘K for search, ⌘B for sidebar toggle
+  // Global keyboard shortcut: ⌘K for search, ⌘B for sidebar toggle, Escape for mobile drawer dismissal
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
@@ -520,15 +520,30 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         e.preventDefault();
         setFullView((v) => !v);
       }
+      if (e.key === "Escape" && mobileOpen) {
+        e.preventDefault();
+        setMobileOpen(false);
+      }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, []);
+  }, [mobileOpen]);
 
   // Close mobile sidebar on route transition
   useEffect(() => {
     setMobileOpen(false);
   }, [path]);
+
+  // Auto-dismiss mobile drawer on viewport resize to desktop (>= 1024px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const impersonationBannerRef = useRef<HTMLDivElement>(null);
 
@@ -791,11 +806,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
               <i className={cn("ph-duotone", collapsed ? "ph-arrow-line-right" : "ph-arrow-line-left")}></i>
             </button>
 
-            {/* Active Company / Workspace Brand Logo & Selector */}
+            {/* Active Company / Workspace Brand Logo & Selector (Desktop >= 1024px) */}
             {isWorkspaceAdmin ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="header-item hidden md:flex relative company-dropdown me-auto cursor-pointer">
+                  <div className="header-item hidden lg:flex relative company-dropdown me-auto cursor-pointer">
                     <div className="bg-card border border-border/70 rounded-xl py-1 px-3 flex items-center justify-between gap-2.5 shadow-2xs hover:border-primary/40 hover:bg-muted/40 transition-colors">
                       <img
                         src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
@@ -836,7 +851,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <div className="header-item hidden md:flex relative me-auto">
+              <div className="header-item hidden lg:flex relative me-auto">
                 <div className="bg-card border border-border/70 rounded-xl py-1 px-3 flex items-center gap-2 shadow-2xs">
                   <img
                     src={branding.activeLogo || (isDark ? (branding.logoDark || "/white-logo.webp") : (branding.logoUrl || "/logo.webp"))}
@@ -854,11 +869,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
           {/* Right section items */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-auto">
-            {/* Quick POS Terminal Button (Role & Module Gated) */}
+            {/* Quick POS Terminal Button (Role & Module Gated - Desktop >= 1024px) */}
             {canAccessPos && (
               <Link
                 to="/pos"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-colors shrink-0"
                 title="Open POS Terminal"
               >
                 <i className="ph-duotone ph-shopping-cart text-sm"></i>
@@ -927,7 +942,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Native Fullscreen / Full View Screen Toggle */}
-            <div className="header-item">
+            <div className="header-item hidden lg:flex">
               <button
                 type="button"
                 id="btn_fullscreen"

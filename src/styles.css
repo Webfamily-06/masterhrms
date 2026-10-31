@@ -751,9 +751,9 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 }
 
 /* ------------------------------------------------------------
-   1. DESKTOP WORKSPACE (>= 992px)
+   1. DESKTOP WORKSPACE (>= 1024px)
    ------------------------------------------------------------ */
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   /* Sidebar Fixed Container (0px gaps, docked flush matching Dreams ERP) */
   .sidebar {
     position: fixed !important;
@@ -881,6 +881,9 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     display: none !important;
   }
   .sidebar-close {
+    display: none !important;
+  }
+  .sidebar-overlay {
     display: none !important;
   }
 
@@ -1023,7 +1026,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
   }
 
   /* ------------------------------------------------------------
-     1.4 DESKTOP FULL-VIEW / FULL-WIDTH DASHBOARD (>= 992px)
+     1.4 DESKTOP FULL-VIEW / FULL-WIDTH DASHBOARD (>= 1024px)
      Sidebar slides off-canvas, Topbar and Page-wrapper span 100% full width
      ------------------------------------------------------------ */
   body.full-view .sidebar,
@@ -1078,9 +1081,9 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 }
 
 /* ------------------------------------------------------------
-   2. TABLET & MOBILE RESPONSIVE WORKSPACE (< 992px)
+   2. TABLET & MOBILE RESPONSIVE WORKSPACE (< 1024px)
    ------------------------------------------------------------ */
-@media (max-width: 991.98px) {
+@media (max-width: 1023.98px) {
   /* Full-width Sticky Topbar */
   .navbar-header {
     position: sticky !important;
@@ -1149,7 +1152,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     width: 275px !important;
     max-width: 82vw !important;
     height: 100vh !important;
-    margin-left: -290px !important;
+    margin-left: -320px !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     border-radius: 0 !important;
@@ -1232,7 +1235,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
    1. Sidebar logo text overlapping the logo image
    2. Topbar profile section appearing on left instead of right
    3. Full-width sidebar expansion stability
-   4. Tablet (768-991px) responsive corrections
+   4. Tablet (768-1023px) responsive corrections
    ============================================================ */
 
 /* ----------------------------------------------------------
@@ -1314,7 +1317,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
    When the sidebar is in full (non-mini, non-collapsed) mode,
    it must hold exactly --sidebar-width with no jump.
    ---------------------------------------------------------- */
-@media (min-width: 992px) {
+@media (min-width: 1024px) {
   /* Default full sidebar — stable 250px (when NOT in mini-sidebar state) */
   body:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar,
   .main-wrapper:not(.mini-sidebar):not(.full-view):not(.full-width) .sidebar {
@@ -1381,9 +1384,9 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 }
 
 /* ----------------------------------------------------------
-   FIX 4: Tablet (768–991px) responsive topbar + sidebar
+   FIX 4: Tablet (768–1023px) responsive topbar + sidebar
    ---------------------------------------------------------- */
-@media (min-width: 768px) and (max-width: 991.98px) {
+@media (min-width: 768px) and (max-width: 1023.98px) {
   /* Topbar full-width on tablet */
   .navbar-header {
     padding: 0 16px !important;

@@ -2,9 +2,25 @@ import SmoothScrollProvider from "@/src/components/animation/smooth-scroll";
 import { MobileMenuProvider } from "@/src/context/MobileMenuContext";
 import { fontVariables } from "@/src/utils/font";
 import { ReactNode, Suspense } from "react";
+import type { Viewport, Metadata } from "next";
 import { AppShell } from "@/src/components/layout/AppShell";
 import { AppProviders } from "@/src/components/providers/AppProviders";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+};
+
+export const metadata: Metadata = {
+  title: {
+    template: "%s — Master HRMS",
+    default: "Master HRMS & Global Enterprise ERP",
+  },
+  description: "Multi-Tenant Enterprise HRMS, Payroll, Attendance, Project, CRM and ERP SaaS Platform",
+};
 
 export default function RootLayout({
   children,

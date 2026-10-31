@@ -442,10 +442,12 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
     }
   }, [mobileOpen]);
 
+  // Close mobile sidebar on route transition
   useEffect(() => {
     setMobileOpen(false);
   }, [path]);
 
+  // Global keyboard shortcut: ⌘K for search, ⌘B for sidebar toggle, Escape for mobile drawer dismissal
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
@@ -456,9 +458,24 @@ export function SuperShell({ children }: { children: React.ReactNode }) {
         e.preventDefault();
         setFullView((v) => !v);
       }
+      if (e.key === 'Escape' && mobileOpen) {
+        e.preventDefault();
+        setMobileOpen(false);
+      }
     };
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
+  }, [mobileOpen]);
+
+  // Auto-dismiss mobile drawer on viewport resize to desktop (>= 1024px)
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   if (typeof window !== 'undefined' && isTenantWorkspaceHost()) {
