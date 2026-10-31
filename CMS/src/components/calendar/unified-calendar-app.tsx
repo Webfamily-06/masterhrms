@@ -1458,6 +1458,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
           <div className="flex items-center justify-between mb-2.5">
             <h5 className="text-xs font-bold text-teal-700 dark:text-teal-400">Categories</h5>
             <button
+              data-testid="add-category-btn"
               onClick={() => {
                 setNewCategoryModalOpen(true);
                 if (isMobileDrawer) setFilterDrawerOpen(false);
@@ -1622,6 +1623,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               <Button
                 variant="outline"
                 size="sm"
+                data-testid="calendar-filter-drawer-btn"
                 onClick={() => setFilterDrawerOpen(true)}
                 className="h-8 px-2.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer shrink-0"
                 aria-label="Open Calendar Filters and Schedules"
@@ -1834,6 +1836,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                         return (
                           <div
                             key={evt.id}
+                            data-testid="calendar-event-pill"
                             onClick={(e) => {
                               e.stopPropagation();
                               openEventDetails(evt);
@@ -1919,6 +1922,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                         return (
                           <div
                             key={evt.id}
+                            data-testid="calendar-event-pill"
                             onClick={(e) => {
                               e.stopPropagation();
                               openEventDetails(evt);
@@ -2001,6 +2005,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                     return (
                       <div
                         key={evt.id}
+                        data-testid="calendar-event-pill"
                         onClick={() => openEventDetails(evt)}
                         className={cn(
                           "p-3.5 rounded-xl border border-border flex items-center justify-between cursor-pointer hover:shadow-xs transition-all",
@@ -2068,6 +2073,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
                 return (
                   <div
                     key={evt.id}
+                    data-testid="calendar-event-pill"
                     onClick={() => openEventDetails(evt)}
                     className="p-3.5 rounded-xl border border-border bg-card flex items-center justify-between hover:border-teal-500/50 transition-colors cursor-pointer"
                   >
@@ -2168,7 +2174,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
+          <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setNewCategoryModalOpen(false)}>
               Cancel
             </Button>
@@ -2520,7 +2526,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             />
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
+          <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
@@ -3081,7 +3087,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
               </div>
             )}
 
-            <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
+            <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
               {selectedEvent.sourceDomain === "todo" || selectedEvent.category?.toLowerCase() === "todo" ? (
                 <>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -3270,7 +3276,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
+          <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 w-full">
             <Button variant="outline" size="sm" onClick={() => setConflictModalOpen(false)}>
               Change Time / Room
             </Button>
@@ -3354,7 +3360,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
+          <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2 flex-col-reverse sm:flex-row">
             <Button variant="outline" size="sm" onClick={() => setRecurrenceScopeModalOpen(false)}>
               Cancel
             </Button>
@@ -3425,7 +3431,7 @@ export function UnifiedCalendarApp({ mode = "hr", title = "Calendar" }: UnifiedC
             )}
           </div>
 
-          <DialogFooter className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2">
+          <DialogFooter data-testid="dialog-footer" className="sticky bottom-0 bg-background/95 backdrop-blur-xs pt-3 pb-1 -mx-4 sm:-mx-6 px-4 sm:px-6 border-t border-border/50 gap-2">
             <Button size="sm" onClick={() => setAuditModalOpen(false)}>
               Close
             </Button>
