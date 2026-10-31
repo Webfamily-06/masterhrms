@@ -17,6 +17,9 @@ import { verifyToken } from "../lib/jwt";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 
+import { SystemFolderService } from "../services/files/system-folder.service";
+import { FileLinkService } from "../services/files/file-link.service";
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
@@ -1516,5 +1519,207 @@ filesRouter.delete("/:id/public-link", requireAuth, async (req: any, res: Respon
   } catch (err: any) {
     console.error("[Files Revoke Public Link Error]:", err);
     return res.status(err.status || 400).json({ error: err.message || "Failed to revoke public link." });
+  }
+});
+
+// ============================================================================
+// PHASE F5: SYSTEM FOLDERS & UNIVERSAL PICKER LINKING ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/v1/files/system-folders/ensure
+ * Automatically provisions canonical App Files / {Module} / {Page} hierarchy.
+ */
+filesRouter.post("/system-folders/ensure", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId } = getAuthContext(req);
+    const targetTenantId = isSuper && req.body.tenantId ? String(req.body.tenantId) : tenantId;
+
+    if (!targetTenantId) {
+      return res.status(400).json({ error: "Tenant context is required." });
+    }
+
+    const { moduleKey, pageKey, moduleLabel, pageLabel } = req.body;
+    if (!moduleKey || !pageKey) {
+      return res.status(400).json({ error: "moduleKey and pageKey are required." });
+    }
+
+    const result = await SystemFolderService.ensureSystemFolder({
+      tenantId: targetTenantId,
+      moduleKey,
+      pageKey,
+      moduleLabel,
+      pageLabel,
+      actorId: userId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      rootFolderId: result.rootFolder.id,
+      moduleFolderId: result.moduleFolder.id,
+      targetFolderId: result.targetFolder.id,
+      targetFolderPath: result.targetFolder.filePath,
+      targetFolder: result.targetFolder,
+    });
+  } catch (err: any) {
+    console.error("[System Folder Ensure Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to ensure system folder." });
+  }
+});
+
+/**
+ * GET /api/v1/files/system-folders
+ * Lists all system folders for the tenant.
+ */
+filesRouter.get("/system-folders", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId } = getAuthContext(req);
+    const targetTenantId = isSuper && req.query.tenantId ? String(req.query.tenantId) : tenantId;
+
+    if (!targetTenantId) {
+      return res.status(400).json({ error: "Tenant context is required." });
+    }
+
+    const folders = await SystemFolderService.listSystemFolders(targetTenantId);
+    return res.json({ folders });
+  } catch (err: any) {
+    console.error("[List System Folders Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list system folders." });
+  }
+});
+
+/**
+ * POST /api/v1/files/links
+ * Links a file to a business entity without duplicating bytes.
+ */
+filesRouter.post("/links", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles } = getAuthContext(req);
+    const targetTenantId = isSuper && req.body.tenantId ? String(req.body.tenantId) : tenantId;
+
+    const { fileId, module, pageKey, entityType, entityId, fieldKey } = req.body;
+    if (!fileId || !module || !pageKey || !entityType || !entityId || !fieldKey) {
+      return res.status(400).json({
+        error: "Missing required fields: fileId, module, pageKey, entityType, entityId, fieldKey.",
+      });
+    }
+
+    // Verify user can access the file before linking
+    await FileAclService.verifyPermission({
+      fileId,
+      tenantId: targetTenantId,
+      userId,
+      action: "view",
+      isSuper,
+      userRoles,
+    });
+
+    const link = await FileLinkService.createLink({
+      fileId,
+      tenantId: targetTenantId!,
+      module,
+      pageKey,
+      entityType,
+      entityId,
+      fieldKey,
+      linkedBy: userId,
+    });
+
+    return res.status(201).json({ success: true, link });
+  } catch (err: any) {
+    console.error("[File Link Create Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to create file link." });
+  }
+});
+
+/**
+ * GET /api/v1/files/links
+ * Retrieves file links for an entity (e.g. ?entityType=expense_claim&entityId=123).
+ */
+filesRouter.get("/links", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { entityType, entityId } = req.query;
+    if (!entityType || !entityId) {
+      return res.status(400).json({ error: "entityType and entityId are required." });
+    }
+
+    const links = await FileLinkService.getLinksByEntity(String(entityType), String(entityId));
+    return res.json({ links });
+  } catch (err: any) {
+    console.error("[Get File Links Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to fetch file links." });
+  }
+});
+
+/**
+ * DELETE /api/v1/files/links/:id
+ * Removes a file link without deleting the underlying physical file.
+ */
+filesRouter.delete("/links/:id", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, userId } = getAuthContext(req);
+    const { id } = req.params;
+
+    const success = await FileLinkService.removeLink(id, userId, isSuper);
+    return res.json({ success });
+  } catch (err: any) {
+    console.error("[Delete File Link Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to delete file link." });
+  }
+});
+
+/**
+ * GET /api/v1/files/picker/selectable
+ * Selectable candidate files for the FilePicker modal dialog.
+ */
+filesRouter.get("/picker/selectable", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
+    const accept = req.query.accept ? String(req.query.accept) : undefined;
+    const search = req.query.search ? String(req.query.search) : undefined;
+    const maxSize = req.query.maxSize ? Number(req.query.maxSize) : undefined;
+
+    // Use FilesService to list accessible files
+    const result = await FilesService.listFiles({
+      isSuper,
+      tenantId,
+      userId,
+      userRoles,
+      userPermissions,
+      view: "my",
+      search,
+      trashed: false,
+      limit: 100,
+    });
+
+    let files = ((result as any).items || (result as any).nodes || []).filter((n: any) => !n.isFolder && n.type !== "FOLDER");
+
+    // Filter by MIME type if accept is provided
+    if (accept && accept !== "*/*") {
+      const allowedPatterns = accept.split(",").map((s) => s.trim().toLowerCase());
+      files = files.filter((f: any) => {
+        const mime = (f.mimeType || "").toLowerCase();
+        const ext = `.${(f.extension || "").toLowerCase()}`;
+        return allowedPatterns.some((pattern) => {
+          if (pattern.endsWith("/*")) {
+            const prefix = pattern.slice(0, -2);
+            return mime.startsWith(prefix);
+          }
+          if (pattern.startsWith(".")) {
+            return ext === pattern || f.fileName.toLowerCase().endsWith(pattern);
+          }
+          return mime === pattern;
+        });
+      });
+    }
+
+    if (maxSize && maxSize > 0) {
+      files = files.filter((f: any) => Number(f.fileSize || f.sizeBytes || 0) <= maxSize);
+    }
+
+    return res.json({ files });
+  } catch (err: any) {
+    console.error("[File Picker Selectable Error]:", err);
+    return res.status(err.status || 500).json({ error: err.message || "Failed to list selectable files." });
   }
 });

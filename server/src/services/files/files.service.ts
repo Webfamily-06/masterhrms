@@ -579,6 +579,12 @@ export class FilesService {
       throw err;
     }
 
+    if (item.systemModule || item.systemPage || item.ownerType === "SYSTEM") {
+      const err: any = new Error("System folders and files cannot be moved.");
+      err.status = 403;
+      throw err;
+    }
+
     if (item.systemModule || item.systemPage) {
       const err: any = new Error("System folders and files cannot be renamed.");
       err.status = 403;
@@ -671,6 +677,12 @@ export class FilesService {
 
     if (!options.isSuper && item.tenantId !== options.tenantId) {
       const err: any = new Error("Forbidden: Access denied to asset in another workspace.");
+      err.status = 403;
+      throw err;
+    }
+
+    if (item.systemModule || item.systemPage || item.ownerType === "SYSTEM") {
+      const err: any = new Error("System folders and files cannot be moved.");
       err.status = 403;
       throw err;
     }

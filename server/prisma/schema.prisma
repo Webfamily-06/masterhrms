@@ -4872,6 +4872,7 @@ model MediaFile {
   // F1 File Manager Extensions
   parentId       String?      @map("parent_id") @db.VarChar(36)
   isFolder       Boolean      @default(false) @map("is_folder")
+  isPublic       Boolean      @default(false) @map("is_public")
   category       String       @default("Documents") @db.VarChar(50)
   originalFolder String?      @map("original_folder") @db.VarChar(100)
 

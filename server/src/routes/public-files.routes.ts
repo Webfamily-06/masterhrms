@@ -143,3 +143,48 @@ publicFilesRouter.post("/link/:token/download", async (req: Request, res: Respon
   }
 });
 
+/**
+ * GET /api/v1/public/files/assets/:id
+ * Direct CDN-safe endpoint to serve publicly flagged assets (logos, branding, job assets).
+ * Strictly forbids access to private files (contracts, resumes, payroll, KYC).
+ */
+publicFilesRouter.get("/assets/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const file = await prisma.mediaFile.findUnique({
+      where: { id },
+      include: { versions: { orderBy: { versionNo: "desc" }, take: 1 } },
+    });
+
+    if (!file || file.deletedAt || file.status === "TRASHED") {
+      return res.status(404).json({ error: "Asset not found." });
+    }
+
+    // Security check: Must be marked isPublic OR be in a designated public folder
+    const isBranding = file.folder?.includes("branding") || file.tags?.includes("branding");
+    if (!file.isPublic && !isBranding) {
+      return res.status(403).json({
+        error: "Forbidden: This asset is private and requires an authenticated session.",
+      });
+    }
+
+    const latestVersion = file.versions?.[0];
+    const storageKey = latestVersion?.storageKey || file.filePath;
+    const storageProvider = StorageProviderFactory.getProvider();
+
+    const signedUrl = await storageProvider.getSignedPreviewUrl(storageKey, file.mimeType, 3600);
+
+    // Cache header for public CDN
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400");
+    return res.json({
+      id: file.id,
+      fileName: file.fileName,
+      mimeType: file.mimeType,
+      isPublic: true,
+      url: signedUrl,
+    });
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to serve asset." });
+  }
+});
+

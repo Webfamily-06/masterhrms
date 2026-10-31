@@ -20,6 +20,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -1721,9 +1727,9 @@ export function UnifiedTodoApp({
             )}
           </div>
 
-          {/* Right Slide-Over Detail Panel */}
+          {/* Right Slide-Over Detail Panel (Top on mobile, side on desktop) */}
           {selectedTodo && (
-            <div className="lg:col-span-5 xl:col-span-4 sticky top-6 border rounded-xl bg-card shadow-lg p-5 space-y-5 animate-in fade-in duration-200">
+            <div className="col-span-12 lg:col-span-5 xl:col-span-4 order-first lg:order-none sticky top-4 sm:top-6 border rounded-xl bg-card shadow-lg p-4 sm:p-5 space-y-5 animate-in fade-in duration-200">
               {/* Panel Header */}
               <div className="flex items-start justify-between gap-3 border-b pb-4">
                 <div className="min-w-0 flex-1">
@@ -2117,7 +2123,7 @@ export function UnifiedTodoApp({
               <div className="min-w-[950px]">
                 {/* Timeline Header */}
                 <div className="grid grid-cols-12 border-b bg-muted/40 text-xs font-semibold text-foreground">
-                  <div className="col-span-4 p-3 border-r font-bold">Task & Assignees</div>
+                  <div className="col-span-4 p-3 border-r font-bold sticky left-0 bg-muted/95 backdrop-blur z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">Task & Assignees</div>
                   <div className="col-span-8 grid" style={{ gridTemplateColumns: `repeat(${timelineDates.length}, minmax(0, 1fr))` }}>
                     {timelineDates.map((d, i) => {
                       const isToday = format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
@@ -2168,7 +2174,7 @@ export function UnifiedTodoApp({
                           onClick={() => setSelectedTodo(todo)}
                         >
                           {/* Task Info Column */}
-                          <div className="col-span-4 p-3 border-r flex items-center justify-between gap-2">
+                          <div className="col-span-4 p-3 border-r flex items-center justify-between gap-2 sticky left-0 bg-card/95 backdrop-blur z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className={cn("w-2 h-2 rounded-full", pConfig.dot)} />

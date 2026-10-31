@@ -156,7 +156,7 @@ export class SupabaseStorageProvider implements IStorageProvider {
         console.error("[Supabase Storage Error] Remove failed:", error);
         return false;
       }
-      return Boolean(data && data.length > 0);
+      return true;
     } catch (err) {
       console.error("[Supabase Storage Error] deleteObject exception:", err);
       return false;

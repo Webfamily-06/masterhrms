@@ -52,6 +52,7 @@ import { COUNTRIES } from "@/lib/address/countries";
 import { getStatesByCountry } from "@/lib/address/india-states";
 import { getDistrictsByState } from "@/lib/address/india-districts";
 import { lookupPincode } from "@/lib/address/address-lookup";
+import { UniversalFilePicker } from "@/components/files/file-picker";
 
 const BLOOD_GROUPS = [
   "A+",
@@ -1896,34 +1897,40 @@ function EmployeeEditWizardPage() {
               <Label className="text-xs font-medium">
                 Upload File (PDF, DOC, Images up to 15 MB) <span className="text-destructive">*</span>
               </Label>
-              <div className="flex items-center gap-2">
-                <Label
-                  htmlFor="doc-file-input"
-                  className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 border transition-colors shrink-0"
-                >
-                  {isUploadingDoc ? (
-                    <>
-                      <Loader2 className="size-3.5 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="size-3.5" />
-                      Select File
-                    </>
-                  )}
-                </Label>
-                <input
-                  id="doc-file-input"
-                  type="file"
-                  className="hidden"
-                  onChange={handleDocFileUpload}
-                  disabled={isUploadingDoc}
-                />
-                <span className="text-xs text-muted-foreground truncate">
-                  {newDocData.fileName || "No file selected yet"}
-                </span>
-              </div>
+              <UniversalFilePicker
+                moduleKey="employees"
+                pageKey="documents"
+                entityType="employee_document"
+                entityId={id || "draft"}
+                fieldKey="file"
+                allowedTypes=".pdf,image/*,.doc,.docx"
+                title="Attach Employee Document"
+                selectedFile={
+                  newDocData.fileUrl
+                    ? {
+                        id: (newDocData as any).mediaId || "attached-doc",
+                        fileName: newDocData.fileName || "Attached Document",
+                        url: newDocData.fileUrl,
+                      }
+                    : null
+                }
+                onSelect={(file) => {
+                  setNewDocData((prev) => ({
+                    ...prev,
+                    fileName: file.fileName,
+                    fileUrl: file.url || "",
+                    mediaId: file.id,
+                  }));
+                }}
+                onRemove={() => {
+                  setNewDocData((prev) => ({
+                    ...prev,
+                    fileName: "",
+                    fileUrl: "",
+                    mediaId: undefined,
+                  }));
+                }}
+              />
             </div>
 
             <div className="space-y-1.5">

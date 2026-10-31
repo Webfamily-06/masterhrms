@@ -45,6 +45,7 @@ import {
   PieChart,
 } from "lucide-react";
 import { toast } from "sonner";
+import { StorageMigrationModal } from "@/components/files/storage-migration-modal";
 
 export type TenantUsageRecord = {
   id: string;
@@ -1110,14 +1111,17 @@ export default function TenantUsageMetricsPage() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => refetchFleetRetention()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <StorageMigrationModal />
+            <button
+              type="button"
+              onClick={() => refetchFleetRetention()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Fleet Retention Error State or KPI Grid */}

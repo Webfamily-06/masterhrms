@@ -131,9 +131,8 @@ export class LocalStorageProvider implements IStorageProvider {
       const filePath = this.resolvePhysicalPath(storageKey);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        return true;
       }
-      return false;
+      return true;
     } catch (err) {
       console.error("[LocalStorageProvider] deleteObject error:", err);
       return false;

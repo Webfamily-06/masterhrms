@@ -177,7 +177,28 @@ export class FileAclService {
       }
     }
 
-    // 5. No permission resolved -> Privacy by default
+    // 5. Module Permission Delegation via FileLink (Phase F5)
+    try {
+      const { FileLinkService } = await import("./file-link.service");
+      const hasEntityAccess = await FileLinkService.canAccessViaEntity(
+        userId,
+        tenantId,
+        fileId,
+        userRoles
+      );
+      if (hasEntityAccess) {
+        return { permission: "VIEWER", file };
+      }
+    } catch (delegationErr) {
+      // Ignore delegation lookup errors and fall through
+    }
+
+    // 6. Public asset check (Phase F5)
+    if (file.isPublic) {
+      return { permission: "VIEWER", file };
+    }
+
+    // 7. No permission resolved -> Privacy by default
     const err: any = new Error("Item not found.");
     err.status = 404;
     throw err;

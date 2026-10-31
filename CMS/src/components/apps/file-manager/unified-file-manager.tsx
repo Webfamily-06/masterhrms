@@ -22,6 +22,12 @@ import {
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -54,6 +60,7 @@ import {
   Archive,
   Upload,
   Search,
+  Menu,
   Star,
   Trash2,
   Share2,
@@ -198,6 +205,7 @@ export function UnifiedFileManager({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [showInspector, setShowInspector] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Context Menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -1133,6 +1141,487 @@ export function UnifiedFileManager({
     );
   };
 
+  const renderSidebarContent = (onItemClick?: () => void) => (
+    <>
+      <div className="space-y-4">
+        {/* Quick Access / System Navigation */}
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+            <img src="/FILE-MANAGER/Quick%20Access.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+            <span>Quick Access</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("All");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Home" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "All" && !currentFolder
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Desktop.ico"
+              alt="Home"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Home</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("All");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "My Files" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              role === "me" && category === "All" && !currentFolder
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Folder%20User.ico"
+              alt="My Files"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>My Files</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Recent");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Recent" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Recent"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Recent.ico"
+              alt="Recent"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Recent</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Starred");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Starred" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Starred"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Folder%20Favourites.ico"
+              alt="Starred"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Starred</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Shared");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Shared with Me" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Shared"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Folder%20Links.ico"
+              alt="Shared with Me"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Shared with Me</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Teams");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Team Folders" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Teams"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Users.ico"
+              alt="Team Folders"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Team Folders</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Chat");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Chat Attachments" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Chat"
+                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Folder%20Shared.ico"
+              alt="Chat Attachments"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Chat Attachments</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onItemClick?.();
+              setCategory("Trash");
+              setCurrentFolder(null);
+              setFolderHistory([{ id: null, name: "Recycle Bin" }]);
+              setHistoryIndex(0);
+              setSelectedIds(new Set());
+            }}
+            className={cn(
+              "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+              category === "Trash"
+                ? "bg-destructive text-destructive-foreground font-semibold shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+            )}
+          >
+            <img
+              src="/FILE-MANAGER/Trash%20Empty.ico"
+              alt="Recycle Bin"
+              className="size-4 object-contain shrink-0"
+              draggable={false}
+            />
+            <span>Recycle Bin</span>
+          </button>
+        </div>
+
+        {/* Categories Section */}
+        <div className="space-y-0.5">
+          <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
+            Categories
+          </div>
+          {(
+            [
+              { id: "Documents", label: "Documents", iconSrc: "/FILE-MANAGER/Folder%20Documents.ico" },
+              { id: "Images", label: "Images", iconSrc: "/FILE-MANAGER/Folder%20Pictures.ico" },
+              { id: "Videos", label: "Videos", iconSrc: "/FILE-MANAGER/Folder%20Videos.ico" },
+              { id: "Audio", label: "Audio", iconSrc: "/FILE-MANAGER/Folder%20Music.ico" },
+              { id: "Archives", label: "Archives", iconSrc: "/FILE-MANAGER/Zip.ico" },
+            ] as const
+          ).map((cat) => {
+            const isActive = category === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  onItemClick?.();
+                  setCategory(cat.id);
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: cat.label }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  isActive
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src={cat.iconSrc}
+                  alt={cat.label}
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                />
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Storage Quota Meter */}
+      {stats && (
+        <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2 mt-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-foreground">Storage</span>
+            <div className="flex items-center gap-1.5">
+              {stats.lifecycleState === "LOCKED" ? (
+                <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider animate-pulse">
+                  Locked
+                </Badge>
+              ) : stats.lifecycleState === "CRITICAL" ? (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
+                  Critical
+                </Badge>
+              ) : stats.lifecycleState === "WARNING" ? (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
+                  Warning
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-normal text-muted-foreground border-border/60">
+                  Normal
+                </Badge>
+              )}
+              <span className="text-muted-foreground font-mono">{stats.percentUsed}%</span>
+            </div>
+          </div>
+          <Progress
+            value={stats.percentUsed}
+            className={cn(
+              "h-1.5",
+              stats.percentUsed >= 100
+                ? "[&>div]:bg-destructive"
+                : stats.percentUsed >= 90
+                ? "[&>div]:bg-orange-500"
+                : stats.percentUsed >= 80
+                ? "[&>div]:bg-amber-500"
+                : ""
+            )}
+          />
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
+            <span>{stats.formattedTotalSize}</span>
+            <span>{stats.formattedQuota}</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const renderInspectorInner = () => {
+    if (!activeInspectorItem) return null;
+    return (
+      <>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-border/80">
+            <div className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <img src="/FILE-MANAGER/Info.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+              <span>Details Pane</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowInspector(false)}
+              title="Close details pane"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+
+          {/* Rich Preview Box */}
+          <div className="aspect-video w-full rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center overflow-hidden">
+            {isLoadingPreview ? (
+              <Loader2 className="size-6 animate-spin text-primary" />
+            ) : activeInspectorItem.isFolder ? (
+              <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
+            ) : activeInspectorItem.category === "Images" && (previewSignedUrl || activeInspectorItem.url) ? (
+              <img
+                src={previewSignedUrl || activeInspectorItem.url}
+                alt={activeInspectorItem.fileName}
+                className="w-full h-full object-contain"
+              />
+            ) : activeInspectorItem.mimeType?.includes("video") && previewSignedUrl ? (
+              <video controls src={previewSignedUrl} className="w-full h-full object-contain" />
+            ) : activeInspectorItem.mimeType?.includes("audio") && previewSignedUrl ? (
+              <audio controls src={previewSignedUrl} className="w-64" />
+            ) : (
+              <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
+            )}
+          </div>
+
+          {/* Sanitized Metadata List */}
+          <div className="space-y-2.5 text-xs">
+            <div>
+              <div className="text-[11px] font-medium text-muted-foreground">Name</div>
+              <div className="font-semibold text-foreground break-all">{activeInspectorItem.fileName}</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground">Type</div>
+                <div className="text-foreground">{getFriendlyType(activeInspectorItem)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground">Size</div>
+                <div className="text-foreground font-mono">{activeInspectorItem.formattedSize}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground">Category</div>
+                <div className="text-foreground">{activeInspectorItem.category}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-muted-foreground">Modified</div>
+                <div className="text-foreground">{new Date(activeInspectorItem.updatedAt).toLocaleDateString()}</div>
+              </div>
+            </div>
+
+            {/* In-Use Usages Section */}
+            {activeInspectorItem.usages && activeInspectorItem.usages.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 space-y-1">
+                <div className="font-semibold text-primary flex items-center gap-1.5 text-xs">
+                  <Check className="size-3.5" />
+                  In Use ({activeInspectorItem.usages.length} reference{activeInspectorItem.usages.length > 1 ? "s" : ""})
+                </div>
+                <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+                  {activeInspectorItem.usages.map((u, idx) => (
+                    <li key={u.id || idx}>
+                      • {u.entityType} ({u.fieldKey})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Actions inside Inspector */}
+        <div className="pt-3 border-t border-border/80 space-y-2">
+          {category === "Trash" || activeInspectorItem.deletedAt ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full gap-1.5 h-8 text-xs text-primary hover:bg-primary/10"
+                onClick={() => handleBatchTrashOrRestore(true, [activeInspectorItem])}
+              >
+                <RotateCcw className="size-3.5" /> Restore
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="w-full gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  setPermanentDeleteTargets([activeInspectorItem]);
+                  setIsEmptyTrashConfirm(false);
+                  setIsPermanentDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="size-3.5" /> Delete Permanently
+              </Button>
+            </div>
+          ) : (
+            <>
+              {!activeInspectorItem.isFolder && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-1.5 h-8 text-xs"
+                    onClick={() => {
+                      setPreviewTarget(activeInspectorItem);
+                      setIsPreviewModalOpen(true);
+                    }}
+                  >
+                    <Eye className="size-3.5" /> Preview
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="w-full gap-1.5 h-8 text-xs"
+                    onClick={() => handleDownload(activeInspectorItem)}
+                  >
+                    <Download className="size-3.5" /> Download
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs gap-2 h-8"
+                onClick={() => {
+                  setShareTarget(activeInspectorItem);
+                  setIsShareOpen(true);
+                }}
+              >
+                <Share2 className="size-3.5 text-primary" />
+                <span>Manage Access & Share</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full justify-start text-xs gap-2 h-8"
+                onClick={() => handleCopySignedLink(activeInspectorItem)}
+              >
+                <img src="/FILE-MANAGER/Link.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
+                <span>Copy Secure Link</span>
+              </Button>
+            </>
+          )}
+        </div>
+      </>
+    );
+  };
+
   return (
     <div
       ref={containerRef}
@@ -1362,13 +1851,13 @@ export function UnifiedFileManager({
         </div>
 
         {/* Ribbon Right Actions: Sort, View Switcher, Preview Toggle, Refresh */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Sort Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 px-2 gap-1 text-xs hover:bg-accent/60">
                 <ArrowUpDown className="size-3.5 text-muted-foreground" />
-                <span className="hidden lg:inline">Sort</span>
+                <span className="hidden sm:inline">Sort</span>
                 <ChevronRight className="size-3 rotate-90 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
@@ -1400,8 +1889,8 @@ export function UnifiedFileManager({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* 1-Click Segmented View Mode Switcher */}
-          <div className="flex items-center bg-muted/60 p-0.5 rounded-md border border-border/50">
+          {/* 1-Click Segmented View Mode Switcher (Hidden on narrow mobile screens) */}
+          <div className="hidden sm:flex items-center bg-muted/60 p-0.5 rounded-md border border-border/50">
             <Button
               type="button"
               variant={view === "details" ? "secondary" : "ghost"}
@@ -1441,7 +1930,7 @@ export function UnifiedFileManager({
                 {view === "details" && <TableIcon className="size-3.5 text-primary" />}
                 {view === "grid" && <LayoutGrid className="size-3.5 text-primary" />}
                 {view === "list" && <ListIcon className="size-3.5 text-primary" />}
-                <span className="capitalize hidden lg:inline">{view}</span>
+                <span className="capitalize hidden sm:inline">{view}</span>
                 <ChevronRight className="size-3 rotate-90 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
@@ -1498,8 +1987,19 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       <div
         style={{ fontFamily: SYSTEM_FONT_STACK }}
-        className="flex items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans"
+        className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans"
       >
+        {/* Mobile Navigation Drawer Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden size-7 rounded-md shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => setMobileNavOpen(true)}
+          title="Open Navigation Menu"
+        >
+          <Menu className="size-4" />
+        </Button>
+
         {/* Navigation History Buttons */}
         <div className="flex items-center gap-0.5">
           <Button
@@ -1525,7 +2025,7 @@ export function UnifiedFileManager({
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 rounded-md"
+            className="size-7 rounded-md hidden xs:inline-flex"
             disabled={!currentFolder}
             onClick={handleNavigateUp}
             title="Up to parent folder (Alt+Up)"
@@ -1535,14 +2035,14 @@ export function UnifiedFileManager({
         </div>
 
         {/* Windows 11 Breadcrumbs Address Bar Container */}
-        <div className="flex-1 flex items-center h-8 px-2 rounded-lg border border-border/80 bg-background/60 shadow-2xs overflow-hidden">
+        <div className="flex-1 flex items-center h-8 px-2 rounded-lg border border-border/80 bg-background/60 shadow-2xs overflow-hidden min-w-0">
           <img
             src="/FILE-MANAGER/Drives/Hardrive.ico"
             alt="Drive"
             className="size-3.5 object-contain shrink-0 mr-1.5"
             draggable={false}
           />
-          <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap scrollbar-none py-0.5">
+          <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap scrollbar-none py-0.5 min-w-0">
             {folderHistory.map((seg, idx) => (
               <React.Fragment key={seg.id || "root"}>
                 {idx > 0 && <ChevronRight className="size-3 text-muted-foreground/60 shrink-0" />}
@@ -1564,7 +2064,7 @@ export function UnifiedFileManager({
         </div>
 
         {/* Search Box on Right */}
-        <div className="relative w-44 sm:w-60 shrink-0">
+        <div className="relative w-28 sm:w-48 md:w-60 shrink-0 transition-all focus-within:w-40 sm:focus-within:w-60">
           <img
             src="/FILE-MANAGER/Search.ico"
             alt=""
@@ -1595,312 +2095,27 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       <div className="flex flex-1 overflow-hidden">
         {/* --------------------------------------------------------------------- */}
-        {/* B. NAVIGATION SIDEBAR                                                 */}
+        {/* B. NAVIGATION SIDEBAR (Desktop & Mobile Drawer)                      */}
         {/* --------------------------------------------------------------------- */}
         <aside
           style={{ fontFamily: SYSTEM_FONT_STACK }}
           className="w-52 border-r border-border/80 bg-card/40 p-2.5 hidden md:flex flex-col justify-between shrink-0 font-sans"
         >
-          <div className="space-y-4">
-            {/* Quick Access / System Navigation */}
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
-                <img src="/FILE-MANAGER/Quick%20Access.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
-                <span>Quick Access</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("All");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Home" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "All" && !currentFolder
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Desktop.ico"
-                  alt="Home"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Home</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("All");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "My Files" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  role === "me" && category === "All" && !currentFolder
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Folder%20User.ico"
-                  alt="My Files"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>My Files</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Recent");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Recent" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Recent"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Recent.ico"
-                  alt="Recent"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Recent</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Starred");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Starred" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Starred"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Folder%20Favourites.ico"
-                  alt="Starred"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Starred</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Shared");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Shared with Me" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Shared"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Folder%20Links.ico"
-                  alt="Shared with Me"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Shared with Me</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Teams");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Team Folders" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Teams"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Users.ico"
-                  alt="Team Folders"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Team Folders</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Chat");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Chat Attachments" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Chat"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Folder%20Shared.ico"
-                  alt="Chat Attachments"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Chat Attachments</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setCategory("Trash");
-                  setCurrentFolder(null);
-                  setFolderHistory([{ id: null, name: "Recycle Bin" }]);
-                  setHistoryIndex(0);
-                  setSelectedIds(new Set());
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                  category === "Trash"
-                    ? "bg-destructive text-destructive-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                )}
-              >
-                <img
-                  src="/FILE-MANAGER/Trash%20Empty.ico"
-                  alt="Recycle Bin"
-                  className="size-4 object-contain shrink-0"
-                  draggable={false}
-                />
-                <span>Recycle Bin</span>
-              </button>
-            </div>
-
-            {/* Categories Section */}
-            <div className="space-y-0.5">
-              <div className="text-[11px] font-semibold text-muted-foreground px-2 py-1 uppercase tracking-wider">
-                Categories
-              </div>
-              {(
-                [
-                  { id: "Documents", label: "Documents", iconSrc: "/FILE-MANAGER/Folder%20Documents.ico" },
-                  { id: "Images", label: "Images", iconSrc: "/FILE-MANAGER/Folder%20Pictures.ico" },
-                  { id: "Videos", label: "Videos", iconSrc: "/FILE-MANAGER/Folder%20Videos.ico" },
-                  { id: "Audio", label: "Audio", iconSrc: "/FILE-MANAGER/Folder%20Music.ico" },
-                  { id: "Archives", label: "Archives", iconSrc: "/FILE-MANAGER/Zip.ico" },
-                ] as const
-              ).map((cat) => {
-                const isActive = category === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => {
-                      setCategory(cat.id);
-                      setCurrentFolder(null);
-                      setFolderHistory([{ id: null, name: cat.label }]);
-                      setHistoryIndex(0);
-                      setSelectedIds(new Set());
-                    }}
-                    className={cn(
-                      "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
-                      isActive
-                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
-                    )}
-                  >
-                    <img
-                      src={cat.iconSrc}
-                      alt={cat.label}
-                      className="size-4 object-contain shrink-0"
-                      draggable={false}
-                    />
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Storage Quota Meter */}
-          {stats && (
-            <div className="p-3 rounded-xl border border-border/80 bg-accent/20 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-foreground">Storage</span>
-                <div className="flex items-center gap-1.5">
-                  {stats.lifecycleState === "LOCKED" ? (
-                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 font-bold uppercase tracking-wider animate-pulse">
-                      Locked
-                    </Badge>
-                  ) : stats.lifecycleState === "CRITICAL" ? (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30">
-                      Critical
-                    </Badge>
-                  ) : stats.lifecycleState === "WARNING" ? (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">
-                      Warning
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-normal text-muted-foreground border-border/60">
-                      Normal
-                    </Badge>
-                  )}
-                  <span className="text-muted-foreground font-mono">{stats.percentUsed}%</span>
-                </div>
-              </div>
-              <Progress
-                value={stats.percentUsed}
-                className={cn(
-                  "h-1.5",
-                  stats.percentUsed >= 100
-                    ? "[&>div]:bg-destructive"
-                    : stats.percentUsed >= 90
-                    ? "[&>div]:bg-orange-500"
-                    : stats.percentUsed >= 80
-                    ? "[&>div]:bg-amber-500"
-                    : ""
-                )}
-              />
-              <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-                <span>{stats.formattedTotalSize}</span>
-                <span>{stats.formattedQuota}</span>
-              </div>
-            </div>
-          )}
+          {renderSidebarContent()}
         </aside>
+
+        {/* Mobile Navigation Sheet */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="p-3 w-72 max-w-[85vw] flex flex-col justify-between overflow-y-auto font-sans">
+            <SheetHeader className="pb-2 border-b text-left">
+              <SheetTitle className="text-sm font-semibold flex items-center gap-2">
+                <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" />
+                <span>File Explorer</span>
+              </SheetTitle>
+            </SheetHeader>
+            {renderSidebarContent(() => setMobileNavOpen(false))}
+          </SheetContent>
+        </Sheet>
 
         {/* --------------------------------------------------------------------- */}
         {/* D. MULTI-VIEW CONTENT AREA                                            */}
@@ -2379,175 +2594,26 @@ export function UnifiedFileManager({
         </main>
 
         {/* --------------------------------------------------------------------- */}
-        {/* E. PREVIEW / DETAILS PANE (Collapsible inspector)                     */}
+        {/* E. PREVIEW / DETAILS PANE (Desktop Aside + Mobile/Tablet Sheet)       */}
         {/* --------------------------------------------------------------------- */}
         {showInspector && activeInspectorItem && (
           <aside
             style={{ fontFamily: SYSTEM_FONT_STACK }}
-            className="w-80 border-l border-border/80 bg-card/65 backdrop-blur-md p-4 flex flex-col justify-between shrink-0 overflow-y-auto font-sans"
+            className="w-80 border-l border-border/80 bg-card/65 backdrop-blur-md p-4 hidden lg:flex flex-col justify-between shrink-0 overflow-y-auto font-sans"
           >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-border/80">
-                <div className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <img src="/FILE-MANAGER/Info.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
-                  <span>Details Pane</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowInspector(false)}
-                  title="Close details pane"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              </div>
-
-              {/* Rich Preview Box */}
-              <div className="aspect-video w-full rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center overflow-hidden">
-                {isLoadingPreview ? (
-                  <Loader2 className="size-6 animate-spin text-primary" />
-                ) : activeInspectorItem.isFolder ? (
-                  <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
-                ) : activeInspectorItem.category === "Images" && (previewSignedUrl || activeInspectorItem.url) ? (
-                  <img
-                    src={previewSignedUrl || activeInspectorItem.url}
-                    alt={activeInspectorItem.fileName}
-                    className="w-full h-full object-contain"
-                  />
-                ) : activeInspectorItem.mimeType?.includes("video") && previewSignedUrl ? (
-                  <video controls src={previewSignedUrl} className="w-full h-full object-contain" />
-                ) : activeInspectorItem.mimeType?.includes("audio") && previewSignedUrl ? (
-                  <audio controls src={previewSignedUrl} className="w-64" />
-                ) : (
-                  <div className="scale-125">{getItemIcon(activeInspectorItem, true)}</div>
-                )}
-              </div>
-
-              {/* Sanitized Metadata List */}
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <div className="text-[11px] font-medium text-muted-foreground">Name</div>
-                  <div className="font-semibold text-foreground break-all">{activeInspectorItem.fileName}</div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <div className="text-[11px] font-medium text-muted-foreground">Type</div>
-                    <div className="text-foreground">{getFriendlyType(activeInspectorItem)}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-medium text-muted-foreground">Size</div>
-                    <div className="text-foreground font-mono">{activeInspectorItem.formattedSize}</div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <div className="text-[11px] font-medium text-muted-foreground">Category</div>
-                    <div className="text-foreground">{activeInspectorItem.category}</div>
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-medium text-muted-foreground">Modified</div>
-                    <div className="text-foreground">{new Date(activeInspectorItem.updatedAt).toLocaleDateString()}</div>
-                  </div>
-                </div>
-
-                {/* In-Use Usages Section */}
-                {activeInspectorItem.usages && activeInspectorItem.usages.length > 0 && (
-                  <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 space-y-1">
-                    <div className="font-semibold text-primary flex items-center gap-1.5 text-xs">
-                      <Check className="size-3.5" />
-                      In Use ({activeInspectorItem.usages.length} reference{activeInspectorItem.usages.length > 1 ? "s" : ""})
-                    </div>
-                    <ul className="space-y-0.5 text-[11px] text-muted-foreground">
-                      {activeInspectorItem.usages.map((u, idx) => (
-                        <li key={u.id || idx}>
-                          • {u.entityType} ({u.fieldKey})
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Actions inside Inspector */}
-            <div className="pt-3 border-t border-border/80 space-y-2">
-              {category === "Trash" || activeInspectorItem.deletedAt ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full gap-1.5 h-8 text-xs text-primary hover:bg-primary/10"
-                    onClick={() => handleBatchTrashOrRestore(true, [activeInspectorItem])}
-                  >
-                    <RotateCcw className="size-3.5" /> Restore
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="w-full gap-1.5 h-8 text-xs"
-                    onClick={() => {
-                      setPermanentDeleteTargets([activeInspectorItem]);
-                      setIsEmptyTrashConfirm(false);
-                      setIsPermanentDeleteOpen(true);
-                    }}
-                  >
-                    <Trash2 className="size-3.5" /> Delete Permanently
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  {!activeInspectorItem.isFolder && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-1.5 h-8 text-xs"
-                        onClick={() => {
-                          setPreviewTarget(activeInspectorItem);
-                          setIsPreviewModalOpen(true);
-                        }}
-                      >
-                        <Eye className="size-3.5" /> Preview
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="w-full gap-1.5 h-8 text-xs"
-                        onClick={() => handleDownload(activeInspectorItem)}
-                      >
-                        <Download className="size-3.5" /> Download
-                      </Button>
-                    </div>
-                  )}
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-start text-xs gap-2 h-8"
-                    onClick={() => {
-                      setShareTarget(activeInspectorItem);
-                      setIsShareOpen(true);
-                    }}
-                  >
-                    <Share2 className="size-3.5 text-primary" />
-                    <span>Manage Access & Share</span>
-                  </Button>
-                                    <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full justify-start text-xs gap-2 h-8"
-                    onClick={() => handleCopySignedLink(activeInspectorItem)}
-                  >
-                    <img src="/FILE-MANAGER/Link.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
-                    <span>Copy Secure Link</span>
-                  </Button>
-                </>
-              )}
-            </div>
+            {renderInspectorInner()}
           </aside>
         )}
+
+        {/* Mobile & Tablet Details Sheet */}
+        <Sheet open={showInspector && !!activeInspectorItem} onOpenChange={(open) => setShowInspector(open)}>
+          <SheetContent side="right" className="w-[320px] sm:w-[380px] max-w-[92vw] p-4 flex flex-col justify-between overflow-y-auto font-sans lg:hidden">
+            <SheetHeader className="sr-only text-left">
+              <SheetTitle>File Details</SheetTitle>
+            </SheetHeader>
+            {renderInspectorInner()}
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* ----------------------------------------------------------------------- */}

@@ -991,6 +991,21 @@ export class StorageRetentionService {
       }
     }
 
+    // Safety Invariant: Concurrency guard - prevent overlapping retention jobs for this tenant
+    const activeRunningJob = await prisma.storageRetentionJob.findFirst({
+      where: {
+        tenantId,
+        status: "RUNNING",
+        id: approvedJob ? { not: approvedJob.id } : undefined,
+        startedAt: { gt: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+    });
+    if (activeRunningJob) {
+      throw new Error(
+        `A retention job (${activeRunningJob.id}) is currently in progress for this tenant. Please wait for completion.`
+      );
+    }
+
     // Initialize or update Job state to RUNNING
     const job = approvedJob
       ? await prisma.storageRetentionJob.update({
@@ -1084,14 +1099,26 @@ export class StorageRetentionService {
             continue;
           }
 
-          // STEP 1: PHYSICAL OBJECT STORAGE PURGE
+          // STEP 1: PHYSICAL OBJECT STORAGE PURGE (WITH BOUNDED RETRY)
           let physicalDeleteFailed = false;
           for (const version of freshFile.versions) {
             if (version.storageKey) {
-              try {
-                await storageProvider.deleteObject(version.storageKey);
-              } catch (delErr: any) {
-                console.error(`[RetentionPurge] Physical delete failed for ${version.storageKey}:`, delErr);
+              let deleted = false;
+              let attempts = 0;
+              while (attempts < 2 && !deleted) {
+                attempts++;
+                try {
+                  const res = await storageProvider.deleteObject(version.storageKey);
+                  if (res !== false) {
+                    deleted = true;
+                  }
+                } catch (delErr: any) {
+                  console.error(`[RetentionPurge] Physical delete attempt ${attempts} failed for ${version.storageKey}:`, delErr);
+                }
+              }
+
+              if (!deleted) {
+                console.error(`[RetentionPurge] Physical delete permanently failed for ${version.storageKey} after ${attempts} attempts`);
                 physicalDeleteFailed = true;
                 break;
               }
@@ -1100,59 +1127,66 @@ export class StorageRetentionService {
 
           if (physicalDeleteFailed) {
             failedCount++;
-            executionDetails.failedFiles.push({ id: freshFile.id, fileName: freshFile.fileName });
+            executionDetails.failedFiles.push({
+              id: freshFile.id,
+              fileName: freshFile.fileName,
+              error: "Object storage provider deletion failed",
+            });
             continue; // Do NOT proceed to database deletion or quota reclaim if physical delete fails!
           }
 
           // STEP 2: PRISMA TRANSACTION FOR METADATA PURGE & SUCE RECLAIM
           const fileSizeNum = freshFile.fileSize || 0;
           try {
-            await prisma.$transaction(async (tx: any) => {
-              // A. Decrement SUCE quota counters (floor-protected)
-              if (!freshFile.isFolder && freshFile.type !== "FOLDER") {
-                await QuotaService.purgeFileBytes(
-                  tx,
-                  tenantId,
-                  freshFile.ownerId || actorId || "system",
-                  fileSizeNum,
-                  true // Purging from trash!
-                );
-              }
+            await prisma.$transaction(
+              async (tx: any) => {
+                // A. Decrement SUCE quota counters (floor-protected)
+                if (!freshFile.isFolder && freshFile.type !== "FOLDER") {
+                  await QuotaService.purgeFileBytes(
+                    tx,
+                    tenantId,
+                    freshFile.ownerId || actorId || "system",
+                    fileSizeNum,
+                    true // Purging from trash!
+                  );
+                }
 
-              // B. Delete released legal holds before mediaFile deletion
-              await tx.storageLegalHold.deleteMany({
-                where: { fileId: freshFile.id, releasedAt: { not: null } },
-              });
+                // B. Delete released legal holds before mediaFile deletion
+                await tx.storageLegalHold.deleteMany({
+                  where: { fileId: freshFile.id, releasedAt: { not: null } },
+                });
 
-              // C. Clean related records
-              await tx.fileLink.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.mediaUsage.deleteMany({ where: { mediaId: freshFile.id } });
-              await tx.fileStar.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.fileAcl.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.fileShare.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.fileRecent.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.fileActivity.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.fileVersion.deleteMany({ where: { fileId: freshFile.id } });
-              await tx.mediaFile.delete({ where: { id: freshFile.id } });
+                // C. Clean related records
+                await tx.fileLink.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.mediaUsage.deleteMany({ where: { mediaId: freshFile.id } });
+                await tx.fileStar.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.fileAcl.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.fileShare.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.fileRecent.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.fileActivity.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.fileVersion.deleteMany({ where: { fileId: freshFile.id } });
+                await tx.mediaFile.delete({ where: { id: freshFile.id } });
 
-              // D. Audit event in Outbox
-              await OutboxService.createOutboxEvent(
-                {
-                  tenantId,
-                  eventType: "storage.retention.file_purged",
-                  entityType: "MediaFile",
-                  entityId: freshFile.id,
-                  actorId: actorId || null,
-                  payload: {
-                    id: freshFile.id,
-                    fileName: freshFile.fileName,
-                    fileSize: fileSizeNum,
-                    jobId: job.id,
+                // D. Audit event in Outbox
+                await OutboxService.createOutboxEvent(
+                  {
+                    tenantId,
+                    eventType: "storage.retention.file_purged",
+                    entityType: "MediaFile",
+                    entityId: freshFile.id,
+                    actorId: actorId || null,
+                    payload: {
+                      id: freshFile.id,
+                      fileName: freshFile.fileName,
+                      fileSize: fileSizeNum,
+                      jobId: job.id,
+                    },
                   },
-                },
-                tx
-              );
-            });
+                  tx
+                );
+              },
+              { maxWait: 15000, timeout: 30000 }
+            );
 
             deletedCount++;
             deletedBytes += BigInt(fileSizeNum);
@@ -1169,11 +1203,24 @@ export class StorageRetentionService {
         }
       }
 
-      // STEP 3: PRUNE HISTORICAL FILE VERSIONS (IF CONFIGURED)
+      // STEP 3: PRUNE HISTORICAL FILE VERSIONS (IF CONFIGURED, WITH RETRY)
       for (const ver of eligibleVersions) {
         try {
           if (ver.storageKey) {
-            await storageProvider.deleteObject(ver.storageKey);
+            let verDeleted = false;
+            let attempts = 0;
+            while (attempts < 2 && !verDeleted) {
+              attempts++;
+              try {
+                const res = await storageProvider.deleteObject(ver.storageKey);
+                if (res !== false) verDeleted = true;
+              } catch (e) {
+                console.error(`[RetentionPurge] Version delete attempt ${attempts} failed for ${ver.storageKey}:`, e);
+              }
+            }
+            if (!verDeleted) {
+              throw new Error(`Provider failed to delete object for version ${ver.storageKey}`);
+            }
           }
           await prisma.$transaction(async (tx: any) => {
             await StorageUsageEngine.deleteFileVersion(tx, tenantId, ver.sizeBytes);
@@ -1184,6 +1231,7 @@ export class StorageRetentionService {
           executionDetails.deletedVersions.push({ id: ver.id, versionNo: ver.versionNo });
         } catch (verErr: any) {
           failedCount++;
+          executionDetails.failedFiles.push({ id: ver.id, versionNo: ver.versionNo, error: verErr.message });
         }
       }
 
@@ -1375,6 +1423,72 @@ export class StorageRetentionService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  /**
+   * Fleet-wide automated retention sweep for background schedulers (pg_cron / worker).
+   * Evaluates all tenants with active retention policies with error boundary per tenant.
+   */
+  public static async runScheduledRetentionSweep(): Promise<{
+    tenantsProcessed: number;
+    jobsExecuted: number;
+    previewsGenerated: number;
+    approvalsRequested: number;
+    skippedTenants: number;
+    errors: Array<{ tenantId: string; error: string }>;
+  }> {
+    const activePolicies = await prisma.storageRetentionPolicy.findMany({
+      where: {
+        isEnabled: true,
+        tenantId: { not: null },
+      },
+    });
+
+    let jobsExecuted = 0;
+    let previewsGenerated = 0;
+    let approvalsRequested = 0;
+    let skippedTenants = 0;
+    const errors: Array<{ tenantId: string; error: string }> = [];
+
+    for (const policy of activePolicies) {
+      if (!policy.tenantId) continue;
+      const tenantId = policy.tenantId;
+
+      try {
+        if (policy.isDryRun) {
+          await this.createDryRunPreview(tenantId, "system-scheduler");
+          previewsGenerated++;
+        } else if (policy.requiresApproval) {
+          const pendingJob = await prisma.storageRetentionJob.findFirst({
+            where: { tenantId, status: "PENDING_APPROVAL" },
+          });
+          if (!pendingJob) {
+            await this.requestJobApproval(tenantId, "system-scheduler");
+            approvalsRequested++;
+          } else {
+            skippedTenants++;
+          }
+        } else {
+          await this.executeRetentionJob({
+            tenantId,
+            actorId: "system-scheduler",
+          });
+          jobsExecuted++;
+        }
+      } catch (err: any) {
+        console.error(`[RetentionSweep] Error processing tenant ${tenantId}:`, err);
+        errors.push({ tenantId, error: err.message || "Unknown execution error" });
+      }
+    }
+
+    return {
+      tenantsProcessed: activePolicies.length,
+      jobsExecuted,
+      previewsGenerated,
+      approvalsRequested,
+      skippedTenants,
+      errors,
     };
   }
 }

@@ -78,6 +78,7 @@ import {
   Lock,
 } from "lucide-react";
 import { toast } from "sonner";
+import { UniversalFilePicker } from "@/components/files/file-picker";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 
 
@@ -1501,36 +1502,62 @@ function ExpensesPage() {
                 </span>
               </div>
 
-              {!claimForm.storedDocumentId ? (
-                <div className="border border-dashed rounded-lg p-4 text-center hover:bg-muted/30 transition-colors cursor-pointer relative">
-                  <input
-                    type="file"
-                    accept=".pdf,image/png,image/jpeg,image/jpg"
-                    disabled={isUploadingReceipt}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleReceiptUpload(file);
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                  <div className="flex flex-col items-center justify-center gap-1.5">
-                    {isUploadingReceipt ? (
-                      <div className="flex items-center gap-2 text-xs font-medium text-primary">
-                        <Clock className="size-4 animate-spin text-primary" />
-                        <span>Encrypting, hashing & analyzing with OCR...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <UploadCloud className="size-6 text-muted-foreground" />
-                        <span className="text-xs font-semibold text-foreground">Click to upload or drag & drop</span>
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          PDF, PNG, JPG (Binary signature verified)
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ) : (
+              <UniversalFilePicker
+                moduleKey="expenses"
+                pageKey="claims"
+                entityType="expense_claim"
+                entityId={selectedClaimPassport?.id || "draft"}
+                fieldKey="receipt"
+                allowedTypes=".pdf,image/png,image/jpeg,image/jpg"
+                maxSizeBytes={10 * 1024 * 1024}
+                title="Attach Expense Receipt"
+                selectedFile={
+                  claimForm.storedDocumentId
+                    ? {
+                        id: claimForm.storedDocumentId,
+                        fileName: claimForm.receiptName,
+                        fileSize: claimForm.receiptSize,
+                        url: claimForm.receiptUrl,
+                      }
+                    : null
+                }
+                onSelect={(file) => {
+                  setClaimForm((prev) => ({
+                    ...prev,
+                    storedDocumentId: file.id,
+                    receiptName: file.fileName,
+                    receiptSize: file.fileSize || 0,
+                    receiptUrl: file.url || "",
+                    receiptMime: file.mimeType || "application/octet-stream",
+                    receiptHash: "verified",
+                  }));
+                  setReceiptUploadSuccess({
+                    documentId: file.id,
+                    hash: "verified",
+                    fileName: file.fileName,
+                    sizeBytes: file.fileSize || 0,
+                    mimeType: file.mimeType || "application/octet-stream",
+                    isDuplicate: false,
+                    tamperEvidentLedgerEntry: `ledger_${file.id.slice(0, 8)}`,
+                  });
+                }}
+                onRemove={() => {
+                  setClaimForm((prev) => ({
+                    ...prev,
+                    storedDocumentId: "",
+                    receiptHash: "",
+                    receiptMime: "",
+                    receiptSize: 0,
+                    receiptUrl: "",
+                    ocrExtracted: null,
+                    ocrConfidence: null,
+                    ocrStatus: "",
+                    isDuplicateWarning: false,
+                  }));
+                  setReceiptUploadSuccess(null);
+                }}
+              />
+              {claimForm.storedDocumentId && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between p-2 rounded bg-background border text-xs">
                     <div className="flex items-center gap-2 truncate">

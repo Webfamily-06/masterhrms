@@ -64,6 +64,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Search,
+  ArrowLeft,
   Settings,
   Plus,
   Phone,
@@ -3992,7 +3993,12 @@ export function UnifiedChatApp({
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* LEFT COLUMN: LISTS (CHATS / GROUPS / CONTACTS / CALLS)              */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <aside className="w-[320px] flex-shrink-0 border-r border-border flex flex-col bg-card">
+      <aside className={cn(
+        "flex-shrink-0 border-r border-border flex flex-col bg-card",
+        activeThreadId && (mode === "chats" || mode === "groups")
+          ? "hidden md:flex md:w-[320px]"
+          : "w-full md:w-[320px]"
+      )}>
         {/* Segmented Top Navigation: Personal / Group / Call Logs */}
         <div className="p-3 border-b border-border bg-card">
           <div className="flex items-center justify-between mb-2.5">

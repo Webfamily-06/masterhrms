@@ -5,6 +5,7 @@ import { StorageReconciliationService } from "../services/files/storage-reconcil
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
 import { StorageForecastService } from "../services/files/storage-forecast.service";
 import { StorageRetentionService } from "../services/files/storage-retention.service";
+import { StorageMigrationService } from "../services/files/storage-migration.service";
 
 export const superStorageRouter = Router();
 
@@ -344,4 +345,71 @@ superStorageRouter.post(
     }
   }
 );
+
+/**
+ * POST /api/v1/super/storage/retention/sweep
+ * Fleet-wide retention sweep trigger for background schedulers or Super Admin.
+ */
+superStorageRouter.post(
+  "/retention/sweep",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const summary = await StorageRetentionService.runScheduledRetentionSweep();
+      return res.json({ success: true, ...summary });
+    } catch (err: any) {
+      console.error("[Super Storage Retention Sweep Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to execute retention sweep." });
+    }
+  }
+);
+
+// ============================================================================
+// PHASE F5: LOCAL-TO-OBJECT STORAGE MIGRATION ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/v1/super/storage/migrate-local
+ * Starts or resumes background migration of local disk assets to object storage.
+ */
+superStorageRouter.post(
+  "/migrate-local",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { batchSize, tenantId } = req.body;
+      const telemetry = await StorageMigrationService.runMigration({
+        batchSize: batchSize ? Number(batchSize) : 50,
+        tenantId: tenantId ? String(tenantId) : null,
+        actorId: req.user?.id || req.user?.userId,
+      });
+      return res.json({ success: true, telemetry });
+    } catch (err: any) {
+      console.error("[Super Storage Migrate Local Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to start local storage migration." });
+    }
+  }
+);
+
+/**
+ * GET /api/v1/super/storage/migrate-local/status
+ * Returns current status and telemetry of the storage migration engine.
+ */
+superStorageRouter.get(
+  "/migrate-local/status",
+  requireAuth,
+  requireSuperAdmin,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const telemetry = StorageMigrationService.getTelemetry();
+      return res.json({ success: true, telemetry });
+    } catch (err: any) {
+      console.error("[Super Storage Migrate Status Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to retrieve migration status." });
+    }
+  }
+);
+
 

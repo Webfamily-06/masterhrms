@@ -397,7 +397,7 @@ export class StorageAdminService {
     const versionBytes = Number(versionAgg._sum.sizeBytes || 0);
 
     const totalBillableBytes = activeBytes + trashBytes + versionBytes;
-    const availableBytes = Math.max(0, quotaNum - (activeBytes + reservedBytes));
+    const availableBytes = Math.max(0, quotaNum - (totalBillableBytes + reservedBytes));
     const percentUsed = quotaNum > 0 ? Math.min(100, parseFloat(((activeBytes / quotaNum) * 100).toFixed(1))) : 0;
     const thresholdState = this.getThresholdLevel(percentUsed);
 
