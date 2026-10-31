@@ -1,12 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import dotenv from "dotenv";
-import path from "path";
 import { prismaProxy, createDynamicPrismaProxy } from "./facade/prisma-proxy.facade";
-
-// Ensure environment variables are loaded before PrismaClient initializes
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
-dotenv.config();
 
 const dbUrl = process.env.DATABASE_URL;
 

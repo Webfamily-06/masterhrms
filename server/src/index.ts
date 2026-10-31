@@ -1,10 +1,21 @@
-import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
-dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
+// Centralized environment variable initialization (Development / Local environments only)
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
+const isProduction = process.env.NODE_ENV === "production";
+
+if (!isServerless && !isProduction) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const dotenv = require("dotenv");
+    dotenv.config({ path: path.resolve(__dirname, "../../.env") }); // project root .env
+    dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true }); // server/.env (override)
+  } catch {
+    // Gracefully ignore if dotenv is omitted or unresolvable
+  }
+}
 
 // Global BigInt JSON serialization support for Express API boundaries
 if (!(BigInt.prototype as any).toJSON) {
@@ -564,7 +575,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 let server: http.Server | undefined;
-const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT);
 
 if (!isServerless && process.env.NODE_ENV !== "test") {
   server = http.createServer(app);

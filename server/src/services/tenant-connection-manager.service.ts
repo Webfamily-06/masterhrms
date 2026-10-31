@@ -1,11 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import dotenv from "dotenv";
-import path from "path";
 import { TenancyStrategy, WorkspaceStatus } from "../context/tenant-context";
 import { createTenantIsolationExtension } from "../extensions/tenant-isolation.extension";
-
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-dotenv.config();
 
 export interface TenantRegistrationConfig {
   tenantId: string;

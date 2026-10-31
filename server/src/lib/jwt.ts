@@ -1,9 +1,5 @@
 import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
-import path from "path";
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-dotenv.config();
 
 const getJwtSecret = () => process.env.JWT_SECRET || "master-hrms-jwt-super-secret-key-change-this-in-production";
 const getJwtExpiresIn = () => process.env.JWT_EXPIRES_IN || "7d";
