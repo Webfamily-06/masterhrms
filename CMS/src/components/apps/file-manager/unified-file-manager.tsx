@@ -1445,9 +1445,9 @@ export function UnifiedFileManager({
                 : ""
             )}
           />
-          <div className="flex items-center justify-between text-[11px] text-muted-foreground font-mono">
-            <span>{stats.formattedTotalSize}</span>
-            <span>{stats.formattedQuota}</span>
+          <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-muted-foreground font-mono gap-1">
+            <span className="truncate">{stats.formattedTotalSize}</span>
+            <span className="truncate">{stats.formattedQuota}</span>
           </div>
         </div>
       )}
@@ -1646,7 +1646,7 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       <header
         style={{ fontFamily: SYSTEM_FONT_STACK }}
-        className="flex flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 border-b border-border/80 bg-card/75 backdrop-blur-md shrink-0 font-sans"
+        className="flex items-center justify-between gap-1.5 px-2.5 sm:px-3 py-1.5 border-b border-border/80 bg-card/75 backdrop-blur-md shrink-0 font-sans overflow-x-auto scrollbar-none"
       >
         {role === "super" && (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/25 text-xs font-semibold text-primary mr-2 shadow-2xs">
@@ -2064,7 +2064,7 @@ export function UnifiedFileManager({
         </div>
 
         {/* Search Box on Right */}
-        <div className="relative w-28 sm:w-48 md:w-60 shrink-0 transition-all focus-within:w-40 sm:focus-within:w-60">
+        <div className="relative w-28 xs:w-36 sm:w-48 md:w-60 shrink-0 transition-all focus-within:w-40 sm:focus-within:w-60">
           <img
             src="/FILE-MANAGER/Search.ico"
             alt=""
@@ -2073,7 +2073,7 @@ export function UnifiedFileManager({
           />
           <Input
             type="text"
-            placeholder={`Search ${currentFolder ? currentFolder.name : "files"}...`}
+            placeholder={currentFolder ? `Search ${currentFolder.name}` : "Search..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-8 pr-7 h-8 text-xs bg-background/60"

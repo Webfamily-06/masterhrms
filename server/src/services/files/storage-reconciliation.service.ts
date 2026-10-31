@@ -310,7 +310,19 @@ export class StorageReconciliationService {
     reports: ReconciliationReport[];
     locked: boolean;
   }> {
-    if (this.isFleetReconciling) {
+    const FLEET_RECON_LOCK_ID = 849201948;
+    let acquiredLock = false;
+
+    try {
+      const lockResult: any = await prisma.$queryRawUnsafe(
+        `SELECT pg_try_advisory_lock(${FLEET_RECON_LOCK_ID}) AS acquired`
+      );
+      acquiredLock = Boolean(lockResult?.[0]?.acquired);
+    } catch {
+      acquiredLock = !this.isFleetReconciling;
+    }
+
+    if (!acquiredLock || this.isFleetReconciling) {
       return {
         totalAudited: 0,
         driftCount: 0,
@@ -374,6 +386,13 @@ export class StorageReconciliationService {
       };
     } finally {
       this.isFleetReconciling = false;
+      if (acquiredLock) {
+        try {
+          await prisma.$queryRawUnsafe(
+            `SELECT pg_advisory_unlock(${FLEET_RECON_LOCK_ID})`
+          );
+        } catch { }
+      }
     }
   }
 }

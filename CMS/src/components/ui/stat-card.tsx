@@ -110,14 +110,14 @@ export function StatCard({
   return (
     <Card
       className={cn(
-        "p-4 border shadow-2xs bg-card transition-all duration-200 hover:shadow-xs",
+        "p-2.5 sm:p-4 border shadow-2xs bg-card transition-all duration-200 hover:shadow-xs",
         vStyle.border,
         className,
       )}
       {...props}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1 min-w-0 flex-1">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-semibold text-muted-foreground truncate">
               {displayTitle}
@@ -132,7 +132,7 @@ export function StatCard({
           ) : (
             <div
               className={cn(
-                "text-2xl font-black font-mono tracking-tight text-foreground truncate",
+                "text-lg sm:text-2xl font-black font-mono tracking-tight text-foreground truncate",
                 vStyle.valueText,
               )}
             >
@@ -176,7 +176,7 @@ export function StatCard({
         {icon && (
           <div
             className={cn(
-              "size-10 rounded-xl grid place-items-center shrink-0 shadow-2xs",
+              "size-8 sm:size-10 rounded-lg sm:rounded-xl grid place-items-center shrink-0 shadow-2xs",
               vStyle.iconBg,
             )}
           >

@@ -1321,416 +1321,9 @@ export function UnifiedTodoApp({
     return <LoadingState message="Loading authorized workspace tasks..." />;
   }
 
-  return (
-    <div className="space-y-6 max-w-full pb-16">
-      {/* 1. Header Toolbar */}
-      <PageHeader
-        title={title}
-        description={description}
-        breadcrumbs={[
-          { label: "Dashboard", href: "/hr/dashboard" },
-          { label: "Apps" },
-          { label: "Todo & Tasks" },
-          { label: viewMode === "gantt" ? "Gantt" : "Todo" },
-        ]}
-        actions={
-          <div className="flex items-center gap-2">
-            {/* View Mode Switcher */}
-            <div className="inline-flex items-center rounded-lg bg-muted p-1 border">
-              <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => handleViewChange("list")}
-                className="h-8 px-3 text-xs gap-1.5"
-              >
-                <ListTodo className="w-3.5 h-3.5" />
-                Tasks
-              </Button>
-              <Button
-                variant={viewMode === "gantt" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => handleViewChange("gantt")}
-                className="h-8 px-3 text-xs gap-1.5"
-              >
-                <Clock className="w-3.5 h-3.5" />
-                Gantt
-              </Button>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsCategoryManagerOpen(true)}
-              className="h-9 text-xs gap-1.5"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-              Categories
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => {
-                resetForm();
-                setIsCreateModalOpen(true);
-              }}
-              className="h-9 text-xs gap-1.5 font-bold shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              Create Task
-            </Button>
-          </div>
-        }
-      />
-
-      {/* 2. Statistical Overview Cards */}
-      <StatsOverviewGrid columns={4}>
-        <StatCard
-          title="Total Deliverables"
-          value={totalTasks}
-          description="Authorized workspace tasks"
-          icon={<ListTodo className="w-4 h-4 text-primary" />}
-        />
-        <StatCard
-          title="Pending Actions"
-          value={pendingTasks}
-          description="In-progress or scheduled"
-          icon={<Clock className="w-4 h-4 text-amber-500" />}
-        />
-        <StatCard
-          title="Completed"
-          value={completedTasks}
-          description={`${completionRate}% overall completion`}
-          icon={<CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-        />
-        <StatCard
-          title="High Priority / Urgent"
-          value={urgentTasks}
-          description="Requires active attention"
-          icon={<AlertCircle className="w-4 h-4 text-rose-500" />}
-        />
-      </StatsOverviewGrid>
-
-      {/* 3. Search and Filtering Controls */}
-      <Card className="border shadow-xs">
-        <CardContent className="p-3.5 space-y-3">
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 min-w-[240px]">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
-              <Input
-                placeholder="Search tasks by title, description, or assignee..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-9 text-xs"
-              />
-            </div>
-
-            {/* Status Tabs */}
-            <div className="flex items-center rounded-lg bg-muted p-1 border text-xs shrink-0">
-              <button
-                type="button"
-                onClick={() => setStatusTab("all")}
-                className={cn(
-                  "px-3 py-1 rounded-md transition-all font-medium",
-                  statusTab === "all" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                All ({totalTasks})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusTab("pending")}
-                className={cn(
-                  "px-3 py-1 rounded-md transition-all font-medium",
-                  statusTab === "pending" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Pending ({pendingTasks})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusTab("completed")}
-                className={cn(
-                  "px-3 py-1 rounded-md transition-all font-medium",
-                  statusTab === "completed" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Completed ({completedTasks})
-              </button>
-            </div>
-          </div>
-
-          {/* Secondary Filter Dropdowns */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t text-xs">
-            <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider mr-1">
-              Filter:
-            </span>
-
-            {/* Priority Filter */}
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="h-8 text-xs w-[130px]">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="urgent">Urgent</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Tag/Category Filter */}
-            <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="h-8 text-xs w-[140px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            {/* Sort Filter */}
-            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
-              <SelectTrigger className="h-8 text-xs w-[130px] ml-auto">
-                <ArrowUpDown className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="created">Recently Created</SelectItem>
-                <SelectItem value="due">Due Date</SelectItem>
-                <SelectItem value="priority">Priority</SelectItem>
-                <SelectItem value="progress">Progress %</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {(priorityFilter !== "all" || tagFilter !== "all" || search) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setPriorityFilter("all");
-                  setTagFilter("all");
-                  setSearch("");
-                }}
-              >
-                Reset
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 4. Active View Switch: List View vs Gantt View */}
-      {viewMode === "list" ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Main Tasks List */}
-          <div className={cn("space-y-3 transition-all", selectedTodo ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12")}>
-            {filteredTodos.length === 0 ? (
-              <EmptyState
-                title="No tasks match criteria"
-                description="Try adjusting your filters, searching for another keyword, or create a new task."
-                actionLabel="Create Task"
-                onAction={() => {
-                  resetForm();
-                  setIsCreateModalOpen(true);
-                }}
-              />
-            ) : (
-              filteredTodos.map((todo) => {
-                const isSelected = selectedTodo?.id === todo.id;
-                const pConfig = PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.medium;
-                const tConfig = tagConfigMap[todo.tag] || { label: todo.tag, color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-500/10 border-slate-500/20" };
-                const isOverdue = !todo.completed && isBefore(new Date(todo.dueDate), startOfDay(new Date()));
-
-                return (
-                  <div
-                    key={todo.id}
-                    onClick={() => setSelectedTodo(todo)}
-                    className={cn(
-                      "group p-4 rounded-xl border bg-card transition-all cursor-pointer hover:shadow-md relative overflow-hidden",
-                      isSelected && "border-primary ring-1 ring-primary/40 bg-primary/5",
-                      todo.completed && "opacity-75 bg-muted/20"
-                    )}
-                  >
-                    {/* Left Accent Bar */}
-                    <div
-                      className={cn(
-                        "absolute left-0 top-0 bottom-0 w-1",
-                        todo.completed ? "bg-emerald-500" : isOverdue ? "bg-rose-500" : "bg-primary"
-                      )}
-                    />
-
-                    <div className="flex items-start justify-between gap-3 pl-1">
-                      {/* Checkbox & Star */}
-                      <div className="flex items-center gap-2 pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleComplete(todo)}
-                          className={cn(
-                            "w-5 h-5 rounded-md border flex items-center justify-center transition-colors",
-                            todo.completed
-                              ? "bg-emerald-600 border-emerald-600 text-white"
-                              : "border-muted-foreground/40 hover:border-primary"
-                          )}
-                        >
-                          {todo.completed && <Check className="w-3.5 h-3.5 stroke-3" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStar(todo)}
-                          className="text-muted-foreground/40 hover:text-amber-500 transition-colors"
-                        >
-                          <Star
-                            className={cn(
-                              "w-4 h-4",
-                              todo.starred ? "fill-amber-400 text-amber-400" : ""
-                            )}
-                          />
-                        </button>
-                      </div>
-
-                      {/* Task Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4
-                            className={cn(
-                              "text-sm font-semibold text-foreground tracking-tight transition-all",
-                              todo.completed && "line-through text-muted-foreground"
-                            )}
-                          >
-                            {todo.title}
-                          </h4>
-
-                          {/* Category Badge */}
-                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", tConfig.color, tConfig.bg)}>
-                            {tConfig.label}
-                          </Badge>
-
-                          {/* Priority Badge */}
-                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", pConfig.color)}>
-                            {pConfig.label}
-                          </Badge>
-
-                          {todo.badgeLabel && (
-                            <Badge variant="outline" className={cn("text-[10px] px-2 py-0", todo.badgeColor)}>
-                              {todo.badgeLabel}
-                            </Badge>
-                          )}
-                        </div>
-
-                        {todo.description && (
-                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                            {todo.description}
-                          </p>
-                        )}
-
-                        {/* Metadata row */}
-                        <div className="flex items-center gap-4 mt-2.5 text-[11px] text-muted-foreground flex-wrap">
-                          {/* Due Date */}
-                          <div className={cn("flex items-center gap-1", isOverdue && "text-rose-600 font-semibold")}>
-                            <Calendar className="w-3 h-3" />
-                            <span>Due {todo.dueDate}</span>
-                            {isOverdue && <span className="text-[10px] uppercase tracking-wider ml-0.5">(Overdue)</span>}
-                          </div>
-
-                          {/* Multi-Assignee Stack */}
-                          {todo.assignees && todo.assignees.length > 0 ? (
-                            <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
-                              <div className="flex items-center -space-x-1.5">
-                                {todo.assignees.slice(0, 3).map((a) => (
-                                  <UserAvatar key={a.id} name={a.name} avatar={a.avatar} className="w-4 h-4 text-[8px] border-background" />
-                                ))}
-                              </div>
-                              <span className="font-medium truncate max-w-[120px]">
-                                {todo.assignees.length === 1
-                                  ? todo.assignees[0].name
-                                  : `${todo.assignees[0].name} +${todo.assignees.length - 1}`}
-                              </span>
-                            </div>
-                          ) : todo.assignee?.name ? (
-                            <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
-                              <UserAvatar name={todo.assignee.name} avatar={todo.assignee.avatar} className="w-4 h-4 text-[8px]" />
-                              <span className="font-medium truncate max-w-[120px]">{todo.assignee.name}</span>
-                            </div>
-                          ) : null}
-
-                          {/* Checklist items indicator */}
-                          {todo.checklist.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              <CheckSquare className="w-3 h-3 text-muted-foreground" />
-                              <span>
-                                {todo.checklist.filter((c) => c.done).length}/{todo.checklist.length} subtasks
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Comments indicator */}
-                          {todo.comments.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-muted-foreground" />
-                              <span>{todo.comments.length} comments</span>
-                            </div>
-                          )}
-
-                          {/* Progress */}
-                          <div className="flex items-center gap-2 min-w-[100px]">
-                            <div className="flex-1 bg-muted h-1.5 rounded-full overflow-hidden">
-                              <div
-                                className={cn(
-                                  "h-full rounded-full transition-all",
-                                  todo.completed ? "bg-emerald-500" : "bg-primary"
-                                )}
-                                style={{ width: `${todo.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-[10px] font-mono">{todo.progress}%</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right action icons */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEdit(todo);
-                          }}
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTodoToDelete(todo.id);
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Right Slide-Over Detail Panel (Top on mobile, side on desktop) */}
-          {selectedTodo && (
-            <div className="col-span-12 lg:col-span-5 xl:col-span-4 order-first lg:order-none sticky top-4 sm:top-6 border rounded-xl bg-card shadow-lg p-4 sm:p-5 space-y-5 animate-in fade-in duration-200">
-              {/* Panel Header */}
+  const renderTaskDetailContent = (selectedTodo: TodoItem) => (
+    <>
+      {/* Panel Header */}
               <div className="flex items-start justify-between gap-3 border-b pb-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -2054,6 +1647,419 @@ export function UnifiedTodoApp({
                   Close Panel
                 </Button>
               </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-6 max-w-full pb-16">
+      {/* 1. Header Toolbar */}
+      <PageHeader
+        title={title}
+        description={description}
+        breadcrumbs={[
+          { label: "Dashboard", href: "/hr/dashboard" },
+          { label: "Apps" },
+          { label: "Todo & Tasks" },
+          { label: viewMode === "gantt" ? "Gantt" : "Todo" },
+        ]}
+        actions={
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {/* View Mode Switcher */}
+            <div className="inline-flex items-center rounded-lg bg-muted p-0.5 sm:p-1 border">
+              <Button
+                variant={viewMode === "list" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => handleViewChange("list")}
+                className="h-7.5 sm:h-8 px-2 sm:px-3 text-xs gap-1 sm:gap-1.5"
+              >
+                <ListTodo className="w-3.5 h-3.5" />
+                <span>Tasks</span>
+              </Button>
+              <Button
+                variant={viewMode === "gantt" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => handleViewChange("gantt")}
+                className="h-7.5 sm:h-8 px-2 sm:px-3 text-xs gap-1 sm:gap-1.5"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Gantt</span>
+              </Button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCategoryManagerOpen(true)}
+              className="h-7.5 sm:h-8 text-xs px-2 sm:px-3 gap-1 sm:gap-1.5"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Categories</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={() => {
+                resetForm();
+                setIsCreateModalOpen(true);
+              }}
+              className="h-7.5 sm:h-8 text-xs px-2 sm:px-3 gap-1 sm:gap-1.5 font-bold shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Create<span className="hidden sm:inline"> Task</span></span>
+            </Button>
+          </div>
+        }
+      />
+
+      {/* 2. Statistical Overview Cards */}
+      <StatsOverviewGrid columns={4}>
+        <StatCard
+          title="Total Deliverables"
+          value={totalTasks}
+          description="Authorized workspace tasks"
+          icon={<ListTodo className="w-4 h-4 text-primary" />}
+        />
+        <StatCard
+          title="Pending Actions"
+          value={pendingTasks}
+          description="In-progress or scheduled"
+          icon={<Clock className="w-4 h-4 text-amber-500" />}
+        />
+        <StatCard
+          title="Completed"
+          value={completedTasks}
+          description={`${completionRate}% overall completion`}
+          icon={<CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+        />
+        <StatCard
+          title="High Priority / Urgent"
+          value={urgentTasks}
+          description="Requires active attention"
+          icon={<AlertCircle className="w-4 h-4 text-rose-500" />}
+        />
+      </StatsOverviewGrid>
+
+      {/* 3. Search and Filtering Controls */}
+      <Card className="border shadow-xs">
+        <CardContent className="p-3.5 space-y-3">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 sm:gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
+              <Input
+                placeholder="Search tasks by title, description, or assignee..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+
+            {/* Status Tabs */}
+            <div className="flex items-center overflow-x-auto scrollbar-none rounded-lg bg-muted p-1 border text-xs shrink-0">
+              <button
+                type="button"
+                onClick={() => setStatusTab("all")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "all" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                All ({totalTasks})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("pending")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "pending" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Pending ({pendingTasks})
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("completed")}
+                className={cn(
+                  "px-3 py-1 rounded-md transition-all font-medium",
+                  statusTab === "completed" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Completed ({completedTasks})
+              </button>
+            </div>
+          </div>
+
+          {/* Secondary Filter Dropdowns */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t text-xs">
+            <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider mr-1">
+              Filter:
+            </span>
+
+            {/* Priority Filter */}
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="h-8 text-xs w-[130px]">
+                <SelectValue placeholder="Priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Tag/Category Filter */}
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger className="h-8 text-xs w-[140px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Sort Filter */}
+            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+              <SelectTrigger className="h-8 text-xs w-[130px] ml-auto">
+                <ArrowUpDown className="w-3.5 h-3.5 mr-1 text-muted-foreground" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created">Recently Created</SelectItem>
+                <SelectItem value="due">Due Date</SelectItem>
+                <SelectItem value="priority">Priority</SelectItem>
+                <SelectItem value="progress">Progress %</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {(priorityFilter !== "all" || tagFilter !== "all" || search) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setPriorityFilter("all");
+                  setTagFilter("all");
+                  setSearch("");
+                }}
+              >
+                Reset
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Active View Switch: List View vs Gantt View */}
+      {viewMode === "list" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Tasks List */}
+          <div className={cn("space-y-3 transition-all", selectedTodo ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-12")}>
+            {filteredTodos.length === 0 ? (
+              <EmptyState
+                title="No tasks match criteria"
+                description="Try adjusting your filters, searching for another keyword, or create a new task."
+                actionLabel="Create Task"
+                onAction={() => {
+                  resetForm();
+                  setIsCreateModalOpen(true);
+                }}
+              />
+            ) : (
+              filteredTodos.map((todo) => {
+                const isSelected = selectedTodo?.id === todo.id;
+                const pConfig = PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.medium;
+                const tConfig = tagConfigMap[todo.tag] || { label: todo.tag, color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-500/10 border-slate-500/20" };
+                const isOverdue = !todo.completed && isBefore(new Date(todo.dueDate), startOfDay(new Date()));
+
+                return (
+                  <div
+                    key={todo.id}
+                    onClick={() => setSelectedTodo(todo)}
+                    className={cn(
+                      "group p-4 rounded-xl border bg-card transition-all cursor-pointer hover:shadow-md relative overflow-hidden",
+                      isSelected && "border-primary ring-1 ring-primary/40 bg-primary/5",
+                      todo.completed && "opacity-75 bg-muted/20"
+                    )}
+                  >
+                    {/* Left Accent Bar */}
+                    <div
+                      className={cn(
+                        "absolute left-0 top-0 bottom-0 w-1",
+                        todo.completed ? "bg-emerald-500" : isOverdue ? "bg-rose-500" : "bg-primary"
+                      )}
+                    />
+
+                    <div className="flex items-start justify-between gap-3 pl-1">
+                      {/* Checkbox & Star */}
+                      <div className="flex items-center gap-2 pt-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleComplete(todo)}
+                          className={cn(
+                            "w-5 h-5 rounded-md border flex items-center justify-center transition-colors",
+                            todo.completed
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-muted-foreground/40 hover:border-primary"
+                          )}
+                        >
+                          {todo.completed && <Check className="w-3.5 h-3.5 stroke-3" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStar(todo)}
+                          className="text-muted-foreground/40 hover:text-amber-500 transition-colors"
+                        >
+                          <Star
+                            className={cn(
+                              "w-4 h-4",
+                              todo.starred ? "fill-amber-400 text-amber-400" : ""
+                            )}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Task Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4
+                            className={cn(
+                              "text-sm font-semibold text-foreground tracking-tight transition-all",
+                              todo.completed && "line-through text-muted-foreground"
+                            )}
+                          >
+                            {todo.title}
+                          </h4>
+
+                          {/* Category Badge */}
+                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", tConfig.color, tConfig.bg)}>
+                            {tConfig.label}
+                          </Badge>
+
+                          {/* Priority Badge */}
+                          <Badge variant="outline" className={cn("text-[10px] px-2 py-0 border", pConfig.color)}>
+                            {pConfig.label}
+                          </Badge>
+
+                          {todo.badgeLabel && (
+                            <Badge variant="outline" className={cn("text-[10px] px-2 py-0", todo.badgeColor)}>
+                              {todo.badgeLabel}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {todo.description && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                            {todo.description}
+                          </p>
+                        )}
+
+                        {/* Metadata row */}
+                        <div className="flex items-center gap-4 mt-2.5 text-[11px] text-muted-foreground flex-wrap">
+                          {/* Due Date */}
+                          <div className={cn("flex items-center gap-1", isOverdue && "text-rose-600 font-semibold")}>
+                            <Calendar className="w-3 h-3" />
+                            <span>Due {todo.dueDate}</span>
+                            {isOverdue && <span className="text-[10px] uppercase tracking-wider ml-0.5">(Overdue)</span>}
+                          </div>
+
+                          {/* Multi-Assignee Stack */}
+                          {todo.assignees && todo.assignees.length > 0 ? (
+                            <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
+                              <div className="flex items-center -space-x-1.5">
+                                {todo.assignees.slice(0, 3).map((a) => (
+                                  <UserAvatar key={a.id} name={a.name} avatar={a.avatar} className="w-4 h-4 text-[8px] border-background" />
+                                ))}
+                              </div>
+                              <span className="font-medium truncate max-w-[120px]">
+                                {todo.assignees.length === 1
+                                  ? todo.assignees[0].name
+                                  : `${todo.assignees[0].name} +${todo.assignees.length - 1}`}
+                              </span>
+                            </div>
+                          ) : todo.assignee?.name ? (
+                            <div className="flex items-center gap-1.5 bg-muted/60 px-2 py-0.5 rounded-md border text-foreground">
+                              <UserAvatar name={todo.assignee.name} avatar={todo.assignee.avatar} className="w-4 h-4 text-[8px]" />
+                              <span className="font-medium truncate max-w-[120px]">{todo.assignee.name}</span>
+                            </div>
+                          ) : null}
+
+                          {/* Checklist items indicator */}
+                          {todo.checklist.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <CheckSquare className="w-3 h-3 text-muted-foreground" />
+                              <span>
+                                {todo.checklist.filter((c) => c.done).length}/{todo.checklist.length} subtasks
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Comments indicator */}
+                          {todo.comments.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-muted-foreground" />
+                              <span>{todo.comments.length} comments</span>
+                            </div>
+                          )}
+
+                          {/* Progress */}
+                          <div className="flex items-center gap-2 min-w-[100px]">
+                            <div className="flex-1 bg-muted h-1.5 rounded-full overflow-hidden">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all",
+                                  todo.completed ? "bg-emerald-500" : "bg-primary"
+                                )}
+                                style={{ width: `${todo.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-mono">{todo.progress}%</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right action icons */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEdit(todo);
+                          }}
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTodoToDelete(todo.id);
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Side Detail Panel */}
+          {selectedTodo && (
+            <div className="hidden lg:block lg:col-span-5 xl:col-span-4 sticky top-6 border rounded-xl bg-card shadow-lg p-5 space-y-5 animate-in fade-in duration-200">
+              {renderTaskDetailContent(selectedTodo)}
             </div>
           )}
         </div>
@@ -2061,12 +2067,12 @@ export function UnifiedTodoApp({
         /* ─── GANTT TIMELINE VIEW ─── */
         <div className="space-y-4">
           {/* Gantt Timeline Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-3.5 rounded-xl border bg-card/60 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1"
+                className="h-7 sm:h-8 text-[11px] sm:text-xs px-2 sm:px-3 gap-1"
                 onClick={() => setGanttWindowOffset((prev) => prev - 1)}
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -2075,7 +2081,7 @@ export function UnifiedTodoApp({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1"
+                className="h-7 sm:h-8 text-[11px] sm:text-xs px-2 sm:px-3 gap-1"
                 onClick={() => setGanttWindowOffset(0)}
               >
                 Today
@@ -2083,7 +2089,7 @@ export function UnifiedTodoApp({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1"
+                className="h-7 sm:h-8 text-[11px] sm:text-xs px-2 sm:px-3 gap-1"
                 onClick={() => setGanttWindowOffset((prev) => prev + 1)}
               >
                 Next
@@ -2092,12 +2098,12 @@ export function UnifiedTodoApp({
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="inline-flex items-center rounded-lg bg-muted p-1 border text-xs">
+              <div className="inline-flex items-center rounded-lg bg-muted p-0.5 sm:p-1 border text-xs">
                 <button
                   type="button"
                   onClick={() => setTimelineScale("days")}
                   className={cn(
-                    "px-3 py-1 rounded-md transition-all font-medium",
+                    "px-2 sm:px-3 py-1 rounded-md transition-all font-medium text-[11px] sm:text-xs",
                     timelineScale === "days" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -2107,7 +2113,7 @@ export function UnifiedTodoApp({
                   type="button"
                   onClick={() => setTimelineScale("weeks")}
                   className={cn(
-                    "px-3 py-1 rounded-md transition-all font-medium",
+                    "px-2 sm:px-3 py-1 rounded-md transition-all font-medium text-[11px] sm:text-xs",
                     timelineScale === "weeks" ? "bg-background text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -2119,11 +2125,11 @@ export function UnifiedTodoApp({
 
           {/* Gantt Chart Container */}
           <Card className="overflow-hidden border shadow-sm">
-            <div className="overflow-x-auto">
-              <div className="min-w-[950px]">
+            <div className="overflow-x-auto touch-pan-x">
+              <div className="min-w-[700px] md:min-w-[950px]">
                 {/* Timeline Header */}
                 <div className="grid grid-cols-12 border-b bg-muted/40 text-xs font-semibold text-foreground">
-                  <div className="col-span-4 p-3 border-r font-bold sticky left-0 bg-muted/95 backdrop-blur z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">Task & Assignees</div>
+                  <div className="col-span-4 p-2 sm:p-3 border-r font-bold sticky left-0 bg-muted/95 backdrop-blur z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)] text-[11px] sm:text-xs">Task & Assignees</div>
                   <div className="col-span-8 grid" style={{ gridTemplateColumns: `repeat(${timelineDates.length}, minmax(0, 1fr))` }}>
                     {timelineDates.map((d, i) => {
                       const isToday = format(d, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
@@ -2174,7 +2180,7 @@ export function UnifiedTodoApp({
                           onClick={() => setSelectedTodo(todo)}
                         >
                           {/* Task Info Column */}
-                          <div className="col-span-4 p-3 border-r flex items-center justify-between gap-2 sticky left-0 bg-card/95 backdrop-blur z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
+                          <div className="col-span-4 p-2 sm:p-3 border-r flex items-center justify-between gap-1.5 sm:gap-2 sticky left-0 bg-card/95 backdrop-blur z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span className={cn("w-2 h-2 rounded-full", pConfig.dot)} />
@@ -2267,6 +2273,31 @@ export function UnifiedTodoApp({
           </Card>
         </div>
       )}
+
+      {/* Mobile & Tablet Slide-Over Sheet (and Gantt task inspector) */}
+      <Sheet
+        open={Boolean(selectedTodo)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTodo(null);
+        }}
+      >
+        <SheetContent
+          side="right"
+          className={cn(
+            "w-full sm:max-w-md p-4 sm:p-6 overflow-y-auto",
+            viewMode === "list" && "lg:hidden"
+          )}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Task Details</SheetTitle>
+          </SheetHeader>
+          {selectedTodo && (
+            <div className="space-y-5 pt-2">
+              {renderTaskDetailContent(selectedTodo)}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* 5. Create / Edit Task Modal */}
       <Dialog

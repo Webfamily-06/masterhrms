@@ -235,10 +235,10 @@ export default function PublicSharePage({
                     file.fileName.endsWith(".pdf")
                       ? "/FILE-MANAGER/pdf.svg"
                       : file.fileName.endsWith(".xlsx") || file.fileName.endsWith(".csv")
-                      ? "/FILE-MANAGER/excel.svg"
-                      : file.fileName.endsWith(".docx") || file.fileName.endsWith(".doc")
-                      ? "/FILE-MANAGER/docx_icon.svg"
-                      : "/FILE-MANAGER/Blank.ico"
+                        ? "/FILE-MANAGER/excel.svg"
+                        : file.fileName.endsWith(".docx") || file.fileName.endsWith(".doc")
+                          ? "/FILE-MANAGER/docx_icon.svg"
+                          : "/FILE-MANAGER/Blank.ico"
                   }
                   alt=""
                   className="size-8 object-contain"

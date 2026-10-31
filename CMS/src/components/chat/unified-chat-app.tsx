@@ -3997,6 +3997,8 @@ export function UnifiedChatApp({
         "flex-shrink-0 border-r border-border flex flex-col bg-card",
         activeThreadId && (mode === "chats" || mode === "groups")
           ? "hidden md:flex md:w-[320px]"
+          : mode === "calls"
+          ? "hidden md:flex md:w-[320px]"
           : "w-full md:w-[320px]"
       )}>
         {/* Segmented Top Navigation: Personal / Group / Call Logs */}
@@ -4509,11 +4511,44 @@ export function UnifiedChatApp({
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* CENTER COLUMN: ACTIVE CONVERSATION MESSAGES / CALL LOGS TABLE       */}
       {/* ─────────────────────────────────────────────────────────────────── */}
-      <section className="flex-1 flex flex-col bg-background min-w-0">
+      <section className={cn(
+        "flex-1 flex flex-col bg-background min-w-0",
+        mode !== "calls" && !activeThreadId ? "hidden md:flex" : "flex"
+      )}>
         {mode === "calls" ? (
           /* ─── FULL CALL HISTORY VIEW ─── */
-          <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-5">
-            <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex-1 flex flex-col overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
+            {/* Mobile Mode Switcher for Calls */}
+            <div className="md:hidden pb-1">
+              <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border border-border/40">
+                <button
+                  type="button"
+                  onClick={() => handleModeSelect("chats")}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <MessageSquare className="size-3.5" />
+                  <span>Personal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeSelect("groups")}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <Users className="size-3.5" />
+                  <span>Group</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleModeSelect("calls")}
+                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold bg-background text-foreground shadow-xs font-bold border border-border/30 cursor-pointer"
+                >
+                  <Phone className="size-3.5" />
+                  <span>Call Logs</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-4">
               <div>
                 <h2 className="text-xl font-bold text-foreground">Call History</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -4634,8 +4669,8 @@ export function UnifiedChatApp({
             </div>
 
             {/* Calls Table */}
-            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-xs">
-              <Table>
+            <div className="border border-border rounded-lg overflow-x-auto bg-card shadow-xs">
+              <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-semibold">Contact / Colleague</TableHead>
@@ -4860,9 +4895,21 @@ export function UnifiedChatApp({
         ) : activeThreadId ? (
           <>
             {/* Conversation Header */}
-            <div className="p-3.5 border-b border-border flex items-center justify-between bg-card">
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar className="size-9.5 flex-shrink-0 shadow-xs">
+            <div className="p-3 sm:p-3.5 border-b border-border flex items-center justify-between bg-card">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setActiveThreadId("");
+                    setShowInfo(false);
+                  }}
+                  className="md:hidden size-8 -ml-1 text-muted-foreground hover:text-foreground shrink-0"
+                  title="Back to conversations"
+                >
+                  <ArrowLeft className="size-4" />
+                </Button>
+                <Avatar className="size-8.5 sm:size-9.5 flex-shrink-0 shadow-xs">
                   {(activeThreadType === "direct"
                     ? participantProfile?.avatarUrl || activeContact?.avatarUrl
                     : activeGroup?.avatarUrl) ? (
@@ -6202,7 +6249,13 @@ export function UnifiedChatApp({
       {/* RIGHT COLUMN: CONTACT / GROUP INFO & SHARED FILES DRAWER            */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {showInfo && activeThreadId && mode !== "calls" && (
-        <aside className="w-[300px] flex-shrink-0 border-l border-border bg-card flex flex-col overflow-y-auto">
+        <aside className="w-full sm:w-[300px] fixed md:static inset-y-0 right-0 z-40 flex-shrink-0 border-l border-border bg-card flex flex-col overflow-y-auto shadow-2xl md:shadow-none">
+          <div className="flex items-center justify-between p-3 border-b border-border/70 md:hidden">
+            <span className="text-xs font-bold text-foreground">Conversation Details</span>
+            <Button variant="ghost" size="icon" className="size-7" onClick={() => setShowInfo(false)}>
+              <X className="size-4" />
+            </Button>
+          </div>
           {/* Top Profile Card */}
           <div className="p-6 text-center border-b border-border/70 flex flex-col items-center">
             {activeThreadType === "group" && isEditingGroupSidebar ? (
