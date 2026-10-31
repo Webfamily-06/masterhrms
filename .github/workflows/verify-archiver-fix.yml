@@ -48,6 +48,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Verify Archiver loads through CommonJS
+        working-directory: server
         run: node -e "const archiver = require('archiver'); if (typeof archiver !== 'function') process.exit(1); console.log('Archiver CommonJS load OK');"
 
       - name: Build backend
