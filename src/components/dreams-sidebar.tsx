@@ -1554,7 +1554,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to="/store"
+                    to={"/store" as any}
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/store" && "active")}
                     title="Online Storefront Catalog"

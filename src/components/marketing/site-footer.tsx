@@ -430,7 +430,7 @@ function ContactCol({ f }: { f: FooterContent }) {
         )}
         <li className="pt-1">
           <Link
-            to="/contact"
+            to={"/contact" as any}
             className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ft-accent)]"
             style={{ color: "var(--ft-accent)" }}
           >

@@ -94,7 +94,7 @@ export default function FinanceDashboardPage() {
       yaxis: {
         labels: {
           style: { colors: "#94A3B8", fontSize: "11px" },
-          formatter: (v) => "$" + v + "K",
+          formatter: (v: any) => "$" + v + "K",
         },
       },
       grid: { borderColor: "var(--color-border-color, #E2E8F0)", strokeDashArray: 4 },
@@ -102,7 +102,7 @@ export default function FinanceDashboardPage() {
       colors: ["#10B981", "#F97316"],
       legend: { show: false },
       dataLabels: { enabled: false },
-      tooltip: { theme: "dark", y: { formatter: (v) => "$" + v + "K" } },
+      tooltip: { theme: "dark", y: { formatter: (v: any) => "$" + v + "K" } },
     }),
     []
   );
@@ -161,7 +161,7 @@ export default function FinanceDashboardPage() {
       yaxis: {
         labels: {
           style: { colors: "#94A3B8", fontSize: "11px" },
-          formatter: (v) => "$" + v + "K",
+          formatter: (v: any) => "$" + v + "K",
         },
       },
       grid: { borderColor: "var(--color-border-color, #E2E8F0)", strokeDashArray: 4 },

@@ -392,8 +392,8 @@ export default function CustomerPortalStatementPage() {
           <p>© {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
           <div className="flex items-center gap-4 text-muted-foreground">
             <Link to="/" className="hover:text-foreground">Home</Link>
-            <Link to="/store" className="hover:text-foreground">Store</Link>
-            <Link to="/contact" className="hover:text-foreground">Support Desk</Link>
+            <Link to={"/store" as any} className="hover:text-foreground">Store</Link>
+            <Link to={"/contact" as any} className="hover:text-foreground">Support Desk</Link>
           </div>
         </div>
       </footer>

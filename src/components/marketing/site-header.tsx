@@ -283,7 +283,7 @@ export function SiteHeader() {
             <Puzzle className="size-3.5" /> Addons
           </Link>
           <Link
-            to="/pricing"
+            to={"/pricing" as any}
             className="px-3 py-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
           >
             Pricing
@@ -296,13 +296,13 @@ export function SiteHeader() {
             <MegaPanel title="Knowledge & Support" items={resources} />
           </div>
           <Link
-            to="/about"
+            to={"/about" as any}
             className="px-3 py-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
           >
             About
           </Link>
           <Link
-            to="/contact"
+            to={"/contact" as any}
             className="px-3 py-2 rounded-md hover:bg-accent text-muted-foreground hover:text-foreground"
           >
             Contact
@@ -337,25 +337,25 @@ export function SiteHeader() {
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="lg:hidden border-t p-4 space-y-3 bg-background">
-          <Link to="/product" className="block py-2 text-sm font-medium">
+          <Link to={"/product" as any} className="block py-2 text-sm font-medium">
             Product
           </Link>
-          <Link to="/solutions" className="block py-2 text-sm font-medium">
+          <Link to={"/solutions" as any} className="block py-2 text-sm font-medium">
             Solutions
           </Link>
           <Link to="/addons" className="block py-2 text-sm font-medium">
             Addons
           </Link>
-          <Link to="/pricing" className="block py-2 text-sm font-medium">
+          <Link to={"/pricing" as any} className="block py-2 text-sm font-medium">
             Pricing
           </Link>
-          <Link to="/resources" className="block py-2 text-sm font-medium">
+          <Link to={"/resources" as any} className="block py-2 text-sm font-medium">
             Resources
           </Link>
-          <Link to="/about" className="block py-2 text-sm font-medium">
+          <Link to={"/about" as any} className="block py-2 text-sm font-medium">
             About
           </Link>
-          <Link to="/contact" className="block py-2 text-sm font-medium">
+          <Link to={"/contact" as any} className="block py-2 text-sm font-medium">
             Contact
           </Link>
           <div className="pt-3 border-t flex flex-col gap-2">

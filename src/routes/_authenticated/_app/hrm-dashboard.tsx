@@ -175,7 +175,7 @@ export default function DashboardPage() {
       colors: ["#2563EB", "#2563EB", "#2563EB", "#F97316", "#2563EB", "#2563EB", "#2563EB"],
       legend: { show: false },
       dataLabels: { enabled: false },
-      tooltip: { y: { formatter: (v) => v + " present" } },
+      tooltip: { y: { formatter: (v: any) => v + " present" } },
     }),
     [hrmData?.weeklyTrend]
   );
@@ -213,7 +213,7 @@ export default function DashboardPage() {
       dataLabels: { enabled: false },
       tooltip: {
         theme: "dark",
-        y: { formatter: (v) => "$" + v + "K" },
+        y: { formatter: (v: any) => "$" + v + "K" },
       },
       markers: { size: 0 },
     }),

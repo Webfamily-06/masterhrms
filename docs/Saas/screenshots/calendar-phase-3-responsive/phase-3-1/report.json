@@ -1,40 +1,40 @@
 {
-  "timestamp": "2026-11-01T08:47:11.934Z",
+  "timestamp": "2026-11-01T16:36:42.214Z",
   "suite": "MASTERHRMS_PHASE_3_1_CALENDAR_RESPONSIVE_HARDENED_VERIFICATION",
   "totalTests": 40,
-  "passedTests": 40,
-  "failedTests": 0,
-  "passRate": "100.0%",
+  "passedTests": 0,
+  "failedTests": 40,
+  "passRate": "0.0%",
   "assertions": {
-    "total": 527,
-    "passed": 527,
-    "failed": 0,
+    "total": 40,
+    "passed": 0,
+    "failed": 40,
     "skipped": 0,
     "categories": {
       "responsive_layout": {
-        "total": 130,
-        "passed": 130,
+        "total": 0,
+        "passed": 0,
         "failed": 0
       },
       "sidebar_and_drawer": {
-        "total": 125,
-        "passed": 125,
+        "total": 0,
+        "passed": 0,
         "failed": 0
       },
       "calendar_views": {
-        "total": 80,
-        "passed": 80,
+        "total": 0,
+        "passed": 0,
         "failed": 0
       },
       "dialog_viewport_and_scroll": {
-        "total": 112,
-        "passed": 112,
+        "total": 0,
+        "passed": 0,
         "failed": 0
       },
       "console_and_runtime": {
-        "total": 80,
-        "passed": 80,
-        "failed": 0
+        "total": 40,
+        "passed": 0,
+        "failed": 40
       }
     }
   },
@@ -47,211 +47,28 @@
       "width": 360,
       "height": 800,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 30,
-      "passedAssertions": 30,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (360px) > clientWidth (360px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (338.390625px) exceeds viewport (360px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (720px) exceeds viewport (800px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_360x800.png",
-        "drawer": "hr_calendar_360x800_drawer.png",
-        "createDialog": "hr_calendar_360x800_dialog_create.png",
-        "categoryDialog": "hr_calendar_360x800_dialog_category.png",
-        "detailsDialog": "hr_calendar_360x800_dialog_details.png",
-        "auditDialog": "hr_calendar_360x800_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -262,90 +79,28 @@
       "width": 360,
       "height": 800,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (360px) > clientWidth (360px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_360x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -356,90 +111,28 @@
       "width": 360,
       "height": 800,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (360px) > clientWidth (360px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_360x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -450,90 +143,28 @@
       "width": 360,
       "height": 800,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (360px) > clientWidth (360px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_360x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -544,122 +175,28 @@
       "width": 360,
       "height": 800,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 16,
-      "passedAssertions": 16,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (360px) > clientWidth (360px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_360x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -670,211 +207,28 @@
       "width": 390,
       "height": 844,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 30,
-      "passedAssertions": 30,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (390px) > clientWidth (390px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (366.59375px) exceeds viewport (390px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (759.59375px) exceeds viewport (844px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_390x844.png",
-        "drawer": "hr_calendar_390x844_drawer.png",
-        "createDialog": "hr_calendar_390x844_dialog_create.png",
-        "categoryDialog": "hr_calendar_390x844_dialog_category.png",
-        "detailsDialog": "hr_calendar_390x844_dialog_details.png",
-        "auditDialog": "hr_calendar_390x844_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -885,90 +239,28 @@
       "width": 390,
       "height": 844,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (390px) > clientWidth (390px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_390x844.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -979,90 +271,28 @@
       "width": 390,
       "height": 844,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (390px) > clientWidth (390px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_390x844.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1073,90 +303,28 @@
       "width": 390,
       "height": 844,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (390px) > clientWidth (390px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_390x844.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1167,122 +335,28 @@
       "width": 390,
       "height": 844,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 16,
-      "passedAssertions": 16,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (390px) > clientWidth (390px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_390x844.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1293,211 +367,28 @@
       "width": 430,
       "height": 932,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 30,
-      "passedAssertions": 30,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (430px) > clientWidth (430px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (404.1875px) exceeds viewport (430px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (838.796875px) exceeds viewport (932px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_430x932.png",
-        "drawer": "hr_calendar_430x932_drawer.png",
-        "createDialog": "hr_calendar_430x932_dialog_create.png",
-        "categoryDialog": "hr_calendar_430x932_dialog_category.png",
-        "detailsDialog": "hr_calendar_430x932_dialog_details.png",
-        "auditDialog": "hr_calendar_430x932_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -1508,90 +399,28 @@
       "width": 430,
       "height": 932,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (430px) > clientWidth (430px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_430x932.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1602,90 +431,28 @@
       "width": 430,
       "height": 932,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (430px) > clientWidth (430px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_430x932.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1696,90 +463,28 @@
       "width": 430,
       "height": 932,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (430px) > clientWidth (430px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_430x932.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1790,122 +495,28 @@
       "width": 430,
       "height": 932,
       "tier": "Mobile",
-      "status": "PASS",
-      "totalAssertions": 16,
-      "passedAssertions": 16,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (430px) > clientWidth (430px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_430x932.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -1916,211 +527,28 @@
       "width": 768,
       "height": 1024,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 30,
-      "passedAssertions": 30,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (768px) > clientWidth (768px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (512px) exceeds viewport (768px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (921.59375px) exceeds viewport (1024px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_768x1024.png",
-        "drawer": "hr_calendar_768x1024_drawer.png",
-        "createDialog": "hr_calendar_768x1024_dialog_create.png",
-        "categoryDialog": "hr_calendar_768x1024_dialog_category.png",
-        "detailsDialog": "hr_calendar_768x1024_dialog_details.png",
-        "auditDialog": "hr_calendar_768x1024_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -2131,90 +559,28 @@
       "width": 768,
       "height": 1024,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (768px) > clientWidth (768px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_768x1024.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2225,90 +591,28 @@
       "width": 768,
       "height": 1024,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (768px) > clientWidth (768px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_768x1024.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2319,90 +623,28 @@
       "width": 768,
       "height": 1024,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (768px) > clientWidth (768px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_768x1024.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2413,122 +655,28 @@
       "width": 768,
       "height": 1024,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 16,
-      "passedAssertions": 16,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (768px) > clientWidth (768px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_768x1024.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2539,211 +687,28 @@
       "width": 1023,
       "height": 768,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 30,
-      "passedAssertions": 30,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1023px) > clientWidth (1023px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (512px) exceeds viewport (1023px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (691.1875px) exceeds viewport (768px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_1023x768.png",
-        "drawer": "hr_calendar_1023x768_drawer.png",
-        "createDialog": "hr_calendar_1023x768_dialog_create.png",
-        "categoryDialog": "hr_calendar_1023x768_dialog_category.png",
-        "detailsDialog": "hr_calendar_1023x768_dialog_details.png",
-        "auditDialog": "hr_calendar_1023x768_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -2754,90 +719,28 @@
       "width": 1023,
       "height": 768,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1023px) > clientWidth (1023px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_1023x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2848,90 +751,28 @@
       "width": 1023,
       "height": 768,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1023px) > clientWidth (1023px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_1023x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -2942,90 +783,28 @@
       "width": 1023,
       "height": 768,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 11,
-      "passedAssertions": 11,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1023px) > clientWidth (1023px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_1023x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3036,122 +815,28 @@
       "width": 1023,
       "height": 768,
       "tier": "Tablet",
-      "status": "PASS",
-      "totalAssertions": 16,
-      "passedAssertions": 16,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1023px) > clientWidth (1023px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_hidden_below_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be hidden below 1024px breakpoint (found visible)"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "mobile_filter_trigger_visible_below_1024",
-          "pass": true,
-          "message": "Mobile filter trigger button must be visible below 1024px breakpoint"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "segmented_view_buttons_present",
-          "pass": true,
-          "message": "Mobile segmented view selector buttons (Month, Week, Day, List) must be present (found 8)"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_opens_on_click",
-          "pass": true,
-          "message": "Slide-over drawer did not open after clicking filter button"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_create_cta",
-          "pass": true,
-          "message": "Drawer is missing Create Event CTA"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_categories",
-          "pass": true,
-          "message": "Drawer is missing Categories section"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_contains_mini_calendar",
-          "pass": true,
-          "message": "Drawer is missing Mini Calendar widget"
-        },
-        {
-          "category": "sidebar_and_drawer",
-          "name": "drawer_dismisses_on_escape",
-          "pass": true,
-          "message": "Slide-over drawer failed to dismiss when Escape key was pressed"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_1023x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3162,169 +847,28 @@
       "width": 1024,
       "height": 768,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 23,
-      "passedAssertions": 23,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1024px) > clientWidth (1024px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (512px) exceeds viewport (1024px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (691.1875px) exceeds viewport (768px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_1024x768.png",
-        "drawer": null,
-        "createDialog": "hr_calendar_1024x768_dialog_create.png",
-        "categoryDialog": "hr_calendar_1024x768_dialog_category.png",
-        "detailsDialog": "hr_calendar_1024x768_dialog_details.png",
-        "auditDialog": "hr_calendar_1024x768_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -3335,48 +879,28 @@
       "width": 1024,
       "height": 768,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1024px) > clientWidth (1024px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_1024x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3387,48 +911,28 @@
       "width": 1024,
       "height": 768,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1024px) > clientWidth (1024px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_1024x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3439,48 +943,28 @@
       "width": 1024,
       "height": 768,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1024px) > clientWidth (1024px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_1024x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3491,80 +975,28 @@
       "width": 1024,
       "height": 768,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 9,
-      "passedAssertions": 9,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1024px) > clientWidth (1024px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_1024x768.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3575,169 +1007,28 @@
       "width": 1280,
       "height": 800,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 23,
-      "passedAssertions": 23,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1280px) > clientWidth (1280px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (512px) exceeds viewport (1280px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (720px) exceeds viewport (800px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_1280x800.png",
-        "drawer": null,
-        "createDialog": "hr_calendar_1280x800_dialog_create.png",
-        "categoryDialog": "hr_calendar_1280x800_dialog_category.png",
-        "detailsDialog": "hr_calendar_1280x800_dialog_details.png",
-        "auditDialog": "hr_calendar_1280x800_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -3748,48 +1039,28 @@
       "width": 1280,
       "height": 800,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1280px) > clientWidth (1280px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_1280x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3800,48 +1071,28 @@
       "width": 1280,
       "height": 800,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1280px) > clientWidth (1280px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_1280x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3852,48 +1103,28 @@
       "width": 1280,
       "height": 800,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1280px) > clientWidth (1280px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_1280x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3904,80 +1135,28 @@
       "width": 1280,
       "height": 800,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 9,
-      "passedAssertions": 9,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1280px) > clientWidth (1280px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_1280x800.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -3988,169 +1167,28 @@
       "width": 1440,
       "height": 900,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 23,
-      "passedAssertions": 23,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1440px) > clientWidth (1440px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_opens",
-          "pass": true,
-          "message": "Create Event dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_width_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog width (512px) exceeds viewport (1440px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_height_fits_viewport",
-          "pass": true,
-          "message": "Create Event dialog height (810px) exceeds viewport (900px)"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "create_event_dialog_footer_accessible",
-          "pass": true,
-          "message": "Create Event dialog sticky footer actions are clipped or out of viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_button_visible_to_open_modal",
-          "pass": true,
-          "message": "Add Category button not found in sidebar or drawer"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_opens",
-          "pass": true,
-          "message": "Create Category dialog failed to open"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_fits_viewport",
-          "pass": true,
-          "message": "Category dialog exceeds viewport dimensions"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "category_dialog_renders_swatches",
-          "pass": true,
-          "message": "Category dialog color swatch selector failed to render"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "event_pill_visible_to_open_details",
-          "pass": true,
-          "message": "No event pill found on calendar to open Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_opens",
-          "pass": true,
-          "message": "Event Details modal failed to open when event pill was clicked"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "details_dialog_fits_viewport",
-          "pass": true,
-          "message": "Event Details modal exceeds viewport bounds"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_button_present_in_details",
-          "pass": true,
-          "message": "Audit Trail button not found in Event Details modal"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_opens",
-          "pass": true,
-          "message": "Audit Trail modal failed to open from event details"
-        },
-        {
-          "category": "dialog_viewport_and_scroll",
-          "name": "audit_dialog_fits_viewport",
-          "pass": true,
-          "message": "Audit Trail modal exceeds viewport bounds"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/hr/calendar\nCall log:\n  - navigating to \"http://localhost:3000/hr/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "hr_calendar_1440x900.png",
-        "drawer": null,
-        "createDialog": "hr_calendar_1440x900_dialog_create.png",
-        "categoryDialog": "hr_calendar_1440x900_dialog_category.png",
-        "detailsDialog": "hr_calendar_1440x900_dialog_details.png",
-        "auditDialog": "hr_calendar_1440x900_dialog_audit.png"
+        "base": null
       }
     },
     {
@@ -4161,48 +1199,28 @@
       "width": 1440,
       "height": 900,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1440px) > clientWidth (1440px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/tenant/calendar\nCall log:\n  - navigating to \"http://localhost:3000/tenant/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "tenant_calendar_1440x900.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -4213,48 +1231,28 @@
       "width": 1440,
       "height": 900,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1440px) > clientWidth (1440px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/me/calendar\nCall log:\n  - navigating to \"http://localhost:3000/me/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "me_calendar_1440x900.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -4265,48 +1263,28 @@
       "width": 1440,
       "height": 900,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 4,
-      "passedAssertions": 4,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1440px) > clientWidth (1440px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [],
-      "failedReasons": [],
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/calendar\nCall log:\n  - navigating to \"http://localhost:3000/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "canonical_calendar_1440x900.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     },
     {
@@ -4317,80 +1295,28 @@
       "width": 1440,
       "height": 900,
       "tier": "Desktop",
-      "status": "PASS",
-      "totalAssertions": 9,
-      "passedAssertions": 9,
-      "failedAssertions": 0,
+      "status": "FAIL",
+      "totalAssertions": 1,
+      "passedAssertions": 0,
+      "failedAssertions": 1,
       "skippedAssertions": 0,
       "assertions": [
         {
-          "category": "responsive_layout",
-          "name": "horizontal_overflow_zero",
-          "pass": true,
-          "message": "Document horizontal overflow detected: scrollWidth (1440px) > clientWidth (1440px) by 0px"
-        },
-        {
-          "category": "responsive_layout",
-          "name": "desktop_sidebar_visible_at_or_above_1024",
-          "pass": true,
-          "message": "Desktop sidebar [data-testid=\"calendar-sidebar\"] must be visible at or above 1024px breakpoint"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_week_renders_pan_container",
-          "pass": true,
-          "message": "Week view pan container (.min-w-[560px]) did not render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "week_view_no_document_overflow",
-          "pass": true,
-          "message": "Week view broke document boundaries and caused page overflow"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_day_renders_timeline",
-          "pass": true,
-          "message": "Day view timeline header and Add Event button failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_list_renders_agenda",
-          "pass": true,
-          "message": "List view agenda header failed to render"
-        },
-        {
-          "category": "calendar_views",
-          "name": "switch_to_month_renders_grid",
-          "pass": true,
-          "message": "Month grid failed to re-render after view cycling"
-        },
-        {
           "category": "console_and_runtime",
-          "name": "zero_uncaught_page_errors",
-          "pass": true,
-          "message": "Uncaught page runtime error(s) detected: "
-        },
-        {
-          "category": "console_and_runtime",
-          "name": "zero_application_console_errors",
-          "pass": true,
-          "message": "Unexpected application console error(s) detected: "
+          "name": "test_runner_execution_integrity",
+          "pass": false,
+          "message": "Test execution threw uncaught exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
         }
       ],
       "consoleErrors": [],
-      "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
+      "pageErrors": [
+        "page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
       ],
-      "failedReasons": [],
+      "failedReasons": [
+        "Exception: page.goto: net::ERR_ACCESS_DENIED at http://localhost:3000/apps/calendar\nCall log:\n  - navigating to \"http://localhost:3000/apps/calendar\", waiting until \"domcontentloaded\"\n"
+      ],
       "screenshots": {
-        "base": "apps_calendar_1440x900.png",
-        "drawer": null,
-        "createDialog": null,
-        "categoryDialog": null,
-        "detailsDialog": null,
-        "auditDialog": null
+        "base": null
       }
     }
   ],

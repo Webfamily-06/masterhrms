@@ -641,10 +641,10 @@ export function Super06LoginPage() {
           <Link to="/help-center" className="hover:text-foreground">
             Help Center
           </Link>
-          <Link to="/pricing" className="hover:text-foreground">
+          <Link to={"/pricing" as any} className="hover:text-foreground">
             Pricing Plans
           </Link>
-          <Link to="/contact" className="hover:text-foreground">
+          <Link to={"/contact" as any} className="hover:text-foreground">
             Contact Support
           </Link>
         </div>

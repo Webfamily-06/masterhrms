@@ -1,0 +1,4412 @@
+{
+  "/": {
+    "route": "/",
+    "cms_file": "CMS/src/app/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/route.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/attendance": {
+    "route": "/attendance",
+    "cms_file": "CMS/src/app/(workspace)/attendance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/attendance.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/performance-indicator": {
+    "route": "/performance-indicator",
+    "cms_file": "CMS/src/app/(workspace)/performance-indicator/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/performance-indicator.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/timesheets": {
+    "route": "/timesheets",
+    "cms_file": "CMS/src/app/(workspace)/timesheets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/timesheets.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/learning-analytics": {
+    "route": "/learning-analytics",
+    "cms_file": "CMS/src/app/(workspace)/learning-analytics/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/learning-analytics.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/clear-cache": {
+    "route": "/clear-cache",
+    "cms_file": "CMS/src/app/(workspace)/clear-cache/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/clear-cache.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tenant": {
+    "route": "/tenant",
+    "cms_file": "CMS/src/app/(workspace)/tenant/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/index.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/audit-logs": {
+    "route": "/tenant/audit-logs",
+    "cms_file": "CMS/src/app/(workspace)/tenant/audit-logs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/audit-logs.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/settings": {
+    "route": "/tenant/settings",
+    "cms_file": "CMS/src/app/(workspace)/tenant/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/settings.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/branding": {
+    "route": "/tenant/branding",
+    "cms_file": "CMS/src/app/(workspace)/tenant/branding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/branding.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/calendar": {
+    "route": "/tenant/calendar",
+    "cms_file": "CMS/src/app/(workspace)/tenant/calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/calendar.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat": {
+    "route": "/tenant/chat",
+    "cms_file": "CMS/src/app/(workspace)/tenant/chat/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/chat.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat/calls": {
+    "route": "/tenant/chat/calls",
+    "cms_file": "CMS/src/app/(workspace)/tenant/chat/calls/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat/contacts": {
+    "route": "/tenant/chat/contacts",
+    "cms_file": "CMS/src/app/(workspace)/tenant/chat/contacts/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat/groups": {
+    "route": "/tenant/chat/groups",
+    "cms_file": "CMS/src/app/(workspace)/tenant/chat/groups/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/company-profile": {
+    "route": "/tenant/company-profile",
+    "cms_file": "CMS/src/app/(workspace)/tenant/company-profile/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/company-profile.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/roles": {
+    "route": "/tenant/roles",
+    "cms_file": "CMS/src/app/(workspace)/tenant/roles/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/roles.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/todo": {
+    "route": "/tenant/todo",
+    "cms_file": "CMS/src/app/(workspace)/tenant/todo/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/todo.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/todo/gantt": {
+    "route": "/tenant/todo/gantt",
+    "cms_file": "CMS/src/app/(workspace)/tenant/todo/gantt/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/subscription": {
+    "route": "/tenant/subscription",
+    "cms_file": "CMS/src/app/(workspace)/tenant/subscription/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/subscription.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/dashboard": {
+    "route": "/tenant/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/tenant/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/dashboard.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/integrations": {
+    "route": "/tenant/integrations",
+    "cms_file": "CMS/src/app/(workspace)/tenant/integrations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/integrations.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/support": {
+    "route": "/tenant/support",
+    "cms_file": "CMS/src/app/(workspace)/tenant/support/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/support.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/users": {
+    "route": "/tenant/users",
+    "cms_file": "CMS/src/app/(workspace)/tenant/users/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/users.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files": {
+    "route": "/tenant/files",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files/connectors": {
+    "route": "/tenant/files/connectors",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/connectors/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files/security": {
+    "route": "/tenant/files/security",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/security/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files/storage": {
+    "route": "/tenant/files/storage",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/storage/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files/storage/retention": {
+    "route": "/tenant/files/storage/retention",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/storage/retention/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/files/webdav": {
+    "route": "/tenant/files/webdav",
+    "cms_file": "CMS/src/app/(workspace)/tenant/files/webdav/page.tsx",
+    "tanstack_file": null,
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/modules": {
+    "route": "/tenant/modules",
+    "cms_file": "CMS/src/app/(workspace)/tenant/modules/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/modules.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/data": {
+    "route": "/tenant/data",
+    "cms_file": "CMS/src/app/(workspace)/tenant/data/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/data.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/domain": {
+    "route": "/tenant/domain",
+    "cms_file": "CMS/src/app/(workspace)/tenant/domain/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/domain.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/billing": {
+    "route": "/tenant/billing",
+    "cms_file": "CMS/src/app/(workspace)/tenant/billing/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenant/billing.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/accounting": {
+    "route": "/accounting",
+    "cms_file": "CMS/src/app/(workspace)/accounting/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/accounting.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/notice-board": {
+    "route": "/notice-board",
+    "cms_file": "CMS/src/app/(workspace)/notice-board/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/notice-board.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/clients": {
+    "route": "/clients",
+    "cms_file": "CMS/src/app/(workspace)/clients/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/clients.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": false
+  },
+  "/invoice-report": {
+    "route": "/invoice-report",
+    "cms_file": "CMS/src/app/(workspace)/invoice-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/invoice-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/client-dashboard": {
+    "route": "/client-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/client-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/client-dashboard.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": false
+  },
+  "/settings": {
+    "route": "/settings",
+    "cms_file": "CMS/src/app/(workspace)/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/settings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/settings/webhook": {
+    "route": "/settings/webhook",
+    "cms_file": "CMS/src/app/(workspace)/settings/webhook/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/settings/custom-domain": {
+    "route": "/settings/custom-domain",
+    "cms_file": "CMS/src/app/(workspace)/settings/custom-domain/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/settings/email-accounts": {
+    "route": "/settings/email-accounts",
+    "cms_file": "CMS/src/app/(workspace)/settings/email-accounts/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/crm-dashboard": {
+    "route": "/crm-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/crm-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/crm-dashboard.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/probation": {
+    "route": "/probation",
+    "cms_file": "CMS/src/app/(workspace)/probation/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/probation.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/pipeline": {
+    "route": "/pipeline",
+    "cms_file": "CMS/src/app/(workspace)/pipeline/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/pipeline.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/outbound-webhooks": {
+    "route": "/outbound-webhooks",
+    "cms_file": "CMS/src/app/(workspace)/outbound-webhooks/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/outbound-webhooks.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payroll-dashboard": {
+    "route": "/payroll-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/payroll-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/payroll-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ticket-reports": {
+    "route": "/ticket-reports",
+    "cms_file": "CMS/src/app/(workspace)/ticket-reports/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ticket-reports.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/whatsapp-alerts": {
+    "route": "/whatsapp-alerts",
+    "cms_file": "CMS/src/app/(workspace)/whatsapp-alerts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/whatsapp-alerts.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-ocr": {
+    "route": "/ai-ocr",
+    "cms_file": "CMS/src/app/(workspace)/ai-ocr/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-ocr.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tasks": {
+    "route": "/tasks",
+    "cms_file": "CMS/src/app/(workspace)/tasks/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/tasks.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/currencies": {
+    "route": "/currencies",
+    "cms_file": "CMS/src/app/(workspace)/currencies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/currencies.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/purchases": {
+    "route": "/purchases",
+    "cms_file": "CMS/src/app/(workspace)/purchases/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/purchases.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/setup-notes": {
+    "route": "/setup-notes",
+    "cms_file": "CMS/src/app/(workspace)/setup-notes/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/setup-notes.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-settings": {
+    "route": "/ai-settings",
+    "cms_file": "CMS/src/app/(workspace)/ai-settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-settings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/calendar": {
+    "route": "/calendar",
+    "cms_file": "CMS/src/app/(workspace)/calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/calendar.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/performance-appraisal": {
+    "route": "/performance-appraisal",
+    "cms_file": "CMS/src/app/(workspace)/performance-appraisal/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/performance-appraisal.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/products": {
+    "route": "/products",
+    "cms_file": "CMS/src/app/(workspace)/products/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/products.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/forms": {
+    "route": "/forms",
+    "cms_file": "CMS/src/app/(workspace)/forms/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/forms.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/suppliers": {
+    "route": "/suppliers",
+    "cms_file": "CMS/src/app/(workspace)/suppliers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/suppliers.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/performance-review": {
+    "route": "/performance-review",
+    "cms_file": "CMS/src/app/(workspace)/performance-review/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/performance-review.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/procurement-dashboard": {
+    "route": "/procurement-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/procurement-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/procurement-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/it-admin-dashboard": {
+    "route": "/it-admin-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/it-admin-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/it-admin-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/leave-report": {
+    "route": "/leave-report",
+    "cms_file": "CMS/src/app/(workspace)/leave-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/leave-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/chat": {
+    "route": "/chat",
+    "cms_file": "CMS/src/app/(workspace)/chat/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/chat.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/invoices": {
+    "route": "/invoices",
+    "cms_file": "CMS/src/app/(workspace)/invoices/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/invoices.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/call-history": {
+    "route": "/call-history",
+    "cms_file": "CMS/src/app/(workspace)/call-history/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/call-history.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/shift-swap-requests": {
+    "route": "/shift-swap-requests",
+    "cms_file": "CMS/src/app/(workspace)/shift-swap-requests/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/shift-swap-requests.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/termination": {
+    "route": "/termination",
+    "cms_file": "CMS/src/app/(workspace)/termination/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/termination.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/backup-restore": {
+    "route": "/backup-restore",
+    "cms_file": "CMS/src/app/(workspace)/backup-restore/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/backup-restore.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/provident-fund": {
+    "route": "/provident-fund",
+    "cms_file": "CMS/src/app/(workspace)/provident-fund/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/provident-fund.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/inventory-dashboard": {
+    "route": "/inventory-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/inventory-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/inventory-dashboard.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/deals-dashboard": {
+    "route": "/deals-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/deals-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/deals-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/recruitment-dashboard": {
+    "route": "/recruitment-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/recruitment-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/recruitment-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/public-api": {
+    "route": "/public-api",
+    "cms_file": "CMS/src/app/(workspace)/public-api/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/public-api.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/referrals": {
+    "route": "/referrals",
+    "cms_file": "CMS/src/app/(workspace)/referrals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/referrals.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/holidays": {
+    "route": "/holidays",
+    "cms_file": "CMS/src/app/(workspace)/holidays/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/holidays.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/expenses": {
+    "route": "/expenses",
+    "cms_file": "CMS/src/app/(workspace)/expenses/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/expenses.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tally-importer": {
+    "route": "/tally-importer",
+    "cms_file": "CMS/src/app/(workspace)/tally-importer/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/tally-importer.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/training": {
+    "route": "/training",
+    "cms_file": "CMS/src/app/(workspace)/training/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/training.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/projects": {
+    "route": "/projects",
+    "cms_file": "CMS/src/app/(workspace)/projects/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/projects.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/contacts": {
+    "route": "/contacts",
+    "cms_file": "CMS/src/app/(workspace)/contacts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/contacts.tsx",
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/expenses-report": {
+    "route": "/expenses-report",
+    "cms_file": "CMS/src/app/(workspace)/expenses-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/expenses-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/offboarding": {
+    "route": "/offboarding",
+    "cms_file": "CMS/src/app/(workspace)/offboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/offboarding.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/sales-dashboard": {
+    "route": "/sales-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/sales-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/sales-dashboard.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/workspace": {
+    "route": "/workspace",
+    "cms_file": "CMS/src/app/(workspace)/workspace/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/workspace.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/recruitment": {
+    "route": "/recruitment",
+    "cms_file": "CMS/src/app/(workspace)/recruitment/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/recruitment.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/marketplace": {
+    "route": "/marketplace",
+    "cms_file": "CMS/src/app/(workspace)/marketplace/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/marketplace.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/designations": {
+    "route": "/designations",
+    "cms_file": "CMS/src/app/(workspace)/designations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/designations.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons": {
+    "route": "/addons",
+    "cms_file": "CMS/src/app/(workspace)/addons/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/webhook/settings": {
+    "route": "/addons/webhook/settings",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/settings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/webhook/endpoints": {
+    "route": "/addons/webhook/endpoints",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/endpoints/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/endpoints/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/webhook/endpoints/new": {
+    "route": "/addons/webhook/endpoints/new",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/endpoints/new/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/endpoints/new.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/webhook/endpoints/[id]": {
+    "route": "/addons/webhook/endpoints/[id]",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/endpoints/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/webhook/endpoints/[id]/edit": {
+    "route": "/addons/webhook/endpoints/[id]/edit",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/endpoints/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/webhook/events": {
+    "route": "/addons/webhook/events",
+    "cms_file": "CMS/src/app/(workspace)/addons/webhook/events/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/events.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/settings": {
+    "route": "/addons/ai-document/settings",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/settings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/template-categories": {
+    "route": "/addons/ai-document/template-categories",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/template-categories/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/template-categories.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/history": {
+    "route": "/addons/ai-document/history",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/history/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/history/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/history/[id]": {
+    "route": "/addons/ai-document/history/[id]",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/history/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-document/generate": {
+    "route": "/addons/ai-document/generate",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/generate/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/generate.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/templates": {
+    "route": "/addons/ai-document/templates",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/templates/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/templates/new": {
+    "route": "/addons/ai-document/templates/new",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/templates/new/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/templates/new.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/templates/[id]/edit": {
+    "route": "/addons/ai-document/templates/[id]/edit",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/templates/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-document/tones": {
+    "route": "/addons/ai-document/tones",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/tones/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/tones.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-document/analytics": {
+    "route": "/addons/ai-document/analytics",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-document/analytics/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/analytics.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/challenges": {
+    "route": "/addons/planning/challenges",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/challenges/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/challenges/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/challenges/new": {
+    "route": "/addons/planning/challenges/new",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/challenges/new/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/challenges/new.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/challenges/[id]": {
+    "route": "/addons/planning/challenges/[id]",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/challenges/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/challenges/[id]/edit": {
+    "route": "/addons/planning/challenges/[id]/edit",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/challenges/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/setup/stages": {
+    "route": "/addons/planning/setup/stages",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/setup/stages/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/setup/stages.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/setup/statuses": {
+    "route": "/addons/planning/setup/statuses",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/setup/statuses/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/setup/statuses.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/setup/categories": {
+    "route": "/addons/planning/setup/categories",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/setup/categories/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/setup/categories.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/charters": {
+    "route": "/addons/planning/charters",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/charters/tree": {
+    "route": "/addons/planning/charters/tree",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/tree/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/tree.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/charters/kanban": {
+    "route": "/addons/planning/charters/kanban",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/kanban/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/kanban.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/charters/new": {
+    "route": "/addons/planning/charters/new",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/new/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/new.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/charters/[id]": {
+    "route": "/addons/planning/charters/[id]",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/charters/[id]/edit": {
+    "route": "/addons/planning/charters/[id]/edit",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/charters/grid": {
+    "route": "/addons/planning/charters/grid",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/charters/grid/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/grid.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/planning/dashboard": {
+    "route": "/addons/planning/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/addons/planning/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-assistant/settings": {
+    "route": "/addons/ai-assistant/settings",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-assistant/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-assistant/settings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-assistant/usage": {
+    "route": "/addons/ai-assistant/usage",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-assistant/usage/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-assistant/usage.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-assistant/history": {
+    "route": "/addons/ai-assistant/history",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-assistant/history/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-assistant/history/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/ai-assistant/history/[id]": {
+    "route": "/addons/ai-assistant/history/[id]",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-assistant/history/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-assistant/fields": {
+    "route": "/addons/ai-assistant/fields",
+    "cms_file": "CMS/src/app/(workspace)/addons/ai-assistant/fields/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-assistant/fields.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/[slug]": {
+    "route": "/addons/[slug]",
+    "cms_file": "CMS/src/app/(workspace)/addons/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/crm": {
+    "route": "/crm",
+    "cms_file": "CMS/src/app/(workspace)/crm/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/crm.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/two-factor-auth": {
+    "route": "/two-factor-auth",
+    "cms_file": "CMS/src/app/(workspace)/two-factor-auth/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/two-factor-auth.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/project-report": {
+    "route": "/project-report",
+    "cms_file": "CMS/src/app/(workspace)/project-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/project-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-payroll-forecast": {
+    "route": "/ai-payroll-forecast",
+    "cms_file": "CMS/src/app/(workspace)/ai-payroll-forecast/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-payroll-forecast.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/shopify": {
+    "route": "/shopify",
+    "cms_file": "CMS/src/app/(workspace)/shopify/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/shopify.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/system-states": {
+    "route": "/system-states",
+    "cms_file": "CMS/src/app/(workspace)/system-states/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/system-states.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/work-from-home": {
+    "route": "/work-from-home",
+    "cms_file": "CMS/src/app/(workspace)/work-from-home/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/work-from-home.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/finance-dashboard": {
+    "route": "/finance-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/finance-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/finance-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/workflows": {
+    "route": "/workflows",
+    "cms_file": "CMS/src/app/(workspace)/workflows/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/workflows.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-attendance-insights": {
+    "route": "/ai-attendance-insights",
+    "cms_file": "CMS/src/app/(workspace)/ai-attendance-insights/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-attendance-insights.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/sms-gateway": {
+    "route": "/sms-gateway",
+    "cms_file": "CMS/src/app/(workspace)/sms-gateway/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/sms-gateway.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/adjustments": {
+    "route": "/adjustments",
+    "cms_file": "CMS/src/app/(workspace)/adjustments/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/adjustments.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/announcements": {
+    "route": "/announcements",
+    "cms_file": "CMS/src/app/(workspace)/announcements/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/announcements.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/departments": {
+    "route": "/departments",
+    "cms_file": "CMS/src/app/(workspace)/departments/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/departments.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/transfers": {
+    "route": "/transfers",
+    "cms_file": "CMS/src/app/(workspace)/transfers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/transfers.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ban-ip-address": {
+    "route": "/ban-ip-address",
+    "cms_file": "CMS/src/app/(workspace)/ban-ip-address/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ban-ip-address.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard": {
+    "route": "/smart-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/smart-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/smart-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard/sales": {
+    "route": "/smart-dashboard/sales",
+    "cms_file": "CMS/src/app/(workspace)/smart-dashboard/sales/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard/financial": {
+    "route": "/smart-dashboard/financial",
+    "cms_file": "CMS/src/app/(workspace)/smart-dashboard/financial/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard/operational": {
+    "route": "/smart-dashboard/operational",
+    "cms_file": "CMS/src/app/(workspace)/smart-dashboard/operational/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/asset-dashboard": {
+    "route": "/asset-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/asset-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/asset-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/recurring-invoices": {
+    "route": "/recurring-invoices",
+    "cms_file": "CMS/src/app/(workspace)/recurring-invoices/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/recurring-invoices.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/todo": {
+    "route": "/todo",
+    "cms_file": "CMS/src/app/(workspace)/todo/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/todo.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tenet": {
+    "route": "/tenet",
+    "cms_file": "CMS/src/app/(workspace)/tenet/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/tenet.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tenet/[...slug]": {
+    "route": "/tenet/[...slug]",
+    "cms_file": "CMS/src/app/(workspace)/tenet/[...slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/subscription": {
+    "route": "/subscription",
+    "cms_file": "CMS/src/app/(workspace)/subscription/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/subscription.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/razorpay-gateway": {
+    "route": "/razorpay-gateway",
+    "cms_file": "CMS/src/app/(workspace)/razorpay-gateway/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/razorpay-gateway.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/project/[id]": {
+    "route": "/project/[id]",
+    "cms_file": "CMS/src/app/(workspace)/project/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/dashboard": {
+    "route": "/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/integrations": {
+    "route": "/integrations",
+    "cms_file": "CMS/src/app/(workspace)/integrations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/integrations.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payslip-report": {
+    "route": "/payslip-report",
+    "cms_file": "CMS/src/app/(workspace)/payslip-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/payslip-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-business-advisor": {
+    "route": "/ai-business-advisor",
+    "cms_file": "CMS/src/app/(workspace)/ai-business-advisor/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-business-advisor.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/okr": {
+    "route": "/okr",
+    "cms_file": "CMS/src/app/(workspace)/okr/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/okr.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/attendance-report": {
+    "route": "/attendance-report",
+    "cms_file": "CMS/src/app/(workspace)/attendance-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/attendance-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-team-performance-insights": {
+    "route": "/ai-team-performance-insights",
+    "cms_file": "CMS/src/app/(workspace)/ai-team-performance-insights/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-team-performance-insights.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/cronjob": {
+    "route": "/cronjob",
+    "cms_file": "CMS/src/app/(workspace)/cronjob/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/cronjob.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/pos": {
+    "route": "/pos",
+    "cms_file": "CMS/src/app/(workspace)/pos/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/pos.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/biometric": {
+    "route": "/biometric",
+    "cms_file": "CMS/src/app/(workspace)/biometric/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/biometric.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/notes": {
+    "route": "/notes",
+    "cms_file": "CMS/src/app/(workspace)/notes/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/notes.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/strategy-studio": {
+    "route": "/strategy-studio",
+    "cms_file": "CMS/src/app/(workspace)/strategy-studio/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/strategy-studio.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/promotions": {
+    "route": "/promotions",
+    "cms_file": "CMS/src/app/(workspace)/promotions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/promotions.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/profile": {
+    "route": "/profile",
+    "cms_file": "CMS/src/app/(workspace)/profile/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/profile.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/support": {
+    "route": "/support",
+    "cms_file": "CMS/src/app/(workspace)/support/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/support.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/hrm": {
+    "route": "/hrm",
+    "cms_file": "CMS/src/app/(workspace)/hrm/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/hrm.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/employee-details": {
+    "route": "/employee-details",
+    "cms_file": "CMS/src/app/(workspace)/employee-details/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/employee-details.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai": {
+    "route": "/ai",
+    "cms_file": "CMS/src/app/(workspace)/ai/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-hiring-forecast": {
+    "route": "/ai-hiring-forecast",
+    "cms_file": "CMS/src/app/(workspace)/ai-hiring-forecast/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-hiring-forecast.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/taxes": {
+    "route": "/taxes",
+    "cms_file": "CMS/src/app/(workspace)/taxes/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/taxes.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/me": {
+    "route": "/me",
+    "cms_file": "CMS/src/app/(workspace)/me/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance": {
+    "route": "/me/attendance",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/records": {
+    "route": "/me/attendance/records",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/records/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/records.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/regularizations": {
+    "route": "/me/attendance/regularizations",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/regularizations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/regularizations.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/policies": {
+    "route": "/me/attendance/policies",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/policies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/policies.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/requests": {
+    "route": "/me/attendance/requests",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/requests/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/requests.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/timesheet": {
+    "route": "/me/attendance/timesheet",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/timesheet/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/timesheet.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/attendance/shifts": {
+    "route": "/me/attendance/shifts",
+    "cms_file": "CMS/src/app/(workspace)/me/attendance/shifts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/attendance/shifts.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/organization/holidays": {
+    "route": "/me/organization/holidays",
+    "cms_file": "CMS/src/app/(workspace)/me/organization/holidays/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/organization/holidays.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/organization/announcements": {
+    "route": "/me/organization/announcements",
+    "cms_file": "CMS/src/app/(workspace)/me/organization/announcements/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/organization/announcements.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/organization/structure": {
+    "route": "/me/organization/structure",
+    "cms_file": "CMS/src/app/(workspace)/me/organization/structure/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/organization/structure.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/calendar": {
+    "route": "/me/calendar",
+    "cms_file": "CMS/src/app/(workspace)/me/calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/calendar.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat": {
+    "route": "/me/chat",
+    "cms_file": "CMS/src/app/(workspace)/me/chat/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/chat.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat/calls": {
+    "route": "/me/chat/calls",
+    "cms_file": "CMS/src/app/(workspace)/me/chat/calls/page.tsx",
+    "tanstack_file": null,
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat/contacts": {
+    "route": "/me/chat/contacts",
+    "cms_file": "CMS/src/app/(workspace)/me/chat/contacts/page.tsx",
+    "tanstack_file": null,
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat/groups": {
+    "route": "/me/chat/groups",
+    "cms_file": "CMS/src/app/(workspace)/me/chat/groups/page.tsx",
+    "tanstack_file": null,
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/training": {
+    "route": "/me/training",
+    "cms_file": "CMS/src/app/(workspace)/me/training/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/training/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/training/trainings": {
+    "route": "/me/training/trainings",
+    "cms_file": "CMS/src/app/(workspace)/me/training/trainings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/training/trainings.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/training/programs": {
+    "route": "/me/training/programs",
+    "cms_file": "CMS/src/app/(workspace)/me/training/programs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/training/programs.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/training/sessions": {
+    "route": "/me/training/sessions",
+    "cms_file": "CMS/src/app/(workspace)/me/training/sessions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/training/sessions.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment": {
+    "route": "/me/recruitment",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/career": {
+    "route": "/me/recruitment/career",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/career/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/career.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/assessments": {
+    "route": "/me/recruitment/assessments",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/assessments/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/assessments.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/job-locations": {
+    "route": "/me/recruitment/job-locations",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/job-locations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/job-locations.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/job-postings": {
+    "route": "/me/recruitment/job-postings",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/job-postings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/job-postings.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/interviews": {
+    "route": "/me/recruitment/interviews",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/interviews/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/interviews.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/interview-rounds": {
+    "route": "/me/recruitment/interview-rounds",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/interview-rounds/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/interview-rounds.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/recruitment/onboarding": {
+    "route": "/me/recruitment/onboarding",
+    "cms_file": "CMS/src/app/(workspace)/me/recruitment/onboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/recruitment/onboarding.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle": {
+    "route": "/me/lifecycle",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/complaints": {
+    "route": "/me/lifecycle/complaints",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/complaints/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/complaints.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/terminations": {
+    "route": "/me/lifecycle/terminations",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/terminations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/terminations.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/transfers": {
+    "route": "/me/lifecycle/transfers",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/transfers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/transfers.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/promotions": {
+    "route": "/me/lifecycle/promotions",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/promotions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/promotions.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/resignation": {
+    "route": "/me/lifecycle/resignation",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/resignation/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/resignation.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/exit": {
+    "route": "/me/lifecycle/exit",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/exit/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/exit.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/awards": {
+    "route": "/me/lifecycle/awards",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/awards/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/awards.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/trips": {
+    "route": "/me/lifecycle/trips",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/trips/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/trips.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/lifecycle/warnings": {
+    "route": "/me/lifecycle/warnings",
+    "cms_file": "CMS/src/app/(workspace)/me/lifecycle/warnings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/lifecycle/warnings.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/todo": {
+    "route": "/me/todo",
+    "cms_file": "CMS/src/app/(workspace)/me/todo/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/todo.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/todo/gantt": {
+    "route": "/me/todo/gantt",
+    "cms_file": "CMS/src/app/(workspace)/me/todo/gantt/page.tsx",
+    "tanstack_file": null,
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/dashboard": {
+    "route": "/me/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/me/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/dashboard.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/profile": {
+    "route": "/me/profile",
+    "cms_file": "CMS/src/app/(workspace)/me/profile/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/profile.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/team": {
+    "route": "/me/team",
+    "cms_file": "CMS/src/app/(workspace)/me/team/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/team.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/files": {
+    "route": "/me/files",
+    "cms_file": "CMS/src/app/(workspace)/me/files/page.tsx",
+    "tanstack_file": null,
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/meetings": {
+    "route": "/me/meetings",
+    "cms_file": "CMS/src/app/(workspace)/me/meetings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/meetings/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/meetings/action-items": {
+    "route": "/me/meetings/action-items",
+    "cms_file": "CMS/src/app/(workspace)/me/meetings/action-items/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/meetings/action-items.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/documents": {
+    "route": "/me/documents",
+    "cms_file": "CMS/src/app/(workspace)/me/documents/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/documents/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/documents/contracts": {
+    "route": "/me/documents/contracts",
+    "cms_file": "CMS/src/app/(workspace)/me/documents/contracts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/documents/contracts.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/documents/requests": {
+    "route": "/me/documents/requests",
+    "cms_file": "CMS/src/app/(workspace)/me/documents/requests/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/documents/requests.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/documents/acknowledgements": {
+    "route": "/me/documents/acknowledgements",
+    "cms_file": "CMS/src/app/(workspace)/me/documents/acknowledgements/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/documents/acknowledgements.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/account": {
+    "route": "/me/account",
+    "cms_file": "CMS/src/app/(workspace)/me/account/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/account.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll": {
+    "route": "/me/payroll",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll/reimbursements-loans": {
+    "route": "/me/payroll/reimbursements-loans",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/reimbursements-loans/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/reimbursements-loans.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll/salary": {
+    "route": "/me/payroll/salary",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/salary/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/salary.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll/payslips": {
+    "route": "/me/payroll/payslips",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/payslips/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/payslips.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll/tax": {
+    "route": "/me/payroll/tax",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/tax/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/tax.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/payroll/statutory-forms": {
+    "route": "/me/payroll/statutory-forms",
+    "cms_file": "CMS/src/app/(workspace)/me/payroll/statutory-forms/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/payroll/statutory-forms.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/performance": {
+    "route": "/me/performance",
+    "cms_file": "CMS/src/app/(workspace)/me/performance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/performance/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/performance/cycles": {
+    "route": "/me/performance/cycles",
+    "cms_file": "CMS/src/app/(workspace)/me/performance/cycles/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/performance/cycles.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/performance/goals": {
+    "route": "/me/performance/goals",
+    "cms_file": "CMS/src/app/(workspace)/me/performance/goals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/performance/goals.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/performance/indicators": {
+    "route": "/me/performance/indicators",
+    "cms_file": "CMS/src/app/(workspace)/me/performance/indicators/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/performance/indicators.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/performance/reviews": {
+    "route": "/me/performance/reviews",
+    "cms_file": "CMS/src/app/(workspace)/me/performance/reviews/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/performance/reviews.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/approvals": {
+    "route": "/me/approvals",
+    "cms_file": "CMS/src/app/(workspace)/me/approvals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/approvals.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/assets": {
+    "route": "/me/assets",
+    "cms_file": "CMS/src/app/(workspace)/me/assets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/assets/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/assets/types": {
+    "route": "/me/assets/types",
+    "cms_file": "CMS/src/app/(workspace)/me/assets/types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/assets/types.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/assets/depreciations": {
+    "route": "/me/assets/depreciations",
+    "cms_file": "CMS/src/app/(workspace)/me/assets/depreciations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/assets/depreciations.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/assets/requests": {
+    "route": "/me/assets/requests",
+    "cms_file": "CMS/src/app/(workspace)/me/assets/requests/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/assets/requests.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/assets/dashboard": {
+    "route": "/me/assets/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/me/assets/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/assets/dashboard.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/helpdesk": {
+    "route": "/me/helpdesk",
+    "cms_file": "CMS/src/app/(workspace)/me/helpdesk/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/helpdesk.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/notifications": {
+    "route": "/me/notifications",
+    "cms_file": "CMS/src/app/(workspace)/me/notifications/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/notifications.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/leave": {
+    "route": "/me/leave",
+    "cms_file": "CMS/src/app/(workspace)/me/leave/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/leave/index.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/leave/team-calendar": {
+    "route": "/me/leave/team-calendar",
+    "cms_file": "CMS/src/app/(workspace)/me/leave/team-calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/leave/team-calendar.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/leave/balance": {
+    "route": "/me/leave/balance",
+    "cms_file": "CMS/src/app/(workspace)/me/leave/balance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/leave/balance.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/leave/policies": {
+    "route": "/me/leave/policies",
+    "cms_file": "CMS/src/app/(workspace)/me/leave/policies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/leave/policies.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/leave/applications": {
+    "route": "/me/leave/applications",
+    "cms_file": "CMS/src/app/(workspace)/me/leave/applications/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/leave/applications.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/employees": {
+    "route": "/me/employees",
+    "cms_file": "CMS/src/app/(workspace)/me/employees/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/employees.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/media": {
+    "route": "/me/media",
+    "cms_file": "CMS/src/app/(workspace)/me/media/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/me/media.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/users": {
+    "route": "/users",
+    "cms_file": "CMS/src/app/(workspace)/users/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/users.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/attendance-employee": {
+    "route": "/attendance-employee",
+    "cms_file": "CMS/src/app/(workspace)/attendance-employee/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/attendance-employee.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/ai-writer": {
+    "route": "/ai-writer",
+    "cms_file": "CMS/src/app/(workspace)/ai-writer/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-writer.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/resignation": {
+    "route": "/resignation",
+    "cms_file": "CMS/src/app/(workspace)/resignation/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/resignation.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/budgets": {
+    "route": "/budgets",
+    "cms_file": "CMS/src/app/(workspace)/budgets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/budgets.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/internal-reminders": {
+    "route": "/internal-reminders",
+    "cms_file": "CMS/src/app/(workspace)/internal-reminders/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/internal-reminders.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports": {
+    "route": "/smart-reports",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/sales-invoice": {
+    "route": "/smart-reports/sales-invoice",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/sales-invoice/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/attendance-summary": {
+    "route": "/smart-reports/attendance-summary",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/attendance-summary/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/payroll-sheet": {
+    "route": "/smart-reports/payroll-sheet",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/payroll-sheet/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/leave-report": {
+    "route": "/smart-reports/leave-report",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/leave-report/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/product-stock": {
+    "route": "/smart-reports/product-stock",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/product-stock/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/project-progress": {
+    "route": "/smart-reports/project-progress",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/project-progress/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/deal-pipeline": {
+    "route": "/smart-reports/deal-pipeline",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/deal-pipeline/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports/[reportId]": {
+    "route": "/smart-reports/[reportId]",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/[reportId]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/smart-reports/purchase-invoice": {
+    "route": "/smart-reports/purchase-invoice",
+    "cms_file": "CMS/src/app/(workspace)/smart-reports/purchase-invoice/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/hr": {
+    "route": "/hr",
+    "cms_file": "CMS/src/app/(workspace)/hr/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance": {
+    "route": "/hr/attendance",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/timesheets": {
+    "route": "/hr/attendance/timesheets",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/timesheets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/timesheets.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/records": {
+    "route": "/hr/attendance/records",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/records/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/records.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/regularizations": {
+    "route": "/hr/attendance/regularizations",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/regularizations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/regularizations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/policies": {
+    "route": "/hr/attendance/policies",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/policies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/policies.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/live": {
+    "route": "/hr/attendance/live",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/live/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/live.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/timesheet": {
+    "route": "/hr/attendance/timesheet",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/timesheet/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/timesheet.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/shifts": {
+    "route": "/hr/attendance/shifts",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/shifts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/shifts.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/overtime": {
+    "route": "/hr/attendance/overtime",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/overtime/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/overtime.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/attendance/devices": {
+    "route": "/hr/attendance/devices",
+    "cms_file": "CMS/src/app/(workspace)/hr/attendance/devices/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/attendance/devices.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization": {
+    "route": "/hr/organization",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/tree": {
+    "route": "/hr/organization/tree",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/tree/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/tree.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/holidays": {
+    "route": "/hr/organization/holidays",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/holidays/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/holidays.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/designations": {
+    "route": "/hr/organization/designations",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/designations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/designations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/announcements": {
+    "route": "/hr/organization/announcements",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/announcements/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/announcements.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/departments": {
+    "route": "/hr/organization/departments",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/departments/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/departments.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/award-types": {
+    "route": "/hr/organization/award-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/award-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/award-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/branches": {
+    "route": "/hr/organization/branches",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/branches/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/branches.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/document-types": {
+    "route": "/hr/organization/document-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/document-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/document-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/organization/structure": {
+    "route": "/hr/organization/structure",
+    "cms_file": "CMS/src/app/(workspace)/hr/organization/structure/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/organization/structure.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/settings": {
+    "route": "/hr/settings",
+    "cms_file": "CMS/src/app/(workspace)/hr/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/settings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/calendar": {
+    "route": "/hr/calendar",
+    "cms_file": "CMS/src/app/(workspace)/hr/calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/calendar.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat": {
+    "route": "/hr/chat",
+    "cms_file": "CMS/src/app/(workspace)/hr/chat/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/chat.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat/calls": {
+    "route": "/hr/chat/calls",
+    "cms_file": "CMS/src/app/(workspace)/hr/chat/calls/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat/contacts": {
+    "route": "/hr/chat/contacts",
+    "cms_file": "CMS/src/app/(workspace)/hr/chat/contacts/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat/groups": {
+    "route": "/hr/chat/groups",
+    "cms_file": "CMS/src/app/(workspace)/hr/chat/groups/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training": {
+    "route": "/hr/training",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training/types": {
+    "route": "/hr/training/types",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training/trainings": {
+    "route": "/hr/training/trainings",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/trainings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/trainings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training/employee-trainings": {
+    "route": "/hr/training/employee-trainings",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/employee-trainings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/employee-trainings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training/programs": {
+    "route": "/hr/training/programs",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/programs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/programs.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/training/sessions": {
+    "route": "/hr/training/sessions",
+    "cms_file": "CMS/src/app/(workspace)/hr/training/sessions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/training/sessions.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment": {
+    "route": "/hr/recruitment",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/candidates": {
+    "route": "/hr/recruitment/candidates",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/candidates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/candidates.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/check-items": {
+    "route": "/hr/recruitment/check-items",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/check-items/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/check-items.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/candidate-onboarding": {
+    "route": "/hr/recruitment/candidate-onboarding",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/candidate-onboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/candidate-onboarding.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/offers": {
+    "route": "/hr/recruitment/offers",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/offers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/offers.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/pipeline": {
+    "route": "/hr/recruitment/pipeline",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/pipeline/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/pipeline.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/career": {
+    "route": "/hr/recruitment/career",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/career/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/career.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/assessments": {
+    "route": "/hr/recruitment/assessments",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/assessments/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/assessments.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/offer-templates": {
+    "route": "/hr/recruitment/offer-templates",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/offer-templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/offer-templates.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/referrals": {
+    "route": "/hr/recruitment/referrals",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/referrals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/referrals.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/job-locations": {
+    "route": "/hr/recruitment/job-locations",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/job-locations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/job-locations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/job-postings": {
+    "route": "/hr/recruitment/job-postings",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/job-postings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/job-postings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/job-categories": {
+    "route": "/hr/recruitment/job-categories",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/job-categories/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/job-categories.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/job-types": {
+    "route": "/hr/recruitment/job-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/job-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/job-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/locations": {
+    "route": "/hr/recruitment/locations",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/locations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/locations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/candidate-sources": {
+    "route": "/hr/recruitment/candidate-sources",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/candidate-sources/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/candidate-sources.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/rounds": {
+    "route": "/hr/recruitment/rounds",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/rounds/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/rounds.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/interview-types": {
+    "route": "/hr/recruitment/interview-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/interview-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/interview-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/interviews": {
+    "route": "/hr/recruitment/interviews",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/interviews/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/interviews.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/interview-rounds": {
+    "route": "/hr/recruitment/interview-rounds",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/interview-rounds/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/interview-rounds.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/career-site": {
+    "route": "/hr/recruitment/career-site",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/career-site/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/career-site.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/onboarding": {
+    "route": "/hr/recruitment/onboarding",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/onboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/onboarding.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/recruitment/onboarding-checklists": {
+    "route": "/hr/recruitment/onboarding-checklists",
+    "cms_file": "CMS/src/app/(workspace)/hr/recruitment/onboarding-checklists/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/recruitment/onboarding-checklists.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle": {
+    "route": "/hr/lifecycle",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/probation": {
+    "route": "/hr/lifecycle/probation",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/probation/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/probation.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/complaints": {
+    "route": "/hr/lifecycle/complaints",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/complaints/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/complaints.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/terminations": {
+    "route": "/hr/lifecycle/terminations",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/terminations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/terminations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/transfers": {
+    "route": "/hr/lifecycle/transfers",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/transfers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/transfers.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/resignations": {
+    "route": "/hr/lifecycle/resignations",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/resignations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/resignations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/promotions": {
+    "route": "/hr/lifecycle/promotions",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/promotions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/promotions.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/awards": {
+    "route": "/hr/lifecycle/awards",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/awards/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/awards.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/trips": {
+    "route": "/hr/lifecycle/trips",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/trips/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/trips.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/exits": {
+    "route": "/hr/lifecycle/exits",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/exits/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/exits.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/lifecycle/warnings": {
+    "route": "/hr/lifecycle/warnings",
+    "cms_file": "CMS/src/app/(workspace)/hr/lifecycle/warnings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/lifecycle/warnings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/todo": {
+    "route": "/hr/todo",
+    "cms_file": "CMS/src/app/(workspace)/hr/todo/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/todo.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/todo/gantt": {
+    "route": "/hr/todo/gantt",
+    "cms_file": "CMS/src/app/(workspace)/hr/todo/gantt/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/dashboard": {
+    "route": "/hr/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/hr/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/dashboard.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/profile": {
+    "route": "/hr/profile",
+    "cms_file": "CMS/src/app/(workspace)/hr/profile/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/profile.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/files": {
+    "route": "/hr/files",
+    "cms_file": "CMS/src/app/(workspace)/hr/files/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/meetings": {
+    "route": "/hr/meetings",
+    "cms_file": "CMS/src/app/(workspace)/hr/meetings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/meetings/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/meetings/types": {
+    "route": "/hr/meetings/types",
+    "cms_file": "CMS/src/app/(workspace)/hr/meetings/types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/meetings/types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/meetings/action-items": {
+    "route": "/hr/meetings/action-items",
+    "cms_file": "CMS/src/app/(workspace)/hr/meetings/action-items/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/meetings/action-items.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/meetings/rooms": {
+    "route": "/hr/meetings/rooms",
+    "cms_file": "CMS/src/app/(workspace)/hr/meetings/rooms/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/meetings/rooms.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents": {
+    "route": "/hr/documents",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/contract-templates": {
+    "route": "/hr/documents/contract-templates",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/contract-templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/contract-templates.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/letters": {
+    "route": "/hr/documents/letters",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/letters/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/letters.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/contracts": {
+    "route": "/hr/documents/contracts",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/contracts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/contracts.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/requests": {
+    "route": "/hr/documents/requests",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/requests/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/requests.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/acknowledgements": {
+    "route": "/hr/documents/acknowledgements",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/acknowledgements/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/acknowledgements.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/templates": {
+    "route": "/hr/documents/templates",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/templates.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/employee": {
+    "route": "/hr/documents/employee",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/employee/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/employee.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/contract-types": {
+    "route": "/hr/documents/contract-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/contract-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/contract-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/categories": {
+    "route": "/hr/documents/categories",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/categories/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/categories.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/documents/document-templates": {
+    "route": "/hr/documents/document-templates",
+    "cms_file": "CMS/src/app/(workspace)/hr/documents/document-templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/documents/document-templates.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll": {
+    "route": "/hr/payroll",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/settings": {
+    "route": "/hr/payroll/settings",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/settings.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/reimbursements-loans": {
+    "route": "/hr/payroll/reimbursements-loans",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/reimbursements-loans/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/reimbursements-loans.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/forms": {
+    "route": "/hr/payroll/forms",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/forms/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/forms.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/salaries": {
+    "route": "/hr/payroll/salaries",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/salaries/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/salaries.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/payslips": {
+    "route": "/hr/payroll/payslips",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/payslips/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/payslips.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/setup": {
+    "route": "/hr/payroll/setup",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/setup/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/setup.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/tax": {
+    "route": "/hr/payroll/tax",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/tax/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/tax.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/components": {
+    "route": "/hr/payroll/components",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/components/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/components.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/employee-salaries": {
+    "route": "/hr/payroll/employee-salaries",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/employee-salaries/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/employee-salaries.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/payroll/runs": {
+    "route": "/hr/payroll/runs",
+    "cms_file": "CMS/src/app/(workspace)/hr/payroll/runs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/payroll/runs.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance": {
+    "route": "/hr/performance",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/cycles": {
+    "route": "/hr/performance/cycles",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/cycles/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/cycles.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/goals": {
+    "route": "/hr/performance/goals",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/goals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/goals.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/goal-types": {
+    "route": "/hr/performance/goal-types",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/goal-types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/goal-types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/indicators": {
+    "route": "/hr/performance/indicators",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/indicators/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/indicators.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/indicator-categories": {
+    "route": "/hr/performance/indicator-categories",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/indicator-categories/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/indicator-categories.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/pip": {
+    "route": "/hr/performance/pip",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/pip/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/pip.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/performance/reviews": {
+    "route": "/hr/performance/reviews",
+    "cms_file": "CMS/src/app/(workspace)/hr/performance/reviews/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/performance/reviews.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/approvals": {
+    "route": "/hr/approvals",
+    "cms_file": "CMS/src/app/(workspace)/hr/approvals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/approvals.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets": {
+    "route": "/hr/assets",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets/types": {
+    "route": "/hr/assets/types",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets/depreciation": {
+    "route": "/hr/assets/depreciation",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/depreciation/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/depreciation.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets/depreciations": {
+    "route": "/hr/assets/depreciations",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/depreciations/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/depreciations.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets/dashboard": {
+    "route": "/hr/assets/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/dashboard.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/assets/requests-maintenance": {
+    "route": "/hr/assets/requests-maintenance",
+    "cms_file": "CMS/src/app/(workspace)/hr/assets/requests-maintenance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/assets/requests-maintenance.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/notifications": {
+    "route": "/hr/notifications",
+    "cms_file": "CMS/src/app/(workspace)/hr/notifications/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/notifications.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave": {
+    "route": "/hr/leave",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/encashment-compoff": {
+    "route": "/hr/leave/encashment-compoff",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/encashment-compoff/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/encashment-compoff.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/types": {
+    "route": "/hr/leave/types",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/types/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/types.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/calendar": {
+    "route": "/hr/leave/calendar",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/calendar/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/calendar.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/policies": {
+    "route": "/hr/leave/policies",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/policies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/policies.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/applications": {
+    "route": "/hr/leave/applications",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/applications/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/applications.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/leave/balances": {
+    "route": "/hr/leave/balances",
+    "cms_file": "CMS/src/app/(workspace)/hr/leave/balances/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/leave/balances.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/attendance": {
+    "route": "/hr/reports/attendance",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/attendance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/attendance.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/training": {
+    "route": "/hr/reports/training",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/training/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/training.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/recruitment": {
+    "route": "/hr/reports/recruitment",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/recruitment/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/recruitment.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/statutory": {
+    "route": "/hr/reports/statutory",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/statutory/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/statutory.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/payroll": {
+    "route": "/hr/reports/payroll",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/payroll/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/payroll.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/performance": {
+    "route": "/hr/reports/performance",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/performance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/performance.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/custom": {
+    "route": "/hr/reports/custom",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/custom/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/custom.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/headcount": {
+    "route": "/hr/reports/headcount",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/headcount/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/headcount.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/reports/attrition": {
+    "route": "/hr/reports/attrition",
+    "cms_file": "CMS/src/app/(workspace)/hr/reports/attrition/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/reports/attrition.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees": {
+    "route": "/hr/employees",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/index.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/transfers": {
+    "route": "/hr/employees/transfers",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/transfers/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/transfers.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/new": {
+    "route": "/hr/employees/new",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/new/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/new.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/[id]": {
+    "route": "/hr/employees/[id]",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": true
+  },
+  "/hr/employees/[id]/edit": {
+    "route": "/hr/employees/[id]/edit",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "HR & Workspace Admin",
+    "is_dynamic": true
+  },
+  "/hr/employees/import": {
+    "route": "/hr/employees/import",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/import/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/import.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/onboarding": {
+    "route": "/hr/employees/onboarding",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/onboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/onboarding.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/exits": {
+    "route": "/hr/employees/exits",
+    "cms_file": "CMS/src/app/(workspace)/hr/employees/exits/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/employees/exits.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/media": {
+    "route": "/hr/media",
+    "cms_file": "CMS/src/app/(workspace)/hr/media/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/hr/media.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/biometric-sync": {
+    "route": "/biometric-sync",
+    "cms_file": "CMS/src/app/(workspace)/biometric-sync/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/biometric-sync.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/google-workspace": {
+    "route": "/google-workspace",
+    "cms_file": "CMS/src/app/(workspace)/google-workspace/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/google-workspace.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/awards": {
+    "route": "/awards",
+    "cms_file": "CMS/src/app/(workspace)/awards/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/awards.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/task-board": {
+    "route": "/task-board",
+    "cms_file": "CMS/src/app/(workspace)/task-board/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/task-board.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/leads-dashboard": {
+    "route": "/leads-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/leads-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/leads-dashboard.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/suggestion-box": {
+    "route": "/suggestion-box",
+    "cms_file": "CMS/src/app/(workspace)/suggestion-box/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/suggestion-box.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/campus-hiring": {
+    "route": "/campus-hiring",
+    "cms_file": "CMS/src/app/(workspace)/campus-hiring/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/campus-hiring.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/daily-report": {
+    "route": "/daily-report",
+    "cms_file": "CMS/src/app/(workspace)/daily-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/daily-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/campaigns": {
+    "route": "/campaigns",
+    "cms_file": "CMS/src/app/(workspace)/campaigns/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/campaigns.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/documents": {
+    "route": "/documents",
+    "cms_file": "CMS/src/app/(workspace)/documents/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/documents.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/returns": {
+    "route": "/returns",
+    "cms_file": "CMS/src/app/(workspace)/returns/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/returns.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/custom-fields": {
+    "route": "/custom-fields",
+    "cms_file": "CMS/src/app/(workspace)/custom-fields/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/custom-fields.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/notice-period-tracker": {
+    "route": "/notice-period-tracker",
+    "cms_file": "CMS/src/app/(workspace)/notice-period-tracker/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/notice-period-tracker.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/manager-hub": {
+    "route": "/manager-hub",
+    "cms_file": "CMS/src/app/(workspace)/manager-hub/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/manager-hub.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payroll": {
+    "route": "/payroll",
+    "cms_file": "CMS/src/app/(workspace)/payroll/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/payroll.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/employee-report": {
+    "route": "/employee-report",
+    "cms_file": "CMS/src/app/(workspace)/employee-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/employee-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/hrm-dashboard": {
+    "route": "/hrm-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/hrm-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/hrm-dashboard.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/employee": {
+    "route": "/employee",
+    "cms_file": "CMS/src/app/(workspace)/employee/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/employee/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/employee/dashboard": {
+    "route": "/employee/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/employee/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/employee/dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/assets": {
+    "route": "/assets",
+    "cms_file": "CMS/src/app/(workspace)/assets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/assets.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/employee-payslips": {
+    "route": "/employee-payslips",
+    "cms_file": "CMS/src/app/(workspace)/employee-payslips/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/employee-payslips.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/calendar": {
+    "route": "/apps/calendar",
+    "cms_file": "CMS/src/app/(workspace)/apps/calendar/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/chat/chat-contact": {
+    "route": "/apps/chat/chat-contact",
+    "cms_file": "CMS/src/app/(workspace)/apps/chat/chat-contact/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/chat/chats": {
+    "route": "/apps/chat/chats",
+    "cms_file": "CMS/src/app/(workspace)/apps/chat/chats/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/chat/chat-groups": {
+    "route": "/apps/chat/chat-groups",
+    "cms_file": "CMS/src/app/(workspace)/apps/chat/chat-groups/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/todo/task-list": {
+    "route": "/apps/todo/task-list",
+    "cms_file": "CMS/src/app/(workspace)/apps/todo/task-list/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/todo/gantt": {
+    "route": "/apps/todo/gantt",
+    "cms_file": "CMS/src/app/(workspace)/apps/todo/gantt/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/taskboard/pipeline": {
+    "route": "/apps/taskboard/pipeline",
+    "cms_file": "CMS/src/app/(workspace)/apps/taskboard/pipeline/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/taskboard/kanban-board": {
+    "route": "/apps/taskboard/kanban-board",
+    "cms_file": "CMS/src/app/(workspace)/apps/taskboard/kanban-board/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/taskboard/projects-board": {
+    "route": "/apps/taskboard/projects-board",
+    "cms_file": "CMS/src/app/(workspace)/apps/taskboard/projects-board/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/integrations/all-apps": {
+    "route": "/apps/integrations/all-apps",
+    "cms_file": "CMS/src/app/(workspace)/apps/integrations/all-apps/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/file-manager/list-view": {
+    "route": "/apps/file-manager/list-view",
+    "cms_file": "CMS/src/app/(workspace)/apps/file-manager/list-view/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/file-manager/grid-view": {
+    "route": "/apps/file-manager/grid-view",
+    "cms_file": "CMS/src/app/(workspace)/apps/file-manager/grid-view/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps/email": {
+    "route": "/apps/email",
+    "cms_file": "CMS/src/app/(workspace)/apps/email/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/shifts": {
+    "route": "/shifts",
+    "cms_file": "CMS/src/app/(workspace)/shifts/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/shifts.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/overtime": {
+    "route": "/overtime",
+    "cms_file": "CMS/src/app/(workspace)/overtime/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/overtime.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/helpdesk": {
+    "route": "/helpdesk",
+    "cms_file": "CMS/src/app/(workspace)/helpdesk/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/helpdesk.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/client": {
+    "route": "/client",
+    "cms_file": "CMS/src/app/(workspace)/client/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/client/index.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": false
+  },
+  "/client/dashboard": {
+    "route": "/client/dashboard",
+    "cms_file": "CMS/src/app/(workspace)/client/dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/client/dashboard.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": false
+  },
+  "/ai-configuration": {
+    "route": "/ai-configuration",
+    "cms_file": "CMS/src/app/(workspace)/ai-configuration/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/ai-configuration.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/certification-tracking": {
+    "route": "/certification-tracking",
+    "cms_file": "CMS/src/app/(workspace)/certification-tracking/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/certification-tracking.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment-report": {
+    "route": "/payment-report",
+    "cms_file": "CMS/src/app/(workspace)/payment-report/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/payment-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/project-dashboard": {
+    "route": "/project-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/project-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/project-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/companies": {
+    "route": "/companies",
+    "cms_file": "CMS/src/app/(workspace)/companies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/companies.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/email": {
+    "route": "/email",
+    "cms_file": "CMS/src/app/(workspace)/email/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/email.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/pos-dashboard": {
+    "route": "/pos-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/pos-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/pos-dashboard.tsx",
+    "category": "ERP, Finance, Operations & POS",
+    "is_dynamic": false
+  },
+  "/onboarding": {
+    "route": "/onboarding",
+    "cms_file": "CMS/src/app/(workspace)/onboarding/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/onboarding.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/leave": {
+    "route": "/leave",
+    "cms_file": "CMS/src/app/(workspace)/leave/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/leave.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/warnings": {
+    "route": "/warnings",
+    "cms_file": "CMS/src/app/(workspace)/warnings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/warnings.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/proposals": {
+    "route": "/proposals",
+    "cms_file": "CMS/src/app/(workspace)/proposals/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/proposals.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/analytics": {
+    "route": "/analytics",
+    "cms_file": "CMS/src/app/(workspace)/analytics/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/analytics.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/activity-logs": {
+    "route": "/activity-logs",
+    "cms_file": "CMS/src/app/(workspace)/activity-logs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/activity-logs.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/invoice/[id]": {
+    "route": "/invoice/[id]",
+    "cms_file": "CMS/src/app/(workspace)/invoice/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/invoice/[id]/print": {
+    "route": "/invoice/[id]/print",
+    "cms_file": "CMS/src/app/(workspace)/invoice/[id]/print/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/invoice/create": {
+    "route": "/invoice/create",
+    "cms_file": "CMS/src/app/(workspace)/invoice/create/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/support-dashboard": {
+    "route": "/support-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/support-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/support-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/employees": {
+    "route": "/employees",
+    "cms_file": "CMS/src/app/(workspace)/employees/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/employees.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/employee-dashboard": {
+    "route": "/employee-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/employee-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/employee-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/media": {
+    "route": "/media",
+    "cms_file": "CMS/src/app/(workspace)/media/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/media.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/help-desk-dashboard": {
+    "route": "/help-desk-dashboard",
+    "cms_file": "CMS/src/app/(workspace)/help-desk-dashboard/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/_app/help-desk-dashboard.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/developer": {
+    "route": "/developer",
+    "cms_file": "CMS/src/app/developer/page.tsx",
+    "tanstack_file": "src/routes/developer.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/session-expired": {
+    "route": "/session-expired",
+    "cms_file": "CMS/src/app/session-expired/page.tsx",
+    "tanstack_file": "src/routes/session-expired.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/super-login": {
+    "route": "/super-login",
+    "cms_file": "CMS/src/app/super-login/page.tsx",
+    "tanstack_file": "src/routes/super-login.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/contact": {
+    "route": "/contact",
+    "cms_file": "CMS/src/app/contact/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/portal": {
+    "route": "/portal",
+    "cms_file": "CMS/src/app/portal/page.tsx",
+    "tanstack_file": "src/routes/portal.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": false
+  },
+  "/portal/invoices/[id]": {
+    "route": "/portal/invoices/[id]",
+    "cms_file": "CMS/src/app/portal/invoices/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Client & Partner Portal",
+    "is_dynamic": true
+  },
+  "/portal/proposals/[id]": {
+    "route": "/portal/proposals/[id]",
+    "cms_file": "CMS/src/app/portal/proposals/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Client & Partner Portal",
+    "is_dynamic": true
+  },
+  "/super06": {
+    "route": "/super06",
+    "cms_file": "CMS/src/app/super06/page.tsx",
+    "tanstack_file": "src/routes/super06.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/help-center": {
+    "route": "/help-center",
+    "cms_file": "CMS/src/app/help-center/page.tsx",
+    "tanstack_file": "src/routes/help-center.tsx",
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/auth": {
+    "route": "/auth",
+    "cms_file": "CMS/src/app/auth/page.tsx",
+    "tanstack_file": "src/routes/auth.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/og-preview": {
+    "route": "/og-preview",
+    "cms_file": "CMS/src/app/og-preview/page.tsx",
+    "tanstack_file": "src/routes/og-preview.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment/success": {
+    "route": "/payment/success",
+    "cms_file": "CMS/src/app/payment/success/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment/failed": {
+    "route": "/payment/failed",
+    "cms_file": "CMS/src/app/payment/failed/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment/pending": {
+    "route": "/payment/pending",
+    "cms_file": "CMS/src/app/payment/pending/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/signup": {
+    "route": "/signup",
+    "cms_file": "CMS/src/app/signup/page.tsx",
+    "tanstack_file": null,
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/resources": {
+    "route": "/resources",
+    "cms_file": "CMS/src/app/resources/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/features": {
+    "route": "/features",
+    "cms_file": "CMS/src/app/features/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/customer-display": {
+    "route": "/customer-display",
+    "cms_file": "CMS/src/app/customer-display/page.tsx",
+    "tanstack_file": "src/routes/customer-display.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/lock-screen": {
+    "route": "/lock-screen",
+    "cms_file": "CMS/src/app/lock-screen/page.tsx",
+    "tanstack_file": "src/routes/lock-screen.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/solutions": {
+    "route": "/solutions",
+    "cms_file": "CMS/src/app/solutions/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/about": {
+    "route": "/about",
+    "cms_file": "CMS/src/app/about/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/docs": {
+    "route": "/docs",
+    "cms_file": "CMS/src/app/docs/page.tsx",
+    "tanstack_file": "src/routes/docs.tsx",
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/product": {
+    "route": "/product",
+    "cms_file": "CMS/src/app/product/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/a/[tag]": {
+    "route": "/a/[tag]",
+    "cms_file": "CMS/src/app/a/[tag]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/blog": {
+    "route": "/blog",
+    "cms_file": "CMS/src/app/blog/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/blog/[slug]": {
+    "route": "/blog/[slug]",
+    "cms_file": "CMS/src/app/blog/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/careers": {
+    "route": "/careers",
+    "cms_file": "CMS/src/app/careers/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/verify-email": {
+    "route": "/verify-email",
+    "cms_file": "CMS/src/app/verify-email/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/error-500": {
+    "route": "/error-500",
+    "cms_file": "CMS/src/app/error-500/page.tsx",
+    "tanstack_file": "src/routes/error-500.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/register": {
+    "route": "/register",
+    "cms_file": "CMS/src/app/register/page.tsx",
+    "tanstack_file": "src/routes/register.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/500": {
+    "route": "/500",
+    "cms_file": "CMS/src/app/500/page.tsx",
+    "tanstack_file": "src/routes/500.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/cms": {
+    "route": "/cms",
+    "cms_file": "CMS/src/app/cms/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/cms/[...slug]": {
+    "route": "/cms/[...slug]",
+    "cms_file": "CMS/src/app/cms/[...slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/team": {
+    "route": "/team",
+    "cms_file": "CMS/src/app/team/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/team/[slug]": {
+    "route": "/team/[slug]",
+    "cms_file": "CMS/src/app/team/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": true
+  },
+  "/super": {
+    "route": "/super",
+    "cms_file": "CMS/src/app/super/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/route.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/settings": {
+    "route": "/super/settings",
+    "cms_file": "CMS/src/app/super/settings/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/settings.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/blogs": {
+    "route": "/super/blogs",
+    "cms_file": "CMS/src/app/super/blogs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/blogs.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/blogs/tags": {
+    "route": "/super/blogs/tags",
+    "cms_file": "CMS/src/app/super/blogs/tags/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/blogs/new": {
+    "route": "/super/blogs/new",
+    "cms_file": "CMS/src/app/super/blogs/new/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/blogs/[id]": {
+    "route": "/super/blogs/[id]",
+    "cms_file": "CMS/src/app/super/blogs/[id]/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": true
+  },
+  "/super/blogs/[id]/edit": {
+    "route": "/super/blogs/[id]/edit",
+    "cms_file": "CMS/src/app/super/blogs/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": true
+  },
+  "/super/blogs/categories": {
+    "route": "/super/blogs/categories",
+    "cms_file": "CMS/src/app/super/blogs/categories/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/developer": {
+    "route": "/super/developer",
+    "cms_file": "CMS/src/app/super/developer/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/developer.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/domains": {
+    "route": "/super/domains",
+    "cms_file": "CMS/src/app/super/domains/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/domains.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/domains/documentation": {
+    "route": "/super/domains/documentation",
+    "cms_file": "CMS/src/app/super/domains/documentation/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/sla-policies": {
+    "route": "/super/sla-policies",
+    "cms_file": "CMS/src/app/super/sla-policies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/sla-policies.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/plans": {
+    "route": "/super/plans",
+    "cms_file": "CMS/src/app/super/plans/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/plans.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/email-templates": {
+    "route": "/super/email-templates",
+    "cms_file": "CMS/src/app/super/email-templates/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/email-templates.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/tenant-usage-metrics": {
+    "route": "/super/tenant-usage-metrics",
+    "cms_file": "CMS/src/app/super/tenant-usage-metrics/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/tenant-usage-metrics.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/marketplace": {
+    "route": "/super/marketplace",
+    "cms_file": "CMS/src/app/super/marketplace/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/marketplace.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/agents": {
+    "route": "/super/agents",
+    "cms_file": "CMS/src/app/super/agents/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/agents.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/roles": {
+    "route": "/super/roles",
+    "cms_file": "CMS/src/app/super/roles/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/roles.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/docs": {
+    "route": "/super/docs",
+    "cms_file": "CMS/src/app/super/docs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/docs.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/tenants": {
+    "route": "/super/tenants",
+    "cms_file": "CMS/src/app/super/tenants/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/tenants.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/compliance": {
+    "route": "/super/compliance",
+    "cms_file": "CMS/src/app/super/compliance/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/compliance.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/case-studies": {
+    "route": "/super/case-studies",
+    "cms_file": "CMS/src/app/super/case-studies/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/case-studies.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/languages": {
+    "route": "/super/languages",
+    "cms_file": "CMS/src/app/super/languages/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/languages.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/tenant-support-tickets": {
+    "route": "/super/tenant-support-tickets",
+    "cms_file": "CMS/src/app/super/tenant-support-tickets/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/tenant-support-tickets.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/integrations": {
+    "route": "/super/integrations",
+    "cms_file": "CMS/src/app/super/integrations/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/coupons": {
+    "route": "/super/coupons",
+    "cms_file": "CMS/src/app/super/coupons/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/coupons.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/transactions": {
+    "route": "/super/transactions",
+    "cms_file": "CMS/src/app/super/transactions/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/transactions.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/cms": {
+    "route": "/super/cms",
+    "cms_file": "CMS/src/app/super/cms/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/cms.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/cms/new": {
+    "route": "/super/cms/new",
+    "cms_file": "CMS/src/app/super/cms/new/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/cms/[id]/edit": {
+    "route": "/super/cms/[id]/edit",
+    "cms_file": "CMS/src/app/super/cms/[id]/edit/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": true
+  },
+  "/super/profile": {
+    "route": "/super/profile",
+    "cms_file": "CMS/src/app/super/profile/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/profile.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/support": {
+    "route": "/super/support",
+    "cms_file": "CMS/src/app/super/support/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/support.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/users": {
+    "route": "/super/users",
+    "cms_file": "CMS/src/app/super/users/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/users.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/files": {
+    "route": "/super/files",
+    "cms_file": "CMS/src/app/super/files/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/files/storage": {
+    "route": "/super/files/storage",
+    "cms_file": "CMS/src/app/super/files/storage/page.tsx",
+    "tanstack_file": null,
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/escalation-rules": {
+    "route": "/super/escalation-rules",
+    "cms_file": "CMS/src/app/super/escalation-rules/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/escalation-rules.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/doc": {
+    "route": "/super/doc",
+    "cms_file": "CMS/src/app/super/doc/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/doc.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/backup": {
+    "route": "/super/backup",
+    "cms_file": "CMS/src/app/super/backup/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/backup.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/api-docs": {
+    "route": "/super/api-docs",
+    "cms_file": "CMS/src/app/super/api-docs/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/api-docs.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/notifications": {
+    "route": "/super/notifications",
+    "cms_file": "CMS/src/app/super/notifications/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/notifications.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/analytics": {
+    "route": "/super/analytics",
+    "cms_file": "CMS/src/app/super/analytics/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/analytics.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/media": {
+    "route": "/super/media",
+    "cms_file": "CMS/src/app/super/media/page.tsx",
+    "tanstack_file": "src/routes/_authenticated/super/media.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/forgot-password": {
+    "route": "/forgot-password",
+    "cms_file": "CMS/src/app/forgot-password/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/reset-password": {
+    "route": "/reset-password",
+    "cms_file": "CMS/src/app/reset-password/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/maintenance": {
+    "route": "/maintenance",
+    "cms_file": "CMS/src/app/maintenance/page.tsx",
+    "tanstack_file": "src/routes/maintenance.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/legal/[slug]": {
+    "route": "/legal/[slug]",
+    "cms_file": "CMS/src/app/legal/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/403": {
+    "route": "/403",
+    "cms_file": "CMS/src/app/403/page.tsx",
+    "tanstack_file": "src/routes/403.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/404": {
+    "route": "/404",
+    "cms_file": "CMS/src/app/404/page.tsx",
+    "tanstack_file": "src/routes/404.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/error-404": {
+    "route": "/error-404",
+    "cms_file": "CMS/src/app/error-404/page.tsx",
+    "tanstack_file": "src/routes/error-404.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/pricing": {
+    "route": "/pricing",
+    "cms_file": "CMS/src/app/pricing/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/login": {
+    "route": "/login",
+    "cms_file": "CMS/src/app/login/page.tsx",
+    "tanstack_file": "src/routes/login.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/verify-2fa": {
+    "route": "/verify-2fa",
+    "cms_file": "CMS/src/app/verify-2fa/page.tsx",
+    "tanstack_file": "src/routes/verify-2fa.tsx",
+    "category": "Authentication, Security & 2FA",
+    "is_dynamic": false
+  },
+  "/services": {
+    "route": "/services",
+    "cms_file": "CMS/src/app/services/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/services/[slug]": {
+    "route": "/services/[slug]",
+    "cms_file": "CMS/src/app/services/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": true
+  },
+  "/offline": {
+    "route": "/offline",
+    "cms_file": "CMS/src/app/offline/page.tsx",
+    "tanstack_file": "src/routes/offline.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/store": {
+    "route": "/store",
+    "cms_file": "CMS/src/app/store/page.tsx",
+    "tanstack_file": null,
+    "category": "Marketing, CMS & Public",
+    "is_dynamic": false
+  },
+  "/share/[token]": {
+    "route": "/share/[token]",
+    "cms_file": "CMS/src/app/share/[token]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/p/[slug]": {
+    "route": "/p/[slug]",
+    "cms_file": "CMS/src/app/p/[slug]/page.tsx",
+    "tanstack_file": null,
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons_.$slug": {
+    "route": "/addons_.$slug",
+    "cms_file": null,
+    "tanstack_file": "src/routes/addons_.$slug.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/portal.invoices.$id": {
+    "route": "/portal.invoices.$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/portal.invoices.$id.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": true
+  },
+  "/a.$tag": {
+    "route": "/a.$tag",
+    "cms_file": null,
+    "tanstack_file": "src/routes/a.$tag.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/p.$slug": {
+    "route": "/p.$slug",
+    "cms_file": null,
+    "tanstack_file": "src/routes/p.$slug.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/legal.$slug": {
+    "route": "/legal.$slug",
+    "cms_file": null,
+    "tanstack_file": "src/routes/legal.$slug.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons.": {
+    "route": "/addons.",
+    "cms_file": null,
+    "tanstack_file": "src/routes/addons.index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment.failed": {
+    "route": "/payment.failed",
+    "cms_file": null,
+    "tanstack_file": "src/routes/payment.failed.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/payment.success": {
+    "route": "/payment.success",
+    "cms_file": null,
+    "tanstack_file": "src/routes/payment.success.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/portal.proposals.$id": {
+    "route": "/portal.proposals.$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/portal.proposals.$id.tsx",
+    "category": "Client & Partner Portal",
+    "is_dynamic": true
+  },
+  "/payment.pending": {
+    "route": "/payment.pending",
+    "cms_file": null,
+    "tanstack_file": "src/routes/payment.pending.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/tenant/chat.groups": {
+    "route": "/tenant/chat.groups",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/tenant/chat.groups.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat.contacts": {
+    "route": "/tenant/chat.contacts",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/tenant/chat.contacts.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/todo.gantt": {
+    "route": "/tenant/todo.gantt",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/tenant/todo.gantt.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenant/chat.calls": {
+    "route": "/tenant/chat.calls",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/tenant/chat.calls.tsx",
+    "category": "Tenant Configuration & Tools",
+    "is_dynamic": false
+  },
+  "/tenet/$": {
+    "route": "/tenet/$",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/tenet/$.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/super/blogs.categories": {
+    "route": "/super/blogs.categories",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/super/blogs.categories.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/blogs.tags": {
+    "route": "/super/blogs.tags",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/super/blogs.tags.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/super/domains.documentation": {
+    "route": "/super/domains.documentation",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/super/domains.documentation.tsx",
+    "category": "Super Admin / Platform Control Plane",
+    "is_dynamic": false
+  },
+  "/me/chat.groups": {
+    "route": "/me/chat.groups",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/me/chat.groups.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat.contacts": {
+    "route": "/me/chat.contacts",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/me/chat.contacts.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/todo.gantt": {
+    "route": "/me/todo.gantt",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/me/todo.gantt.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/me/chat.calls": {
+    "route": "/me/chat.calls",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/me/chat.calls.tsx",
+    "category": "Employee Self-Service (/me)",
+    "is_dynamic": false
+  },
+  "/hr/chat.groups": {
+    "route": "/hr/chat.groups",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/chat.groups.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat.contacts": {
+    "route": "/hr/chat.contacts",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/chat.contacts.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/todo.gantt": {
+    "route": "/hr/todo.gantt",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/todo.gantt.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/chat.calls": {
+    "route": "/hr/chat.calls",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/chat.calls.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": false
+  },
+  "/hr/employees/$id.edit": {
+    "route": "/hr/employees/$id.edit",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/employees/$id.edit.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": true
+  },
+  "/hr/employees/$id": {
+    "route": "/hr/employees/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/hr/employees/$id.tsx",
+    "category": "HR & Workspace Admin",
+    "is_dynamic": true
+  },
+  "/settings.webhook": {
+    "route": "/settings.webhook",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/settings.webhook.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.leave-report": {
+    "route": "/smart-reports.leave-report",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.leave-report.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/settings.email-accounts": {
+    "route": "/settings.email-accounts",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/settings.email-accounts.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/invoice.$id.print": {
+    "route": "/invoice.$id.print",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/invoice.$id.print.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/apps.todo.gantt": {
+    "route": "/apps.todo.gantt",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.todo.gantt.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.purchase-invoice": {
+    "route": "/smart-reports.purchase-invoice",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.purchase-invoice.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.integrations.all-apps": {
+    "route": "/apps.integrations.all-apps",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.integrations.all-apps.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.chat.chats": {
+    "route": "/apps.chat.chats",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.chat.chats.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/invoice.create": {
+    "route": "/invoice.create",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/invoice.create.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/project.$id": {
+    "route": "/project.$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/project.$id.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/apps.file-manager.list-view": {
+    "route": "/apps.file-manager.list-view",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.file-manager.list-view.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.project-progress": {
+    "route": "/smart-reports.project-progress",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.project-progress.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/settings.custom-domain": {
+    "route": "/settings.custom-domain",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/settings.custom-domain.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.sales-invoice": {
+    "route": "/smart-reports.sales-invoice",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.sales-invoice.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.product-stock": {
+    "route": "/smart-reports.product-stock",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.product-stock.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.payroll-sheet": {
+    "route": "/smart-reports.payroll-sheet",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.payroll-sheet.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.taskboard.projects-board": {
+    "route": "/apps.taskboard.projects-board",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.taskboard.projects-board.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard.operational": {
+    "route": "/smart-dashboard.operational",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-dashboard.operational.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.calendar": {
+    "route": "/apps.calendar",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.calendar.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.chat.chat-groups": {
+    "route": "/apps.chat.chat-groups",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.chat.chat-groups.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.deal-pipeline": {
+    "route": "/smart-reports.deal-pipeline",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.deal-pipeline.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.taskboard.pipeline": {
+    "route": "/apps.taskboard.pipeline",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.taskboard.pipeline.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.chat.chat-contact": {
+    "route": "/apps.chat.chat-contact",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.chat.chat-contact.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-dashboard.financial": {
+    "route": "/smart-dashboard.financial",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-dashboard.financial.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.file-manager.grid-view": {
+    "route": "/apps.file-manager.grid-view",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.file-manager.grid-view.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/invoice.$id": {
+    "route": "/invoice.$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/invoice.$id.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/apps.email": {
+    "route": "/apps.email",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.email.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.taskboard.kanban-board": {
+    "route": "/apps.taskboard.kanban-board",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.taskboard.kanban-board.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.$reportId": {
+    "route": "/smart-reports.$reportId",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.$reportId.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/smart-dashboard.sales": {
+    "route": "/smart-dashboard.sales",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-dashboard.sales.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/smart-reports.attendance-summary": {
+    "route": "/smart-reports.attendance-summary",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/smart-reports.attendance-summary.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/apps.todo.task-list": {
+    "route": "/apps.todo.task-list",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/apps.todo.task-list.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": false
+  },
+  "/addons/webhook/endpoints/$id": {
+    "route": "/addons/webhook/endpoints/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/webhook/endpoints/$id/edit": {
+    "route": "/addons/webhook/endpoints/$id/edit",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/webhook/endpoints/$id/edit.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-document/history/$id": {
+    "route": "/addons/ai-document/history/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/history/$id.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-document/templates/$id/edit": {
+    "route": "/addons/ai-document/templates/$id/edit",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-document/templates/$id/edit.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/challenges/$id": {
+    "route": "/addons/planning/challenges/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/challenges/$id/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/challenges/$id/edit": {
+    "route": "/addons/planning/challenges/$id/edit",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/challenges/$id/edit.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/charters/$id": {
+    "route": "/addons/planning/charters/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/$id/index.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/planning/charters/$id/edit": {
+    "route": "/addons/planning/charters/$id/edit",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/planning/charters/$id/edit.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  },
+  "/addons/ai-assistant/history/$id": {
+    "route": "/addons/ai-assistant/history/$id",
+    "cms_file": null,
+    "tanstack_file": "src/routes/_authenticated/_app/addons/ai-assistant/history/$id.tsx",
+    "category": "Core Shell & Utilities",
+    "is_dynamic": true
+  }
+}

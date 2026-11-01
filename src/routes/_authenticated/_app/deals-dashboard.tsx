@@ -232,7 +232,7 @@ export default function DealsDashboardPage() {
         categories: ["Prospecting", "Proposal Sent", "In Negotiation", "Contract Signed", "Closed Won"],
         labels: {
           style: { colors: "#94A3B8", fontSize: "11px" },
-          formatter: (v) => "$" + Math.round(Number(v) / 1000) + "k",
+          formatter: (v: any) => "$" + Math.round(Number(v) / 1000) + "k",
         },
       },
       yaxis: {

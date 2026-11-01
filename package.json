@@ -31,6 +31,7 @@
     "typecheck": "tsc --noEmit",
     "test:calling": "./server/node_modules/.bin/tsx server/src/tests/chat-calling-verification.test.ts",
     "test:meeting": "./server/node_modules/.bin/tsx server/src/tests/multi-participant-meeting.test.ts",
+    "test:pusher": "./server/node_modules/.bin/tsx server/src/tests/pusher-e2e-verification.test.ts",
     "test:turnstile": "./server/node_modules/.bin/tsx --env-file=server/.env scripts/verify_turnstile_integration.ts",
     "test:cms-isolation": "npx --prefix server vitest run src/tests/cms-tenant-host-isolation.test.ts",
     "test:architecture": "node scripts/test_architecture_consolidation.mjs",

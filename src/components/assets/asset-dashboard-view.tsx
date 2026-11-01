@@ -316,7 +316,7 @@ export function AssetDashboardView() {
   };
 
   // ApexCharts Configurations for Asset Analytics
-  const purchaseTrendChartOptions: ApexCharts.ApexOptions = useMemo(
+  const purchaseTrendChartOptions: any = useMemo(
     () => ({
       chart: {
         type: "area",
@@ -347,7 +347,7 @@ export function AssetDashboardView() {
       yaxis: {
         labels: {
           style: { colors: "#94A3B8", fontSize: "11px" },
-          formatter: (v) => "$" + v,
+          formatter: (v: any) => "$" + v,
         },
       },
       grid: { borderColor: "var(--color-border-color, #E2E8F0)", strokeDashArray: 4 },
@@ -357,7 +357,7 @@ export function AssetDashboardView() {
     []
   );
 
-  const deptBarChartOptions: ApexCharts.ApexOptions = useMemo(
+  const deptBarChartOptions: any = useMemo(
     () => ({
       chart: { type: "bar", height: 260, toolbar: { show: false } },
       colors: ["#4F46E5"],
