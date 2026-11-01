@@ -120,3 +120,200 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// ── Web Push Notification & Incoming Call Lifecycle Handlers ──
+
+self.addEventListener("push", (event) => {
+  if (!event.data) {
+    return;
+  }
+
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch (err) {
+    try {
+      payload = JSON.parse(event.data.text());
+    } catch {
+      payload = { title: "MasterHRMS", body: event.data.text() };
+    }
+  }
+
+  const type = payload.type || payload.data?.type;
+  const callId = payload.callId || payload.data?.callId;
+
+  // Case 1: Cancellation or dismissal of a call
+  if (type === "CALL_CANCELLED" || type === "call:cancelled" || type === "call:timeout" || type === "call:rejected") {
+    event.waitUntil(
+      self.registration
+        .getNotifications({ tag: `call_${callId}` })
+        .then((notifications) => {
+          notifications.forEach((n) => n.close());
+        })
+        .then(() => {
+          // Broadcast to all open clients so foreground call UI closes
+          return self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: "CALL_CANCELLED_PUSH",
+              callId,
+              reason: payload.reason || "cancelled",
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Case 2: Incoming Audio / Video Call
+  if (type === "CALL_INCOMING" || type === "call:incoming") {
+    const callerName = payload.callerName || payload.data?.callerName || "A colleague";
+    const callType = (payload.callType || payload.data?.callType || "audio").toLowerCase();
+    const isVideo = callType === "video";
+    const actionUrl = payload.actionUrl || payload.data?.actionUrl || `/chat?callId=${callId}&action=incoming`;
+
+    const title = `Incoming ${isVideo ? "Video" : "Audio"} Call`;
+    const options = {
+      body: `${callerName} is calling you via MasterHRMS...`,
+      icon: payload.callerAvatar || "/assets/img/logo-small.svg",
+      badge: "/assets/img/favicon.png",
+      tag: `call_${callId}`,
+      renotify: true,
+      requireInteraction: true, // Keep notification visible until user answers or caller hangs up
+      silent: false,
+      vibrate: [500, 250, 500, 250, 500, 250, 500, 250, 500],
+      data: {
+        type: "CALL_INCOMING",
+        callId,
+        callerId: payload.callerId || payload.data?.callerId,
+        callerName,
+        callerAvatar: payload.callerAvatar || payload.data?.callerAvatar,
+        callType,
+        threadId: payload.threadId || payload.data?.threadId,
+        tenantId: payload.tenantId || payload.data?.tenantId,
+        actionUrl,
+        receivedAt: Date.now(),
+      },
+      actions: [
+        {
+          action: "accept",
+          title: "Accept",
+        },
+        {
+          action: "reject",
+          title: "Decline",
+        },
+      ],
+    };
+
+    event.waitUntil(
+      self.registration
+        .showNotification(title, options)
+        .then(() => {
+          // Inform open windows immediately
+          return self.clients.matchAll({ type: "window", includeUncontrolled: true });
+        })
+        .then((clients) => {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: "CALL_INCOMING_PUSH",
+              callId,
+              callerId: payload.callerId,
+              callerName,
+              callerAvatar: payload.callerAvatar,
+              callType,
+              actionUrl,
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Case 3: Standard generic notifications
+  const standardTitle = payload.title || "MasterHRMS Notification";
+  const standardOptions = {
+    body: payload.body || payload.message || "",
+    icon: payload.icon || "/assets/img/logo-small.svg",
+    badge: "/assets/img/favicon.png",
+    data: payload.data || payload,
+  };
+  event.waitUntil(self.registration.showNotification(standardTitle, standardOptions));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  const action = event.action; // "accept" | "reject" | "" (clicked body)
+  const callId = data.callId;
+
+  // If user explicitly clicked "Decline" / "reject" action
+  if (action === "reject" && callId) {
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: "window", includeUncontrolled: true })
+        .then((clients) => {
+          // Notify any open clients
+          clients.forEach((c) => {
+            c.postMessage({ type: "CALL_ACTION_REJECT", callId });
+          });
+          // Also invoke REST rejection endpoint if client is in background
+          return fetch(`/api/calls/${encodeURIComponent(callId)}/reject`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason: "declined_from_notification" }),
+          }).catch(() => {});
+        })
+    );
+    return;
+  }
+
+  // If user clicked "Accept" or clicked the notification body
+  const autoAccept = action === "accept";
+  const targetPath = data.actionUrl || `/chat?callId=${encodeURIComponent(callId || "")}${autoAccept ? "&autoAccept=true" : ""}`;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // Find existing client window
+        for (const client of clientList) {
+          if ("focus" in client) {
+            client.focus();
+            client.postMessage({
+              type: "CALL_ACTION_NAVIGATE",
+              callId,
+              autoAccept,
+              actionUrl: targetPath,
+            });
+            // If the client is not currently on /chat, navigate to targetPath
+            const clientUrl = new URL(client.url);
+            if (!clientUrl.pathname.includes("/chat")) {
+              if ("navigate" in client) {
+                return client.navigate(targetPath);
+              }
+            }
+            return;
+          }
+        }
+        // If no open client exists, open a new window
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetPath);
+        }
+      })
+  );
+});
+
+self.addEventListener("notificationclose", (event) => {
+  const data = event.notification.data || {};
+  if (data.type === "CALL_INCOMING" && data.callId) {
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      clients.forEach((c) => {
+        c.postMessage({ type: "CALL_NOTIFICATION_CLOSED", callId: data.callId });
+      });
+    });
+  }
+});

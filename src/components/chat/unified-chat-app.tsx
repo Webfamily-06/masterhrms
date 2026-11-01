@@ -47,6 +47,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
 import { useSession } from "@/lib/session";
+import { useIncomingCall } from "@/context/incoming-call-context";
 import {
   MultiParticipantMeetingDialog,
   IncomingGroupMeetingDialog,
@@ -746,6 +747,8 @@ export function UnifiedChatApp({
   const [activeThreadType, setActiveThreadType] = useState<"direct" | "group">("direct");
   const [activeTargetUserId, setActiveTargetUserId] = useState<string>("");
   const [activeGroupId, setActiveGroupId] = useState<string>("");
+  const { isPushSupported, isSubscribedToPush, enablePushNotifications, pushPermission } = useIncomingCall();
+  const [pushBannerDismissed, setPushBannerDismissed] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFilter, setFilterFilter] = useState<"all" | "unread">("all");
@@ -1305,6 +1308,7 @@ export function UnifiedChatApp({
 
   const callTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const incomingCallTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleAcceptIncomingCallRef = useRef<((callOverride?: any) => Promise<void>) | null>(null);
 
   // Optimistic message list state
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageItem[]>([]);
@@ -2919,7 +2923,54 @@ export function UnifiedChatApp({
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
 
+    const handleGlobalCallAccepted = (e: Event) => {
+      const call = (e as CustomEvent).detail;
+      if (!call) return;
+      const callData = {
+        callId: call.callId,
+        fromUserId: call.callerId,
+        type: call.callType,
+        callerName: call.callerName,
+        callerPhone: call.callerPhone,
+        callerEmail: call.callerEmail,
+        callerAvatarUrl: call.callerAvatar,
+        threadId: call.threadId,
+      };
+      setIncomingCall(callData);
+      setTimeout(() => {
+        handleAcceptIncomingCallRef.current?.(callData);
+      }, 50);
+    };
+    window.addEventListener("hrms:global-call-accepted", handleGlobalCallAccepted);
+
+    // If navigated from background push notification with ?callId=...&autoAccept=true
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlCallId = params.get("callId");
+      const urlAutoAccept = params.get("autoAccept") === "true";
+      if (urlCallId && urlAutoAccept) {
+        api.get(`/api/calls/${encodeURIComponent(urlCallId)}/status`).then((res: any) => {
+          if (res?.success && res?.data?.status === "ringing") {
+            const data = res.data;
+            const callData = {
+              callId: data.callId,
+              fromUserId: data.callerId,
+              type: data.callType,
+              callerName: data.callerName,
+              callerAvatarUrl: data.callerAvatar,
+              threadId: data.threadId,
+            };
+            setIncomingCall(callData);
+            setTimeout(() => {
+              handleAcceptIncomingCallRef.current?.(callData);
+            }, 100);
+          }
+        }).catch(() => {});
+      }
+    }
+
     return () => {
+      window.removeEventListener("hrms:global-call-accepted", handleGlobalCallAccepted);
       if (activeThreadId) {
         socket.emit("chat:leave", { threadId: activeThreadId });
       }
@@ -3685,8 +3736,9 @@ export function UnifiedChatApp({
   };
 
   // Accept Incoming Call (Callee)
-  const handleAcceptIncomingCall = async () => {
-    if (!incomingCall) return;
+  const handleAcceptIncomingCall = async (callOverride?: any) => {
+    const targetCall = callOverride || incomingCall;
+    if (!targetCall) return;
     stopRingtone();
     if (incomingCallTimerRef.current) {
       clearTimeout(incomingCallTimerRef.current);
@@ -3694,7 +3746,7 @@ export function UnifiedChatApp({
     }
 
     try {
-      const isVideoCall = incomingCall.type === "video";
+      const isVideoCall = targetCall.type === "video";
       let stream: MediaStream | null = null;
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -3705,12 +3757,12 @@ export function UnifiedChatApp({
       }
 
       localStreamRef.current = stream;
-      setActiveCallType(incomingCall.type);
-      setActiveCallTargetName(incomingCall.callerName);
-      setActiveCallTargetPhone(incomingCall.callerPhone || "");
-      setActiveCallTargetEmail(incomingCall.callerEmail || "");
-      setActiveCallTargetId(incomingCall.fromUserId);
-      setActiveCallId(incomingCall.callId);
+      setActiveCallType(targetCall.type);
+      setActiveCallTargetName(targetCall.callerName);
+      setActiveCallTargetPhone(targetCall.callerPhone || "");
+      setActiveCallTargetEmail(targetCall.callerEmail || "");
+      setActiveCallTargetId(targetCall.fromUserId);
+      setActiveCallId(targetCall.callId);
       setActiveCallRole("callee");
       setCallStatus("connected");
       setCallDurationSeconds(0);
@@ -3735,9 +3787,9 @@ export function UnifiedChatApp({
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
           socket.emit("call:signal", {
-            toUserId: incomingCall.fromUserId,
-            targetUserId: incomingCall.fromUserId,
-            callId: incomingCall.callId,
+            toUserId: targetCall.fromUserId,
+            targetUserId: targetCall.fromUserId,
+            callId: targetCall.callId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
@@ -3769,8 +3821,8 @@ export function UnifiedChatApp({
       // Emit accept
       if (socket) {
         socket.emit("call:accept", {
-          toUserId: incomingCall.fromUserId,
-          callId: incomingCall.callId,
+          toUserId: targetCall.fromUserId,
+          callId: targetCall.callId,
         });
       }
 
@@ -3780,6 +3832,7 @@ export function UnifiedChatApp({
       handleRejectIncomingCall("permission_denied");
     }
   };
+  handleAcceptIncomingCallRef.current = handleAcceptIncomingCall;
 
   // Reject Incoming Call
   const handleRejectIncomingCall = (reason = "declined") => {
@@ -6108,6 +6161,36 @@ export function UnifiedChatApp({
                 </button>
               </div>
             </div>
+
+            {/* Desktop Web Push Call Alert Notice */}
+            {isPushSupported && !isSubscribedToPush && pushPermission !== "denied" && !pushBannerDismissed && (
+              <div className="bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-200/60 dark:border-indigo-900/50 px-4 py-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-200">
+                <div className="flex items-center gap-2 mr-2">
+                  <Bell className="size-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  <span>
+                    Enable browser notifications to receive incoming calls when MasterHRMS is in the background or closed.
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => enablePushNotifications()}
+                    className="h-6 text-[11px] px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                  >
+                    Enable
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setPushBannerDismissed(true)}
+                    className="size-6 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* In-Thread Search Bar */}
             {inThreadSearchOpen && (

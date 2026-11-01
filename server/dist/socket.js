@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.activeGroupCalls = void 0;
+exports.activeGroupCalls = exports.activeCalls = void 0;
 exports.initSocket = initSocket;
 exports.getIO = getIO;
 exports.getOnlineUsersForTenant = getOnlineUsersForTenant;
@@ -16,9 +16,10 @@ const workspace_policy_service_1 = require("./services/workspace-policy.service"
 const chat_system_events_service_1 = require("./services/chat-system-events.service");
 const notification_service_1 = require("./services/notification.service");
 const pusher_service_1 = require("./services/pusher.service");
+const incoming_call_push_service_1 = require("./services/incoming-call-push.service");
 let ioInstance = null;
 const tenantPresence = new Map();
-const activeCalls = new Map();
+exports.activeCalls = new Map();
 exports.activeGroupCalls = new Map();
 function initSocket(server, allowedOrigins) {
     ioInstance = new socket_io_1.Server(server, {
@@ -302,7 +303,7 @@ function initSocket(server, allowedOrigins) {
             // A user may be in only one live one-to-one call or group meeting. Check both sides here
             // instead of trusting client state, otherwise a caller could create concurrent peer connections.
             let busyUserId = null;
-            for (const [, session] of activeCalls) {
+            for (const [, session] of exports.activeCalls) {
                 if (session.tenantId === tenantId &&
                     (session.status === "ringing" || session.status === "connected") &&
                     (session.callerId === targetUserId || session.targetUserId === targetUserId ||
@@ -373,14 +374,14 @@ function initSocket(server, allowedOrigins) {
                 startedAt: new Date(),
                 status: "ringing",
                 timeoutTimer: setTimeout(async () => {
-                    const current = activeCalls.get(callId);
+                    const current = exports.activeCalls.get(callId);
                     if (current && current.status === "ringing") {
                         console.log(`[CALL_TIMEOUT_60S] Server-authoritative 60s timeout for call: ${callId}`);
                         if (current.timeoutTimer) {
                             clearTimeout(current.timeoutTimer);
                             current.timeoutTimer = null;
                         }
-                        activeCalls.delete(callId);
+                        exports.activeCalls.delete(callId);
                         ioInstance?.to(`user:${current.targetUserId}`).emit("call:timeout", {
                             callId,
                             cancelledBy: "system",
@@ -389,6 +390,12 @@ function initSocket(server, allowedOrigins) {
                             callId,
                             cancelledBy: "system",
                         });
+                        void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+                            tenantId: current.tenantId,
+                            targetUserId: current.targetUserId,
+                            callId,
+                            reason: "timeout",
+                        }).catch(() => { });
                         await persistMissedCallRecord({
                             tenantId: current.tenantId,
                             callId,
@@ -400,7 +407,7 @@ function initSocket(server, allowedOrigins) {
                     }
                 }, 60000), // Exactly 60 seconds
             };
-            activeCalls.set(callId, callSession);
+            exports.activeCalls.set(callId, callSession);
             // Deliver incoming call signal to recipient with normalized contract aliases
             const incomingPayload = {
                 callId,
@@ -421,6 +428,19 @@ function initSocket(server, allowedOrigins) {
             // transport. The recipient still accepts/signals through Socket.IO.
             void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload)
                 .catch(() => { });
+            // Authoritative Web Push notification (critical for background / closed tab delivery)
+            void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                tenantId,
+                targetUserId,
+                callId,
+                callerId: socket.data.userId,
+                callerName,
+                callerAvatar,
+                callType,
+                threadId,
+            }).catch((err) => {
+                console.warn(`[SOCKET_CALL_INVITE_PUSH_ERROR] Web Push dispatch failed for call ${callId}:`, err.message);
+            });
         });
         // 2. ACCEPT CALL
         socket.on("call:accept", (payload) => {
@@ -430,7 +450,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== socket.data.tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -462,6 +482,13 @@ function initSocket(server, allowedOrigins) {
                 callId,
                 acceptedBy: socket.data.userId,
             });
+            // Dismiss any ringing Web Push notifications on other receiver devices
+            void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+                tenantId: session.tenantId,
+                targetUserId: session.targetUserId,
+                callId,
+                reason: "accepted",
+            }).catch(() => { });
         });
         // 3. REJECT CALL
         socket.on("call:reject", async (payload) => {
@@ -472,7 +499,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -499,7 +526,7 @@ function initSocket(server, allowedOrigins) {
                 clearTimeout(session.timeoutTimer);
                 session.timeoutTimer = null;
             }
-            activeCalls.delete(callId);
+            exports.activeCalls.delete(callId);
             const callType = session.callType;
             const threadId = session.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
             ioInstance?.to(`user:${session.callerId}`).emit("call:rejected", {
@@ -507,6 +534,13 @@ function initSocket(server, allowedOrigins) {
                 rejectedBy: socket.data.userId,
                 reason: payload?.reason || "declined",
             });
+            // Dismiss Web Push notifications
+            void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+                tenantId,
+                targetUserId: session.targetUserId,
+                callId,
+                reason: "rejected",
+            }).catch(() => { });
             // Persist rejected call record
             try {
                 await (0, tenant_context_1.runWithTenantContext)({
@@ -554,7 +588,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -581,10 +615,19 @@ function initSocket(server, allowedOrigins) {
                 clearTimeout(session.timeoutTimer);
                 session.timeoutTimer = null;
             }
-            activeCalls.delete(callId);
+            exports.activeCalls.delete(callId);
             ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", {
                 callId,
                 cancelledBy: socket.data.userId,
+            });
+            // Dismiss Web Push notifications on target device
+            void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+                tenantId,
+                targetUserId: session.targetUserId,
+                callId,
+                reason: "cancelled",
+            }).catch((err) => {
+                console.warn(`[SOCKET_CALL_CANCEL_PUSH_ERROR] Failed to send cancel push for call ${callId}:`, err.message);
             });
             await persistMissedCallRecord({
                 tenantId,
@@ -607,7 +650,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== socket.data.tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -644,7 +687,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== socket.data.tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -682,7 +725,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeCalls.get(callId);
+            const session = exports.activeCalls.get(callId);
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -709,7 +752,7 @@ function initSocket(server, allowedOrigins) {
                 clearTimeout(session.timeoutTimer);
                 session.timeoutTimer = null;
             }
-            activeCalls.delete(callId);
+            exports.activeCalls.delete(callId);
             const isCaller = session.callerId === socket.data.userId;
             const durationSeconds = Math.max(0, Math.round(Number(payload?.durationSeconds) || 0));
             const callType = session.callType || payload?.callType || "audio";
@@ -803,7 +846,7 @@ function initSocket(server, allowedOrigins) {
                 return;
             }
             // Check if host is already on an active 1-to-1 call
-            for (const [, call] of activeCalls) {
+            for (const [, call] of exports.activeCalls) {
                 if (call.tenantId === tenantId &&
                     (call.status === "ringing" || call.status === "connected") &&
                     (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
@@ -904,7 +947,7 @@ function initSocket(server, allowedOrigins) {
                 return;
             }
             // Check if user is in an active 1-to-1 call
-            for (const [, call] of activeCalls) {
+            for (const [, call] of exports.activeCalls) {
                 if (call.tenantId === tenantId &&
                     (call.status === "ringing" || call.status === "connected") &&
                     (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
@@ -1092,7 +1135,7 @@ function initSocket(server, allowedOrigins) {
                     session.invitedUserIds.add(u.id);
                     // Check if invited user is already on another active call or meeting
                     let isUserBusy = false;
-                    for (const [, call] of activeCalls) {
+                    for (const [, call] of exports.activeCalls) {
                         if (call.tenantId === tenantId &&
                             (call.status === "ringing" || call.status === "connected") &&
                             (call.callerId === u.id || call.targetUserId === u.id)) {
@@ -1339,7 +1382,7 @@ function initSocket(server, allowedOrigins) {
                 const userRoomSize = userRoom ? userRoom.size : 0;
                 // ONLY end active calls if no other authenticated socket remains for this user in this tenant
                 if (remainingSocketCount === 0 && userRoomSize === 0) {
-                    for (const [callId, session] of activeCalls) {
+                    for (const [callId, session] of exports.activeCalls) {
                         if (session.tenantId === tId && (session.callerId === uId || session.targetUserId === uId)) {
                             if (session.timeoutTimer) {
                                 clearTimeout(session.timeoutTimer);
@@ -1351,7 +1394,7 @@ function initSocket(server, allowedOrigins) {
                                 endedBy: uId,
                                 reason: "peer_disconnected",
                             });
-                            activeCalls.delete(callId);
+                            exports.activeCalls.delete(callId);
                         }
                     }
                 }

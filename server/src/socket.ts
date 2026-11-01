@@ -7,11 +7,12 @@ import { assertWorkspaceActive, getWorkspacePolicy } from "./services/workspace-
 import { recordSystemEvent } from "./services/chat-system-events.service";
 import { NotificationService } from "./services/notification.service";
 import { PusherService } from "./services/pusher.service";
+import { IncomingCallPushService } from "./services/incoming-call-push.service";
 
 let ioInstance: SocketIOServer | null = null;
 const tenantPresence = new Map<string, Map<string, number>>();
 
-interface ActiveCallSession {
+export interface ActiveCallSession {
   callId: string;
   tenantId: string;
   callerId: string;
@@ -26,7 +27,7 @@ interface ActiveCallSession {
   status: "ringing" | "connected" | "ended";
   timeoutTimer?: NodeJS.Timeout | null;
 }
-const activeCalls = new Map<string, ActiveCallSession>();
+export const activeCalls = new Map<string, ActiveCallSession>();
 
 export interface GroupParticipantState {
   userId: string;
@@ -454,6 +455,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
               cancelledBy: "system",
             });
 
+            void IncomingCallPushService.sendCallCancelledPush({
+              tenantId: current.tenantId,
+              targetUserId: current.targetUserId,
+              callId,
+              reason: "timeout",
+            }).catch(() => {});
+
             await persistMissedCallRecord({
               tenantId: current.tenantId,
               callId,
@@ -487,6 +495,20 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       // transport. The recipient still accepts/signals through Socket.IO.
       void PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload)
         .catch(() => {});
+
+      // Authoritative Web Push notification (critical for background / closed tab delivery)
+      void IncomingCallPushService.sendIncomingCallPush({
+        tenantId,
+        targetUserId,
+        callId,
+        callerId: socket.data.userId,
+        callerName,
+        callerAvatar,
+        callType,
+        threadId,
+      }).catch((err) => {
+        console.warn(`[SOCKET_CALL_INVITE_PUSH_ERROR] Web Push dispatch failed for call ${callId}:`, err.message);
+      });
     });
 
     // 2. ACCEPT CALL
@@ -537,6 +559,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         callId,
         acceptedBy: socket.data.userId,
       });
+
+      // Dismiss any ringing Web Push notifications on other receiver devices
+      void IncomingCallPushService.sendCallCancelledPush({
+        tenantId: session.tenantId,
+        targetUserId: session.targetUserId,
+        callId,
+        reason: "accepted",
+      }).catch(() => {});
     });
 
     // 3. REJECT CALL
@@ -593,6 +623,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         rejectedBy: socket.data.userId,
         reason: payload?.reason || "declined",
       });
+
+      // Dismiss Web Push notifications
+      void IncomingCallPushService.sendCallCancelledPush({
+        tenantId,
+        targetUserId: session.targetUserId,
+        callId,
+        reason: "rejected",
+      }).catch(() => {});
 
       // Persist rejected call record
       try {
@@ -692,6 +730,16 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", {
         callId,
         cancelledBy: socket.data.userId,
+      });
+
+      // Dismiss Web Push notifications on target device
+      void IncomingCallPushService.sendCallCancelledPush({
+        tenantId,
+        targetUserId: session.targetUserId,
+        callId,
+        reason: "cancelled",
+      }).catch((err) => {
+        console.warn(`[SOCKET_CALL_CANCEL_PUSH_ERROR] Failed to send cancel push for call ${callId}:`, err.message);
       });
 
       await persistMissedCallRecord({

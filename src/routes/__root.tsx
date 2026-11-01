@@ -150,6 +150,8 @@ function RootShell({ children }: { children: ReactNode }) {
 }
 
 import { useAppConfig } from "@/lib/useAppConfig";
+import { IncomingCallProvider } from "@/context/incoming-call-context";
+import { FullScreenIncomingCall } from "@/components/calling/full-screen-incoming-call";
 
 function PlatformFaviconSync() {
   useAppConfig();
@@ -160,11 +162,10 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    // Controlled Service Worker Registration: Production Only
+    // Controlled Service Worker Registration: Production & Push-capable environments
     if (
       typeof window !== "undefined" &&
-      "serviceWorker" in navigator &&
-      import.meta.env.PROD
+      "serviceWorker" in navigator
     ) {
       window.addEventListener("load", () => {
         navigator.serviceWorker
@@ -178,13 +179,16 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <PlatformFaviconSync />
-      <OfflineBanner />
-      <MaintenanceBanner />
-      <SessionExpiredModal />
-      <InactivityTracker />
-      <Outlet />
-      <Toaster richColors position="top-right" />
+      <IncomingCallProvider>
+        <PlatformFaviconSync />
+        <OfflineBanner />
+        <MaintenanceBanner />
+        <SessionExpiredModal />
+        <InactivityTracker />
+        <Outlet />
+        <FullScreenIncomingCall />
+        <Toaster richColors position="top-right" />
+      </IncomingCallProvider>
     </QueryClientProvider>
   );
 }
