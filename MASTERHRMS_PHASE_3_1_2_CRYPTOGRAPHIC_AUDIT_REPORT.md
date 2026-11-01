@@ -75,3 +75,4 @@ To prevent service disruption or data loss for existing deployments:
 1. **Zero Session Disruption:** The signing algorithm (HS256) and payload structure are untouched. Existing production deployments configured with `JWT_SECRET` continue verifying active user tokens without re-login.
 2. **Multi-Key Decryption Fallback:** When decrypting stored settings, OAuth tokens, or email passwords, the active dedicated key is attempted first. If authentication fails, the legacy key (derived from `JWT_SECRET` or the legacy string) is automatically attempted. If successful, the plaintext is returned cleanly.
 3. **Key Rotation Ring:** Local disk storage files can be rotated incrementally using `STORAGE_ENCRYPTION_KEY_RING` without bulk re-encryption downtime.
+

@@ -1,6 +1,7 @@
 import { getTenantDb } from "../context/tenant-context";
 import { rawPrisma } from "../prisma";
 import { getIO } from "../socket";
+import { PusherService } from "./pusher.service";
 
 export interface CreateNotificationParams {
   tenantId: string;
@@ -87,10 +88,10 @@ export class NotificationService {
       },
     });
 
-    // Realtime push to the user's private room with comprehensive payload
-    const io = getIO();
-    if (io) {
-      const payload = {
+    // Realtime push to the user's private room with comprehensive payload.
+    // Pusher remains available when this process does not own a Socket.IO
+    // instance (for example a scheduler/worker process).
+    const payload = {
         id: notification.id,
         tenantId: notification.tenantId,
         userId: notification.userId,
@@ -105,14 +106,23 @@ export class NotificationService {
         createdAt: notification.createdAt,
         timestamp: notification.createdAt,
         read: Boolean(notification.readAt),
-      };
+    };
 
+    const io = getIO();
+    if (io) {
       io.to(`user:${targetUserId}`).emit("notification:new", payload);
       io.to(`tenant:${params.tenantId}`).emit("tenant:notification", {
         userId: targetUserId,
         notificationId: notification.id,
       });
+
     }
+    // Socket.IO is the primary in-app transport. Pusher is the resilient
+    // secondary transport used by clients that are subscribed to the private
+    // user channel (for example after a transient Socket.IO disconnect).
+    // Delivery must never make notification persistence fail.
+    void PusherService.triggerUserEvent(params.tenantId, targetUserId, "notification:new", payload)
+      .catch(() => {});
 
     return notification;
   }

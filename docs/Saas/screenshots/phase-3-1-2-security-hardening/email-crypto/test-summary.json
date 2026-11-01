@@ -10,3 +10,4 @@
     { "name": "decryptEmailSecret rejects corrupted auth tag", "result": "PASS" }
   ]
 }
+

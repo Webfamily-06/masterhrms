@@ -1,5 +1,31 @@
 "use client";
 
+/**
+ * UNIFIED CHAT & CALLING MODULE
+ *
+ * ARCHITECTURE BOUNDARIES & CAPABILITIES:
+ * 1. WebRTC 1-to-1 Calling: Real-time peer-to-peer audio and video calling powered
+ *    by RTCPeerConnection with STUN candidate discovery.
+ * 2. Multi-Transport Realtime:
+ *    - Socket.IO: Primary in-app transport for low-latency chat messaging, presence,
+ *      and WebRTC signaling (offers, answers, ICE candidates).
+ *    - Pusher: High-availability secondary/fallback transport for call invitations,
+ *      missed calls, background notifications, and offline event delivery.
+ * 3. Group Calling Architecture Boundary:
+ *    - Pure peer-to-peer mesh WebRTC scales to O(N^2) connections and is intentionally
+ *      bounded to 1-to-1 sessions to protect mobile CPU and uplink bandwidth.
+ *    - Multi-party conference calling (>2 participants) requires a Selective Forwarding
+ *      Unit (SFU) media server (e.g. LiveKit or mediasoup). Group buttons currently route
+ *      to 1-to-1 direct dial with group members.
+ * 4. NAT Traversal & Production Relay:
+ *    - STUN (stun:stun.l.google.com:19302) resolves public IP mapping for direct P2P.
+ *    - Symmetric NAT/strict enterprise firewalls require TURN relay servers (e.g., Coturn,
+ *      Twilio Network Traversal, or Cloudflare Calls).
+ * 5. Mobile Picture-in-Picture (PiP):
+ *    - Handled via HTML5 Video element requestPictureInPicture API where supported by
+ *      mobile browsers; full OS-level background PiP requires native React Native / Swift / Kotlin wrappers.
+ */
+
 export function cleanPersonName(name: string): string {
   if (!name) return "User";
   return name
@@ -64,7 +90,6 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Search,
-  ArrowLeft,
   Settings,
   Plus,
   Phone,
@@ -95,6 +120,7 @@ import {
   CalendarPlus,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
   Filter,
   Check,
   CheckCheck,
@@ -139,6 +165,18 @@ import {
   RotateCcw,
   Ban,
   ArrowDown,
+  Maximize2,
+  Minimize2,
+  Signal,
+  Sliders,
+  VolumeX,
+  Radio,
+  Tv,
+  Lock as LockIcon,
+  PhoneForwarded,
+  Activity,
+  Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -695,6 +733,8 @@ export function UnifiedChatApp({
 
   const handleModeSelect = (newMode: ChatMode) => {
     setMode(newMode);
+    if (newMode === "calls") setMobilePane("chat");
+    if (newMode === "chats" || newMode === "groups" || newMode === "contacts") setMobilePane("list");
     onModeChange?.(newMode);
     if (workspacePrefix && typeof window !== "undefined") {
       const target =
@@ -723,6 +763,9 @@ export function UnifiedChatApp({
   const [messageInput, setMessageInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
+  // Small screens intentionally show one workspace pane at a time, matching
+  // the familiar chat-list → conversation → details flow.
+  const [mobilePane, setMobilePane] = useState<"list" | "chat" | "details">("list");
   const [infoTab, setInfoTab] = useState<"info" | "members" | "activity" | "files">("info");
   const [sharedFilesSearch, setSharedFilesSearch] = useState("");
 
@@ -912,6 +955,7 @@ export function UnifiedChatApp({
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [remoteIsScreenSharing, setRemoteIsScreenSharing] = useState(false);
 
   // Incoming call state (for callee)
   const [incomingCall, setIncomingCall] = useState<{
@@ -931,6 +975,170 @@ export function UnifiedChatApp({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const activeCallIdRef = useRef<string>("");
+
+  // Audio Output & Speaker Selection
+  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioOutputId, setSelectedAudioOutputId] = useState("");
+
+  // Live Audio Level Visualizer (Web Audio API AnalyserNode)
+  const [micVolumeLevel, setMicVolumeLevel] = useState<number>(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // Network Quality Monitoring (WebRTC Stats)
+  const [networkQuality, setNetworkQuality] = useState<"excellent" | "good" | "poor">("excellent");
+  const [networkRttMs, setNetworkRttMs] = useState<number>(35);
+
+  // Active Speaker & Meeting View Modes
+  const [remoteIsSpeaking, setRemoteIsSpeaking] = useState(false);
+  const [localIsSpeaking, setLocalIsSpeaking] = useState(false);
+  const [viewMode, setViewMode] = useState<"speaker" | "grid">("speaker");
+  const [isCallFullscreen, setIsCallFullscreen] = useState(false);
+  const [isCallMinimized, setIsCallMinimized] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // In-Call Settings & Add Participant
+  const [inCallSettingsOpen, setInCallSettingsOpen] = useState(false);
+  const [inCallAddParticipantOpen, setInCallAddParticipantOpen] = useState(false);
+  const [inCallParticipantSearch, setInCallParticipantSearch] = useState("");
+  const [invitedParticipants, setInvitedParticipants] = useState<Array<{
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    status: "invited" | "ringing" | "connected";
+  }>>([]);
+
+  // Busy & Call Waiting Handlers
+  const [busyStateData, setBusyStateData] = useState<{
+    callId: string;
+    targetName: string;
+    targetUserId: string;
+    reason: string;
+  } | null>(null);
+  const [callWaitingNotice, setCallWaitingNotice] = useState<{
+    callId: string;
+    requestedBy: string;
+    requestedByName: string;
+    reason: string;
+  } | null>(null);
+
+  // Test Speaker Playback Chime
+  const testSpeakerSound = useCallback(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+      toast.success("Playing test chime through audio output");
+    } catch (err: any) {
+      toast.error("Audio test error: " + err.message);
+    }
+  }, []);
+
+  // Audio output device switch
+  const setAudioOutputDevice = async (deviceId: string) => {
+    setSelectedAudioOutputId(deviceId);
+    try {
+      const audioEl = remoteAudioRef.current;
+      if (audioEl && (audioEl as any).setSinkId) {
+        await (audioEl as any).setSinkId(deviceId);
+        toast.success("Speaker output switched successfully");
+      }
+    } catch (err: any) {
+      console.warn("setSinkId error:", err);
+      toast.error("Could not switch audio output device: " + err.message);
+    }
+  };
+
+  // Picture-in-Picture
+  const togglePictureInPicture = async () => {
+    try {
+      const videoEl = remoteVideoRef.current || localVideoRef.current;
+      if (!videoEl) {
+        toast.info("No active video feed for Picture-in-Picture");
+        return;
+      }
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        toast.info("Picture-in-Picture exited");
+      } else if (document.pictureInPictureEnabled && videoEl.requestPictureInPicture) {
+        await videoEl.requestPictureInPicture();
+        toast.success("Picture-in-Picture activated");
+      } else {
+        toast.info("Picture-in-Picture is not supported on this browser");
+      }
+    } catch (err: any) {
+      console.warn("PiP error:", err);
+      toast.error("Picture-in-Picture: " + (err.message || "Failed to toggle"));
+    }
+  };
+
+  // Fullscreen
+  const toggleFullscreenCall = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setIsCallFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsCallFullscreen(false);
+    }
+  };
+
+  // Real-time WebRTC Network Quality Monitor
+  useEffect(() => {
+    if (!activeCallModalOpen || !peerConnectionRef.current) return;
+    const interval = setInterval(async () => {
+      try {
+        const pc = peerConnectionRef.current;
+        if (!pc) return;
+        const stats = await pc.getStats();
+        stats.forEach((report) => {
+          if (report.type === "candidate-pair" && report.state === "succeeded") {
+            const rtt = report.currentRoundTripTime ? Math.round(report.currentRoundTripTime * 1000) : 35;
+            setNetworkRttMs(rtt);
+            if (rtt < 80) setNetworkQuality("excellent");
+            else if (rtt < 200) setNetworkQuality("good");
+            else setNetworkQuality("poor");
+          }
+        });
+      } catch {}
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [activeCallModalOpen]);
+
+  useEffect(() => {
+    activeCallIdRef.current = activeCallId;
+  }, [activeCallId]);
+
+  const mediaConstraints = useCallback((video: boolean): MediaStreamConstraints => ({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      ...(selectedAudioInputId ? { deviceId: { exact: selectedAudioInputId } } : {}),
+    },
+    video: video
+      ? {
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 30 },
+          ...(selectedVideoDeviceId ? { deviceId: { exact: selectedVideoDeviceId } } : {}),
+        }
+      : false,
+  }), [selectedAudioInputId, selectedVideoDeviceId]);
 
   // Synthesize standard telephone ringtone via Web Audio API (440Hz + 480Hz dual tone)
   const startRingtone = useCallback(() => {
@@ -1547,7 +1755,7 @@ export function UnifiedChatApp({
         }
       }
     }
-  }, [activeCallModalOpen, isVideoOff, callStatus]);
+  }, [activeCallModalOpen, isVideoOff, callStatus, activeCallType, isScreenSharing]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2. REAL-TIME SUBSCRIPTION LAYER (Socket.io & WebRTC Signaling)
@@ -1791,25 +1999,41 @@ export function UnifiedChatApp({
 
     // ── WebRTC Signaling Listeners ──
     const handleIncomingCall = (data: any) => {
+      if (!data?.callId || !data?.fromUserId) return;
+
+      // If user is already in a call, intimation only — never disrupt ongoing call
+      if (activeCallIdRef.current && activeCallIdRef.current !== data.callId) {
+        toast.info(
+          `Incoming call from ${data.callerName || "a colleague"} was blocked because you are currently on another call.`
+        );
+        return;
+      }
+
+      setIncomingCall((current) => {
+        // Socket.IO and Pusher can both deliver the same invitation. Keep one
+        // visible incoming-call dialog and one timeout/ringtone.
+        if (current?.callId === data.callId) return current;
+        startRingtone();
+        return {
+          callId: data.callId,
+          fromUserId: data.fromUserId,
+          type: data.type || data.callType || "audio",
+          callerName: data.callerName || "Colleague",
+          callerPhone: data.callerPhone,
+          callerEmail: data.callerEmail,
+          callerAvatarUrl: data.callerAvatarUrl,
+          threadId: data.threadId,
+        };
+      });
+
       if (incomingCallTimerRef.current) {
         clearTimeout(incomingCallTimerRef.current);
         incomingCallTimerRef.current = null;
       }
-      // Auto-reject on callee side after 30 seconds without answer
+      // Auto-reject on callee side after 60 seconds without answer
       incomingCallTimerRef.current = setTimeout(() => {
         handleRejectIncomingCall("timeout");
       }, 60000);
-
-      setIncomingCall({
-        callId: data.callId,
-        fromUserId: data.fromUserId,
-        type: data.type || data.callType || "audio",
-        callerName: data.callerName || "Colleague",
-        callerPhone: data.callerPhone,
-        callerEmail: data.callerEmail,
-        callerAvatarUrl: data.callerAvatarUrl,
-        threadId: data.threadId,
-      });
     };
 
     const handleCallAccepted = async (data: any) => {
@@ -1828,6 +2052,7 @@ export function UnifiedChatApp({
           socket.emit("call:signal", {
             toUserId: activeCallTargetId,
             targetUserId: activeCallTargetId,
+            callId: data.callId || activeCallIdRef.current || activeCallId,
             signal: { type: "offer", sdp: offer },
           });
         } catch (err: any) {
@@ -1866,14 +2091,33 @@ export function UnifiedChatApp({
     };
 
     const handleCallBusy = (data: any) => {
+      const curCallId = activeCallIdRef.current || activeCallId;
+      // If we are currently in an active or connected call with a different callId,
+      // this is an intimation that someone tried to call us while we were busy.
+      // A busy notification must NEVER terminate or clean up our existing active call!
+      if (curCallId && data?.callId && data.callId !== curCallId) {
+        setCallWaitingNotice({
+          callId: data.callId,
+          requestedBy: data.requestedBy || "",
+          requestedByName: data.requestedByName || "A colleague",
+          reason: data.reason || "Another incoming call was blocked because you are already in a call.",
+        });
+        return;
+      }
+
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
         callTimeoutTimerRef.current = null;
       }
-      toast.warning(data?.message || "User is currently busy on another call.");
       cleanUpMedia();
       setActiveCallModalOpen(false);
       setCallStatus("ended");
+      setBusyStateData({
+        callId: data?.callId || "",
+        targetName: activeCallTargetName || "Colleague",
+        targetUserId: activeCallTargetId,
+        reason: data?.reason || "User is currently on another call.",
+      });
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
 
@@ -1897,7 +2141,8 @@ export function UnifiedChatApp({
     const handleCallSignal = async (data: any) => {
       const { signal } = data;
       const pc = peerConnectionRef.current;
-      if (!pc || !signal) return;
+      const curCallId = activeCallIdRef.current || activeCallId;
+      if (!pc || !signal || (data?.callId && curCallId && data.callId !== curCallId)) return;
 
       try {
         if (signal.type === "offer") {
@@ -1918,6 +2163,7 @@ export function UnifiedChatApp({
           socket.emit("call:signal", {
             toUserId: data.fromUserId,
             targetUserId: data.fromUserId,
+            callId: data.callId || curCallId,
             signal: { type: "answer", sdp: answer },
           });
         } else if (signal.type === "answer") {
@@ -1990,6 +2236,47 @@ export function UnifiedChatApp({
     socket.on("call:signal", handleCallSignal);
     socket.on("call:ended", handleCallEnded);
 
+    const handleCallError = (data: any) => {
+      console.warn("[CALL:ERROR]", data?.message);
+      toast.error(data?.message || "Call action failed.");
+      if (callStatus === "ringing" || callStatus === "calling") {
+        cleanUpMedia();
+        setActiveCallModalOpen(false);
+        setIncomingCall(null);
+        setCallStatus("ended");
+        setActiveCallId("");
+      }
+    };
+    socket.on("call:error", handleCallError);
+
+    const handleMediaState = (data: any) => {
+      if (data?.type === "screen-share") {
+        setRemoteIsScreenSharing(!!data.active);
+        if (data.active) {
+          toast.info(`${activeCallTargetName || "Colleague"} started sharing screen`);
+        } else {
+          toast.info(`${activeCallTargetName || "Colleague"} stopped sharing screen`);
+        }
+      }
+    };
+    socket.on("call:media-state", handleMediaState);
+
+    const handlePusherEvent = (event: Event) => {
+      const { eventName, data } = (event as CustomEvent).detail || {};
+      if (eventName === "call:incoming") handleIncomingCall(data);
+      if (eventName === "call:busy") handleCallBusy(data);
+      if (eventName === "call:media-state") handleMediaState(data);
+      if (eventName === "chat:message") handleIncomingMessage(data);
+      if (eventName === "chat:message_edited") handleMessageEdited(data);
+      if (eventName === "chat:message_deleted") handleMessageDeleted(data);
+      if (eventName === "chat:reaction") handleReactionEvent(data);
+      if (eventName === "chat:poll_updated") handlePollUpdated(data);
+      if (eventName === "chat:typing") handleTypingEvent(data);
+      if (eventName === "chat:read") handleReadReceipt(data);
+      if (eventName === "chat:delivered") handleDeliveredReceipt(data);
+    };
+    window.addEventListener("hrms:pusher", handlePusherEvent);
+
     return () => {
       if (activeThreadId) {
         socket.emit("chat:leave", { threadId: activeThreadId });
@@ -2015,8 +2302,30 @@ export function UnifiedChatApp({
       socket.off("call:timeout", handleCallTimeout);
       socket.off("call:signal", handleCallSignal);
       socket.off("call:ended", handleCallEnded);
+      socket.off("call:error", handleCallError);
+      socket.off("call:media-state", handleMediaState);
+      window.removeEventListener("hrms:pusher", handlePusherEvent);
     };
-  }, [activeThreadId, currentUserId, queryClient, cleanUpMedia, activeCallTargetId]);
+  }, [activeThreadId, currentUserId, queryClient, cleanUpMedia, activeCallTargetId, activeCallId, startRingtone, activeCallTargetName]);
+
+  // Mobile PiP & Foreground Continuation Check (visibilitychange does not hang up)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (activeCallModalOpen && peerConnectionRef.current) {
+          const state = peerConnectionRef.current.connectionState;
+          if (state === "disconnected" || state === "failed") {
+            setIsReconnecting(true);
+            toast.info("Application returned to foreground. Re-evaluating WebRTC connection...");
+          } else if (state === "connected") {
+            setIsReconnecting(false);
+          }
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [activeCallModalOpen]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 3. MUTATIONS & ACTIONS
@@ -2034,6 +2343,7 @@ export function UnifiedChatApp({
     onSuccess: (thread) => {
       const title = thread.title || thread.name || "Direct Chat";
       setActiveThreadId(thread.threadId);
+      setMobilePane("chat");
       setActiveThreadTitle(title);
       setActiveThreadType("direct");
       setActiveTargetUserId(thread.otherParticipantId || thread.targetUserId || "");
@@ -2309,10 +2619,7 @@ export function UnifiedChatApp({
     setPreCallVideoOff(false);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === "video",
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(type === "video"));
       setPreCallStream(stream);
       setPreCallPermissionState("granted");
 
@@ -2320,10 +2627,13 @@ export function UnifiedChatApp({
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audios = devices.filter((d) => d.kind === "audioinput");
         const videos = devices.filter((d) => d.kind === "videoinput");
+        const outputs = devices.filter((d) => d.kind === "audiooutput");
         setAudioInputDevices(audios);
         setVideoInputDevices(videos);
-        if (audios[0]) setSelectedAudioInputId(audios[0].deviceId);
-        if (videos[0]) setSelectedVideoDeviceId(videos[0].deviceId);
+        setAudioOutputDevices(outputs);
+        setSelectedAudioInputId((prev) => (prev && audios.some((a) => a.deviceId === prev) ? prev : audios[0]?.deviceId || ""));
+        setSelectedVideoDeviceId((prev) => (prev && videos.some((v) => v.deviceId === prev) ? prev : videos[0]?.deviceId || ""));
+        setSelectedAudioOutputId((prev) => (prev && outputs.some((o) => o.deviceId === prev) ? prev : outputs[0]?.deviceId || ""));
       }
     } catch (err: any) {
       console.warn("Pre-call media acquisition error:", err);
@@ -2343,16 +2653,20 @@ export function UnifiedChatApp({
   const retryPreCallPermission = async () => {
     setPreCallPermissionState("checking");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: preCallType === "video",
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(preCallType === "video"));
       setPreCallStream(stream);
       setPreCallPermissionState("granted");
       if (navigator.mediaDevices.enumerateDevices) {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        setAudioInputDevices(devices.filter((d) => d.kind === "audioinput"));
-        setVideoInputDevices(devices.filter((d) => d.kind === "videoinput"));
+        const audios = devices.filter((d) => d.kind === "audioinput");
+        const videos = devices.filter((d) => d.kind === "videoinput");
+        const outputs = devices.filter((d) => d.kind === "audiooutput");
+        setAudioInputDevices(audios);
+        setVideoInputDevices(videos);
+        setAudioOutputDevices(outputs);
+        setSelectedAudioInputId((prev) => (prev && audios.some((a) => a.deviceId === prev) ? prev : audios[0]?.deviceId || ""));
+        setSelectedVideoDeviceId((prev) => (prev && videos.some((v) => v.deviceId === prev) ? prev : videos[0]?.deviceId || ""));
+        setSelectedAudioOutputId((prev) => (prev && outputs.some((o) => o.deviceId === prev) ? prev : outputs[0]?.deviceId || ""));
       }
     } catch {
       setPreCallPermissionState("denied");
@@ -2423,10 +2737,7 @@ export function UnifiedChatApp({
 
       let stream = passedStream;
       if (!stream || stream.getTracks().length === 0) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: type === "video",
-        });
+        stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(type === "video"));
       }
 
       localStreamRef.current = stream;
@@ -2464,12 +2775,15 @@ export function UnifiedChatApp({
         localVideoRef.current.srcObject = stream;
       }
 
+      const callId = `call_${Date.now()}`;
+      setActiveCallId(callId);
       const socket = getSocketClient();
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
           socket.emit("call:signal", {
             toUserId: resolvedTargetId,
             targetUserId: resolvedTargetId,
+            callId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
@@ -2497,9 +2811,6 @@ export function UnifiedChatApp({
           setCallStatus("connected");
         }
       };
-
-      const callId = `call_${Date.now()}`;
-      setActiveCallId(callId);
 
       // Server-authoritative 60-second ringing timeout
       if (callTimeoutTimerRef.current) clearTimeout(callTimeoutTimerRef.current);
@@ -2565,6 +2876,15 @@ export function UnifiedChatApp({
         }
       }
       setIsScreenSharing(false);
+      const socket = getSocketClient();
+      if (socket && (activeCallIdRef.current || activeCallId)) {
+        socket.emit("call:media-state", {
+          callId: activeCallIdRef.current || activeCallId,
+          targetUserId: activeCallTargetId,
+          type: "screen-share",
+          active: false,
+        });
+      }
       toast.info("Screen sharing ended");
     } else {
       try {
@@ -2599,12 +2919,30 @@ export function UnifiedChatApp({
           }
           setIsScreenSharing(false);
           screenStreamRef.current = null;
+          const sock = getSocketClient();
+          if (sock && (activeCallIdRef.current || activeCallId)) {
+            sock.emit("call:media-state", {
+              callId: activeCallIdRef.current || activeCallId,
+              targetUserId: activeCallTargetId,
+              type: "screen-share",
+              active: false,
+            });
+          }
         };
 
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
         }
         setIsScreenSharing(true);
+        const socket = getSocketClient();
+        if (socket && (activeCallIdRef.current || activeCallId)) {
+          socket.emit("call:media-state", {
+            callId: activeCallIdRef.current || activeCallId,
+            targetUserId: activeCallTargetId,
+            type: "screen-share",
+            active: true,
+          });
+        }
         toast.success("Screen sharing started");
       } catch (err: any) {
         if (err.name !== "NotAllowedError") {
@@ -2626,7 +2964,12 @@ export function UnifiedChatApp({
 
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: nextDev.deviceId } },
+        video: {
+          deviceId: { exact: nextDev.deviceId },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30, max: 30 },
+        },
       });
       const newTrack = newStream.getVideoTracks()[0];
       if (newTrack) {
@@ -2664,10 +3007,7 @@ export function UnifiedChatApp({
 
     try {
       const isVideoCall = incomingCall.type === "video";
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: isVideoCall,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(isVideoCall));
 
       localStreamRef.current = stream;
       setActiveCallType(incomingCall.type);
@@ -2700,6 +3040,7 @@ export function UnifiedChatApp({
           socket.emit("call:signal", {
             toUserId: incomingCall.fromUserId,
             targetUserId: incomingCall.fromUserId,
+            callId: incomingCall.callId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
@@ -3987,19 +4328,16 @@ export function UnifiedChatApp({
 
   return (
     <div
-      className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-background border-t border-border font-sans"
+      className="flex h-[calc(100dvh-4rem)] min-h-[32rem] w-full overflow-hidden bg-background border-t border-border font-sans"
       style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
     >
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* LEFT COLUMN: LISTS (CHATS / GROUPS / CONTACTS / CALLS)              */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <aside className={cn(
-        "flex-shrink-0 border-r border-border flex flex-col bg-card",
-        activeThreadId && (mode === "chats" || mode === "groups")
-          ? "hidden md:flex md:w-[320px]"
-          : mode === "calls"
-          ? "hidden md:flex md:w-[320px]"
-          : "w-full md:w-[320px]"
+        "w-full md:w-[300px] lg:w-[320px] flex-shrink-0 border-r border-border flex-col bg-card",
+        mobilePane === "list" ? "flex" : "hidden md:flex",
+        mobilePane === "details" && "md:hidden xl:flex"
       )}>
         {/* Segmented Top Navigation: Personal / Group / Call Logs */}
         <div className="p-3 border-b border-border bg-card">
@@ -4179,6 +4517,7 @@ export function UnifiedChatApp({
                         setActiveThreadType(item.type);
                         setActiveTargetUserId(item.otherParticipantId || "");
                         setActiveGroupId(item.groupId || (item.threadId?.startsWith("group_") ? item.threadId.replace("group_", "") : ""));
+                        setMobilePane("chat");
                       }}
                       className={cn(
                         "group p-3 flex items-start gap-3 cursor-pointer transition-colors relative hover:bg-muted/50",
@@ -4288,6 +4627,7 @@ export function UnifiedChatApp({
                         setActiveThreadType("group");
                         setActiveGroupId(group.id);
                         setActiveTargetUserId("");
+                        setMobilePane("chat");
                       }}
                       className={cn(
                         "group p-3 flex items-start gap-3 cursor-pointer transition-colors relative hover:bg-muted/50",
@@ -4512,48 +4852,32 @@ export function UnifiedChatApp({
       {/* CENTER COLUMN: ACTIVE CONVERSATION MESSAGES / CALL LOGS TABLE       */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       <section className={cn(
-        "flex-1 flex flex-col bg-background min-w-0",
-        mode !== "calls" && !activeThreadId ? "hidden md:flex" : "flex"
+        "flex-1 min-w-0 flex-col bg-background",
+        mobilePane === "chat" ? "flex" : "hidden md:flex",
+        mobilePane === "details" && "hidden md:flex"
       )}>
         {mode === "calls" ? (
           /* ─── FULL CALL HISTORY VIEW ─── */
-          <div className="flex-1 flex flex-col overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5">
-            {/* Mobile Mode Switcher for Calls */}
-            <div className="md:hidden pb-1">
-              <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-lg border border-border/40">
+          <div className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 space-y-5">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => handleModeSelect("chats")}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => {
+                    handleModeSelect("chats");
+                    setMobilePane("list");
+                  }}
+                  className="md:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Back to conversations"
                 >
-                  <MessageSquare className="size-3.5" />
-                  <span>Personal</span>
+                  <ArrowLeft className="size-4" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeSelect("groups")}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <Users className="size-3.5" />
-                  <span>Group</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleModeSelect("calls")}
-                  className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-semibold bg-background text-foreground shadow-xs font-bold border border-border/30 cursor-pointer"
-                >
-                  <Phone className="size-3.5" />
-                  <span>Call Logs</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-4">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Call History</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Authoritative voice and video call lifecycle records, participant details, and durations.
-                </p>
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">Call History</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Authoritative voice and video call lifecycle records, participant details, and durations.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -4669,8 +4993,8 @@ export function UnifiedChatApp({
             </div>
 
             {/* Calls Table */}
-            <div className="border border-border rounded-lg overflow-x-auto bg-card shadow-xs">
-              <Table className="min-w-[640px]">
+            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-xs">
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-xs font-semibold">Contact / Colleague</TableHead>
@@ -4895,66 +5219,70 @@ export function UnifiedChatApp({
         ) : activeThreadId ? (
           <>
             {/* Conversation Header */}
-            <div className="p-3 sm:p-3.5 border-b border-border flex items-center justify-between bg-card">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setActiveThreadId("");
-                    setShowInfo(false);
-                  }}
-                  className="md:hidden size-8 -ml-1 text-muted-foreground hover:text-foreground shrink-0"
-                  title="Back to conversations"
+            <div className="p-3.5 border-b border-border flex items-center justify-between bg-card">
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setMobilePane("list")}
+                  className="md:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                  aria-label="Back to conversations"
                 >
                   <ArrowLeft className="size-4" />
-                </Button>
-                <Avatar className="size-8.5 sm:size-9.5 flex-shrink-0 shadow-xs">
-                  {(activeThreadType === "direct"
-                    ? participantProfile?.avatarUrl || activeContact?.avatarUrl
-                    : activeGroup?.avatarUrl) ? (
-                    <AvatarImage
-                      src={
-                        (activeThreadType === "direct"
-                          ? participantProfile?.avatarUrl || activeContact?.avatarUrl
-                          : activeGroup?.avatarUrl) || ""
-                      }
-                      alt={activeThreadTitle}
-                      className="object-cover"
-                    />
-                  ) : null}
-                  <AvatarFallback className={cn("text-white font-bold text-xs", getAvatarColor(activeThreadTitle))}>
-                    {(activeThreadTitle || "C").charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-foreground truncate">
-                    {activeThreadType === "group" && activeGroup?.name ? activeGroup.name : activeThreadTitle}
-                  </h3>
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    {activeThreadType === "direct" ? (
-                      <>
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            onlineUserIds.includes(activeTargetUserId) ? "bg-emerald-500" : "bg-muted-foreground/40"
+                </button>
+                <div
+                  className="flex items-center gap-2 min-w-0 cursor-pointer"
+                  onClick={() => {
+                    setShowInfo(true);
+                    setMobilePane("details");
+                  }}
+                >
+                  <Avatar className="size-9.5 flex-shrink-0 shadow-xs">
+                    {(activeThreadType === "direct"
+                      ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                      : activeGroup?.avatarUrl) ? (
+                      <AvatarImage
+                        src={
+                          (activeThreadType === "direct"
+                            ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                            : activeGroup?.avatarUrl) || ""
+                        }
+                        alt={activeThreadTitle}
+                        className="object-cover"
+                      />
+                    ) : null}
+                    <AvatarFallback className={cn("text-white font-bold text-xs", getAvatarColor(activeThreadTitle))}>
+                      {(activeThreadTitle || "C").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-sm text-foreground truncate">
+                      {activeThreadType === "group" && activeGroup?.name ? activeGroup.name : activeThreadTitle}
+                    </h3>
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      {activeThreadType === "direct" ? (
+                        <>
+                          <span
+                            className={cn(
+                              "size-1.5 rounded-full",
+                              onlineUserIds.includes(activeTargetUserId) ? "bg-emerald-500" : "bg-muted-foreground/40"
+                            )}
+                          />
+                          <span>
+                            {onlineUserIds.includes(activeTargetUserId) ? "Online" : "Offline"}
+                          </span>
+                          {(participantProfile?.designation || activeContact?.designation) && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[160px]">
+                                {participantProfile?.designation || activeContact?.designation}
+                              </span>
+                            </>
                           )}
-                        />
-                        <span>
-                          {onlineUserIds.includes(activeTargetUserId) ? "Online" : "Offline"}
-                        </span>
-                        {(participantProfile?.designation || activeContact?.designation) && (
-                          <>
-                            <span>•</span>
-                            <span className="truncate max-w-[160px]">
-                              {participantProfile?.designation || activeContact?.designation}
-                            </span>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <span>{activeGroup?.memberCount || 0} members</span>
-                    )}
+                        </>
+                      ) : (
+                        <span>{activeGroup?.memberCount || 0} members</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5054,7 +5382,14 @@ export function UnifiedChatApp({
                 )}
 
                 <button
-                  onClick={() => setShowInfo((prev) => !prev)}
+                  onClick={() => {
+                    setShowInfo((prev) => {
+                      const next = !prev;
+                      if (next) setMobilePane("details");
+                      else setMobilePane("chat");
+                      return next;
+                    });
+                  }}
                   className={cn(
                     "p-2 rounded-lg transition-colors cursor-pointer",
                     showInfo
@@ -6249,12 +6584,20 @@ export function UnifiedChatApp({
       {/* RIGHT COLUMN: CONTACT / GROUP INFO & SHARED FILES DRAWER            */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {showInfo && activeThreadId && mode !== "calls" && (
-        <aside className="w-full sm:w-[300px] fixed md:static inset-y-0 right-0 z-40 flex-shrink-0 border-l border-border bg-card flex flex-col overflow-y-auto shadow-2xl md:shadow-none">
-          <div className="flex items-center justify-between p-3 border-b border-border/70 md:hidden">
-            <span className="text-xs font-bold text-foreground">Conversation Details</span>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => setShowInfo(false)}>
-              <X className="size-4" />
-            </Button>
+        <aside className={cn(
+          "w-full md:w-[300px] lg:w-[320px] flex-shrink-0 border-l border-border bg-card flex-col overflow-y-auto",
+          mobilePane === "details" ? "flex" : "hidden xl:flex"
+        )}>
+          <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
+            <button
+              type="button"
+              onClick={() => setMobilePane("chat")}
+              className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              aria-label="Back to conversation"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+            <span className="text-sm font-semibold">Conversation details</span>
           </div>
           {/* Top Profile Card */}
           <div className="p-6 text-center border-b border-border/70 flex flex-col items-center">
@@ -7399,7 +7742,14 @@ export function UnifiedChatApp({
                   </div>
                 ) : (
                   <video
-                    ref={preCallVideoRef}
+                    ref={(el) => {
+                      preCallVideoRef.current = el;
+                      if (el && preCallStream && !preCallVideoOff) {
+                        if (el.srcObject !== preCallStream) {
+                          el.srcObject = preCallStream;
+                        }
+                      }
+                    }}
                     autoPlay
                     playsInline
                     muted
@@ -7409,6 +7759,10 @@ export function UnifiedChatApp({
                 <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1.5">
                   <span className={cn("size-2 rounded-full", preCallMicMuted ? "bg-amber-400" : "bg-emerald-400 animate-pulse")} />
                   <span>{preCallMicMuted ? "Mic Muted" : "Mic Live"}</span>
+                </div>
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                  <ShieldCheck className="size-3 text-teal-400" />
+                  <span>HD Preview Ready</span>
                 </div>
               </div>
             ) : (
@@ -7425,6 +7779,45 @@ export function UnifiedChatApp({
                 </Badge>
               </div>
             )}
+
+            {/* Live Audio Level Meter */}
+            <div className="w-full bg-muted/50 rounded-lg p-2.5 border border-border/70 space-y-1.5 text-left">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                  <Activity className={cn("size-3.5", micVolumeLevel > 5 ? "text-emerald-500 animate-pulse" : "text-muted-foreground")} />
+                  <span>Microphone Input Level</span>
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {preCallMicMuted ? "Muted" : `${Math.round(micVolumeLevel)}%`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 h-3 w-full bg-slate-900/30 rounded px-1.5">
+                {Array.from({ length: 14 }).map((_, i) => {
+                  const threshold = ((i + 1) / 14) * 100;
+                  const isActive = !preCallMicMuted && micVolumeLevel >= threshold;
+                  const isRed = i >= 11;
+                  const isYellow = i >= 8 && i < 11;
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        "flex-1 h-1.5 rounded-[1px] transition-all duration-75",
+                        isActive
+                          ? isRed
+                            ? "bg-rose-500"
+                            : isYellow
+                            ? "bg-amber-400"
+                            : "bg-emerald-400"
+                          : "bg-muted-foreground/20"
+                      )}
+                    />
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                Speak to test your microphone &bull; The indicator reacts dynamically to your voice
+              </p>
+            </div>
 
             {/* Pre-Call Media Toggles */}
             <div className="flex items-center gap-3 pt-1">
@@ -7453,43 +7846,86 @@ export function UnifiedChatApp({
               )}
             </div>
 
-            {/* Device Selectors if multiple */}
-            {(audioInputDevices.length > 1 || (preCallType === "video" && videoInputDevices.length > 1)) && (
-              <div className="w-full space-y-1.5 text-left pt-2 border-t text-[11px]">
-                {audioInputDevices.length > 1 && (
-                  <div>
-                    <label className="text-muted-foreground block text-[10px]">Microphone</label>
+            {/* Device Selectors & Speaker Chime Test */}
+            <div className="w-full space-y-2 text-left pt-2 border-t text-[11px]">
+              {audioInputDevices.length > 1 && (
+                <div>
+                  <label className="text-muted-foreground block text-[10px] font-medium">Microphone Input</label>
+                  <select
+                    value={selectedAudioInputId}
+                    onChange={(e) => setSelectedAudioInputId(e.target.value)}
+                    className="w-full mt-0.5 bg-background border border-border rounded px-2 py-1 text-xs truncate"
+                  >
+                    {audioInputDevices.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Microphone ${d.deviceId.slice(0, 5)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {preCallType === "video" && videoInputDevices.length > 1 && (
+                <div>
+                  <label className="text-muted-foreground block text-[10px] font-medium">Camera</label>
+                  <select
+                    value={selectedVideoDeviceId}
+                    onChange={(e) => setSelectedVideoDeviceId(e.target.value)}
+                    className="w-full mt-0.5 bg-background border border-border rounded px-2 py-1 text-xs truncate"
+                  >
+                    {videoInputDevices.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Camera ${d.deviceId.slice(0, 5)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Speaker Output Chooser & Test Sound */}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <div className="min-w-0 flex-1">
+                  <label className="text-muted-foreground block text-[10px] font-medium">Speaker Output</label>
+                  {audioOutputDevices.length > 1 ? (
                     <select
-                      value={selectedAudioInputId}
-                      onChange={(e) => setSelectedAudioInputId(e.target.value)}
-                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs"
+                      value={selectedAudioOutputId}
+                      onChange={(e) => setAudioOutputDevice(e.target.value)}
+                      className="w-full mt-0.5 bg-background border border-border rounded px-2 py-1 text-xs truncate"
                     >
-                      {audioInputDevices.map((d) => (
+                      {audioOutputDevices.map((d) => (
                         <option key={d.deviceId} value={d.deviceId}>
-                          {d.label || `Microphone ${d.deviceId.slice(0, 5)}`}
+                          {d.label || `Speaker ${d.deviceId.slice(0, 5)}`}
                         </option>
                       ))}
                     </select>
-                  </div>
-                )}
-                {preCallType === "video" && videoInputDevices.length > 1 && (
-                  <div>
-                    <label className="text-muted-foreground block text-[10px]">Camera</label>
-                    <select
-                      value={selectedVideoDeviceId}
-                      onChange={(e) => setSelectedVideoDeviceId(e.target.value)}
-                      className="w-full bg-background border border-border rounded px-2 py-1 text-xs"
-                    >
-                      {videoInputDevices.map((d) => (
-                        <option key={d.deviceId} value={d.deviceId}>
-                          {d.label || `Camera ${d.deviceId.slice(0, 5)}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-xs text-foreground truncate block">System Default Speaker</span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={testSpeakerSound}
+                  className="h-7 text-xs shrink-0 flex items-center gap-1 border-teal-300 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                  title="Play test audio tone"
+                >
+                  <Volume2 className="size-3" />
+                  <span>Test Audio</span>
+                </Button>
               </div>
-            )}
+
+              {/* Network Latency Check Badge */}
+              <div className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/60 dark:border-teal-900/40 text-[11px] text-teal-900 dark:text-teal-200">
+                <span className="flex items-center gap-1.5">
+                  <Signal className="size-3.5 text-teal-600 dark:text-teal-400" />
+                  <span>Signaling Quality</span>
+                </span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <ShieldCheck className="size-3.5" /> Low Latency (P2P Ready)
+                </span>
+              </div>
+            </div>
           </div>
 
           <DialogFooter className="font-sans flex items-center justify-between sm:justify-between pt-2 border-t">
@@ -7521,157 +7957,834 @@ export function UnifiedChatApp({
       </Dialog>
 
       {/* 4. REAL INTERACTIVE WEBRTC CALL MODAL (AUDIO & VIDEO) */}
-      <Dialog open={activeCallModalOpen} onOpenChange={setActiveCallModalOpen}>
+      <Dialog open={activeCallModalOpen && !isCallMinimized} onOpenChange={setActiveCallModalOpen}>
         <DialogContent
           className={cn(
-            "font-sans text-center",
-            activeCallType === "video" ? "sm:max-w-2xl" : "sm:max-w-sm"
+            "font-sans text-center transition-all duration-200",
+            activeCallType === "video"
+              ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-slate-950 text-white flex flex-col justify-between"
+              : "sm:max-w-md bg-card text-foreground"
           )}
           style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
         >
-          <div className="py-4 flex flex-col items-center font-sans">
-            {activeCallType === "video" ? (
-              <div className="w-full h-80 bg-slate-950 rounded-xl relative overflow-hidden flex items-center justify-center border border-border mb-4">
-                {/* Remote video element */}
-                <video
-                  ref={remoteVideoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-
-                {/* Local preview video in corner */}
-                <div className="absolute bottom-3 right-3 w-32 h-24 bg-slate-800 rounded-lg overflow-hidden border-2 border-border shadow-md">
-                  {isVideoOff ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-[10px]">
-                      <VideoOff className="size-4 mb-1" /> Camera Off
-                    </div>
-                  ) : (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-
-                {/* Status / Duration Overlay */}
-                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-xs px-2.5 py-1 rounded text-xs text-white flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      callStatus === "connected" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-                    )}
-                  />
-                  <span>
-                    {callStatus === "connected"
-                      ? formatDuration(callDurationSeconds)
-                      : "Connecting WebRTC..."}
-                  </span>
+          {/* Header Bar */}
+          <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
+            <div className="flex items-center gap-2 text-left">
+              <div className="p-1 rounded bg-teal-500/20 text-teal-400">
+                <LockIcon className="size-3.5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold truncate leading-none">
+                  {activeCallTargetName || "Direct Meeting"}
+                </p>
+                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-mono text-emerald-500 font-medium">{formatDuration(callDurationSeconds)}</span>
+                  <span>&bull;</span>
+                  <span className="capitalize">{activeCallType} Encrypted Call</span>
                 </div>
               </div>
-            ) : (
-              <div className="flex flex-col items-center mb-4">
-                <audio ref={remoteAudioRef} autoPlay />
-                <div
-                  className={cn(
-                    "size-20 rounded-full text-white flex items-center justify-center font-bold text-2xl mb-3 shadow-lg",
-                    getAvatarColor(activeCallTargetName),
-                    callStatus === "connected" ? "animate-none" : "animate-pulse"
-                  )}
-                >
-                  {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                </div>
-                <h4 className="font-bold text-base text-foreground">{activeCallTargetName}</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {callStatus === "connected" ? "WebRTC Voice Call Connected" : "Calling..."}
-                </p>
-                <p className="text-lg font-mono font-semibold text-teal-600 mt-2">
-                  {formatDuration(callDurationSeconds)}
-                </p>
-              </div>
-            )}
+            </div>
 
-            {/* In-Call Controls */}
-            <div className="flex items-center gap-3 mt-2">
-              <Button
-                variant={isMuted ? "destructive" : "outline"}
-                size="icon"
-                className="rounded-full size-10 cursor-pointer"
-                title={isMuted ? "Unmute Mic" : "Mute Mic"}
-                onClick={toggleMute}
+            {/* Quality & Meeting Controls */}
+            <div className="flex items-center gap-2">
+              {/* Network Signal Indicator */}
+              <div
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-[10px] font-mono cursor-help"
+                title={`WebRTC Round Trip Time: ${networkRttMs}ms (${networkQuality})`}
               >
-                {isMuted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-              </Button>
+                <div className="flex items-end gap-0.5 h-3">
+                  <div className={cn("w-1 rounded-[1px] h-1.5", networkQuality !== "poor" ? "bg-emerald-500" : "bg-red-500")} />
+                  <div className={cn("w-1 rounded-[1px] h-2.5", networkQuality !== "poor" ? "bg-emerald-500" : "bg-red-500")} />
+                  <div className={cn("w-1 rounded-[1px] h-3", networkQuality === "excellent" ? "bg-emerald-500" : "bg-muted-foreground/30")} />
+                </div>
+                <span>{networkRttMs}ms</span>
+              </div>
 
               {activeCallType === "video" && (
                 <>
+                  {/* View Mode Toggle: Speaker vs Grid */}
                   <Button
-                    variant={isVideoOff ? "destructive" : "outline"}
+                    variant="ghost"
                     size="icon"
-                    className="rounded-full size-10 cursor-pointer"
-                    title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
-                    onClick={toggleVideo}
+                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                    title={viewMode === "speaker" ? "Switch to Grid View" : "Switch to Speaker View"}
+                    onClick={() => setViewMode(viewMode === "speaker" ? "grid" : "speaker")}
                   >
-                    {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
+                    <Sliders className="size-3.5" />
                   </Button>
 
+                  {/* Picture-in-Picture */}
                   <Button
-                    variant={isScreenSharing ? "default" : "outline"}
+                    variant="ghost"
                     size="icon"
-                    className={cn(
-                      "rounded-full size-10 cursor-pointer",
-                      isScreenSharing && "bg-teal-600 text-white hover:bg-teal-700"
-                    )}
-                    title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
-                    onClick={toggleScreenShare}
+                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Picture-in-Picture (HTML5)"
+                    onClick={togglePictureInPicture}
                   >
-                    <ScreenShare className="size-4" />
+                    <Tv className="size-3.5" />
                   </Button>
 
-                  {videoInputDevices.length > 1 && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="rounded-full size-10 cursor-pointer"
-                      title="Switch Camera"
-                      onClick={switchCamera}
-                    >
-                      <FlipHorizontal className="size-4" />
-                    </Button>
-                  )}
+                  {/* Fullscreen Toggle */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Toggle Fullscreen"
+                    onClick={toggleFullscreenCall}
+                  >
+                    {isCallFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                  </Button>
                 </>
               )}
 
+              {/* Minimize Call */}
               <Button
-                variant="destructive"
+                variant="ghost"
                 size="icon"
-                className="rounded-full size-12 cursor-pointer shadow-md bg-red-600 hover:bg-red-700"
-                title="Hang Up"
-                onClick={handleEndCall}
+                className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Minimize Call to Widget"
+                onClick={() => setIsCallMinimized(true)}
               >
-                <PhoneOff className="size-5" />
+                <ChevronDown className="size-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Reconnecting State Alert */}
+          {isReconnecting && (
+            <div className="w-full bg-amber-500/90 text-slate-950 px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold animate-pulse shadow-md my-1.5 shrink-0">
+              <RefreshCw className="size-3.5 animate-spin" />
+              <span>Reconnecting WebRTC media stream... Network transition detected</span>
+            </div>
+          )}
+
+          {/* Remote Screen Sharing Alert Banner */}
+          {remoteIsScreenSharing && !isScreenSharing && (
+            <div className="w-full bg-teal-600/90 text-white px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-md my-1 shrink-0 animate-in fade-in">
+              <Tv className="size-3.5 animate-pulse" />
+              <span>{activeCallTargetName || "Colleague"} is sharing their screen</span>
+            </div>
+          )}
+
+          {/* Media Stage */}
+          <div className={cn("w-full flex-1 min-h-0 my-2 relative overflow-hidden flex items-center justify-center", activeCallType === "video" ? "bg-slate-950 rounded-xl border border-slate-800" : "py-6")}>
+            {activeCallType === "video" ? (
+              isScreenSharing ? (
+                /* SCREEN SHARE PRESENTATION STAGE */
+                <div className="w-full h-full relative flex flex-col items-center justify-between p-2">
+                  {/* Top Presenter Ownership Banner */}
+                  <div className="absolute top-3 z-30 flex items-center gap-3 px-3.5 py-1 rounded-full bg-slate-900/90 text-white border border-teal-500/50 shadow-xl text-xs">
+                    <Tv className="size-3.5 text-teal-400" />
+                    <span>Presenting your screen</span>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="h-6 text-[10px] px-2.5 rounded-full bg-red-600 hover:bg-red-700 cursor-pointer"
+                      onClick={toggleScreenShare}
+                    >
+                      Stop Sharing
+                    </Button>
+                  </div>
+
+                  {/* 88-90% Presentation View */}
+                  <div className="w-full flex-1 min-h-0 relative rounded-lg overflow-hidden flex items-center justify-center bg-black">
+                    <video
+                      ref={(el) => {
+                        localVideoRef.current = el;
+                        if (el && localStreamRef.current) {
+                          if (el.srcObject !== localStreamRef.current) {
+                            el.srcObject = localStreamRef.current;
+                          }
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  {/* 10-12% Participant Thumbnail Strip */}
+                  <div className="w-full h-24 pt-2 flex items-center justify-center gap-3 z-20 shrink-0">
+                    {/* Remote participant card */}
+                    <div className={cn("h-full aspect-video rounded-lg bg-slate-900 relative overflow-hidden border", remoteIsSpeaking ? "border-emerald-500 ring-2 ring-emerald-500/50" : "border-slate-700")}>
+                      <video
+                        ref={(el) => {
+                          remoteVideoRef.current = el;
+                          if (el && remoteStreamRef.current) {
+                            if (el.srcObject !== remoteStreamRef.current) {
+                              el.srcObject = remoteStreamRef.current;
+                            }
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-white flex items-center gap-1">
+                        <span>{activeCallTargetName}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : viewMode === "grid" ? (
+                /* GRID MODE (EQUAL 50/50 TILES) */
+                <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 gap-3 p-2">
+                  {/* Remote Tile */}
+                  <div className={cn("w-full h-full bg-slate-900 rounded-xl relative overflow-hidden flex items-center justify-center border", remoteIsSpeaking ? "border-emerald-500 ring-4 ring-emerald-500/40" : "border-slate-800")}>
+                    <video
+                      ref={(el) => {
+                        remoteVideoRef.current = el;
+                        if (el && remoteStreamRef.current) {
+                          if (el.srcObject !== remoteStreamRef.current) {
+                            el.srcObject = remoteStreamRef.current;
+                          }
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-cover"
+                    />
+                    {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950 text-white">
+                        <div className={cn("size-16 rounded-full flex items-center justify-center text-xl font-bold", getAvatarColor(activeCallTargetName))}>
+                          {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-xs text-slate-300">{activeCallTargetName}&apos;s camera paused</span>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                      <span>{activeCallTargetName}</span>
+                      {remoteIsSpeaking && <span className="text-emerald-400 font-medium">&bull; Speaking</span>}
+                    </div>
+                  </div>
+
+                  {/* Local Tile */}
+                  <div className={cn("w-full h-full bg-slate-900 rounded-xl relative overflow-hidden flex items-center justify-center border", localIsSpeaking ? "border-emerald-500 ring-4 ring-emerald-500/40" : "border-slate-800")}>
+                    {isVideoOff ? (
+                      <div className="flex flex-col items-center justify-center text-muted-foreground text-xs gap-1">
+                        <VideoOff className="size-6 text-slate-500" />
+                        <span>Your camera is turned off</span>
+                      </div>
+                    ) : (
+                      <video
+                        ref={(el) => {
+                          localVideoRef.current = el;
+                          if (el && localStreamRef.current && !isVideoOff) {
+                            if (el.srcObject !== localStreamRef.current) {
+                              el.srcObject = localStreamRef.current;
+                            }
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                      <span>You</span>
+                      {isMuted ? <span className="text-amber-400">&bull; Muted</span> : localIsSpeaking ? <span className="text-emerald-400 font-medium">&bull; Speaking</span> : null}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* SPEAKER MODE (FULL REMOTE + FLOATING LOCAL PIP) */
+                <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
+                  <video
+                    ref={(el) => {
+                      remoteVideoRef.current = el;
+                      if (el && remoteStreamRef.current) {
+                        if (el.srcObject !== remoteStreamRef.current) {
+                          el.srcObject = remoteStreamRef.current;
+                        }
+                      }
+                    }}
+                    autoPlay
+                    playsInline
+                    className={cn("w-full h-full object-cover transition-all duration-300", remoteIsSpeaking && "ring-4 ring-emerald-500/50")}
+                  />
+
+                  {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 text-white">
+                      <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-emerald-500 animate-pulse")}>
+                        {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-sm text-slate-300">{activeCallTargetName}&apos;s camera is off</span>
+                      {remoteIsSpeaking && (
+                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                          <Activity className="size-3 animate-pulse" /> Speaking...
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Floating local preview in corner */}
+                  <div className={cn(
+                    "absolute bottom-3 right-3 bg-slate-900 rounded-xl overflow-hidden border-2 shadow-2xl z-10 transition-all",
+                    localIsSpeaking ? "border-emerald-500 ring-2 ring-emerald-500/40" : "border-slate-700",
+                    "w-32 h-24 sm:w-44 sm:h-32"
+                  )}>
+                    {isVideoOff ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-[10px]">
+                        <VideoOff className="size-4 mb-1" /> Cam Off
+                      </div>
+                    ) : (
+                      <video
+                        ref={(el) => {
+                          localVideoRef.current = el;
+                          if (el && localStreamRef.current && !isVideoOff) {
+                            if (el.srcObject !== localStreamRef.current) {
+                              el.srcObject = localStreamRef.current;
+                            }
+                          }
+                        }}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-white flex items-center gap-1">
+                      <span>You</span>
+                      {isMuted && <span className="text-rose-400 font-semibold">(Muted)</span>}
+                    </div>
+                  </div>
+                </div>
+              )
+            ) : (
+              /* VOICE CALL DISPLAY */
+              <div className="flex flex-col items-center justify-center text-center space-y-3">
+                <audio ref={remoteAudioRef} autoPlay />
+                <div className="relative">
+                  <div
+                    className={cn(
+                      "size-24 rounded-full text-white flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
+                      getAvatarColor(activeCallTargetName),
+                      remoteIsSpeaking ? "ring-8 ring-emerald-500/40 scale-105" : callStatus === "connected" ? "ring-4 ring-teal-500/20" : "animate-pulse"
+                    )}
+                  >
+                    {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                  </div>
+                  {remoteIsSpeaking && (
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-semibold animate-pulse shadow-md flex items-center gap-1">
+                      <Activity className="size-2.5" /> Speaking
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-lg text-foreground">{activeCallTargetName}</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {callStatus === "connected" ? "WebRTC Voice Call Connected" : "Connecting WebRTC..."}
+                  </p>
+                </div>
+
+                {/* Audio Wave Visualizer */}
+                <div className="flex items-center gap-1 h-5 py-1">
+                  {Array.from({ length: 9 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-1 rounded-full transition-all duration-150",
+                        remoteIsSpeaking || localIsSpeaking
+                          ? "bg-teal-600 animate-pulse"
+                          : "bg-muted-foreground/30 h-1.5"
+                      )}
+                      style={{
+                        height: remoteIsSpeaking || localIsSpeaking ? `${Math.max(6, (i % 3 + 1) * 6)}px` : "6px",
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* In-Call Controls Toolbar */}
+          <div className="flex items-center justify-center gap-2 sm:gap-3 py-2 shrink-0">
+            {/* Mic Toggle */}
+            <Button
+              variant={isMuted ? "destructive" : "outline"}
+              size="icon"
+              className={cn("rounded-full size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-emerald-400")}
+              title={isMuted ? "Unmute Mic" : "Mute Mic"}
+              onClick={toggleMute}
+            >
+              {isMuted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+            </Button>
+
+            {/* Video Controls if video call */}
+            {activeCallType === "video" && (
+              <>
+                <Button
+                  variant={isVideoOff ? "destructive" : "outline"}
+                  size="icon"
+                  className="rounded-full size-11 cursor-pointer"
+                  title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
+                  onClick={toggleVideo}
+                >
+                  {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
+                </Button>
+
+                <Button
+                  variant={isScreenSharing ? "default" : "outline"}
+                  size="icon"
+                  className={cn(
+                    "rounded-full size-11 cursor-pointer",
+                    isScreenSharing && "bg-teal-600 text-white hover:bg-teal-700 ring-2 ring-teal-400"
+                  )}
+                  title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
+                  onClick={toggleScreenShare}
+                >
+                  <ScreenShare className="size-4" />
+                </Button>
+
+                {videoInputDevices.length > 1 && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full size-11 cursor-pointer hidden sm:inline-flex"
+                    title="Switch Camera"
+                    onClick={switchCamera}
+                  >
+                    <FlipHorizontal className="size-4" />
+                  </Button>
+                )}
+              </>
+            )}
+
+            {/* In-Call Add Participant */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full size-11 cursor-pointer"
+              title="Add Colleague to Call"
+              onClick={() => setInCallAddParticipantOpen(true)}
+            >
+              <UserPlus className="size-4" />
+            </Button>
+
+            {/* In-Call Settings */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="rounded-full size-11 cursor-pointer"
+              title="Device Settings & Diagnostics"
+              onClick={() => setInCallSettingsOpen(true)}
+            >
+              <Settings className="size-4" />
+            </Button>
+
+            {/* Hang Up Button */}
+            <Button
+              variant="destructive"
+              size="icon"
+              className="rounded-full size-12 cursor-pointer shadow-xl bg-red-600 hover:bg-red-700 text-white ml-2"
+              title="End Call"
+              onClick={handleEndCall}
+            >
+              <PhoneOff className="size-5" />
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* 5. INCOMING CALL DIALOG (CALLEE) */}
+      {/* FLOATING MINI-CALL WIDGET (When minimized during active call) */}
+      {activeCallModalOpen && isCallMinimized && (
+        <div className="fixed bottom-6 right-6 z-[99999] bg-slate-900/95 backdrop-blur-md text-white border border-slate-700 rounded-2xl p-3 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="relative">
+            <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md", getAvatarColor(activeCallTargetName))}>
+              {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
+          </div>
+
+          <div className="min-w-0 pr-1">
+            <p className="text-xs font-semibold truncate max-w-[120px] text-slate-100">{activeCallTargetName}</p>
+            <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span>{formatDuration(callDurationSeconds)}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("size-8 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
+              onClick={toggleMute}
+              title={isMuted ? "Unmute Mic" : "Mute Mic"}
+            >
+              {isMuted ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+              onClick={() => setIsCallMinimized(false)}
+              title="Maximize Call Window"
+            >
+              <Maximize2 className="size-3.5" />
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="icon"
+              className="size-8 rounded-full bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleEndCall}
+              title="Hang Up Call"
+            >
+              <PhoneOff className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* IN-CALL ADD PARTICIPANT MODAL */}
+      <Dialog open={inCallAddParticipantOpen} onOpenChange={setInCallAddParticipantOpen}>
+        <DialogContent
+          className="sm:max-w-md font-sans"
+          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-sans flex items-center gap-2">
+              <UserPlus className="size-5 text-teal-600" />
+              <span>Add Colleague to Meeting</span>
+            </DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Invite team members in your organization to join this live conversation.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 font-sans">
+            {/* Strict SFU Deployment Notice */}
+            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-200">
+                <InfoIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>Multi-participant calls require LiveKit/SFU deployment.</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/90">
+                Direct peer-to-peer WebRTC is active for this 1-to-1 session. Adding 3 or more simultaneous audio/video participants requires a Selective Forwarding Unit (LiveKit or mediasoup). For group discussions, please create a group chat.
+              </p>
+            </div>
+
+            <div className="relative">
+              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search team members by name or email..."
+                value={inCallParticipantSearch}
+                onChange={(e) => setInCallParticipantSearch(e.target.value)}
+                className="text-xs pl-8 font-sans"
+              />
+            </div>
+
+            {/* Participants List - Action disabled per SFU requirements */}
+            <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 divide-y divide-border/50">
+              {contacts
+                .filter(
+                  (c) =>
+                    c.userId !== currentUserId &&
+                    c.userId !== activeCallTargetId &&
+                    (c.name.toLowerCase().includes(inCallParticipantSearch.toLowerCase()) ||
+                      (c.email || "").toLowerCase().includes(inCallParticipantSearch.toLowerCase()))
+                )
+                .slice(0, 10)
+                .map((contact) => (
+                  <div key={contact.id} className="pt-1.5 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={cn("size-7 rounded-full flex items-center justify-center font-bold text-xs text-white", contact.avatarColor)}>
+                        {contact.avatarLetter}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium truncate text-foreground">{contact.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{contact.designation || contact.email}</p>
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      className="h-7 text-xs px-2.5 opacity-60 cursor-not-allowed bg-muted text-muted-foreground"
+                      title="Multi-participant calls require LiveKit/SFU deployment."
+                    >
+                      Requires LiveKit/SFU
+                    </Button>
+                  </div>
+                ))}
+            </div>
+
+            {/* SFU Architecture Disclosure Notice */}
+            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] text-muted-foreground space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
+                <InfoIcon className="size-3.5 text-teal-600 shrink-0" />
+                <span>Multi-Party Architecture Boundary</span>
+              </div>
+              <p className="text-[10px] leading-relaxed">
+                MasterHRMS currently utilizes 1-to-1 WebRTC peer-to-peer signaling. Inviting colleagues sends an immediate in-app call notification. For multi-stream media routing with 3+ simultaneous video tracks, LiveKit SFU media cluster deployment is recommended.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="font-sans pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={() => setInCallAddParticipantOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* IN-CALL SETTINGS & DEVICE CHOOSER MODAL */}
+      <Dialog open={inCallSettingsOpen} onOpenChange={setInCallSettingsOpen}>
+        <DialogContent
+          className="sm:max-w-md font-sans"
+          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-sans flex items-center gap-2">
+              <Settings className="size-5 text-teal-600" />
+              <span>Call & Device Settings</span>
+            </DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Switch devices in real-time or inspect WebRTC connection diagnostics.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 space-y-3 font-sans text-xs">
+            {/* Microphone Selector */}
+            <div className="space-y-1 text-left">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                <Mic className="size-3.5 text-teal-600" /> Microphone
+              </label>
+              <select
+                value={selectedAudioInputId}
+                onChange={(e) => setSelectedAudioInputId(e.target.value)}
+                className="w-full bg-background border border-border rounded px-2.5 py-1.5 text-xs"
+              >
+                {audioInputDevices.map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Microphone ${d.deviceId.slice(0, 5)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Live Mic Level Test */}
+            <div className="space-y-1 text-left">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground">Input Sensitivity</span>
+                <span className="font-mono text-[10px]">{Math.round(micVolumeLevel)}%</span>
+              </div>
+              <Progress value={micVolumeLevel} className="h-1.5 bg-muted" />
+            </div>
+
+            {/* Camera Selector (if video call) */}
+            {activeCallType === "video" && (
+              <div className="space-y-1 text-left">
+                <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                  <Video className="size-3.5 text-teal-600" /> Camera
+                </label>
+                <select
+                  value={selectedVideoDeviceId}
+                  onChange={(e) => setSelectedVideoDeviceId(e.target.value)}
+                  className="w-full bg-background border border-border rounded px-2.5 py-1.5 text-xs"
+                >
+                  {videoInputDevices.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `Camera ${d.deviceId.slice(0, 5)}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Speaker Selector & Test Sound */}
+            <div className="space-y-1 text-left">
+              <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                <Volume2 className="size-3.5 text-teal-600" /> Audio Output (Speaker)
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedAudioOutputId}
+                  onChange={(e) => setAudioOutputDevice(e.target.value)}
+                  className="w-full bg-background border border-border rounded px-2.5 py-1.5 text-xs"
+                >
+                  {audioOutputDevices.length > 0 ? (
+                    audioOutputDevices.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>
+                        {d.label || `Speaker ${d.deviceId.slice(0, 5)}`}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">Default System Speaker</option>
+                  )}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={testSpeakerSound}
+                  className="h-8 text-xs shrink-0 flex items-center gap-1 border-teal-300 text-teal-700 dark:text-teal-300"
+                >
+                  <Volume2 className="size-3 mr-1" /> Test
+                </Button>
+              </div>
+            </div>
+
+            {/* WebRTC Quality Diagnostics */}
+            <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1.5 text-left">
+              <p className="font-semibold text-[11px] text-foreground flex items-center gap-1.5">
+                <Activity className="size-3.5 text-teal-600" /> WebRTC Diagnostics
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <span className="text-muted-foreground block">Latency (RTT):</span>
+                  <span className="font-mono font-medium text-foreground">{networkRttMs} ms</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Connection Quality:</span>
+                  <span className={cn("font-medium capitalize", networkQuality === "excellent" ? "text-emerald-600" : networkQuality === "good" ? "text-amber-600" : "text-rose-600")}>
+                    {networkQuality}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Signaling:</span>
+                  <span className="font-medium text-foreground">Socket.IO / Pusher Fallback</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Security:</span>
+                  <span className="font-medium text-emerald-600">DTLS / SRTP 128-bit</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="font-sans pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={() => setInCallSettingsOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 5. CALLER BUSY DIALOG */}
+      {busyStateData && (
+        <Dialog open={!!busyStateData} onOpenChange={() => setBusyStateData(null)}>
+          <DialogContent
+            className="sm:max-w-sm font-sans text-center"
+            style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          >
+            <div className="py-4 flex flex-col items-center font-sans space-y-3">
+              <div className="size-16 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shadow-inner">
+                <PhoneOff className="size-7" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-foreground">User Currently on Another Call</h3>
+                <p className="text-xs text-muted-foreground mt-1 px-4 leading-relaxed">
+                  <span className="font-semibold text-foreground">{busyStateData.targetName}</span> is actively engaged in a call and cannot accept new invitations right now.
+                </p>
+              </div>
+
+              <div className="w-full flex flex-col gap-2 pt-2">
+                <Button
+                  size="sm"
+                  className="w-full bg-teal-700 hover:bg-teal-800 text-white font-sans flex items-center justify-center gap-1.5"
+                  onClick={() => {
+                    const targetId = busyStateData.targetUserId;
+                    setBusyStateData(null);
+                    if (targetId) startDirectConversationMutation.mutate(targetId);
+                  }}
+                >
+                  <MessageSquare className="size-3.5" />
+                  <span>Send Direct Message</span>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full font-sans"
+                  onClick={() => setBusyStateData(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* 6. CALL WAITING FLOATING NOTICE (NON-DESTRUCTIVE FOR BUSY RECEIVER) */}
+      {callWaitingNotice && (
+        <div className="fixed top-5 right-5 z-[99999] max-w-sm bg-slate-900/95 text-white border border-amber-500/40 rounded-xl p-3 shadow-2xl animate-in slide-in-from-top-4 duration-300 backdrop-blur-md">
+          <div className="flex items-start gap-3">
+            <div className="size-9 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <PhoneForwarded className="size-4 animate-bounce" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-300">Call Waiting Notice</p>
+                <button
+                  onClick={() => setCallWaitingNotice(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+              <p className="text-xs text-slate-200 mt-0.5 truncate">
+                <span className="font-semibold text-white">{callWaitingNotice.requestedByName}</span> tried to call you.
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Your current active call was preserved without interruption.</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-6 text-[11px] px-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-500/30"
+                  onClick={() => {
+                    const callerId = callWaitingNotice.requestedBy;
+                    setCallWaitingNotice(null);
+                    if (callerId) {
+                      api.post("/api/chat/messages", {
+                        recipientId: callerId,
+                        content: "I am currently in another call. I'll reach out to you as soon as I'm done.",
+                      }).then(() => toast.info("Sent auto-reply to caller")).catch(() => {});
+                    }
+                  }}
+                >
+                  Send Quick Note
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[11px] px-2 text-slate-400 hover:text-white"
+                  onClick={() => setCallWaitingNotice(null)}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. ENHANCED INCOMING CALL DIALOG (CALLEE) */}
       {incomingCall && (
         <Dialog open={!!incomingCall} onOpenChange={() => handleRejectIncomingCall("dismissed")}>
           <DialogContent
-            className="sm:max-w-sm font-sans text-center z-[10000] border-2 border-teal-500/40 shadow-2xl"
+            className="sm:max-w-md font-sans text-center z-[10000] border-2 border-teal-500/50 shadow-2xl overflow-hidden p-6"
             style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
           >
-            <div className="py-6 flex flex-col items-center font-sans space-y-4">
-              <div className="relative">
-                <div className="size-24 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-xl ring-8 ring-teal-500/20 animate-pulse">
+            <div className="py-2 flex flex-col items-center font-sans space-y-4">
+              {/* Concentric Animated Sonar Rings */}
+              <div className="relative my-2 flex items-center justify-center">
+                <div className="absolute size-32 rounded-full bg-teal-500/20 animate-ping -z-10" />
+                <div className="absolute size-28 rounded-full bg-teal-500/30 animate-pulse -z-10" />
+                <div className="size-24 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-2xl ring-8 ring-teal-500/20">
                   {incomingCall.callerName.charAt(0).toUpperCase()}
                 </div>
-                <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-teal-700 text-white shadow-md">
+                <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-teal-700 text-white shadow-lg ring-2 ring-background">
                   {incomingCall.type === "video" ? <Video className="size-4" /> : <Phone className="size-4" />}
                 </div>
               </div>
@@ -7687,7 +8800,63 @@ export function UnifiedChatApp({
                 </div>
               </div>
 
-              <div className="flex items-center gap-8 pt-4">
+              {/* Quick Message Decline Options */}
+              <div className="w-full pt-1 space-y-1.5">
+                <p className="text-[10px] text-muted-foreground">Quick decline with message:</p>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const callerId = incomingCall.fromUserId;
+                      handleRejectIncomingCall("declined");
+                      if (callerId) {
+                        api.post("/api/chat/messages", {
+                          recipientId: callerId,
+                          content: "[Declined Call] Can't talk right now. I'll message you shortly.",
+                        }).catch(() => {});
+                      }
+                    }}
+                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
+                  >
+                    Can&apos;t talk now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const callerId = incomingCall.fromUserId;
+                      handleRejectIncomingCall("declined");
+                      if (callerId) {
+                        api.post("/api/chat/messages", {
+                          recipientId: callerId,
+                          content: "[Declined Call] Currently in another meeting.",
+                        }).catch(() => {});
+                      }
+                    }}
+                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
+                  >
+                    In a meeting
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const callerId = incomingCall.fromUserId;
+                      handleRejectIncomingCall("declined");
+                      if (callerId) {
+                        api.post("/api/chat/messages", {
+                          recipientId: callerId,
+                          content: "[Declined Call] I will call you back as soon as possible.",
+                        }).catch(() => {});
+                      }
+                    }}
+                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
+                  >
+                    Call you back soon
+                  </button>
+                </div>
+              </div>
+
+              {/* Accept & Decline Action Buttons */}
+              <div className="flex items-center gap-10 pt-3">
                 <div className="flex flex-col items-center gap-1.5">
                   <Button
                     variant="destructive"

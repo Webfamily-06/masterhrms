@@ -385,6 +385,9 @@ export function useRealtimeSocket() {
     const currentUserId = user?.id || (profile as any)?.userId;
 
     if (typeof window !== "undefined") {
+      const dispatchPusherEvent = (eventName: string) => (data: any) => {
+        window.dispatchEvent(new CustomEvent("hrms:pusher", { detail: { eventName, data } }));
+      };
       api
         .get<any>("/pusher/config")
         .then(async (res) => {
@@ -408,6 +411,8 @@ export function useRealtimeSocket() {
           if (currentUserId) {
             userChannel = pusherClient.subscribe(`private-user-${currentUserId}`);
             userChannel.bind("notification:new", onNotification);
+            userChannel.bind("call:incoming", dispatchPusherEvent("call:incoming"));
+            userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
             userChannel.bind("calendar:reminder-due", (data: any) => {
               onNotification({
                 id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,
@@ -462,6 +467,14 @@ export function useRealtimeSocket() {
 
           if (tenantId) {
             tenantChannel = pusherClient.subscribe(`private-tenant-${tenantId}`);
+            tenantChannel.bind("chat:message", dispatchPusherEvent("chat:message"));
+            tenantChannel.bind("chat:message_edited", dispatchPusherEvent("chat:message_edited"));
+            tenantChannel.bind("chat:message_deleted", dispatchPusherEvent("chat:message_deleted"));
+            tenantChannel.bind("chat:reaction", dispatchPusherEvent("chat:reaction"));
+            tenantChannel.bind("chat:poll_updated", dispatchPusherEvent("chat:poll_updated"));
+            tenantChannel.bind("chat:typing", dispatchPusherEvent("chat:typing"));
+            tenantChannel.bind("chat:read", dispatchPusherEvent("chat:read"));
+            tenantChannel.bind("chat:delivered", dispatchPusherEvent("chat:delivered"));
             tenantChannel.bind("punch:new", onNewPunch);
             tenantChannel.bind("leave:updated", onLeaveUpdated);
             tenantChannel.bind("notification:new", onNotification);

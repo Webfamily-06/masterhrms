@@ -130,3 +130,4 @@ PATH="/Users/apple/.nvm/versions/node/v25.1.0/bin:$PATH" npm --prefix CMS run ty
 | **Timing Attack Resistance** | Non-constant time comparisons in URLs | **Constant-time timingSafeEqual throughout** |
 | **Binary Upload Verification** | Unchecked upload token on `/binary` | **Enforced HMAC token verification** |
 | **Secret Leakage in Logs** | Possible via diagnostic endpoints | **Sanitized booleans only, zero secret exposure** |
+

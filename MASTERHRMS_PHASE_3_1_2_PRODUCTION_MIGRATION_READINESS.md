@@ -87,3 +87,4 @@ The following administrative actions remain for human approval:
 1. **Production Secret Provisioning:** Platform administrators must generate and add the dedicated environment variables (`STORAGE_ENCRYPTION_KEY`, `FILE_SIGNING_SECRET`, etc.) to the production hosting dashboard.
 2. **Staging Review Gate:** Execute staging smoke tests to verify the deployment in an isolated cloud staging environment.
 3. **Optional Secret Re-encryption Migration:** If the organization wishes to re-encrypt historical database records with the new dedicated keys (so legacy keys can eventually be retired), an explicit migration job must be approved and scheduled during a planned maintenance window.
+
