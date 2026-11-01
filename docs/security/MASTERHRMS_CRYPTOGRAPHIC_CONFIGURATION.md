@@ -146,3 +146,4 @@ During startup (`server/dist/index.js` or `server/src/index.ts`):
 1. `validateStartupCryptoConfig()` is invoked.
 2. It performs strict validation of `JWT_SECRET`. If invalid or absent, the process terminates immediately with an exit code of 1.
 3. For optional services (`STORAGE_ENCRYPTION_KEY`, `FILE_SIGNING_SECRET`, etc.), it logs informative configuration warnings if they are unset, allowing the server to boot for unrelated features (e.g., HR, attendance, payroll) while guaranteeing that attempting to use those specific services will fail closed securely.
+

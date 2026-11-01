@@ -131,6 +131,22 @@ async function runChatAndCallingVerification() {
   };
 
   // Mock Notification, Pusher, Policy, and System Event services for complete DB isolation
+  if (!(rawPrisma as any).tenantSubscription) (rawPrisma as any).tenantSubscription = {};
+  (rawPrisma.tenantSubscription as any).findUnique = async () => ({
+    status: "active",
+    expiresAt: new Date(Date.now() + 864000000),
+    plan: { id: "plan_enterprise", name: "Enterprise" },
+  });
+  if (workspacePolicyService.workspacePolicyCache) {
+    workspacePolicyService.workspacePolicyCache.set(tenantId, {
+      policy: { status: "active", expiresAt: null, isExpired: false, maxUsers: 100, maxEmployees: 100 },
+      expiresAt: Date.now() + 864000000,
+    });
+    workspacePolicyService.workspacePolicyCache.set(otherTenantId, {
+      policy: { status: "active", expiresAt: null, isExpired: false, maxUsers: 100, maxEmployees: 100 },
+      expiresAt: Date.now() + 864000000,
+    });
+  }
   NotificationService.createNotification = async () => ({ id: "mock_notif" } as any);
   PusherService.triggerUserEvent = async () => ({}) as any;
   PusherService.triggerTenantEvent = async () => ({}) as any;

@@ -23,6 +23,7 @@
 - [x] **Compiled Artifacts are Consistent**: Root cause `.gitignore` exclusion resolved (`!server/dist/`); `server/dist/` contains all compiled JavaScript modules matching current TypeScript source.
 - [x] **Runtime Startup Verified**: `node dist/index.js` startup verified with simulated production environment variables.
 - [x] **Crypto Tests Pass**: 43/43 automated cryptographic tests passing (100%).
+- [x] **Chat & Calling Tests Pass**: 16/16 automated WebRTC calling and socket lifecycle tests passing (100%).
 - [x] **Regression Tests Pass**: 40/40 calendar responsive tests (527 assertions) and 36/36 dialog tests (246 assertions) passing (100%).
 - [x] **No Secrets Committed**: Working tree audited; zero `.env` files, private keys, or passwords staged.
 - [x] **No Production DB Writes**: Zero migrations, zero schema modifications, zero seeds, and zero database mutations executed.
@@ -89,3 +90,4 @@ Once deployed to staging, perform the following verification steps:
 **READY FOR STAGING VALIDATION**
 
 All code, compiled artifacts, documentation, and test evidence have been completed, verified, and reconciled. The codebase is ready for peer code review and staged rollout in the staging environment.
+

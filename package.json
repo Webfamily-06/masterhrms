@@ -29,6 +29,7 @@
     "preview:cms": "npm --prefix CMS run start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:calling": "./server/node_modules/.bin/tsx server/src/tests/chat-calling-verification.test.ts",
     "test:cms-isolation": "npx --prefix server vitest run src/tests/cms-tenant-host-isolation.test.ts",
     "test:architecture": "node scripts/test_architecture_consolidation.mjs",
     "test:redirects": "./server/node_modules/.bin/tsx scripts/test_production_redirect_resolution.mjs",

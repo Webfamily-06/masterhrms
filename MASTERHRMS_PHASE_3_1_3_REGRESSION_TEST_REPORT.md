@@ -17,6 +17,7 @@ Phase 3.1.3 executes exhaustive regression testing across all modified cryptogra
 
 | Test Suite | Command | Tests / Scenarios | Assertions | Status |
 |---|---|---|---|---|
+| **Chat & WebRTC Calling Suite** | `npm run test:calling` / `npx tsx server/src/tests/chat-calling-verification.test.ts` | 16 / 16 | 45+ | **100% PASS** |
 | **Cryptographic Security Suite** | `npm --prefix server run test:crypto` | 43 / 43 | 120+ | **100% PASS** |
 | **Backend TypeScript Compiler** | `npx tsc --noEmit --project server/tsconfig.json` | Full Server AST | Type Checks | **100% PASS (0 Errors)** |
 | **Frontend TypeScript Compiler** | `npm --prefix CMS run typecheck` | Full CMS AST | Type Checks | **100% PASS (0 Errors)** |
@@ -161,3 +162,4 @@ node scripts/verify_phase3_1_2_dialogs.cjs
    - Result: 539/539 static routes optimized with Turbopack. Zero bundling errors.
 4. **`npm --prefix server run build`**:
    - Result: `prisma generate` and `tsc` succeeded cleanly, outputting all `.js` artifacts to `server/dist/`.
+

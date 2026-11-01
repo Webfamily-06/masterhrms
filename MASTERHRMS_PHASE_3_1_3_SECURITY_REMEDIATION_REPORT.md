@@ -125,3 +125,4 @@ Implemented constant-time comparison helpers in `server/src/lib/crypto-config.ts
 ## 6. Secret Sanitization
 
 All error messages thrown by `CryptoConfigurationError` or logged by `validateStartupCryptoConfig()` redact secret values. No environment variable contents, keys, or passwords appear in application crash logs or startup console output.
+

@@ -143,3 +143,4 @@ To eventually deprecate legacy candidate keys completely, an offline background 
 3. **Step 3: Decrypt with Legacy Candidate**: If active key fails, use candidate keys to recover plaintext in memory.
 4. **Step 4: Re-encrypt with Active Key**: Encrypt plaintext using the dedicated active key and update database record with optimistic concurrency lock.
 5. **Step 5: Audit & Remove Fallback**: Once 100% of records in `ExternalConnectorCredentials`, `TenantSettings`, `AiProviderKeys`, and stored storage blobs use active keys, remove legacy candidates from code in a future major release.
+
