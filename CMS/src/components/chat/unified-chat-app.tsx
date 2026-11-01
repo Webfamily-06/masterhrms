@@ -1066,11 +1066,32 @@ export function UnifiedChatApp({
   // Picture-in-Picture
   const togglePictureInPicture = async () => {
     try {
-      const videoEl = remoteVideoRef.current || localVideoRef.current;
-      if (!videoEl) {
-        toast.info("No active video feed for Picture-in-Picture");
+      const isMobileDevice = typeof window !== "undefined" && (
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
+      );
+
+      // On mobile or when user toggles in-app PiP, prioritize in-app floating window
+      if (isMobileDevice) {
+        setIsCallMinimized((prev) => !prev);
+        toast.info(!isCallMinimized ? "Switched to Picture-in-Picture" : "Restored call screen");
         return;
       }
+
+      const videoEl = remoteVideoRef.current || localVideoRef.current;
+      if (!videoEl) {
+        setIsCallMinimized((prev) => !prev);
+        return;
+      }
+
+      // Check iOS Safari WebKit presentation mode
+      if (typeof (videoEl as any).webkitSetPresentationMode === "function") {
+        const currentMode = (videoEl as any).webkitPresentationMode;
+        const nextMode = currentMode === "picture-in-picture" ? "inline" : "picture-in-picture";
+        (videoEl as any).webkitSetPresentationMode(nextMode);
+        toast.info(nextMode === "picture-in-picture" ? "Picture-in-Picture activated" : "Picture-in-Picture exited");
+        return;
+      }
+
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         toast.info("Picture-in-Picture exited");
@@ -1078,22 +1099,43 @@ export function UnifiedChatApp({
         await videoEl.requestPictureInPicture();
         toast.success("Picture-in-Picture activated");
       } else {
-        toast.info("Picture-in-Picture is not supported on this browser");
+        setIsCallMinimized(true);
+        toast.success("Picture-in-Picture mode active");
       }
     } catch (err: any) {
-      console.warn("PiP error:", err);
-      toast.error("Picture-in-Picture: " + (err.message || "Failed to toggle"));
+      console.warn("PiP error, falling back to in-app widget:", err);
+      setIsCallMinimized(true);
+      toast.info("Picture-in-Picture mode active");
     }
   };
 
   // Fullscreen
   const toggleFullscreenCall = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen?.().catch(() => {});
-      setIsCallFullscreen(true);
-    } else {
-      document.exitFullscreen?.().catch(() => {});
-      setIsCallFullscreen(false);
+    try {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+        const docEl = document.documentElement as any;
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().catch(() => {});
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+        } else {
+          const videoEl = (remoteVideoRef.current || localVideoRef.current) as any;
+          if (videoEl?.webkitEnterFullscreen) {
+            videoEl.webkitEnterFullscreen();
+          }
+        }
+        setIsCallFullscreen(true);
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          doc.exitFullscreen().catch(() => {});
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+        }
+        setIsCallFullscreen(false);
+      }
+    } catch (err) {
+      console.warn("Fullscreen toggle error:", err);
     }
   };
 
@@ -2316,7 +2358,6 @@ export function UnifiedChatApp({
           const state = peerConnectionRef.current.connectionState;
           if (state === "disconnected" || state === "failed") {
             setIsReconnecting(true);
-            toast.info("Application returned to foreground. Re-evaluating WebRTC connection...");
           } else if (state === "connected") {
             setIsReconnecting(false);
           }
@@ -2952,20 +2993,33 @@ export function UnifiedChatApp({
     }
   };
 
-  // Switch Camera Device
+  // Switch Camera Device (Front / Back / Multi-device)
+  const [cameraFacingMode, setCameraFacingMode] = useState<"user" | "environment">("user");
   const switchCamera = async () => {
-    if (!localStreamRef.current || videoInputDevices.length < 2) {
-      toast.info("No alternate camera available.");
-      return;
-    }
     const pc = peerConnectionRef.current;
-    const curIdx = videoInputDevices.findIndex((d) => d.deviceId === selectedVideoDeviceId);
-    const nextDev = videoInputDevices[(curIdx + 1) % videoInputDevices.length];
+    const isMobile = typeof window !== "undefined" && (
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
+    );
 
     try {
+      let videoConstraint: any;
+      if (videoInputDevices.length >= 2) {
+        const curIdx = videoInputDevices.findIndex((d) => d.deviceId === selectedVideoDeviceId);
+        const nextDev = videoInputDevices[(curIdx + 1) % videoInputDevices.length];
+        videoConstraint = { deviceId: { exact: nextDev.deviceId } };
+        setSelectedVideoDeviceId(nextDev.deviceId);
+      } else if (isMobile) {
+        const nextMode = cameraFacingMode === "user" ? "environment" : "user";
+        videoConstraint = { facingMode: { exact: nextMode } };
+        setCameraFacingMode(nextMode);
+      } else {
+        toast.info("No alternate camera available.");
+        return;
+      }
+
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          deviceId: { exact: nextDev.deviceId },
+          ...videoConstraint,
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
           frameRate: { ideal: 30, max: 30 },
@@ -2973,12 +3027,14 @@ export function UnifiedChatApp({
       });
       const newTrack = newStream.getVideoTracks()[0];
       if (newTrack) {
-        const oldTrack = localStreamRef.current.getVideoTracks()[0];
-        if (oldTrack) {
-          localStreamRef.current.removeTrack(oldTrack);
-          oldTrack.stop();
+        if (localStreamRef.current) {
+          const oldTrack = localStreamRef.current.getVideoTracks()[0];
+          if (oldTrack) {
+            localStreamRef.current.removeTrack(oldTrack);
+            oldTrack.stop();
+          }
+          localStreamRef.current.addTrack(newTrack);
         }
-        localStreamRef.current.addTrack(newTrack);
         if (pc) {
           const vs = pc.getSenders().find((s) => s.track?.kind === "video");
           if (vs) {
@@ -2986,12 +3042,12 @@ export function UnifiedChatApp({
           }
         }
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
+          localVideoRef.current.srcObject = localStreamRef.current || newStream;
         }
-        setSelectedVideoDeviceId(nextDev.deviceId);
-        toast.success(`Switched to ${nextDev.label || "alternate camera"}`);
+        toast.success("Camera switched successfully");
       }
     } catch (err: any) {
+      console.warn("Camera switch error:", err);
       toast.error("Camera switch error: " + err.message);
     }
   };
@@ -3007,7 +3063,14 @@ export function UnifiedChatApp({
 
     try {
       const isVideoCall = incomingCall.type === "video";
-      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(isVideoCall));
+      let stream: MediaStream | null = null;
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(isVideoCall));
+        }
+      } catch (mediaErr: any) {
+        console.warn("Could not capture device media, continuing call:", mediaErr.message);
+      }
 
       localStreamRef.current = stream;
       setActiveCallType(incomingCall.type);
@@ -3020,7 +3083,7 @@ export function UnifiedChatApp({
       setCallStatus("connected");
       setCallDurationSeconds(0);
       setIsMuted(false);
-      setIsVideoOff(false);
+      setIsVideoOff(!stream || !stream.getVideoTracks().some((t) => t.enabled));
       setActiveCallModalOpen(true);
 
       const pc = new RTCPeerConnection({
@@ -3028,9 +3091,11 @@ export function UnifiedChatApp({
       });
       peerConnectionRef.current = pc;
 
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      if (stream) {
+        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      }
 
-      if (isVideoCall && localVideoRef.current) {
+      if (isVideoCall && localVideoRef.current && stream) {
         localVideoRef.current.srcObject = stream;
       }
 
@@ -3156,23 +3221,43 @@ export function UnifiedChatApp({
 
   // Toggle Mic
   const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
     if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsMuted(!audioTrack.enabled);
-      }
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !nextMuted;
+      });
+    }
+    const socket = getSocketClient();
+    const cId = activeCallIdRef.current || activeCallId;
+    if (socket && cId && activeCallTargetId) {
+      socket.emit("call:media-state", {
+        callId: cId,
+        targetUserId: activeCallTargetId,
+        type: "audio-mute",
+        active: nextMuted,
+      });
     }
   };
 
   // Toggle Video Camera
   const toggleVideo = () => {
+    const nextVideoOff = !isVideoOff;
+    setIsVideoOff(nextVideoOff);
     if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoOff(!videoTrack.enabled);
-      }
+      localStreamRef.current.getVideoTracks().forEach((track) => {
+        track.enabled = !nextVideoOff;
+      });
+    }
+    const socket = getSocketClient();
+    const cId = activeCallIdRef.current || activeCallId;
+    if (socket && cId && activeCallTargetId) {
+      socket.emit("call:media-state", {
+        callId: cId,
+        targetUserId: activeCallTargetId,
+        type: "video-mute",
+        active: nextVideoOff,
+      });
     }
   };
 
@@ -7960,7 +8045,7 @@ export function UnifiedChatApp({
       <Dialog open={activeCallModalOpen && !isCallMinimized} onOpenChange={setActiveCallModalOpen}>
         <DialogContent
           className={cn(
-            "font-sans text-center transition-all duration-200",
+            "font-sans text-center transition-all duration-200 [&>button:last-child]:hidden",
             activeCallType === "video"
               ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-slate-950 text-white flex flex-col justify-between"
               : "sm:max-w-md bg-card text-foreground"
@@ -7969,29 +8054,29 @@ export function UnifiedChatApp({
         >
           {/* Header Bar */}
           <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
-            <div className="flex items-center gap-2 text-left">
-              <div className="p-1 rounded bg-teal-500/20 text-teal-400">
+            <div className="flex items-center gap-2 text-left min-w-0">
+              <div className="p-1 rounded bg-teal-500/20 text-teal-400 shrink-0">
                 <LockIcon className="size-3.5" />
               </div>
-              <div>
-                <p className="text-xs font-semibold truncate leading-none">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold truncate leading-none max-w-[150px] sm:max-w-xs">
                   {activeCallTargetName || "Direct Meeting"}
                 </p>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
                   <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span className="font-mono text-emerald-500 font-medium">{formatDuration(callDurationSeconds)}</span>
                   <span>&bull;</span>
-                  <span className="capitalize">{activeCallType} Encrypted Call</span>
+                  <span className="capitalize">{activeCallType} Call &bull; Encrypted</span>
                 </div>
               </div>
             </div>
 
             {/* Quality & Meeting Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Network Signal Indicator */}
               <div
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-[10px] font-mono cursor-help"
-                title={`WebRTC Round Trip Time: ${networkRttMs}ms (${networkQuality})`}
+                className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-[10px] font-mono cursor-help"
+                title={`Connection Round Trip: ${networkRttMs}ms (${networkQuality})`}
               >
                 <div className="flex items-end gap-0.5 h-3">
                   <div className={cn("w-1 rounded-[1px] h-1.5", networkQuality !== "poor" ? "bg-emerald-500" : "bg-red-500")} />
@@ -8007,6 +8092,7 @@ export function UnifiedChatApp({
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-testid="call-btn-viewmode"
                     className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
                     title={viewMode === "speaker" ? "Switch to Grid View" : "Switch to Speaker View"}
                     onClick={() => setViewMode(viewMode === "speaker" ? "grid" : "speaker")}
@@ -8018,8 +8104,9 @@ export function UnifiedChatApp({
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-testid="call-btn-pip"
                     className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                    title="Picture-in-Picture (HTML5)"
+                    title="Picture-in-Picture"
                     onClick={togglePictureInPicture}
                   >
                     <Tv className="size-3.5" />
@@ -8029,6 +8116,7 @@ export function UnifiedChatApp({
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-testid="call-btn-fullscreen"
                     className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
                     title="Toggle Fullscreen"
                     onClick={toggleFullscreenCall}
@@ -8038,10 +8126,11 @@ export function UnifiedChatApp({
                 </>
               )}
 
-              {/* Minimize Call */}
+              {/* Minimize Call to Floating PiP */}
               <Button
                 variant="ghost"
                 size="icon"
+                data-testid="call-btn-minimize"
                 className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
                 title="Minimize Call to Widget"
                 onClick={() => setIsCallMinimized(true)}
@@ -8277,7 +8366,7 @@ export function UnifiedChatApp({
                 <div>
                   <h4 className="font-bold text-lg text-foreground">{activeCallTargetName}</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {callStatus === "connected" ? "WebRTC Voice Call Connected" : "Connecting WebRTC..."}
+                    {callStatus === "connected" ? "Voice Call Connected" : "Connecting Call..."}
                   </p>
                 </div>
 
@@ -8303,12 +8392,13 @@ export function UnifiedChatApp({
           </div>
 
           {/* In-Call Controls Toolbar */}
-          <div className="flex items-center justify-center gap-2 sm:gap-3 py-2 shrink-0">
+          <div className="w-full flex items-center justify-center gap-2 sm:gap-3 py-2 shrink-0 z-30 pb-safe">
             {/* Mic Toggle */}
             <Button
               variant={isMuted ? "destructive" : "outline"}
               size="icon"
-              className={cn("rounded-full size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-emerald-400")}
+              data-testid="call-btn-mute"
+              className={cn("rounded-full size-10 sm:size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-emerald-400")}
               title={isMuted ? "Unmute Mic" : "Mute Mic"}
               onClick={toggleMute}
             >
@@ -8321,7 +8411,8 @@ export function UnifiedChatApp({
                 <Button
                   variant={isVideoOff ? "destructive" : "outline"}
                   size="icon"
-                  className="rounded-full size-11 cursor-pointer"
+                  data-testid="call-btn-video"
+                  className="rounded-full size-10 sm:size-11 cursor-pointer"
                   title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
                   onClick={toggleVideo}
                 >
@@ -8331,8 +8422,9 @@ export function UnifiedChatApp({
                 <Button
                   variant={isScreenSharing ? "default" : "outline"}
                   size="icon"
+                  data-testid="call-btn-screenshare"
                   className={cn(
-                    "rounded-full size-11 cursor-pointer",
+                    "rounded-full size-10 sm:size-11 cursor-pointer",
                     isScreenSharing && "bg-teal-600 text-white hover:bg-teal-700 ring-2 ring-teal-400"
                   )}
                   title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
@@ -8341,17 +8433,16 @@ export function UnifiedChatApp({
                   <ScreenShare className="size-4" />
                 </Button>
 
-                {videoInputDevices.length > 1 && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="rounded-full size-11 cursor-pointer hidden sm:inline-flex"
-                    title="Switch Camera"
-                    onClick={switchCamera}
-                  >
-                    <FlipHorizontal className="size-4" />
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  data-testid="call-btn-switch-camera"
+                  className="rounded-full size-10 sm:size-11 cursor-pointer"
+                  title="Switch Camera (Front/Rear)"
+                  onClick={switchCamera}
+                >
+                  <FlipHorizontal className="size-4" />
+                </Button>
               </>
             )}
 
@@ -8359,7 +8450,8 @@ export function UnifiedChatApp({
             <Button
               variant="outline"
               size="icon"
-              className="rounded-full size-11 cursor-pointer"
+              data-testid="call-btn-add-participant"
+              className="rounded-full size-10 sm:size-11 cursor-pointer"
               title="Add Colleague to Call"
               onClick={() => setInCallAddParticipantOpen(true)}
             >
@@ -8370,8 +8462,9 @@ export function UnifiedChatApp({
             <Button
               variant="outline"
               size="icon"
-              className="rounded-full size-11 cursor-pointer"
-              title="Device Settings & Diagnostics"
+              data-testid="call-btn-settings"
+              className="rounded-full size-10 sm:size-11 cursor-pointer"
+              title="Device Settings"
               onClick={() => setInCallSettingsOpen(true)}
             >
               <Settings className="size-4" />
@@ -8381,7 +8474,8 @@ export function UnifiedChatApp({
             <Button
               variant="destructive"
               size="icon"
-              className="rounded-full size-12 cursor-pointer shadow-xl bg-red-600 hover:bg-red-700 text-white ml-2"
+              data-testid="call-btn-hangup"
+              className="rounded-full size-11 sm:size-12 cursor-pointer shadow-xl bg-red-600 hover:bg-red-700 text-white ml-1 sm:ml-2"
               title="End Call"
               onClick={handleEndCall}
             >
@@ -8391,55 +8485,136 @@ export function UnifiedChatApp({
         </DialogContent>
       </Dialog>
 
-      {/* FLOATING MINI-CALL WIDGET (When minimized during active call) */}
+      {/* FLOATING MINI-CALL PICTURE-IN-PICTURE (PiP) WIDGET */}
       {activeCallModalOpen && isCallMinimized && (
-        <div className="fixed bottom-6 right-6 z-[99999] bg-slate-900/95 backdrop-blur-md text-white border border-slate-700 rounded-2xl p-3 shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <div className="relative">
-            <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md", getAvatarColor(activeCallTargetName))}>
-              {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+        <div
+          data-testid="floating-pip-widget"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999] bg-slate-900/95 backdrop-blur-md text-white border border-slate-700 rounded-2xl p-2.5 sm:p-3 shadow-2xl max-w-[calc(100vw-32px)] animate-in fade-in slide-in-from-bottom-4 duration-200"
+        >
+          {activeCallType === "video" ? (
+            /* VIDEO PIP CARD */
+            <div className="flex flex-col gap-2">
+              <div className="relative w-48 sm:w-60 aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                <video
+                  ref={(el) => {
+                    if (el && remoteStreamRef.current) {
+                      if (el.srcObject !== remoteStreamRef.current) {
+                        el.srcObject = remoteStreamRef.current;
+                      }
+                    }
+                  }}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+                {(!remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled) || isVideoOff) && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white gap-1.5">
+                    <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-md", getAvatarColor(activeCallTargetName))}>
+                      {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                    </div>
+                    <span className="text-[10px] text-slate-300 font-medium truncate max-w-[120px]">{activeCallTargetName}</span>
+                  </div>
+                )}
+                {/* Header chip on video */}
+                <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[9px] text-emerald-400 font-mono flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{formatDuration(callDurationSeconds)}</span>
+                </div>
+              </div>
+
+              {/* PiP Action Toolbar */}
+              <div className="flex items-center justify-between px-1">
+                <div className="min-w-0 pr-1">
+                  <p className="text-xs font-semibold truncate max-w-[110px] text-slate-100">{activeCallTargetName}</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    data-testid="pip-btn-mute"
+                    className={cn("size-7 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
+                    onClick={toggleMute}
+                    title={isMuted ? "Unmute Mic" : "Mute Mic"}
+                  >
+                    {isMuted ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    data-testid="pip-btn-maximize"
+                    className="size-7 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+                    onClick={() => setIsCallMinimized(false)}
+                    title="Maximize Call Window"
+                  >
+                    <Maximize2 className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    data-testid="pip-btn-hangup"
+                    className="size-7 rounded-full bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleEndCall}
+                    title="Hang Up Call"
+                  >
+                    <PhoneOff className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
-          </div>
+          ) : (
+            /* AUDIO PIP CARD */
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md", getAvatarColor(activeCallTargetName))}>
+                  {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
+              </div>
 
-          <div className="min-w-0 pr-1">
-            <p className="text-xs font-semibold truncate max-w-[120px] text-slate-100">{activeCallTargetName}</p>
-            <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
-              <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <span>{formatDuration(callDurationSeconds)}</span>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-semibold truncate max-w-[120px] text-slate-100">{activeCallTargetName}</p>
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>{formatDuration(callDurationSeconds)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-testid="pip-btn-mute"
+                  className={cn("size-8 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
+                  onClick={toggleMute}
+                  title={isMuted ? "Unmute Mic" : "Mute Mic"}
+                >
+                  {isMuted ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-testid="pip-btn-maximize"
+                  className="size-8 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+                  onClick={() => setIsCallMinimized(false)}
+                  title="Maximize Call Window"
+                >
+                  <Maximize2 className="size-3.5" />
+                </Button>
+
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  data-testid="pip-btn-hangup"
+                  className="size-8 rounded-full bg-red-600 hover:bg-red-700 text-white"
+                  onClick={handleEndCall}
+                  title="Hang Up Call"
+                >
+                  <PhoneOff className="size-3.5" />
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("size-8 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
-              onClick={toggleMute}
-              title={isMuted ? "Unmute Mic" : "Mute Mic"}
-            >
-              {isMuted ? <MicOff className="size-3.5" /> : <Mic className="size-3.5" />}
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
-              onClick={() => setIsCallMinimized(false)}
-              title="Maximize Call Window"
-            >
-              <Maximize2 className="size-3.5" />
-            </Button>
-
-            <Button
-              variant="destructive"
-              size="icon"
-              className="size-8 rounded-full bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleEndCall}
-              title="Hang Up Call"
-            >
-              <PhoneOff className="size-3.5" />
-            </Button>
-          </div>
+          )}
         </div>
       )}
 
@@ -8773,7 +8948,8 @@ export function UnifiedChatApp({
       {incomingCall && (
         <Dialog open={!!incomingCall} onOpenChange={() => handleRejectIncomingCall("dismissed")}>
           <DialogContent
-            className="sm:max-w-md font-sans text-center z-[10000] border-2 border-teal-500/50 shadow-2xl overflow-hidden p-6"
+            data-testid="incoming-call-dialog"
+            className="sm:max-w-md font-sans text-center z-[100000] border-2 border-teal-500/50 shadow-2xl overflow-hidden p-6 [&>button:last-child]:hidden"
             style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
           >
             <div className="py-2 flex flex-col items-center font-sans space-y-4">
@@ -8796,7 +8972,7 @@ export function UnifiedChatApp({
                 </p>
                 <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 text-xs font-semibold">
                   <span className="size-2 rounded-full bg-teal-600 animate-ping" />
-                  <span>Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call...</span>
+                  <span>Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call</span>
                 </div>
               </div>
 
@@ -8812,7 +8988,7 @@ export function UnifiedChatApp({
                       if (callerId) {
                         api.post("/api/chat/messages", {
                           recipientId: callerId,
-                          content: "[Declined Call] Can't talk right now. I'll message you shortly.",
+                          content: "Can't talk right now. I'll message you shortly.",
                         }).catch(() => {});
                       }
                     }}
@@ -8828,7 +9004,7 @@ export function UnifiedChatApp({
                       if (callerId) {
                         api.post("/api/chat/messages", {
                           recipientId: callerId,
-                          content: "[Declined Call] Currently in another meeting.",
+                          content: "Currently in another meeting. I will catch up shortly.",
                         }).catch(() => {});
                       }
                     }}
@@ -8844,7 +9020,7 @@ export function UnifiedChatApp({
                       if (callerId) {
                         api.post("/api/chat/messages", {
                           recipientId: callerId,
-                          content: "[Declined Call] I will call you back as soon as possible.",
+                          content: "I will call you back as soon as possible.",
                         }).catch(() => {});
                       }
                     }}
@@ -8861,6 +9037,7 @@ export function UnifiedChatApp({
                   <Button
                     variant="destructive"
                     size="icon"
+                    data-testid="btn-decline-call"
                     className="rounded-full size-14 shadow-xl bg-red-600 hover:bg-red-700 cursor-pointer"
                     onClick={() => handleRejectIncomingCall("declined")}
                     title="Decline Call"
@@ -8873,6 +9050,7 @@ export function UnifiedChatApp({
                 <div className="flex flex-col items-center gap-1.5">
                   <Button
                     size="icon"
+                    data-testid="btn-accept-call"
                     className="rounded-full size-14 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer ring-4 ring-emerald-500/30 animate-pulse"
                     onClick={handleAcceptIncomingCall}
                     title="Accept Call"
