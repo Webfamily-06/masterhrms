@@ -195,3 +195,4 @@ Test Suite: `scripts/verify_incoming_call_push_playwright.cjs`
 2. **Multi-Tenant Protection:** Subscriptions are strictly isolated by `tenantId` and `userId`. A user in Tenant A cannot be contacted through subscriptions registered in Tenant B.
 3. **Endpoint Revocation on 410 Gone:** When a browser revokes notification permission, push services return HTTP 410 Gone. The `PushSubscriptionStore` automatically flags the record as expired, preventing wasted network calls.
 4. **Authoritative Server Timeouts:** A hard 60-second timer on the server cancels ringing calls, guaranteeing that orphaned ringing sessions cannot persist.
+

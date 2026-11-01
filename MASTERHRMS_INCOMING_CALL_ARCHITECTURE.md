@@ -195,3 +195,4 @@ The `<FullScreenIncomingCall />` component guarantees zero missed calls through:
   - `role="dialog"`, `aria-modal="true"`, `aria-labelledby="incoming-call-caller"`.
   - Automatic focus assignment to Accept button on mount.
   - Keyboard listener: `Enter` executes `acceptCall()`; `Escape` executes `rejectCall()`.
+

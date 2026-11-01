@@ -138,3 +138,4 @@ pushRouter.post("/test", requireAuth, async (req: AuthRequest, res: Response) =>
     return res.status(500).json({ success: false, error: error.message || "Failed to dispatch test push" });
   }
 });
+

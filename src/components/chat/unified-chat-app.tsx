@@ -2943,12 +2943,13 @@ export function UnifiedChatApp({
     };
     window.addEventListener("hrms:global-call-accepted", handleGlobalCallAccepted);
 
-    // If navigated from background push notification with ?callId=...&autoAccept=true
+    // If navigated from background push notification with ?callId=...
+    // REQUIREMENT: Never auto-accept call via URL parameter.
+    // Display incoming call ringing dialog/overlay and require explicit user click on "Accept".
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const urlCallId = params.get("callId");
-      const urlAutoAccept = params.get("autoAccept") === "true";
-      if (urlCallId && urlAutoAccept) {
+      if (urlCallId) {
         api.get(`/api/calls/${encodeURIComponent(urlCallId)}/status`).then((res: any) => {
           if (res?.success && res?.data?.status === "ringing") {
             const data = res.data;
@@ -2961,9 +2962,7 @@ export function UnifiedChatApp({
               threadId: data.threadId,
             };
             setIncomingCall(callData);
-            setTimeout(() => {
-              handleAcceptIncomingCallRef.current?.(callData);
-            }, 100);
+            // Explicitly do NOT auto-accept. The user must click "Accept" or "Decline".
           }
         }).catch(() => {});
       }

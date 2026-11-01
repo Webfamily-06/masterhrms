@@ -271,9 +271,11 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // If user clicked "Accept" or clicked the notification body
-  const autoAccept = action === "accept";
-  const targetPath = data.actionUrl || `/chat?callId=${encodeURIComponent(callId || "")}${autoAccept ? "&autoAccept=true" : ""}`;
+  // If user clicked notification or notification action (Accept or body click)
+  // SECURITY & USABILITY REQUIREMENT: Never auto-accept calls via URL parameter.
+  // The notification click only focuses or opens the application and displays the pending incoming call interface.
+  // User must explicitly click "Accept" on the client interface.
+  const targetPath = (data.actionUrl || `/chat?callId=${encodeURIComponent(callId || "")}`).replace(/([?&])autoAccept=true&?/, "$1").replace(/[?&]$/, "");
 
   event.waitUntil(
     self.clients
@@ -286,7 +288,6 @@ self.addEventListener("notificationclick", (event) => {
             client.postMessage({
               type: "CALL_ACTION_NAVIGATE",
               callId,
-              autoAccept,
               actionUrl: targetPath,
             });
             // If the client is not currently on /chat, navigate to targetPath

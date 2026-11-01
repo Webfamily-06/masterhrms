@@ -6,7 +6,7 @@ import { IncomingCallPushService } from "../services/incoming-call-push.service"
 
 export const callRouter = Router();
 
-// GET /api/calls/:callId/status - Fetch authoritative call session state
+// GET /api/calls/:callId/status - Fetch authoritative call session state (memory + DB fallback)
 callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
@@ -41,7 +41,7 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
       });
     }
 
-    // 2. Fall back to persisted CallHistoryRecord
+    // 2. Fall back to persisted CallHistoryRecord (survives server restart and multi-instance deployments)
     const db = rawPrisma || prisma;
     const history = await db.callHistoryRecord.findFirst({
       where: {
@@ -51,11 +51,32 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
     });
 
     if (history) {
+      const isParticipant =
+        history.callerId === userId || history.receiverId === userId;
+
+      if (!isParticipant) {
+        return res.status(403).json({ success: false, error: "Access denied: You are not a participant in this call." });
+      }
+
+      // Check if ringing call has timed out (> 60s)
+      const now = Date.now();
+      const started = history.startedAt ? new Date(history.startedAt).getTime() : now;
+      const isRinging = history.status === "ringing";
+      const isExpired = isRinging && now - started > 60000;
+      const effectiveStatus = isExpired ? "missed" : history.status;
+
+      if (isExpired && history.status === "ringing") {
+        await db.callHistoryRecord.update({
+          where: { id: history.id },
+          data: { status: "missed", endedAt: new Date(), notes: "Call timed out after 60 seconds." },
+        }).catch(() => {});
+      }
+
       return res.json({
         success: true,
         data: {
           callId,
-          status: history.status, // "completed", "missed", "rejected", "cancelled"
+          status: effectiveStatus,
           callType: history.callType,
           callerId: history.callerId,
           callerName: history.callerName,
@@ -63,7 +84,7 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
           targetUserId: history.receiverId,
           targetName: history.receiverName,
           startedAt: history.startedAt,
-          isPending: false,
+          isPending: effectiveStatus === "ringing",
         },
       });
     }
@@ -75,14 +96,43 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
-// POST /api/calls/:callId/accept - Authenticated call acceptance
+// POST /api/calls/:callId/accept - Authenticated call acceptance (explicit user click mandatory)
 callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
+    const db = rawPrisma || prisma;
 
-    const session = activeCalls.get(callId);
+    let session = activeCalls.get(callId);
+
+    // Database fallback if server restarted or activeCalls memory cleared
+    if (!session || session.tenantId !== tenantId) {
+      const history = await db.callHistoryRecord.findFirst({
+        where: { tenantId, callSessionId: callId },
+      });
+      if (history && history.status === "ringing") {
+        const now = Date.now();
+        const started = history.startedAt ? new Date(history.startedAt).getTime() : now;
+        if (now - started <= 60000) {
+          session = {
+            callId,
+            tenantId,
+            callerId: history.callerId || "",
+            callerName: history.callerName,
+            callerAvatar: history.callerAvatarUrl,
+            targetUserId: history.receiverId || "",
+            targetName: history.receiverName,
+            callType: (history.callType as any) || "audio",
+            status: "ringing",
+            startedAt: history.startedAt,
+            timeoutTimer: null,
+          };
+          activeCalls.set(callId, session);
+        }
+      }
+    }
+
     if (!session || session.tenantId !== tenantId) {
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
@@ -102,6 +152,12 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
     }
 
     session.status = "connected";
+
+    // Update persisted DB record
+    await db.callHistoryRecord.updateMany({
+      where: { tenantId, callSessionId: callId },
+      data: { status: "connected" },
+    }).catch(() => {});
 
     const io = getIO();
     const acceptPayload = {
@@ -136,9 +192,25 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
     const { reason } = req.body || {};
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
+    const db = rawPrisma || prisma;
 
-    const session = activeCalls.get(callId);
+    let session = activeCalls.get(callId);
+
+    // If server restarted, handle via DB
     if (!session || session.tenantId !== tenantId) {
+      const history = await db.callHistoryRecord.findFirst({
+        where: { tenantId, callSessionId: callId },
+      });
+      if (history) {
+        if (history.receiverId && history.receiverId !== userId) {
+          return res.status(403).json({ success: false, error: "Only the designated recipient may reject this call." });
+        }
+        await db.callHistoryRecord.update({
+          where: { id: history.id },
+          data: { status: "rejected", endedAt: new Date(), notes: reason || "Declined via REST" },
+        }).catch(() => {});
+        return res.json({ success: true, message: "Call rejected successfully" });
+      }
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
 
@@ -153,6 +225,12 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
 
     session.status = "ended";
     activeCalls.delete(callId);
+
+    // Update persisted DB record
+    await db.callHistoryRecord.updateMany({
+      where: { tenantId, callSessionId: callId },
+      data: { status: "rejected", endedAt: new Date(), notes: reason || "Declined via REST" },
+    }).catch(() => {});
 
     const io = getIO();
     const rejectPayload = {
@@ -189,9 +267,24 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const { callId } = req.params;
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
+    const db = rawPrisma || prisma;
 
-    const session = activeCalls.get(callId);
+    let session = activeCalls.get(callId);
+
     if (!session || session.tenantId !== tenantId) {
+      const history = await db.callHistoryRecord.findFirst({
+        where: { tenantId, callSessionId: callId },
+      });
+      if (history) {
+        if (history.callerId && history.callerId !== userId) {
+          return res.status(403).json({ success: false, error: "Only the caller may cancel this call." });
+        }
+        await db.callHistoryRecord.update({
+          where: { id: history.id },
+          data: { status: "cancelled", endedAt: new Date(), notes: "Cancelled via REST" },
+        }).catch(() => {});
+        return res.json({ success: true, message: "Call cancelled successfully" });
+      }
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
 
@@ -206,6 +299,11 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
 
     session.status = "ended";
     activeCalls.delete(callId);
+
+    await db.callHistoryRecord.updateMany({
+      where: { tenantId, callSessionId: callId },
+      data: { status: "cancelled", endedAt: new Date(), notes: "Cancelled via REST" },
+    }).catch(() => {});
 
     const io = getIO();
     const cancelPayload = {

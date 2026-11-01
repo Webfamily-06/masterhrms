@@ -301,7 +301,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       );
 
       if (!window.location.pathname.includes("/chat")) {
-        window.location.href = `/chat?callId=${encodeURIComponent(call.callId)}&autoAccept=true`;
+        window.location.href = `/chat?callId=${encodeURIComponent(call.callId)}`;
       }
     }
   }, [incomingCall, stopCallAlert]);
@@ -373,8 +373,19 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         stopCallAlert();
         setIncomingCall(null);
       } else if (data.type === "CALL_ACTION_NAVIGATE") {
-        if (data.autoAccept) {
-          acceptCall();
+        // Notification click: Display pending incoming call interface. Never auto-accept.
+        if (data.callId && !incomingCall) {
+          const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
+          fetch(`/api/calls/${encodeURIComponent(data.callId)}/status`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          })
+            .then((res) => res.json())
+            .then((result) => {
+              if (result?.success && result?.data?.status === "ringing") {
+                handleIncomingCallEvent(result.data);
+              }
+            })
+            .catch(() => {});
         }
       }
     };

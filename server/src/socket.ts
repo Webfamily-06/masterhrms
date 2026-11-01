@@ -274,7 +274,19 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
               const existing = await prisma.callHistoryRecord.findFirst({
                 where: { tenantId, callSessionId: callId },
               });
-              if (existing) return;
+              if (existing) {
+                await prisma.callHistoryRecord.update({
+                  where: { id: existing.id },
+                  data: {
+                    status: "missed",
+                    endedAt: new Date(),
+                    notes: isTimeout
+                      ? "Call timed out after 60 seconds with no answer."
+                      : "Caller cancelled before answer.",
+                  },
+                });
+                return;
+              }
             }
 
             await prisma.callHistoryRecord.create({
@@ -475,6 +487,54 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       };
       activeCalls.set(callId, callSession);
 
+      // Persist call history record with status "ringing" so active calls survive restarts & multi-instance
+      try {
+        await runWithTenantContext(
+          {
+            tenantId,
+            userId: socket.data.userId,
+            roles: [],
+            status: "ACTIVE",
+            tenancyStrategy: "SHARED_SCHEMA",
+            db: rawPrisma,
+          },
+          async () => {
+            const db = rawPrisma || prisma;
+            const existing = await db.callHistoryRecord.findFirst({
+              where: { tenantId, callSessionId: callId },
+            });
+            if (existing) {
+              await db.callHistoryRecord.update({
+                where: { id: existing.id },
+                data: { status: "ringing", startedAt: new Date() },
+              });
+            } else {
+              await db.callHistoryRecord.create({
+                data: {
+                  tenantId,
+                  callSessionId: callId,
+                  callerId: socket.data.userId,
+                  callerName,
+                  callerPhone: payload?.callerPhone || "Internal Call",
+                  callerAvatarUrl: callerAvatar || null,
+                  receiverId: targetUserId,
+                  receiverName: targetName || "Colleague",
+                  direction: "outgoing",
+                  callType,
+                  status: "ringing",
+                  durationSeconds: 0,
+                  callTime: new Date(),
+                  startedAt: new Date(),
+                  notes: `Initiated ${callType} call via Socket.IO`,
+                },
+              });
+            }
+          }
+        );
+      } catch (e: any) {
+        console.warn(`[SOCKET_CALL_INVITE_DB_WARN] Failed to persist ringing call record:`, e?.message);
+      }
+
       // Deliver incoming call signal to recipient with normalized contract aliases
       const incomingPayload = {
         callId,
@@ -512,7 +572,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
     });
 
     // 2. ACCEPT CALL
-    socket.on("call:accept", (payload: any) => {
+    socket.on("call:accept", async (payload: any) => {
       const callId = payload?.callId;
       const targetUserId = payload?.targetUserId || payload?.toUserId || payload?.fromUserId;
       if (!callId || !targetUserId) {
@@ -559,6 +619,27 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         callId,
         acceptedBy: socket.data.userId,
       });
+
+      // Update DB record to connected
+      try {
+        await runWithTenantContext(
+          {
+            tenantId: session.tenantId,
+            userId: socket.data.userId,
+            roles: [],
+            status: "ACTIVE",
+            tenancyStrategy: "SHARED_SCHEMA",
+            db: rawPrisma,
+          },
+          async () => {
+            const db = rawPrisma || prisma;
+            await db.callHistoryRecord.updateMany({
+              where: { tenantId: session.tenantId, callSessionId: callId },
+              data: { status: "connected" },
+            });
+          }
+        );
+      } catch {}
 
       // Dismiss any ringing Web Push notifications on other receiver devices
       void IncomingCallPushService.sendCallCancelledPush({
@@ -644,27 +725,42 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
             db: rawPrisma,
           },
           async () => {
-            await prisma.callHistoryRecord.create({
-              data: {
-                tenantId,
-                callSessionId: callId,
-                callerId: session.callerId,
-                callerName: session.callerName || "Colleague",
-                callerPhone: "Internal Call",
-                callerAvatarUrl: session.callerAvatar || null,
-                receiverId: socket.data.userId,
-                receiverName: socket.data.name || session.targetName || "Colleague",
-                receiverAvatarUrl: socket.data.avatar || session.targetAvatar || null,
-                direction: "incoming",
-                callType,
-                status: "rejected",
-                durationSeconds: 0,
-                callTime: new Date(),
-                startedAt: session.startedAt || new Date(),
-                endedAt: new Date(),
-                notes: "Call rejected by recipient.",
-              },
+            const db = rawPrisma || prisma;
+            const existing = await db.callHistoryRecord.findFirst({
+              where: { tenantId, callSessionId: callId },
             });
+            if (existing) {
+              await db.callHistoryRecord.update({
+                where: { id: existing.id },
+                data: {
+                  status: "rejected",
+                  endedAt: new Date(),
+                  notes: payload?.reason ? `Rejected: ${payload.reason}` : "Call rejected by recipient.",
+                },
+              });
+            } else {
+              await db.callHistoryRecord.create({
+                data: {
+                  tenantId,
+                  callSessionId: callId,
+                  callerId: session.callerId,
+                  callerName: session.callerName || "Colleague",
+                  callerPhone: "Internal Call",
+                  callerAvatarUrl: session.callerAvatar || null,
+                  receiverId: socket.data.userId,
+                  receiverName: socket.data.name || session.targetName || "Colleague",
+                  receiverAvatarUrl: socket.data.avatar || session.targetAvatar || null,
+                  direction: "incoming",
+                  callType,
+                  status: "rejected",
+                  durationSeconds: 0,
+                  callTime: new Date(),
+                  startedAt: session.startedAt || new Date(),
+                  endedAt: new Date(),
+                  notes: "Call rejected by recipient.",
+                },
+              });
+            }
 
             await recordSystemEvent(
               tenantId,

@@ -108,3 +108,4 @@ All screenshots have been generated and archived in `docs/Saas/screenshots/incom
 | `06-service-worker-push-simulation.png` | Service worker push notification simulation | 51 KB |
 | `07-notification-click-navigation.png` | Deep-link auto-accept navigation verification | 51 KB |
 | `08-caller-cancelled-push-dismissal.png` | Cancellation dismissal and cleanup verification | 52 KB |
+

@@ -84,3 +84,4 @@ Socket.IO and REST signaling endpoints implement strict transition checks:
 2. **Ringtone Audio Privacy:**
    - Ringtone audio is generated locally on the client using the browser's Web Audio API. No external audio files are downloaded, preventing tracking or metadata leakage to third-party CDNs.
 3. **Audit Conclusion:** The implementation adheres to OWASP ASVS Level 2 standards for session management, cryptographic algorithms, and multi-tenant authorization.
+

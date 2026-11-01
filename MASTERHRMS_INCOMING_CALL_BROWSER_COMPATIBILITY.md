@@ -66,3 +66,4 @@ The `<FullScreenIncomingCall />` component is built with responsive utility clas
   - Centered presentation with radiating ambient sound-wave animations.
   - High-contrast typography (`text-4xl font-extrabold`).
   - Keyboard shortcut hints: `Accept (Enter)` and `Decline (Esc)`.
+

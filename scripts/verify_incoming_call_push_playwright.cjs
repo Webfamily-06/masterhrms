@@ -9,7 +9,7 @@
  * 4. Call Rejection Flow: Declining closes full-screen overlay without disrupting background dashboard.
  * 5. Push Notification Prompt: Desktop banner in chat view offering one-click notification enablement.
  * 6. Service Worker Push Delivery: Simulates Web Push payload into sw.js, verifying showNotification, requireInteraction, tag, and actions.
- * 7. Background Click Navigation: Simulating notification click focuses window and navigates with autoAccept.
+ * 7. Background Click Navigation: Simulating notification click focuses window and navigates in pending ringing state (no auto-accept).
  * 8. Cancellation Dismissal: Caller cancel / timeout dismisses service worker notification and foreground overlay.
  * 
  * Captures empirical screenshots into docs/Saas/screenshots/incoming-call-web-push/
@@ -320,10 +320,10 @@ async function runBrowserVerification() {
     console.log(`   📸 Saved screenshot: ${screenshot6}`);
 
     // ─────────────────────────────────────────────────────────────────────────────
-    // TEST 7: Notification Click Navigation Simulation
+    // TEST 7: Notification Click Deep-Link Simulation (No Auto-Accept)
     // ─────────────────────────────────────────────────────────────────────────────
-    console.log("\n👉 TEST 7: Notification Click Deep-Link Simulation");
-    await page.goto(`${BASE_URL}/chat?callId=call_test_click&autoAccept=true`, {
+    console.log("\n👉 TEST 7: Notification Click Deep-Link Simulation (Explicit User Acceptance Mandatory)");
+    await page.goto(`${BASE_URL}/chat?callId=call_test_click`, {
       waitUntil: "domcontentloaded",
       timeout: 20000,
     }).catch(() => {});
