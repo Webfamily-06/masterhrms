@@ -119,3 +119,4 @@ The hardened implementation establishes defense-in-depth:
 ## 7. Security Conclusion
 
 The MasterHRMS incoming-call subsystem satisfies all OWASP ASVS Level 2 criteria. The removal of `autoAccept` closes the potential for call hijacking, and the database-backed session validation ensures robust authorization across clustered server environments.
+

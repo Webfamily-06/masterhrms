@@ -27,6 +27,7 @@ import { SettingsService } from "../services/settings/settings.service";
 import { OAuthFactory } from "../services/factories/oauth.factory";
 import { TwoFactorService } from "../modules/two-factor-auth/two-factor.service";
 import { requireTurnstile } from "../middleware/turnstile.middleware";
+import { PushSubscriptionStore } from "../services/push-subscription.store";
 
 export { OAuthFactory };
 export const authRouter = Router();
@@ -1719,14 +1720,21 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
   }
 });
 
-// POST /api/auth/logout - Immediately clear server-side authorization cache
+// POST /api/auth/logout - Immediately clear server-side authorization cache & revoke device push subscription
 authRouter.post("/logout", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?.userId || req.user?.id;
     const tenantId = req.user?.tenantId || req.tenantId;
+    const { deviceId, endpoint } = req.body || {};
+
     if (userId) {
       invalidateAuthCache(userId, tenantId || undefined);
       invalidateChatProfileCache(userId, tenantId || undefined);
+
+      // If deviceId or endpoint supplied, revoke this specific device's push subscription
+      if (tenantId && (deviceId || endpoint)) {
+        await PushSubscriptionStore.revokeDeviceSubscription(tenantId, userId, deviceId || endpoint);
+      }
     }
     return res.json({ success: true, message: "Logged out and authorization cache cleared." });
   } catch (err: any) {

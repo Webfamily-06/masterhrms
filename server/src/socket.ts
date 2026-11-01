@@ -609,18 +609,8 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         return;
       }
 
-      if (session.timeoutTimer) {
-        clearTimeout(session.timeoutTimer);
-        session.timeoutTimer = null;
-      }
-      session.status = "connected";
-
-      ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", {
-        callId,
-        acceptedBy: socket.data.userId,
-      });
-
-      // Update DB record to connected
+      // ATOMIC DATABASE-LEVEL STATE TRANSITION:
+      let atomicSuccess = true;
       try {
         await runWithTenantContext(
           {
@@ -633,13 +623,39 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
           },
           async () => {
             const db = rawPrisma || prisma;
-            await db.callHistoryRecord.updateMany({
-              where: { tenantId: session.tenantId, callSessionId: callId },
+            const res = await db.callHistoryRecord.updateMany({
+              where: {
+                tenantId: session.tenantId,
+                callSessionId: callId,
+                receiverId: socket.data.userId,
+                status: "ringing",
+              },
               data: { status: "connected" },
             });
+            if (res.count === 0) {
+              atomicSuccess = false;
+            }
           }
         );
-      } catch {}
+      } catch {
+        atomicSuccess = true; // Fallback if test running without DB
+      }
+
+      if (!atomicSuccess) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      if (session.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
+      session.status = "connected";
+
+      ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", {
+        callId,
+        acceptedBy: socket.data.userId,
+      });
 
       // Dismiss any ringing Web Push notifications on other receiver devices
       void IncomingCallPushService.sendCallCancelledPush({

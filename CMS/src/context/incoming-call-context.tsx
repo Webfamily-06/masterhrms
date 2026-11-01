@@ -239,6 +239,15 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const handleIncomingCallEvent = useCallback((data: any) => {
     if (!data?.callId) return;
 
+    // DEVICE-LEVEL SESSION SECURITY: Validate active authentication on this device
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
+      : null;
+    if (!token) {
+      console.warn("[IncomingCallProvider] Ignored incoming call on unauthenticated/logged-out device.");
+      return;
+    }
+
     const callerId = data.callerId || data.fromUserId;
     const callerName = data.callerName || "A Colleague";
     const callType = (data.callType || data.type || "audio").toLowerCase() as "audio" | "video";
@@ -373,11 +382,20 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         stopCallAlert();
         setIncomingCall(null);
       } else if (data.type === "CALL_ACTION_NAVIGATE") {
-        // Notification click: Display pending incoming call interface. Never auto-accept.
+        // Notification click: Validate active authenticated session on this device
+        const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
+        if (!token) {
+          console.warn("[IncomingCallProvider] Stale notification clicked after logout; redirecting to login.");
+          if (typeof window !== "undefined") {
+            window.location.href = "/auth";
+          }
+          return;
+        }
+
+        // Display pending incoming call interface. Never auto-accept.
         if (data.callId && !incomingCall) {
-          const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
           fetch(`/api/calls/${encodeURIComponent(data.callId)}/status`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: { Authorization: `Bearer ${token}` },
           })
             .then((res) => res.json())
             .then((result) => {
@@ -389,6 +407,12 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         }
       }
     };
+
+    const handleLogout = () => {
+      stopCallAlert();
+      setIncomingCall(null);
+    };
+    window.addEventListener("hrms:logout", handleLogout);
 
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("message", handleSwMessage);
@@ -402,6 +426,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         socket.off("call:rejected", handleCallCancelledEvent);
       }
       window.removeEventListener("hrms:pusher", handlePusherEvent);
+      window.removeEventListener("hrms:logout", handleLogout);
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.removeEventListener("message", handleSwMessage);
       }

@@ -5,6 +5,7 @@ import { ReactNode, useState } from "react";
 import { Toaster } from "sonner";
 import { IncomingCallProvider } from "@/context/incoming-call-context";
 import { FullScreenIncomingCall } from "@/components/calling/full-screen-incoming-call";
+import { FloatingMiniCallWidget } from "@/components/calling/floating-mini-call-widget";
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -25,6 +26,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <IncomingCallProvider>
         {children}
         <FullScreenIncomingCall />
+        <FloatingMiniCallWidget />
         <Toaster richColors position="top-right" />
       </IncomingCallProvider>
     </QueryClientProvider>

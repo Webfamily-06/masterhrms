@@ -6,13 +6,18 @@ export interface StoredPushSubscription {
   id: string;
   tenantId: string;
   userId: string;
+  deviceId: string;
   endpoint: string;
   p256dh: string;
   auth: string;
   userAgent?: string;
+  platform?: string;
+  sessionTokenId?: string;
   createdAt: string;
+  lastSeenAt: string;
   lastUsedAt?: string;
-  status: "active" | "inactive" | "expired";
+  revokedAt?: string | null;
+  status: "active" | "inactive" | "expired" | "revoked";
 }
 
 // In-memory cache & fallback directory for instant lookup and hermetic offline testing
@@ -24,34 +29,46 @@ function getEndpointHash(endpoint: string): string {
 
 export class PushSubscriptionStore {
   /**
-   * Saves or updates a Web Push subscription for a user within a verified tenant.
+   * Saves or updates a device-level Web Push subscription for a user within a verified tenant.
+   * Explicitly associates deviceId, platform, and session ownership.
    */
   public static async saveSubscription(params: {
     tenantId: string;
     userId: string;
     subscription: PushSubscriptionData;
     userAgent?: string;
+    deviceId?: string;
+    platform?: string;
+    sessionTokenId?: string;
   }): Promise<StoredPushSubscription> {
-    const { tenantId, userId, subscription, userAgent } = params;
+    const { tenantId, userId, subscription, userAgent, deviceId, platform, sessionTokenId } = params;
     const endpointHash = getEndpointHash(subscription.endpoint);
+    const resolvedDeviceId = deviceId || `dev_${endpointHash.slice(0, 16)}`;
     const subId = `sub_${endpointHash}`;
 
     const record: StoredPushSubscription = {
       id: subId,
       tenantId,
       userId,
+      deviceId: resolvedDeviceId,
       endpoint: subscription.endpoint,
       p256dh: subscription.keys.p256dh,
       auth: subscription.keys.auth,
       userAgent: userAgent || "Unknown Browser",
+      platform: platform || "web",
+      sessionTokenId,
       createdAt: new Date().toISOString(),
+      lastSeenAt: new Date().toISOString(),
       lastUsedAt: new Date().toISOString(),
+      revokedAt: null,
       status: "active",
     };
 
-    // 1. Update in-memory map
+    // 1. Update in-memory map: match by endpoint or (userId + deviceId)
     const userSubs = inMemorySubscriptions.get(userId) || [];
-    const filtered = userSubs.filter((s) => s.endpoint !== subscription.endpoint);
+    const filtered = userSubs.filter(
+      (s) => s.endpoint !== subscription.endpoint && s.deviceId !== resolvedDeviceId
+    );
     filtered.push(record);
     inMemorySubscriptions.set(userId, filtered);
 
@@ -83,7 +100,6 @@ export class PushSubscriptionStore {
         },
       });
     } catch (err: any) {
-      // Non-fatal: in-memory record ensures delivery even during database connection outages
       console.warn(`[PushSubscriptionStore] DB persistence skipped (${err.message}). Cached in-memory.`);
     }
 
@@ -91,7 +107,7 @@ export class PushSubscriptionStore {
   }
 
   /**
-   * Retrieves all active subscriptions for a user, verifying tenant isolation.
+   * Retrieves all currently active and non-revoked subscriptions for a user, verifying tenant isolation.
    */
   public static async getActiveSubscriptions(tenantId: string, userId: string): Promise<StoredPushSubscription[]> {
     // 1. Check in-memory store first
@@ -125,16 +141,70 @@ export class PushSubscriptionStore {
       }
     }
 
-    // 3. Strict tenant matching
-    return (userSubs || []).filter((s) => s.tenantId === tenantId && s.status === "active");
+    // 3. Strict tenant matching & status filter: only 'active' devices eligible for push
+    return (userSubs || []).filter(
+      (s) => s.tenantId === tenantId && s.status === "active" && !s.revokedAt
+    );
   }
 
   /**
-   * Marks a subscription as expired or removes it.
+   * Device-Specific Revocation (Called on device logout).
+   * Revokes ONLY the specified device/endpoint for this user.
+   * Other active devices of the user remain authenticated and eligible for incoming calls.
+   */
+  public static async revokeDeviceSubscription(
+    tenantId: string,
+    userId: string,
+    deviceIdOrEndpoint: string
+  ): Promise<boolean> {
+    const userSubs = inMemorySubscriptions.get(userId) || [];
+    let modified = false;
+
+    const updated = userSubs.map((s) => {
+      if (
+        s.tenantId === tenantId &&
+        (s.endpoint === deviceIdOrEndpoint || s.deviceId === deviceIdOrEndpoint)
+      ) {
+        modified = true;
+        return {
+          ...s,
+          status: "revoked" as const,
+          revokedAt: new Date().toISOString(),
+        };
+      }
+      return s;
+    });
+
+    inMemorySubscriptions.set(userId, updated);
+
+    try {
+      const db = rawPrisma || prisma;
+      const endpointHash = getEndpointHash(deviceIdOrEndpoint);
+      const key = `push_sub_${endpointHash}`;
+
+      // Update in DB setting or delete record
+      await db.setting.deleteMany({
+        where: {
+          scope: "USER",
+          scopeId: userId,
+          key,
+        },
+      });
+    } catch {}
+
+    return modified;
+  }
+
+  /**
+   * Marks a subscription as expired after gateway HTTP 404/410.
    */
   public static async markExpired(userId: string, endpoint: string): Promise<void> {
     const userSubs = inMemorySubscriptions.get(userId) || [];
-    const updated = userSubs.map((s) => (s.endpoint === endpoint ? { ...s, status: "expired" as const } : s));
+    const updated = userSubs.map((s) =>
+      s.endpoint === endpoint
+        ? { ...s, status: "expired" as const, revokedAt: new Date().toISOString() }
+        : s
+    );
     inMemorySubscriptions.set(userId, updated);
 
     try {
@@ -149,16 +219,14 @@ export class PushSubscriptionStore {
           key,
         },
       });
-    } catch (err: any) {
-      // In-memory update took effect
-    }
+    } catch {}
   }
 
   /**
    * Removes all subscriptions for a specific user and endpoint.
    */
   public static async removeSubscription(tenantId: string, userId: string, endpoint: string): Promise<boolean> {
-    return this.unsubscribe(userId, endpoint);
+    return this.revokeDeviceSubscription(tenantId, userId, endpoint);
   }
 
   public static async unsubscribe(userId: string, endpoint: string): Promise<boolean> {

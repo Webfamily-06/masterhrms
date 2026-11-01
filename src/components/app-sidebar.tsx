@@ -120,9 +120,30 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const { appConfig } = useAppConfig();
 
   async function signOut() {
-    try { await api.post("/auth/logout"); } catch {}
+    try {
+      let endpoint: string | null = null;
+      let deviceId: string | null = null;
+      if (typeof window !== "undefined") {
+        deviceId = localStorage.getItem("hrms_device_id");
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration();
+          const sub = await reg?.pushManager?.getSubscription();
+          if (sub) {
+            endpoint = sub.endpoint;
+            await sub.unsubscribe().catch(() => {});
+          }
+        }
+      }
+      await api.post("/auth/logout", { endpoint, deviceId }).catch(() => {});
+    } catch {}
     localStorage.removeItem("auth_token");
-    sessionStorage.removeItem("auth_token");
+    localStorage.removeItem("hrms_auth_token");
+    localStorage.removeItem("token");
+    localStorage.removeItem("hrms_current_profile");
+    sessionStorage.clear();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("hrms:logout"));
+    }
     navigate({ to: "/auth" });
   }
 

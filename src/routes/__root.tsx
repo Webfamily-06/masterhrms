@@ -152,6 +152,7 @@ function RootShell({ children }: { children: ReactNode }) {
 import { useAppConfig } from "@/lib/useAppConfig";
 import { IncomingCallProvider } from "@/context/incoming-call-context";
 import { FullScreenIncomingCall } from "@/components/calling/full-screen-incoming-call";
+import { FloatingMiniCallWidget } from "@/components/calling/floating-mini-call-widget";
 
 function PlatformFaviconSync() {
   useAppConfig();
@@ -187,6 +188,7 @@ function RootComponent() {
         <InactivityTracker />
         <Outlet />
         <FullScreenIncomingCall />
+        <FloatingMiniCallWidget />
         <Toaster richColors position="top-right" />
       </IncomingCallProvider>
     </QueryClientProvider>

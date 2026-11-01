@@ -96,7 +96,7 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
-// POST /api/calls/:callId/accept - Authenticated call acceptance (explicit user click mandatory)
+// POST /api/calls/:callId/accept - Authenticated ATOMIC call acceptance
 callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
@@ -104,60 +104,88 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
     const tenantId = req.user!.tenantId!;
     const db = rawPrisma || prisma;
 
-    let session = activeCalls.get(callId);
+    // 1. Verify existence & designated recipient ownership before transition
+    const currentRecord = await db.callHistoryRecord.findFirst({
+      where: { tenantId, callSessionId: callId },
+    });
 
-    // Database fallback if server restarted or activeCalls memory cleared
-    if (!session || session.tenantId !== tenantId) {
-      const history = await db.callHistoryRecord.findFirst({
-        where: { tenantId, callSessionId: callId },
-      });
-      if (history && history.status === "ringing") {
-        const now = Date.now();
-        const started = history.startedAt ? new Date(history.startedAt).getTime() : now;
-        if (now - started <= 60000) {
-          session = {
-            callId,
-            tenantId,
-            callerId: history.callerId || "",
-            callerName: history.callerName,
-            callerAvatar: history.callerAvatarUrl,
-            targetUserId: history.receiverId || "",
-            targetName: history.receiverName,
-            callType: (history.callType as any) || "audio",
-            status: "ringing",
-            startedAt: history.startedAt,
-            timeoutTimer: null,
-          };
-          activeCalls.set(callId, session);
-        }
-      }
-    }
-
-    if (!session || session.tenantId !== tenantId) {
+    if (!currentRecord) {
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
 
-    if (session.targetUserId !== userId) {
+    if (currentRecord.receiverId !== userId) {
       return res.status(403).json({ success: false, error: "Only the designated recipient may accept this call." });
     }
 
-    if (session.status !== "ringing") {
-      return res.status(409).json({ success: false, error: `Call is in status ${session.status} and cannot be accepted.` });
+    // 2. Validate timeout / expiration guardrail (60 seconds)
+    const now = Date.now();
+    const started = currentRecord.startedAt ? new Date(currentRecord.startedAt).getTime() : now;
+    if (now - started > 60000) {
+      await db.callHistoryRecord.updateMany({
+        where: { tenantId, callSessionId: callId, status: "ringing" },
+        data: { status: "missed", endedAt: new Date(), notes: "Call timed out after 60 seconds with no answer." },
+      }).catch(() => {});
+      return res.status(409).json({ success: false, error: "Call has timed out and expired." });
     }
 
-    // Clear ringing timeout
-    if (session.timeoutTimer) {
-      clearTimeout(session.timeoutTimer);
-      session.timeoutTimer = null;
+    // 3. ATOMIC DATABASE-LEVEL STATE TRANSITION:
+    // UPDATE CallHistoryRecord SET status = 'connected' WHERE tenantId = ? AND callSessionId = ? AND receiverId = ? AND status = 'ringing'
+    const updateResult = await db.callHistoryRecord.updateMany({
+      where: {
+        tenantId,
+        callSessionId: callId,
+        receiverId: userId,
+        status: "ringing",
+      },
+      data: {
+        status: "connected",
+      },
+    });
+
+    // 4. Concurrency Guard: If affected rows is 0, another device/request won the race or call is no longer ringing
+    if (updateResult.count === 0) {
+      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
+      if (recheck?.status === "connected") {
+        return res.status(409).json({
+          success: false,
+          error: "Call was already answered or accepted on another device.",
+          data: {
+            callId,
+            status: "connected",
+            threadId: recheck.groupId || undefined,
+          },
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        error: `Call cannot be accepted because it is in '${recheck?.status || "unknown"}' state.`,
+      });
     }
 
-    session.status = "connected";
-
-    // Update persisted DB record
-    await db.callHistoryRecord.updateMany({
-      where: { tenantId, callSessionId: callId },
-      data: { status: "connected" },
-    }).catch(() => {});
+    // 5. ATOMIC SUCCESS: Now and only now update in-memory session and emit signaling events
+    let session = activeCalls.get(callId);
+    if (!session) {
+      session = {
+        callId,
+        tenantId,
+        callerId: currentRecord.callerId || "",
+        callerName: currentRecord.callerName,
+        callerAvatar: currentRecord.callerAvatarUrl,
+        targetUserId: userId,
+        targetName: currentRecord.receiverName,
+        callType: (currentRecord.callType as any) || "audio",
+        status: "connected",
+        startedAt: currentRecord.startedAt,
+        timeoutTimer: null,
+      };
+      activeCalls.set(callId, session);
+    } else {
+      if (session.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
+      session.status = "connected";
+    }
 
     const io = getIO();
     const acceptPayload = {
@@ -185,7 +213,7 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-// POST /api/calls/:callId/reject - Authenticated call rejection
+// POST /api/calls/:callId/reject - Authenticated ATOMIC call rejection
 callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
@@ -194,43 +222,55 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
     const tenantId = req.user!.tenantId!;
     const db = rawPrisma || prisma;
 
-    let session = activeCalls.get(callId);
+    // 1. Verify existence and recipient ownership
+    const currentRecord = await db.callHistoryRecord.findFirst({
+      where: { tenantId, callSessionId: callId },
+    });
 
-    // If server restarted, handle via DB
-    if (!session || session.tenantId !== tenantId) {
-      const history = await db.callHistoryRecord.findFirst({
-        where: { tenantId, callSessionId: callId },
-      });
-      if (history) {
-        if (history.receiverId && history.receiverId !== userId) {
-          return res.status(403).json({ success: false, error: "Only the designated recipient may reject this call." });
-        }
-        await db.callHistoryRecord.update({
-          where: { id: history.id },
-          data: { status: "rejected", endedAt: new Date(), notes: reason || "Declined via REST" },
-        }).catch(() => {});
-        return res.json({ success: true, message: "Call rejected successfully" });
-      }
+    if (!currentRecord) {
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
 
-    if (session.targetUserId !== userId) {
+    if (currentRecord.receiverId !== userId) {
       return res.status(403).json({ success: false, error: "Only the designated recipient may reject this call." });
     }
 
-    if (session.timeoutTimer) {
-      clearTimeout(session.timeoutTimer);
-      session.timeoutTimer = null;
+    // 2. ATOMIC DATABASE-LEVEL STATE TRANSITION:
+    const updateResult = await db.callHistoryRecord.updateMany({
+      where: {
+        tenantId,
+        callSessionId: callId,
+        receiverId: userId,
+        status: "ringing",
+      },
+      data: {
+        status: "rejected",
+        endedAt: new Date(),
+        notes: reason || "Declined via REST",
+      },
+    });
+
+    if (updateResult.count === 0) {
+      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
+      if (recheck?.status === "rejected") {
+        return res.json({ success: true, message: "Call already rejected" });
+      }
+      return res.status(409).json({
+        success: false,
+        error: `Call cannot be rejected because it is in '${recheck?.status || "unknown"}' state.`,
+      });
     }
 
-    session.status = "ended";
-    activeCalls.delete(callId);
-
-    // Update persisted DB record
-    await db.callHistoryRecord.updateMany({
-      where: { tenantId, callSessionId: callId },
-      data: { status: "rejected", endedAt: new Date(), notes: reason || "Declined via REST" },
-    }).catch(() => {});
+    // 3. Clear memory and notify participants
+    const session = activeCalls.get(callId);
+    if (session) {
+      if (session.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
+      session.status = "ended";
+      activeCalls.delete(callId);
+    }
 
     const io = getIO();
     const rejectPayload = {
@@ -240,10 +280,10 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
       timestamp: new Date().toISOString(),
     };
 
-    io?.to(`user:${session.callerId}`).emit("call:rejected", rejectPayload);
-    io?.to(`user:${session.targetUserId}`).emit("call:rejected", rejectPayload);
+    io?.to(`user:${currentRecord.callerId}`).emit("call:rejected", rejectPayload);
+    io?.to(`user:${currentRecord.receiverId}`).emit("call:rejected", rejectPayload);
 
-    // Also cancel any persistent push notifications on the client
+    // Cancel persistent push notifications on all callee devices
     void IncomingCallPushService.sendCallCancelledPush({
       callId,
       tenantId,
@@ -261,7 +301,7 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-// POST /api/calls/:callId/cancel - Caller cancellation
+// POST /api/calls/:callId/cancel - Caller ATOMIC cancellation
 callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
@@ -269,41 +309,55 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const tenantId = req.user!.tenantId!;
     const db = rawPrisma || prisma;
 
-    let session = activeCalls.get(callId);
+    // 1. Verify existence and caller ownership
+    const currentRecord = await db.callHistoryRecord.findFirst({
+      where: { tenantId, callSessionId: callId },
+    });
 
-    if (!session || session.tenantId !== tenantId) {
-      const history = await db.callHistoryRecord.findFirst({
-        where: { tenantId, callSessionId: callId },
-      });
-      if (history) {
-        if (history.callerId && history.callerId !== userId) {
-          return res.status(403).json({ success: false, error: "Only the caller may cancel this call." });
-        }
-        await db.callHistoryRecord.update({
-          where: { id: history.id },
-          data: { status: "cancelled", endedAt: new Date(), notes: "Cancelled via REST" },
-        }).catch(() => {});
-        return res.json({ success: true, message: "Call cancelled successfully" });
-      }
+    if (!currentRecord) {
       return res.status(404).json({ success: false, error: "Call session not found or already ended." });
     }
 
-    if (session.callerId !== userId) {
+    if (currentRecord.callerId !== userId) {
       return res.status(403).json({ success: false, error: "Only the caller may cancel this call." });
     }
 
-    if (session.timeoutTimer) {
-      clearTimeout(session.timeoutTimer);
-      session.timeoutTimer = null;
+    // 2. ATOMIC DATABASE-LEVEL STATE TRANSITION:
+    const updateResult = await db.callHistoryRecord.updateMany({
+      where: {
+        tenantId,
+        callSessionId: callId,
+        callerId: userId,
+        status: "ringing",
+      },
+      data: {
+        status: "cancelled",
+        endedAt: new Date(),
+        notes: "Cancelled via REST",
+      },
+    });
+
+    if (updateResult.count === 0) {
+      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
+      if (recheck?.status === "cancelled") {
+        return res.json({ success: true, message: "Call already cancelled" });
+      }
+      return res.status(409).json({
+        success: false,
+        error: `Call cannot be cancelled because it is in '${recheck?.status || "unknown"}' state.`,
+      });
     }
 
-    session.status = "ended";
-    activeCalls.delete(callId);
-
-    await db.callHistoryRecord.updateMany({
-      where: { tenantId, callSessionId: callId },
-      data: { status: "cancelled", endedAt: new Date(), notes: "Cancelled via REST" },
-    }).catch(() => {});
+    // 3. Clear memory and notify participants
+    const session = activeCalls.get(callId);
+    if (session) {
+      if (session.timeoutTimer) {
+        clearTimeout(session.timeoutTimer);
+        session.timeoutTimer = null;
+      }
+      session.status = "ended";
+      activeCalls.delete(callId);
+    }
 
     const io = getIO();
     const cancelPayload = {
@@ -313,15 +367,19 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
       timestamp: new Date().toISOString(),
     };
 
-    io?.to(`user:${session.targetUserId}`).emit("call:cancelled", cancelPayload);
-    io?.to(`user:${session.callerId}`).emit("call:cancelled", cancelPayload);
+    if (currentRecord.receiverId) {
+      io?.to(`user:${currentRecord.receiverId}`).emit("call:cancelled", cancelPayload);
+    }
+    io?.to(`user:${currentRecord.callerId}`).emit("call:cancelled", cancelPayload);
 
-    void IncomingCallPushService.sendCallCancelledPush({
-      callId,
-      tenantId,
-      targetUserId: session.targetUserId,
-      reason: "Caller cancelled",
-    }).catch(() => {});
+    if (currentRecord.receiverId) {
+      void IncomingCallPushService.sendCallCancelledPush({
+        callId,
+        tenantId,
+        targetUserId: currentRecord.receiverId,
+        reason: "Caller cancelled",
+      }).catch(() => {});
+    }
 
     return res.json({
       success: true,
