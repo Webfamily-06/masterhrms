@@ -20,7 +20,7 @@ const WhyUse = () => {
     >
       <div className="main-container space-y-8 md:space-y-14">
         <TextReveal delay={0.2}>
-          <h2 id="why-use-heading">Why use Nexsas for automation?</h2>
+          <h2 id="why-use-heading">Why use Master HRMS for automation?</h2>
         </TextReveal>
 
         <div className="grid grid-cols-12">

@@ -3,9 +3,9 @@ name: Robert Hayes
 title: Integrations specialist
 image: /assets/avatar-05.jpg
 heroImage: /assets/avatar-05.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
-bio: Robert connects Nexsas to the tools teams already use, building and maintaining integrations that keep data and workflows in sync.
+bio: Robert connects Master HRMS to the tools teams already use, building and maintaining integrations that keep data and workflows in sync.
 order: 5
 ---
 
@@ -29,7 +29,7 @@ Built and maintained CRM and marketing integrations, improving connector reliabi
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Owns integration connectors, partner APIs, and technical guidance for customers connecting complex multi-tool environments.
 

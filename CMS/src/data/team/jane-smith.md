@@ -3,7 +3,7 @@ name: Jane Smith
 title: Software engineer
 image: /assets/avatar-08.jpg
 heroImage: /assets/avatar-08.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
 bio: Jane builds core product features for the Webfamily Tech Solutions automation platform, focusing on clean APIs, test coverage, and fast iteration.
 order: 8

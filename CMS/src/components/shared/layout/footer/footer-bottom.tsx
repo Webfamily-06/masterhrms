@@ -5,8 +5,15 @@ import { useCmsPage } from '@/src/hooks/use-cms-page';
 
 export const FooterBottom = () => {
   const { content } = useCmsPage('footer');
-  const defaultCopyright = `Copyright © ${new Date().getFullYear()} Pixels71. Nexsas – smart application for modern business`;
-  const copyright = content?.copyright || defaultCopyright;
+  const defaultCopyright = `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
+  const rawCopyright = content?.copyright;
+  const copyright =
+    rawCopyright &&
+    !rawCopyright.includes('Pixels71') &&
+    !rawCopyright.includes('Nexsas') &&
+    !rawCopyright.includes('Apex HRMS')
+      ? rawCopyright
+      : defaultCopyright;
 
   return (
     <RevealAnimation delay={0.7} offset={10} start="top 105%">

@@ -3,7 +3,7 @@ name: Elijah Brooks
 title: Senior automation engineer
 image: /assets/avatar-02.jpg
 heroImage: /assets/avatar-02.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
 bio: Elijah designs and ships production automation flows, turning complex operational requirements into dependable triggers, actions, and monitoring.
 order: 2
@@ -29,7 +29,7 @@ Implemented integration workflows and internal automation tooling that reduced m
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Builds customer-facing automation templates and custom workflow implementations with a focus on performance, error handling, and maintainability.
 

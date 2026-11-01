@@ -29,7 +29,7 @@ type CompanyLink = Omit<CompanyMenuLinkProps, 'onClose'>;
 const aboutLinks: CompanyLink[] = [
   {
     title: 'About Us',
-    description: 'See how others are using Nexsas',
+    description: 'See how others are using Master HRMS',
     href: '/about',
     icon: AboutIcon,
   },

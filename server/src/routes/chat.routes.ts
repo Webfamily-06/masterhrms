@@ -4,16 +4,18 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
+import { runWithTenantContext } from "../context/tenant-context";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
-import { broadcastToTenant, broadcastToUser, getOnlineUsersForTenant } from "../socket";
+import { broadcastToTenant, broadcastToUser, getOnlineUsersForTenant, activeGroupCalls, getIO } from "../socket";
 import { PusherService } from "../services/pusher.service";
 import { UrlPreviewService } from "../services/url-preview.service";
 import { NotificationService } from "../services/notification.service";
 import { getUploadsRoot, MediaService } from "../services/media/media.service";
 import { recordSystemEvent } from "../services/chat-system-events.service";
 import { ChatFolderService } from "../services/files/chat-folder.service";
+import { MeetingSfuService } from "../services/meeting-sfu.service";
 
 export const chatRouter = Router();
 
@@ -2142,7 +2144,6 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
       };
     }
 
-    console.log(`[PERF_ROUTE] pre-create: ${Date.now() - _t0}ms`);
     const _tPre = Date.now();
     const msg = await prisma.chatMessage.create({
       data: {
@@ -2286,7 +2287,6 @@ chatRouter.post("/messages", requireAuth, async (req: AuthRequest, res: Response
     const _tDb = Date.now() - _tPre;
     const _tTotal = Date.now() - _t0;
     res.setHeader("Server-Timing", `db;dur=${_tDb}, total;dur=${_tTotal}`);
-    console.log(`[PERF_ROUTE] prisma create: ${_tDb}ms | total handler: ${_tTotal}ms`);
     if (clientTempId && typeof clientTempId === "string") {
       recentClientTempIds.set(`${tenantId}:${threadId}:${clientTempId}`, msg);
       if (recentClientTempIds.size > 2000) {
@@ -3319,3 +3319,242 @@ chatRouter.post("/calls/bulk-delete", requireAuth, async (req: AuthRequest, res:
   }
 });
 
+// ============================================================================
+// MULTI-PARTICIPANT MEETINGS & SFU TOKEN CONTROLLER
+// ============================================================================
+
+// GET /api/chat/meetings/config - Public client SFU configuration & diagnostics
+chatRouter.get("/meetings/config", requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const diagnostic = MeetingSfuService.getDiagnosticInfo();
+    const iceServers = MeetingSfuService.getIceServers();
+    return res.json({
+      ...diagnostic,
+      iceServers,
+    });
+  } catch (err: any) {
+    console.error("Meetings config error:", err);
+    return res.status(500).json({ error: err.message || "Failed to resolve meetings config" });
+  }
+});
+
+// POST /api/chat/meetings/:callId/token - Issues short-lived, scoped SFU room token
+chatRouter.post("/meetings/:callId/token", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const { groupId, callType = "video" } = req.body;
+
+    if (!groupId || !callId) {
+      return res.status(400).json({ error: "groupId and callId are required." });
+    }
+
+    const session = activeGroupCalls.get(callId);
+    if (!session || session.tenantId !== tenantId || session.groupId !== groupId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+
+    const isParticipantOrInvited =
+      session.participants.has(userId) || session.invitedUserIds.has(userId);
+    if (!isParticipantOrInvited) {
+      return res.status(403).json({ error: "Access denied. You are not invited to this meeting." });
+    }
+
+    // 1. Verify group exists and belongs to user's tenant
+    const group = await prisma.chatGroup.findFirst({
+      where: { id: groupId, tenantId },
+      include: { members: true },
+    });
+
+    if (!group) {
+      return res.status(404).json({ error: "Chat group not found or inaccessible." });
+    }
+
+    // 2. Verify authenticated user is a valid member of this group
+    const isMember = group.members.some((m) => m.userId === userId);
+    if (!isMember && !session.invitedUserIds.has(userId)) {
+      return res.status(403).json({ error: "Access denied. You are not a member or invitee of this meeting." });
+    }
+
+    // 3. Only the creator or an authorized tenant admin receives LiveKit room-admin rights.
+    const isHost =
+      session.creatorId === userId ||
+      req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
+      false;
+
+    // 4. Resolve user display name and avatar
+    const userProfile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { fullName: true, avatarUrl: true },
+    });
+    const displayName = userProfile?.fullName || req.user?.email || "Colleague";
+
+    // 5. Check if SFU is configured
+    const sfuConfig = MeetingSfuService.getConfig();
+    if (!sfuConfig.configured) {
+      return res.status(200).json({
+        configured: false,
+        provider: "livekit",
+        error: "SFU_NOT_CONFIGURED",
+        message: "LiveKit SFU credentials are not configured on this server.",
+        setupGuide: MeetingSfuService.getDiagnosticInfo().setupGuide,
+        room: MeetingSfuService.formatRoomName(tenantId, groupId, callId),
+        iceServers: MeetingSfuService.getIceServers(),
+        isHost,
+        user: { userId, name: displayName, avatarUrl: userProfile?.avatarUrl || null },
+      });
+    }
+
+    // 6. Generate cryptographically signed, short-lived room token
+    const tokenResult = MeetingSfuService.generateMeetingToken({
+      tenantId,
+      groupId,
+      callId,
+      userId,
+      name: displayName,
+      avatarUrl: userProfile?.avatarUrl || null,
+      isHost,
+      callType: callType === "audio" ? "audio" : "video",
+      ttlSeconds: 900, // 15 minutes
+    });
+
+    return res.json({
+      configured: true,
+      provider: "livekit",
+      token: tokenResult.token,
+      room: tokenResult.room,
+      url: tokenResult.url,
+      expiresAt: tokenResult.expiresAt,
+      iceServers: tokenResult.iceServers,
+      isHost,
+      user: { userId, name: displayName, avatarUrl: userProfile?.avatarUrl || null },
+    });
+  } catch (err: any) {
+    console.error("Meeting token generation error:", err);
+    return res.status(500).json({ error: err.message || "Failed to generate meeting token" });
+  }
+});
+
+// GET /api/chat/meetings/:callId/participants - Returns server-authoritative participant roster
+chatRouter.get("/meetings/:callId/participants", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { callId } = req.params;
+    const session = activeGroupCalls.get(callId);
+
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+
+    const participants = Array.from(session.participants.values()).map((p) => ({
+      userId: p.userId,
+      name: p.name,
+      avatar: p.avatar,
+      role: p.role,
+      joinedAt: p.joinedAt,
+      isMuted: p.isMuted,
+      isCameraOff: p.isCameraOff,
+      isScreenSharing: p.isScreenSharing,
+      isSpeaking: p.isSpeaking,
+    }));
+
+    return res.json({
+      callId: session.callId,
+      groupId: session.groupId,
+      groupName: session.groupName,
+      callType: session.callType,
+      creatorId: session.creatorId,
+      startedAt: session.startedAt,
+      participants,
+    });
+  } catch (err: any) {
+    console.error("Get meeting participants error:", err);
+    return res.status(500).json({ error: err.message || "Failed to get meeting participants" });
+  }
+});
+
+// POST /api/chat/meetings/:callId/end - Server endpoint to end meeting for everyone (host only)
+chatRouter.post("/meetings/:callId/end", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const session = activeGroupCalls.get(callId);
+
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+
+    const isHost =
+      session.creatorId === userId ||
+      req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
+      false;
+
+    if (!isHost) {
+      return res.status(403).json({ error: "Only the meeting host can end the meeting for everyone." });
+    }
+
+    // Persist CallHistoryRecord once
+    if (!session.historyPersisted) {
+      session.historyPersisted = true;
+      const durationSeconds = Math.max(1, Math.round((Date.now() - session.startedAt.getTime()) / 1000));
+      const participantIds = Array.from(session.participants.keys());
+      try {
+        await runWithTenantContext(
+          {
+            tenantId,
+            userId,
+            roles: req.user?.roles || [],
+            status: "ACTIVE",
+            tenancyStrategy: "SHARED_SCHEMA",
+            db: rawPrisma,
+          },
+          async () => {
+            return rawPrisma.callHistoryRecord.create({
+              data: {
+                tenantId,
+                callSessionId: callId,
+                callerId: session.creatorId,
+                callerName: req.user?.profile?.fullName || req.user?.email || "Host",
+                callerPhone: "Group Meeting",
+                callType: session.callType,
+                status: "completed",
+                durationSeconds,
+                callTime: new Date(),
+                groupId: session.groupId,
+                participantIds: participantIds.length > 0 ? participantIds : [userId],
+                notes: `Group meeting ended by host via API.`,
+              },
+            });
+          }
+        );
+      } catch (e: any) {
+        console.warn("Failed to persist call history on API meeting end:", e.message);
+      }
+    }
+
+    // Broadcast group-call:ended over Socket.IO and Pusher so all connected clients close dialog
+    const io = getIO();
+    if (io) {
+      io.to(`group_call_${callId}`).emit("group-call:ended", {
+        callId,
+        groupId: session.groupId,
+        endedBy: userId,
+        reason: "host_ended",
+      });
+    }
+
+    void PusherService.triggerTenantEvent(tenantId, "chat:meeting_ended", {
+      callId,
+      groupId: session.groupId,
+      endedBy: userId,
+    }).catch(() => {});
+
+    activeGroupCalls.delete(callId);
+    return res.json({ success: true, message: "Meeting ended for everyone." });
+  } catch (err: any) {
+    console.error("Meeting end error:", err);
+    return res.status(500).json({ error: err.message || "Failed to end meeting" });
+  }
+});

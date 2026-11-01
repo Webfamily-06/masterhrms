@@ -55,7 +55,7 @@ const AboutTeam = () => {
           </RevealAnimation>
 
           <TextReveal delay={0.2}>
-            <h2>The minds behind Nexsas</h2>
+            <h2>The minds behind Master HRMS</h2>
           </TextReveal>
 
           <TextReveal delay={0.3}>

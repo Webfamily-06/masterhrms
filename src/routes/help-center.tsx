@@ -290,7 +290,7 @@ export function HelpCenterPage() {
 
       {/* Footer */}
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-        © 2026 Master Workspace ERP. All rights reserved.
+        © {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.
       </footer>
     </div>
   );

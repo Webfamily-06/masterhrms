@@ -9,7 +9,7 @@ export const OurTeamHeader = () => {
   const { content } = useCmsPage('team');
   const hero = content?.hero || {};
   const eyebrow = hero.eyebrow || 'Meet the team';
-  const title = hero.title || 'The minds behind Nexsas';
+  const title = hero.title || 'The minds behind Master HRMS';
   const subtitle =
     hero.subtitle ||
     'Our team brings together product, design, and engineering to ship automation people rely on. Every release is shaped by feedback from teams like yours.';

@@ -157,7 +157,7 @@ export function ForbiddenView({
 
       {/* Footer */}
       <footer className="w-full max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-border/40 text-xs text-muted-foreground relative z-10 gap-2">
-        <span>&copy; {new Date().getFullYear()} Master ERP. All rights reserved.</span>
+        <span>&copy; {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</span>
         <div className="flex items-center gap-4">
           <a href="/support-dashboard" className="hover:underline hover:text-foreground transition-colors">
             Help Desk

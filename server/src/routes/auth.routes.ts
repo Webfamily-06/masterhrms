@@ -48,10 +48,6 @@ export async function resolveEffectiveUserRoles(
   const baseRoles = (user.roles || []).map((r: any) => String(r.role || r));
   if (baseRoles.includes("super_admin")) return baseRoles;
 
-  const isGowthamTenantAdmin =
-    user.email === "gowthamtooquik@gmail.com" ||
-    Boolean(user.profile?.fullName && user.profile.fullName.toLowerCase().includes("tenant admin"));
-
   let isWorkspaceAdmin = false;
   const effectiveTenantId = tenantId || user.profile?.tenantId;
   if (effectiveTenantId) {
@@ -64,12 +60,13 @@ export async function resolveEffectiveUserRoles(
       },
       include: { role: true },
     });
-    if (assignment?.role?.name === "Workspace Admin") {
+    const roleName = assignment?.role?.name?.toLowerCase();
+    if (roleName === "workspace admin" || roleName === "tenant admin" || roleName === "admin") {
       isWorkspaceAdmin = true;
     }
   }
 
-  if (isGowthamTenantAdmin || isWorkspaceAdmin) {
+  if (isWorkspaceAdmin || baseRoles.includes("tenant_admin") || baseRoles.includes("workspace_admin")) {
     const effective = baseRoles.filter((r) => r !== "hr_admin");
     if (!effective.includes("tenant_admin")) effective.push("tenant_admin");
     if (!effective.includes("admin")) effective.push("admin");
@@ -204,44 +201,46 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
 
     const tenantId = tenant?.id;
 
-    // 1. Fetch Tenant Administrator (excluding root admin@masterhrms.com)
-    let tenantAdmin = {
-      email: "gowthamtooquik@gmail.com",
-      name: "Gowtham (Tenant Administrator)",
-      role: "Tenant Admin",
-    };
+    // 1. Fetch Tenant Administrator
+    let tenantAdmin: { email: string; name: string; role: string } | null = null;
 
     if (tenantId) {
-      const gowthamUser = await prisma.user.findFirst({
-        where: { email: "gowthamtooquik@gmail.com" },
-        include: { profile: true },
+      const wsAdminAssign = await prisma.userRoleAssignment.findFirst({
+        where: {
+          tenantId,
+          role: { name: { in: ["Workspace Admin", "Tenant Admin", "Admin"] } },
+          user: { email: { not: "admin@masterhrms.com" } },
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              profile: { select: { fullName: true } },
+            },
+          },
+          role: { select: { name: true } },
+        },
       });
-      if (gowthamUser) {
+      if (wsAdminAssign?.user?.email) {
         tenantAdmin = {
-          email: gowthamUser.email,
-          name: gowthamUser.profile?.fullName || "Gowtham (Tenant Administrator)",
-          role: "Tenant Admin",
+          email: wsAdminAssign.user.email,
+          name: wsAdminAssign.user.profile?.fullName || "Tenant Administrator",
+          role: wsAdminAssign.role?.name || "Tenant Admin",
         };
       } else {
-        const wsAdminAssign = await prisma.userRoleAssignment.findFirst({
+        const tenantUserProfile = await prisma.profile.findFirst({
           where: {
             tenantId,
-            role: { name: "Workspace Admin" },
             user: { email: { not: "admin@masterhrms.com" } },
           },
           include: {
-            user: {
-              select: {
-                email: true,
-                profile: { select: { fullName: true } },
-              },
-            },
+            user: { select: { email: true } },
           },
         });
-        if (wsAdminAssign?.user?.email) {
+        if (tenantUserProfile?.user?.email) {
           tenantAdmin = {
-            email: wsAdminAssign.user.email,
-            name: wsAdminAssign.user.profile?.fullName || "Tenant Administrator",
+            email: tenantUserProfile.user.email,
+            name: tenantUserProfile.fullName || "Tenant Administrator",
             role: "Tenant Admin",
           };
         }
@@ -249,11 +248,7 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
     }
 
     // 2. Fetch HR Admin
-    let hrAdmin = {
-      email: "hr@masterhrms.com",
-      name: "Sarah Jenkins (HR Director)",
-      role: "HR Admin",
-    };
+    let hrAdmin: { email: string; name: string; role: string } | null = null;
 
     if (tenantId) {
       const hrRole = await prisma.userRole.findFirst({
@@ -261,7 +256,7 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
           tenantId,
           role: "hr_admin",
           user: {
-            email: { notIn: ["admin@masterhrms.com", tenantAdmin.email] },
+            email: { notIn: ["admin@masterhrms.com", ...(tenantAdmin ? [tenantAdmin.email] : [])] },
           },
         },
         include: {
@@ -284,11 +279,7 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
     }
 
     // 3. Fetch Employee
-    let employee = {
-      email: "employee@masterhrms.com",
-      name: "Alex Morgan (Staff)",
-      role: "Employee",
-    };
+    let employee: { email: string; name: string; role: string } | null = null;
 
     if (tenantId) {
       const empRole = await prisma.userRole.findFirst({

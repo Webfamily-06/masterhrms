@@ -20,10 +20,10 @@ const AboutHero = () => {
   const { content } = useCmsPage('about');
   const hero = content?.hero || {};
   const eyebrow = hero.eyebrow || 'About story';
-  const title = hero.title || 'How Nexsas began';
+  const title = hero.title || 'How Master HRMS began';
   const subtitle =
     hero.subtitle ||
-    'Nexsas was founded to turn automation into practical outcomes for real business challenges — intuitive tools that save time and scale';
+    'Master HRMS was founded to turn automation into practical outcomes for real business challenges — intuitive tools that save time and scale';
 
   return (
     <section className="relative overflow-hidden pt-[190px]">

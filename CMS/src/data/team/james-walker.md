@@ -3,9 +3,9 @@ name: James Walker
 title: Chief technology officer (CTO)
 image: /assets/avatar-01.jpg
 heroImage: /assets/avatar-01.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
-bio: James leads platform architecture and engineering strategy, ensuring Nexsas automation stays reliable, secure, and ready to scale with customer demand.
+bio: James leads platform architecture and engineering strategy, ensuring Master HRMS automation stays reliable, secure, and ready to scale with customer demand.
 order: 1
 ---
 
@@ -29,7 +29,7 @@ Led engineering teams building cloud productivity infrastructure. Partnered with
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Owns technical direction for the automation platform, from core workflow engine design to integration reliability and long-term scalability planning.
 

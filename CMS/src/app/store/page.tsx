@@ -320,7 +320,7 @@ export default function PublicStorefrontPage() {
 
       {/* 6. Footer */}
       <footer className="bg-white dark:bg-zinc-900 border-t border-border-color dark:border-zinc-800 py-8 px-4 text-xs text-muted-foreground text-center">
-        <p>© 2026 TSV Global Solutions Pvt Ltd. Built with Stocky Multi-Outlet Architecture standard.</p>
+        <p>© {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
       </footer>
 
       {/* Flyout Cart Drawer */}

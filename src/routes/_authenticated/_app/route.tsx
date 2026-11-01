@@ -1186,7 +1186,13 @@ export function AppShell() {
           )}
         </main>
         <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="workspace-footer">
-          <span data-testid="workspace-footer-text">{branding.footerText || appConfig.footerText || "© 2026 Master HRMS. All rights reserved."}</span>
+          <span data-testid="workspace-footer-text">
+            {branding.footerText && !branding.footerText.includes("Apex HRMS") && !branding.footerText.includes("Persisted Forever")
+              ? branding.footerText
+              : (appConfig.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
+                  ? appConfig.footerText
+                  : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`)}
+          </span>
           <span>{branding.name || appConfig.appName}</span>
         </footer>
       </div>

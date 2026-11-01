@@ -3,9 +3,9 @@ name: Brandon Scott
 title: Security & compliance lead
 image: /assets/avatar-06.jpg
 heroImage: /assets/avatar-06.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
-bio: Brandon ensures Nexsas meets security and compliance expectations, embedding governance into automation design without slowing teams down.
+bio: Brandon ensures Master HRMS meets security and compliance expectations, embedding governance into automation design without slowing teams down.
 order: 6
 ---
 
@@ -29,7 +29,7 @@ Led security reviews and compliance initiatives for identity and access manageme
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Directs security program, audit readiness, and policy controls for automation workflows handling sensitive operational data.
 

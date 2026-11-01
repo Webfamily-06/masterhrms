@@ -129,7 +129,7 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     label: "Footer Copyright Text",
     help: "Copyright and legal disclaimer appearing in portals and transactional emails.",
     type: "string",
-    default: "© 2026 Master HRMS. All rights reserved.",
+    default: "© 2026 Webfamily Tech Solutions. All rights reserved.",
     scopes: ["PLATFORM", "TENANT"],
     validation: (val) => {
       if (typeof val !== "string") return { valid: false, error: "Footer text must be string" };

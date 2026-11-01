@@ -28,7 +28,7 @@ export function LivePreviewDock({
   primaryColor = "#2563EB",
   logoLightUrl = "/logo.webp",
   logoDarkUrl = "/white-logo.webp",
-  footerText = "© 2026 Master HRMS. All rights reserved.",
+  footerText = "© 2026 Webfamily Tech Solutions. All rights reserved.",
   currencyCode = "INR",
   dateFormat = "DD-MM-YYYY",
   timezone = "Asia/Kolkata",

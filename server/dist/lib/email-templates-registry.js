@@ -12,6 +12,7 @@ exports.AUTHORITATIVE_EMAIL_TEMPLATES = exports.SAMPLE_VARS = void 0;
 exports.getAuthoritativeTemplates = getAuthoritativeTemplates;
 exports.mergeWithPersistedTemplates = mergeWithPersistedTemplates;
 exports.substituteTemplateVars = substituteTemplateVars;
+const defaultAppBaseUrl = (process.env.APP_URL || process.env.FRONTEND_BASE_URL || (process.env.NODE_ENV === "production" ? "https://app.masterhrms.com" : "http://localhost:3000")).replace(/\/+$/, "");
 exports.SAMPLE_VARS = {
     // Calendar variables
     recipientName: "Alex Morgan",
@@ -34,8 +35,8 @@ exports.SAMPLE_VARS = {
     event_description: "Reviewing Q3 business performance and aligning team targets for the upcoming quarter.",
     reminderText: "Event starts in 1 hour",
     reminder_text: "Event starts in 1 hour",
-    calendarUrl: "http://master.localhost:3000/hr/calendar",
-    calendar_url: "http://master.localhost:3000/hr/calendar",
+    calendarUrl: `${defaultAppBaseUrl}/hr/calendar`,
+    calendar_url: `${defaultAppBaseUrl}/hr/calendar`,
     // Tasks variables
     task_title: "Q4 Performance Benchmarking & Team Audit",
     taskTitle: "Q4 Performance Benchmarking & Team Audit",
@@ -50,8 +51,8 @@ exports.SAMPLE_VARS = {
     startDate: "26 Oct 2026",
     due_date: "31 Oct 2026",
     dueDate: "31 Oct 2026",
-    task_url: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
-    taskUrl: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
+    task_url: `${defaultAppBaseUrl}/hr/todo?taskId=task-bench-402`,
+    taskUrl: `${defaultAppBaseUrl}/hr/todo?taskId=task-bench-402`,
     app_name: "Master HRMS & ERP",
     appName: "Master HRMS & ERP",
     // Subscription variables

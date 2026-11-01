@@ -4,7 +4,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   ...generateMetadata(),
-  title: '404 - Automation SaaS || Nexsas',
+  title: '404 - Not Found — Webfamily Tech Solutions',
 };
 
 export default function NotFoundPage() {

@@ -39,7 +39,7 @@ const WorkFlow = () => {
             </TextReveal>
             <TextReveal delay={0.2}>
               <p className="text-tagline-1 text-secondary/60">
-                Nexsas is designed to streamline your workflow and help you create content faster
+                Master HRMS is designed to streamline your workflow and help you create content faster
                 and smarter.
               </p>
             </TextReveal>

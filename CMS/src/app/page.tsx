@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   ...generateMetadata(),
-  title: 'Automation SaaS || Nexsas',
+  title: 'Master HRMS & Enterprise ERP — Webfamily Tech Solutions',
 };
 
 import AboutUs from '@/src/components/home/about-us';

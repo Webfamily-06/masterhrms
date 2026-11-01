@@ -13,7 +13,7 @@ const WhyChoose = () => {
     <section className="pt-20 md:pt-25 lg:pt-39">
       <div className="main-container space-y-10 md:space-y-14">
         <TextReveal delay={0.1}>
-          <h2 className="text-center">Why Nexsas?</h2>
+          <h2 className="text-center">Why Master HRMS?</h2>
         </TextReveal>
 
         <RevealAnimation
@@ -25,7 +25,7 @@ const WhyChoose = () => {
             <figure>
               <Image
                 src={avatarImgOne}
-                alt="Why choose Nexsas"
+                alt="Why choose Master HRMS"
                 className="size-full object-cover"
               />
             </figure>
@@ -35,7 +35,7 @@ const WhyChoose = () => {
             <figure>
               <Image
                 src={avatarImgTwo}
-                alt="Why choose Nexsas"
+                alt="Why choose Master HRMS"
                 className="size-full object-cover"
               />
             </figure>
@@ -91,7 +91,7 @@ const WhyChoose = () => {
 
           <RevealAnimation delay={0.4} className="overflow-hidden rounded-xl">
             <figure>
-              <Image src={featureImg} alt="Why choose Nexsas" className="size-full object-cover" />
+              <Image src={featureImg} alt="Why choose Master HRMS" className="size-full object-cover" />
             </figure>
           </RevealAnimation>
 
@@ -99,7 +99,7 @@ const WhyChoose = () => {
             <figure>
               <Image
                 src={avatarImgThree}
-                alt="Why choose Nexsas"
+                alt="Why choose Master HRMS"
                 className="size-full object-cover"
               />
             </figure>

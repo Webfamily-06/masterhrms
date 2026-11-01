@@ -755,7 +755,11 @@ function SuperShell() {
           <Outlet />
         </main>
         <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="super-footer">
-          <span data-testid="super-footer-text">{appConfig.footerText || "© 2026 Master HRMS. All rights reserved."}</span>
+          <span data-testid="super-footer-text">
+            {appConfig.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
+              ? appConfig.footerText
+              : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`}
+          </span>
           <span>{appConfig.appName}</span>
         </footer>
       </div>

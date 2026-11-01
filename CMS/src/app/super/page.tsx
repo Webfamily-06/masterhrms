@@ -1005,12 +1005,10 @@ function SuperDashboard() {
 
       {/* ─── Footer ───────────────────────────────────────────────────────── */}
       <div className="footer flex flex-col sm:flex-row items-center justify-between border-t border-border pt-4 pb-2 text-xs text-muted-foreground">
-        <p className="mb-1 sm:mb-0">2026 &copy; Dreams ERP. All rights reserved.</p>
+        <p className="mb-1 sm:mb-0">&copy; {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
         <p>
-          Designed &amp; Developed By{" "}
-          <a href="https://dreamstechnologies.com" target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">
-            Dreams
-          </a>
+          Maintained &amp; Secured By{" "}
+          <span className="text-primary font-medium">Webfamily Tech Solutions</span>
         </p>
       </div>
 

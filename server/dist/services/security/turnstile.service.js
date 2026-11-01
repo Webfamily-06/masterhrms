@@ -53,7 +53,7 @@ class TurnstileService {
         if (raw === "enforce" || raw === "audit" || raw === "off") {
             return raw;
         }
-        if (process.env.NODE_ENV === "production" && process.env.TURNSTILE_SECRET_KEY) {
+        if (process.env.NODE_ENV === "production" && (process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET)) {
             return "enforce";
         }
         return "off";
@@ -89,7 +89,9 @@ class TurnstileService {
             token === "1x00000000000000000000AA" ||
             token === "test-valid-token";
         if ((process.env.NODE_ENV === "test" && isTestToken) ||
-            (process.env.TURNSTILE_SECRET_KEY === "1x0000000000000000000000000000000AA" && isTestToken)) {
+            ((process.env.TURNSTILE_SECRET_KEY === "1x0000000000000000000000000000000AA" ||
+                process.env.TURNSTILE_SECRET === "1x0000000000000000000000000000000AA") &&
+                isTestToken)) {
             return {
                 success: true,
                 status: "bypassed",
@@ -140,9 +142,9 @@ class TurnstileService {
             };
         }
         // 6. Secret key verification
-        const secretKey = process.env.TURNSTILE_SECRET_KEY;
+        const secretKey = process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET;
         if (!secretKey) {
-            console.error("[Turnstile] TURNSTILE_SECRET_KEY is not configured on the server.");
+            console.error("[Turnstile] TURNSTILE_SECRET_KEY (or TURNSTILE_SECRET) is not configured on the server.");
             if (mode === "audit") {
                 return {
                     success: true,
@@ -271,8 +273,13 @@ class TurnstileService {
 }
 exports.TurnstileService = TurnstileService;
 function getTurnstileConfig() {
-    const secretKey = process.env.TURNSTILE_SECRET_KEY || "1x0000000000000000000000000000000AA";
-    const siteKey = process.env.TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+    const secretKey = process.env.TURNSTILE_SECRET_KEY ||
+        process.env.TURNSTILE_SECRET ||
+        "1x0000000000000000000000000000000AA";
+    const siteKey = process.env.TURNSTILE_SITE_KEY ||
+        process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+        process.env.VITE_TURNSTILE_SITE_KEY ||
+        "1x00000000000000000000AA";
     const mode = TurnstileService.getEnforcementMode();
     return {
         secretKey,

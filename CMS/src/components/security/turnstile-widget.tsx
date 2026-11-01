@@ -66,7 +66,11 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     const [hasError, setHasError] = useState(false);
 
     const siteKey =
-      (typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || process.env.VITE_TURNSTILE_SITE_KEY) : undefined) ||
+      (typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+           process.env.VITE_TURNSTILE_SITE_KEY ||
+           process.env.TURNSTILE_SITE_KEY)
+        : undefined) ||
       DEFAULT_TEST_SITE_KEY;
 
     useImperativeHandle(ref, () => ({

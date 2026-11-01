@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.activeGroupCalls = void 0;
 exports.initSocket = initSocket;
 exports.getIO = getIO;
 exports.getOnlineUsersForTenant = getOnlineUsersForTenant;
@@ -18,7 +19,7 @@ const pusher_service_1 = require("./services/pusher.service");
 let ioInstance = null;
 const tenantPresence = new Map();
 const activeCalls = new Map();
-const activeGroupCalls = new Map();
+exports.activeGroupCalls = new Map();
 function initSocket(server, allowedOrigins) {
     ioInstance = new socket_io_1.Server(server, {
         cors: {
@@ -298,9 +299,8 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            // A user may be in only one live one-to-one call. Check both sides here
-            // instead of trusting client state, otherwise a caller could create two
-            // concurrent peer connections from different tabs.
+            // A user may be in only one live one-to-one call or group meeting. Check both sides here
+            // instead of trusting client state, otherwise a caller could create concurrent peer connections.
             let busyUserId = null;
             for (const [, session] of activeCalls) {
                 if (session.tenantId === tenantId &&
@@ -311,6 +311,20 @@ function initSocket(server, allowedOrigins) {
                         ? targetUserId
                         : socket.data.userId;
                     break;
+                }
+            }
+            if (!busyUserId) {
+                for (const [, meeting] of exports.activeGroupCalls) {
+                    if (meeting.tenantId === tenantId) {
+                        if (meeting.participants.has(targetUserId)) {
+                            busyUserId = targetUserId;
+                            break;
+                        }
+                        else if (meeting.participants.has(socket.data.userId)) {
+                            busyUserId = socket.data.userId;
+                            break;
+                        }
+                    }
                 }
             }
             if (busyUserId) {
@@ -764,36 +778,93 @@ function initSocket(server, allowedOrigins) {
                 console.warn("Failed to persist completed call record:", err.message);
             }
         });
-        // 7. GROUP AUDIO & VIDEO CALLS
-        socket.on("group-call:start", async (payload) => {
+        // 7. GROUP AUDIO & VIDEO CALLS & MULTI-PARTY MEETINGS
+        socket.on("group-call:start", async (payload, acknowledge) => {
             const { groupId, callId, callType } = payload;
             const tenantId = socket.data.tenantId;
             if (!groupId || !callId || !tenantId) {
+                acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "Invalid meeting request." });
                 emitCallForbidden(socket);
                 return;
             }
-            // Verify membership
+            if (exports.activeGroupCalls.has(callId)) {
+                acknowledge?.({ success: false, code: "CALL_CONFLICT", message: "This meeting ID is already active." });
+                emitCallForbidden(socket);
+                return;
+            }
+            // Verify group existence and membership within tenant
             const group = await (prisma_1.rawPrisma || prisma_1.prisma).chatGroup.findFirst({
                 where: { id: groupId, tenantId },
                 include: { members: true },
             });
             if (!group || !group.members.some((m) => m.userId === socket.data.userId)) {
+                acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "You cannot start a meeting for this group." });
                 emitCallForbidden(socket);
                 return;
             }
-            activeGroupCalls.set(callId, {
+            // Check if host is already on an active 1-to-1 call
+            for (const [, call] of activeCalls) {
+                if (call.tenantId === tenantId &&
+                    (call.status === "ringing" || call.status === "connected") &&
+                    (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
+                    socket.emit("call:busy", {
+                        callId,
+                        message: "You are already in an active call. Please end your current call first.",
+                        busyUserId: socket.data.userId,
+                    });
+                    acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in an active call." });
+                    return;
+                }
+            }
+            for (const [, meeting] of exports.activeGroupCalls) {
+                if (meeting.tenantId === tenantId && meeting.participants.has(socket.data.userId)) {
+                    socket.emit("call:busy", {
+                        callId,
+                        message: "You are already in another meeting. Leave it before starting a new one.",
+                        busyUserId: socket.data.userId,
+                    });
+                    acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in another meeting." });
+                    return;
+                }
+            }
+            const participants = new Map();
+            participants.set(socket.data.userId, {
+                userId: socket.data.userId,
+                name: socket.data.name || "Host",
+                avatar: socket.data.avatar || null,
+                role: "host",
+                joinedAt: new Date(),
+                isMuted: false,
+                isCameraOff: false,
+                isScreenSharing: false,
+                isSpeaking: false,
+                socketIds: new Set([socket.id]),
+            });
+            const invitedUserIds = new Set();
+            for (const m of group.members) {
+                if (m.userId !== socket.data.userId) {
+                    invitedUserIds.add(m.userId);
+                }
+            }
+            exports.activeGroupCalls.set(callId, {
                 callId,
                 groupId,
+                groupName: group.name,
+                groupAvatarUrl: group.avatarUrl,
                 tenantId,
                 creatorId: socket.data.userId,
                 callType: callType || "audio",
                 startedAt: new Date(),
+                participants,
+                invitedUserIds,
+                historyPersisted: false,
             });
             socket.join(`group_call_${callId}`);
-            // Broadcast incoming group call to all group members
+            acknowledge?.({ success: true, callId });
+            // Broadcast incoming group call to all group members with Pusher fallback
             for (const m of group.members) {
                 if (m.userId !== socket.data.userId) {
-                    ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", {
+                    const invitePayload = {
                         groupId,
                         groupName: group.name,
                         groupAvatarUrl: group.avatarUrl,
@@ -802,11 +873,16 @@ function initSocket(server, allowedOrigins) {
                         callerId: socket.data.userId,
                         callerName: socket.data.name,
                         callerAvatar: socket.data.avatar,
-                    });
+                        eventId: `group_call_${callId}_${m.userId}`,
+                    };
+                    // Primary: Socket.IO
+                    ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
+                    // Fallback: Pusher
+                    pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
                 }
             }
             // Record system event in group conversation
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, socket.data.userId, "group_call_started", `${socket.data.name} started a group ${callType} call.`, { groupId, callId, callType });
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, socket.data.userId, "group_call_started", `${socket.data.name} started a group ${callType} meeting.`, { groupId, callId, callType });
         });
         socket.on("group-call:join", async (payload) => {
             const { callId } = payload;
@@ -815,7 +891,7 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeGroupCalls.get(callId);
+            const session = exports.activeGroupCalls.get(callId);
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -823,16 +899,83 @@ function initSocket(server, allowedOrigins) {
             const member = await (prisma_1.rawPrisma || prisma_1.prisma).chatGroupMember.findFirst({
                 where: { groupId: session.groupId, userId: socket.data.userId },
             });
-            if (!member) {
+            if (!member && !session.invitedUserIds.has(socket.data.userId)) {
                 emitCallForbidden(socket);
                 return;
             }
+            // Check if user is in an active 1-to-1 call
+            for (const [, call] of activeCalls) {
+                if (call.tenantId === tenantId &&
+                    (call.status === "ringing" || call.status === "connected") &&
+                    (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
+                    socket.emit("call:busy", {
+                        callId,
+                        message: "You are already in an active 1-to-1 call. End it before joining the meeting.",
+                        busyUserId: socket.data.userId,
+                    });
+                    return;
+                }
+            }
+            for (const [, meeting] of exports.activeGroupCalls) {
+                if (meeting.callId !== callId &&
+                    meeting.tenantId === tenantId &&
+                    meeting.participants.has(socket.data.userId)) {
+                    socket.emit("call:busy", {
+                        callId,
+                        message: "You are already in another meeting. Leave it before joining this one.",
+                        busyUserId: socket.data.userId,
+                    });
+                    return;
+                }
+            }
             socket.join(`group_call_${callId}`);
+            // Maintain server-authoritative participant roster
+            let participant = session.participants.get(socket.data.userId);
+            if (!participant) {
+                participant = {
+                    userId: socket.data.userId,
+                    name: socket.data.name || payload.name || "Participant",
+                    avatar: socket.data.avatar || payload.avatar || null,
+                    role: socket.data.userId === session.creatorId ? "host" : "participant",
+                    joinedAt: new Date(),
+                    isMuted: false,
+                    isCameraOff: false,
+                    isScreenSharing: false,
+                    isSpeaking: false,
+                    socketIds: new Set([socket.id]),
+                };
+                session.participants.set(socket.data.userId, participant);
+            }
+            else {
+                participant.socketIds.add(socket.id);
+            }
+            // Notify other participants in room
             socket.to(`group_call_${callId}`).emit("group-call:user_joined", {
                 callId,
                 userId: socket.data.userId,
-                name: socket.data.name,
-                avatar: socket.data.avatar,
+                name: participant.name,
+                avatar: participant.avatar,
+                role: participant.role,
+                isMuted: participant.isMuted,
+                isCameraOff: participant.isCameraOff,
+            });
+            // Synchronize full roster to joining user
+            const roster = Array.from(session.participants.values()).map((p) => ({
+                userId: p.userId,
+                name: p.name,
+                avatar: p.avatar,
+                role: p.role,
+                isMuted: p.isMuted,
+                isCameraOff: p.isCameraOff,
+                isScreenSharing: p.isScreenSharing,
+                isSpeaking: p.isSpeaking,
+            }));
+            socket.emit("group-call:state_sync", {
+                callId,
+                groupId: session.groupId,
+                callType: session.callType,
+                creatorId: session.creatorId,
+                participants: roster,
             });
         });
         socket.on("group-call:signal", async (payload) => {
@@ -841,7 +984,7 @@ function initSocket(server, allowedOrigins) {
                 return;
             }
             const tenantId = socket.data.tenantId;
-            const session = activeGroupCalls.get(payload.callId);
+            const session = exports.activeGroupCalls.get(payload.callId);
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
                 return;
@@ -864,13 +1007,174 @@ function initSocket(server, allowedOrigins) {
                 signal: payload.signal,
             });
         });
+        socket.on("group-call:media-state", async (payload) => {
+            const { callId } = payload;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId)
+                return;
+            const session = exports.activeGroupCalls.get(callId);
+            if (!session || session.tenantId !== tenantId)
+                return;
+            const participant = session.participants.get(socket.data.userId);
+            if (!participant)
+                return;
+            if (typeof payload.isMuted === "boolean")
+                participant.isMuted = payload.isMuted;
+            if (typeof payload.isCameraOff === "boolean")
+                participant.isCameraOff = payload.isCameraOff;
+            if (typeof payload.isScreenSharing === "boolean")
+                participant.isScreenSharing = payload.isScreenSharing;
+            if (typeof payload.isSpeaking === "boolean")
+                participant.isSpeaking = payload.isSpeaking;
+            socket.to(`group_call_${callId}`).emit("group-call:media_state", {
+                callId,
+                userId: socket.data.userId,
+                isMuted: participant.isMuted,
+                isCameraOff: participant.isCameraOff,
+                isScreenSharing: participant.isScreenSharing,
+                isSpeaking: participant.isSpeaking,
+            });
+        });
+        socket.on("group-call:media_state", (payload) => {
+            // Alias for underscore event name
+            const { callId } = payload;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId)
+                return;
+            const session = exports.activeGroupCalls.get(callId);
+            if (!session || session.tenantId !== tenantId)
+                return;
+            const participant = session.participants.get(socket.data.userId);
+            if (!participant)
+                return;
+            if (typeof payload.isMuted === "boolean")
+                participant.isMuted = payload.isMuted;
+            if (typeof payload.isCameraOff === "boolean")
+                participant.isCameraOff = payload.isCameraOff;
+            if (typeof payload.isScreenSharing === "boolean")
+                participant.isScreenSharing = payload.isScreenSharing;
+            if (typeof payload.isSpeaking === "boolean")
+                participant.isSpeaking = payload.isSpeaking;
+            socket.to(`group_call_${callId}`).emit("group-call:media_state", {
+                callId,
+                userId: socket.data.userId,
+                isMuted: participant.isMuted,
+                isCameraOff: participant.isCameraOff,
+                isScreenSharing: participant.isScreenSharing,
+                isSpeaking: participant.isSpeaking,
+            });
+        });
+        socket.on("group-call:invite_users", async (payload) => {
+            const { callId, userIds } = payload;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId || !Array.isArray(userIds) || userIds.length === 0) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const session = exports.activeGroupCalls.get(callId);
+            if (!session || session.tenantId !== tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            if (!session.participants.has(socket.data.userId)) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const targetUsers = await (prisma_1.rawPrisma || prisma_1.prisma).user.findMany({
+                where: {
+                    id: { in: userIds },
+                    profile: { tenantId },
+                },
+                select: { id: true, email: true },
+            });
+            for (const u of targetUsers) {
+                if (!session.participants.has(u.id)) {
+                    session.invitedUserIds.add(u.id);
+                    // Check if invited user is already on another active call or meeting
+                    let isUserBusy = false;
+                    for (const [, call] of activeCalls) {
+                        if (call.tenantId === tenantId &&
+                            (call.status === "ringing" || call.status === "connected") &&
+                            (call.callerId === u.id || call.targetUserId === u.id)) {
+                            isUserBusy = true;
+                            break;
+                        }
+                    }
+                    if (!isUserBusy) {
+                        for (const [, meeting] of exports.activeGroupCalls) {
+                            if (meeting.tenantId === tenantId && meeting.callId !== callId && meeting.participants.has(u.id)) {
+                                isUserBusy = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (isUserBusy) {
+                        const busyNotice = {
+                            callId,
+                            message: `You were invited to meeting '${session.groupName || "Group Meeting"}' while on another call.`,
+                            requestedByName: socket.data.name || "A colleague",
+                        };
+                        ioInstance?.to(`user:${u.id}`).emit("call:busy", busyNotice);
+                        void pusher_service_1.PusherService.triggerUserEvent(tenantId, u.id, "call:busy", busyNotice).catch(() => { });
+                        continue;
+                    }
+                    const invitePayload = {
+                        groupId: session.groupId,
+                        groupName: session.groupName || "Group Meeting",
+                        groupAvatarUrl: session.groupAvatarUrl || null,
+                        callId,
+                        callType: session.callType,
+                        callerId: socket.data.userId,
+                        callerName: socket.data.name,
+                        callerAvatar: socket.data.avatar,
+                        eventId: `group_call_${callId}_${u.id}_${Date.now()}`,
+                    };
+                    ioInstance?.to(`user:${u.id}`).emit("group-call:incoming", invitePayload);
+                    pusher_service_1.PusherService.triggerUserEvent(tenantId, u.id, "group-call:incoming", invitePayload).catch((e) => console.warn("Pusher invite fallback error:", e?.message || e));
+                }
+            }
+            socket.emit("group-call:invite_sent", {
+                callId,
+                invitedCount: targetUsers.length,
+            });
+        });
+        socket.on("group-call:remove_participant", async (payload) => {
+            const { callId, targetUserId } = payload;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !targetUserId || !tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const session = exports.activeGroupCalls.get(callId);
+            if (!session || session.tenantId !== tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            // Host or platform admin check
+            const isHost = socket.data.userId === session.creatorId || socket.data.isSuper;
+            if (!isHost) {
+                socket.emit("call:error", { code: "CALL_FORBIDDEN", message: "Only the meeting host can remove participants." });
+                return;
+            }
+            session.participants.delete(targetUserId);
+            ioInstance?.to(`user:${targetUserId}`).emit("group-call:removed", {
+                callId,
+                removedBy: socket.data.userId,
+                reason: "Removed from meeting by host",
+            });
+            ioInstance?.to(`group_call_${callId}`).emit("group-call:user_left", {
+                callId,
+                userId: targetUserId,
+                reason: "removed_by_host",
+            });
+        });
         socket.on("group-call:leave", async (payload) => {
             const { callId } = payload;
             if (!callId) {
                 emitCallForbidden(socket);
                 return;
             }
-            const session = activeGroupCalls.get(callId);
+            const session = exports.activeGroupCalls.get(callId);
             const tenantId = socket.data.tenantId;
             if (!session || session.tenantId !== tenantId) {
                 emitCallForbidden(socket);
@@ -885,38 +1189,120 @@ function initSocket(server, allowedOrigins) {
                 return;
             }
             socket.leave(`group_call_${callId}`);
+            const participant = session.participants.get(socket.data.userId);
+            if (participant) {
+                participant.socketIds.delete(socket.id);
+                if (participant.socketIds.size === 0) {
+                    session.participants.delete(socket.data.userId);
+                }
+            }
             socket.to(`group_call_${callId}`).emit("group-call:user_left", {
                 callId,
                 userId: socket.data.userId,
             });
             const room = ioInstance?.sockets.adapter.rooms.get(`group_call_${callId}`);
-            if (!room || room.size === 0) {
-                activeGroupCalls.delete(callId);
-            }
-            const groupId = session.groupId;
-            if (tenantId && groupId && payload.durationSeconds && payload.durationSeconds > 0) {
-                try {
-                    await prisma_1.prisma.callHistoryRecord.create({
-                        data: {
+            if (!room || room.size === 0 || session.participants.size === 0) {
+                exports.activeGroupCalls.delete(callId);
+                // Persist group call history once
+                if (tenantId && session.groupId && !session.historyPersisted) {
+                    session.historyPersisted = true;
+                    const duration = payload.durationSeconds && payload.durationSeconds > 0
+                        ? Math.round(payload.durationSeconds)
+                        : Math.max(1, Math.round((Date.now() - session.startedAt.getTime()) / 1000));
+                    try {
+                        await (0, tenant_context_1.runWithTenantContext)({
                             tenantId,
-                            callSessionId: callId,
-                            callerId: socket.data.userId,
-                            callerName: socket.data.name || "Colleague",
-                            callerPhone: "Group Call",
-                            callerAvatarUrl: socket.data.avatar || null,
-                            callType: payload.callType || session.callType || "audio",
-                            status: "completed",
-                            durationSeconds: Math.round(payload.durationSeconds),
-                            callTime: new Date(),
-                            groupId,
-                            notes: `Group ${payload.callType || session.callType || "audio"} call concluded.`,
-                        },
+                            userId: socket.data.userId || session.creatorId,
+                            roles: [],
+                            status: "ACTIVE",
+                            tenancyStrategy: "SHARED_SCHEMA",
+                            db: prisma_1.rawPrisma,
+                        }, async () => {
+                            await (prisma_1.rawPrisma.callHistoryRecord || prisma_1.prisma.callHistoryRecord).create({
+                                data: {
+                                    tenantId,
+                                    callSessionId: callId,
+                                    callerId: session.creatorId,
+                                    callerName: socket.data.name || "Colleague",
+                                    callerPhone: "Group Meeting",
+                                    callerAvatarUrl: socket.data.avatar || null,
+                                    callType: payload.callType || session.callType || "audio",
+                                    status: "completed",
+                                    durationSeconds: duration,
+                                    callTime: new Date(),
+                                    groupId: session.groupId,
+                                    notes: `Group ${payload.callType || session.callType || "audio"} meeting concluded.`,
+                                },
+                            });
+                        });
+                    }
+                    catch (e) {
+                        console.warn("Failed to persist group call history:", e.message);
+                    }
+                }
+            }
+        });
+        socket.on("group-call:end", async (payload) => {
+            const { callId } = payload;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const session = exports.activeGroupCalls.get(callId);
+            if (!session || session.tenantId !== tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const isHost = socket.data.userId === session.creatorId || socket.data.isSuper;
+            if (!isHost) {
+                socket.emit("call:error", { code: "CALL_FORBIDDEN", message: "Only the meeting host can end the meeting for everyone." });
+                return;
+            }
+            ioInstance?.to(`group_call_${callId}`).emit("group-call:ended", {
+                callId,
+                endedBy: socket.data.userId,
+                reason: "Meeting ended by host",
+            });
+            if (!session.historyPersisted) {
+                session.historyPersisted = true;
+                const duration = payload.durationSeconds && payload.durationSeconds > 0
+                    ? Math.round(payload.durationSeconds)
+                    : Math.max(1, Math.round((Date.now() - session.startedAt.getTime()) / 1000));
+                try {
+                    const participantIds = Array.from(session.participants.keys());
+                    await (0, tenant_context_1.runWithTenantContext)({
+                        tenantId,
+                        userId: socket.data.userId || session.creatorId,
+                        roles: [],
+                        status: "ACTIVE",
+                        tenancyStrategy: "SHARED_SCHEMA",
+                        db: prisma_1.rawPrisma,
+                    }, async () => {
+                        await (prisma_1.rawPrisma.callHistoryRecord || prisma_1.prisma.callHistoryRecord).create({
+                            data: {
+                                tenantId,
+                                callSessionId: callId,
+                                callerId: session.creatorId,
+                                callerName: socket.data.name || "Meeting Host",
+                                callerPhone: "Group Meeting",
+                                callerAvatarUrl: socket.data.avatar || null,
+                                callType: session.callType || "audio",
+                                status: "completed",
+                                durationSeconds: duration,
+                                callTime: new Date(),
+                                groupId: session.groupId,
+                                participantIds: participantIds.length > 0 ? participantIds : [session.creatorId],
+                                notes: `Group meeting ended by host (${socket.data.name}).`,
+                            },
+                        });
                     });
                 }
                 catch (e) {
-                    console.warn("Failed to persist group call history:", e.message);
+                    console.warn("Failed to persist group meeting history on end:", e.message);
                 }
             }
+            exports.activeGroupCalls.delete(callId);
         });
         // Handle Dual-Screen Customer Display Cart Sync
         socket.on("pos:cart_update", (payload) => {

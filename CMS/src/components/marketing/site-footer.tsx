@@ -198,7 +198,11 @@ export function SiteFooter() {
             color: "var(--ft-bar-fg)",
           }}
         >
-          <span>{f.copyright ?? "© 2026 Webfamily Tech Solutions. All rights reserved."}</span>
+          <span>
+            {f.copyright && !f.copyright.includes("Pixels71") && !f.copyright.includes("Nexsas") && !f.copyright.includes("Apex HRMS")
+              ? f.copyright
+              : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`}
+          </span>
           <nav aria-label="Legal">
             <ul className="flex flex-wrap gap-x-5 gap-y-2 lg:justify-end">
               {((f.legal_links && f.legal_links.length > 0) ? f.legal_links : [

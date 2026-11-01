@@ -13,6 +13,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:calling": "tsx src/tests/chat-calling-verification.test.ts",
+    "test:meeting": "tsx src/tests/multi-participant-meeting.test.ts",
     "test:crypto": "tsx src/tests/crypto-security-hardening.test.ts",
     "test:cms-isolation": "vitest run src/tests/cms-tenant-host-isolation.test.ts",
     "prisma:generate": "prisma generate",

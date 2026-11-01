@@ -11,12 +11,10 @@
  *      and WebRTC signaling (offers, answers, ICE candidates).
  *    - Pusher: High-availability secondary/fallback transport for call invitations,
  *      missed calls, background notifications, and offline event delivery.
- * 3. Group Calling Architecture Boundary:
- *    - Pure peer-to-peer mesh WebRTC scales to O(N^2) connections and is intentionally
- *      bounded to 1-to-1 sessions to protect mobile CPU and uplink bandwidth.
- *    - Multi-party conference calling (>2 participants) requires a Selective Forwarding
- *      Unit (SFU) media server (e.g. LiveKit or mediasoup). Group buttons currently route
- *      to 1-to-1 direct dial with group members.
+ * 3. Group Calling Architecture:
+ *    - One-to-one calls use peer-to-peer WebRTC.
+ *    - Multi-party meetings use LiveKit SFU when server-side LiveKit credentials are
+ *      configured. Without them, the UI stays in a clearly labeled local preview mode.
  * 4. NAT Traversal & Production Relay:
  *    - STUN (stun:stun.l.google.com:19302) resolves public IP mapping for direct P2P.
  *    - Symmetric NAT/strict enterprise firewalls require TURN relay servers (e.g., Coturn,
@@ -49,6 +47,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
 import { useSession } from "@/lib/session";
+import {
+  MultiParticipantMeetingDialog,
+  IncomingGroupMeetingDialog,
+  type ActiveMeetingState,
+  type MeetingParticipant,
+  type SfuDiagnosticInfo,
+} from "./multi-participant-meeting-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -556,24 +561,8 @@ interface UnifiedChatAppProps {
   onModeChange?: (mode: ChatMode) => void;
 }
 
-const AVATAR_COLORS = [
-  "bg-teal-700 text-white",
-  "bg-emerald-600 text-white",
-  "bg-blue-600 text-white",
-  "bg-indigo-600 text-white",
-  "bg-cyan-600 text-white",
-  "bg-slate-600 text-white",
-  "bg-violet-600 text-white",
-  "bg-teal-800 text-white",
-];
-
-function getAvatarColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < (name || "").length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % AVATAR_COLORS.length;
-  return AVATAR_COLORS[index];
+function getAvatarColor(_name: string): string {
+  return "bg-primary text-primary-foreground";
 }
 
 function formatDuration(seconds: number) {
@@ -672,7 +661,7 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
         size="icon"
         variant="ghost"
         onClick={togglePlay}
-        className="size-8 rounded-full bg-teal-600/10 hover:bg-teal-600/20 text-teal-700 dark:text-teal-300 flex-shrink-0"
+        className="size-8 rounded-full bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary flex-shrink-0"
       >
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 fill-current ml-0.5" />}
       </Button>
@@ -683,7 +672,7 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
           title="Click to seek"
         >
           <div
-            className="h-full bg-teal-600 dark:bg-teal-400 transition-all duration-100"
+            className="h-full bg-primary dark:bg-primary/20 transition-all duration-100"
             style={{
               width: `${
                 effectiveDuration > 0
@@ -1023,6 +1012,39 @@ export function UnifiedChatApp({
     requestedByName: string;
     reason: string;
   } | null>(null);
+
+  // Multi-Participant Group Meeting States
+  const [activeMeeting, setActiveMeeting] = useState<ActiveMeetingState | null>(null);
+  const [isMeetingOpen, setIsMeetingOpen] = useState<boolean>(false);
+  const [meetingParticipants, setMeetingParticipants] = useState<MeetingParticipant[]>([]);
+  const [meetingIsMuted, setMeetingIsMuted] = useState<boolean>(false);
+  const [meetingIsVideoOff, setMeetingIsVideoOff] = useState<boolean>(false);
+  const [meetingIsScreenSharing, setMeetingIsScreenSharing] = useState<boolean>(false);
+  const [incomingGroupMeeting, setIncomingGroupMeeting] = useState<{
+    callId: string;
+    groupId: string;
+    groupName: string;
+    callType: "audio" | "video";
+    callerId: string;
+    callerName: string;
+    callerAvatar?: string | null;
+    eventId?: string;
+  } | null>(null);
+  const [meetingSfuConfig, setMeetingSfuConfig] = useState<SfuDiagnosticInfo | null>(null);
+
+  const meetingLocalStreamRef = useRef<MediaStream | null>(null);
+  const meetingScreenStreamRef = useRef<MediaStream | null>(null);
+  const handledGroupEventsRef = useRef<Set<string>>(new Set());
+
+  // Fetch initial SFU configuration and STUN/TURN diagnostics
+  useEffect(() => {
+    api
+      .get("/api/chat/meetings/config")
+      .then((res: any) => {
+        setMeetingSfuConfig(res?.data || res);
+      })
+      .catch(() => {});
+  }, []);
 
   // Test Speaker Playback Chime
   const testSpeakerSound = useCallback(() => {
@@ -1800,6 +1822,570 @@ export function UnifiedChatApp({
   }, [activeCallModalOpen, isVideoOff, callStatus, activeCallType, isScreenSharing]);
 
   // ──────────────────────────────────────────────────────────────────────────
+  // MULTI-PARTICIPANT GROUP MEETING LIFECYCLE & MEDIA CONTROLS
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const cleanUpMeetingMedia = useCallback(() => {
+    if (meetingLocalStreamRef.current) {
+      meetingLocalStreamRef.current.getTracks().forEach((t) => t.stop());
+      meetingLocalStreamRef.current = null;
+    }
+    if (meetingScreenStreamRef.current) {
+      meetingScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+      meetingScreenStreamRef.current = null;
+    }
+    setActiveMeeting(null);
+    setIsMeetingOpen(false);
+    setMeetingParticipants([]);
+    setMeetingIsMuted(false);
+    setMeetingIsVideoOff(false);
+    setMeetingIsScreenSharing(false);
+  }, []);
+
+  // Web Audio Speaking Activity Detection for Multi-Participant Group Meetings
+  useEffect(() => {
+    if (!isMeetingOpen || !meetingLocalStreamRef.current || meetingIsMuted) return;
+
+    let audioContext: AudioContext | null = null;
+    let analyser: AnalyserNode | null = null;
+    let microphone: MediaStreamAudioSourceNode | null = null;
+    let javascriptNode: ScriptProcessorNode | null = null;
+    let speakingTimer: NodeJS.Timeout | null = null;
+    let isCurrentlySpeaking = false;
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      audioContext = new AudioCtx();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+
+      const audioTrack = meetingLocalStreamRef.current.getAudioTracks()[0];
+      if (!audioTrack || !audioTrack.enabled) return;
+
+      const audioStream = new MediaStream([audioTrack]);
+      microphone = audioContext.createMediaStreamSource(audioStream);
+      javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+
+      microphone.connect(analyser);
+      analyser.connect(javascriptNode);
+      javascriptNode.connect(audioContext.destination);
+
+      javascriptNode.onaudioprocess = () => {
+        if (!analyser || meetingIsMuted) return;
+        const array = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(array);
+        let values = 0;
+        const length = array.length;
+        for (let i = 0; i < length; i++) {
+          values += array[i];
+        }
+        const average = values / length;
+
+        if (average > 15) {
+          if (!isCurrentlySpeaking) {
+            isCurrentlySpeaking = true;
+            setMeetingParticipants((prev) =>
+              prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: true } : p))
+            );
+            const socket = getSocketClient();
+            if (socket && activeMeeting?.callId) {
+              socket.emit("group-call:media-state", {
+                callId: activeMeeting.callId,
+                isMuted: meetingIsMuted,
+                isCameraOff: meetingIsVideoOff,
+                isScreenSharing: meetingIsScreenSharing,
+                isSpeaking: true,
+              });
+            }
+          }
+          if (speakingTimer) clearTimeout(speakingTimer);
+          speakingTimer = setTimeout(() => {
+            isCurrentlySpeaking = false;
+            setMeetingParticipants((prev) =>
+              prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: false } : p))
+            );
+            const socket = getSocketClient();
+            if (socket && activeMeeting?.callId) {
+              socket.emit("group-call:media-state", {
+                callId: activeMeeting.callId,
+                isMuted: meetingIsMuted,
+                isCameraOff: meetingIsVideoOff,
+                isScreenSharing: meetingIsScreenSharing,
+                isSpeaking: false,
+              });
+            }
+          }, 800);
+        }
+      };
+    } catch (err) {
+      console.warn("Speaking activity detection initialization:", err);
+    }
+
+    return () => {
+      if (speakingTimer) clearTimeout(speakingTimer);
+      if (javascriptNode) javascriptNode.disconnect();
+      if (microphone) microphone.disconnect();
+      if (audioContext && audioContext.state !== "closed") {
+        audioContext.close().catch(() => {});
+      }
+    };
+  }, [isMeetingOpen, meetingIsMuted, meetingIsVideoOff, meetingIsScreenSharing, activeMeeting?.callId, currentUserId]);
+
+  const handleStartGroupMeeting = async (callType: "audio" | "video") => {
+    if (!activeGroupId) return;
+    if (activeCallModalOpen || activeMeeting) {
+      toast.warning("You are already in an active call or meeting.");
+      return;
+    }
+
+    const callId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    let meetingSessionStarted = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(callType === "video"));
+      meetingLocalStreamRef.current = stream;
+
+      const hostName = (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Host";
+      const hostAvatar = (currentUser as any)?.avatarUrl || null;
+
+      setActiveMeeting({
+        callId,
+        groupId: activeGroupId,
+        groupName: activeGroup?.name || "Group Meeting",
+        callType,
+        isHost: true,
+        creatorId: currentUserId,
+        startedAt: Date.now(),
+        status: "connecting",
+      });
+
+      setMeetingParticipants([
+        {
+          userId: currentUserId,
+          name: hostName,
+          avatar: hostAvatar,
+          role: "host",
+          isMuted: false,
+          isCameraOff: callType === "audio",
+          isScreenSharing: false,
+          isSpeaking: false,
+          isLocal: true,
+        },
+      ]);
+      setMeetingIsMuted(false);
+      setMeetingIsVideoOff(callType === "audio");
+      setMeetingIsScreenSharing(false);
+      setIsMeetingOpen(true);
+
+      const socket = getSocketClient();
+      const startResponse = await new Promise<{ success: boolean; message?: string }>((resolve, reject) => {
+        socket.timeout(8000).emit("group-call:start", {
+          callId,
+          groupId: activeGroupId,
+          groupName: activeGroup?.name || "Group Meeting",
+          callType,
+        }, (error: Error | null, response: { success?: boolean; message?: string }) => {
+          if (error) {
+            reject(new Error("The meeting server did not confirm the meeting start."));
+            return;
+          }
+          if (!response?.success) {
+            reject(new Error(response?.message || "The meeting could not be started."));
+            return;
+          }
+          resolve({ success: true, message: response.message });
+        });
+      });
+      if (!startResponse.success) throw new Error(startResponse.message || "The meeting could not be started.");
+      meetingSessionStarted = true;
+      setActiveMeeting((current) => current?.callId === callId ? { ...current, status: "connected" } : current);
+
+      const tokenResponse = await api.post(`/api/chat/meetings/${callId}/token`, {
+        groupId: activeGroupId,
+        callType,
+      });
+      setMeetingSfuConfig((tokenResponse as any)?.data || tokenResponse);
+    } catch (err: any) {
+      if (meetingSessionStarted) {
+        getSocketClient().emit("group-call:leave", { callId });
+      }
+      cleanUpMeetingMedia();
+      toast.error(err?.message || "Could not start the meeting.");
+    }
+  };
+
+  const handleAcceptGroupMeeting = async () => {
+    if (!incomingGroupMeeting) return;
+    stopRingtone();
+    const meetingData = incomingGroupMeeting;
+    setIncomingGroupMeeting(null);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(meetingData.callType === "video"));
+      meetingLocalStreamRef.current = stream;
+
+      const myName = (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Member";
+      const myAvatar = (currentUser as any)?.avatarUrl || null;
+
+      setActiveMeeting({
+        callId: meetingData.callId,
+        groupId: meetingData.groupId,
+        groupName: meetingData.groupName,
+        callType: meetingData.callType,
+        isHost: meetingData.callerId === currentUserId,
+        creatorId: meetingData.callerId,
+        startedAt: Date.now(),
+        status: "connected",
+      });
+
+      setMeetingParticipants([
+        {
+          userId: currentUserId,
+          name: myName,
+          avatar: myAvatar,
+          role: meetingData.callerId === currentUserId ? "host" : "participant",
+          isMuted: false,
+          isCameraOff: meetingData.callType === "audio",
+          isScreenSharing: false,
+          isSpeaking: false,
+          isLocal: true,
+        },
+      ]);
+      setMeetingIsMuted(false);
+      setMeetingIsVideoOff(meetingData.callType === "audio");
+      setMeetingIsScreenSharing(false);
+      setIsMeetingOpen(true);
+
+      const socket = getSocketClient();
+      if (socket) {
+        socket.emit("group-call:join", {
+          callId: meetingData.callId,
+        });
+      }
+
+      api.post(`/api/chat/meetings/${meetingData.callId}/token`, {
+        groupId: meetingData.groupId,
+        callType: meetingData.callType,
+      }).then((res) => {
+        setMeetingSfuConfig((res as any)?.data || res);
+      }).catch((err) => {
+        console.warn("Failed to fetch meeting token:", err);
+      });
+    } catch (err: any) {
+      toast.error("Could not access microphone/camera: " + err.message);
+    }
+  };
+
+  const handleDeclineGroupMeeting = () => {
+    stopRingtone();
+    setIncomingGroupMeeting(null);
+  };
+
+  const handleMeetingToggleMute = () => {
+    if (meetingLocalStreamRef.current) {
+      const track = meetingLocalStreamRef.current.getAudioTracks()[0];
+      if (track) {
+        track.enabled = meetingIsMuted;
+      }
+    }
+    const nextMuted = !meetingIsMuted;
+    setMeetingIsMuted(nextMuted);
+    setMeetingParticipants((prev) =>
+      prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isMuted: nextMuted } : p))
+    );
+    const socket = getSocketClient();
+    if (socket && activeMeeting?.callId) {
+      socket.emit("group-call:media-state", {
+        callId: activeMeeting.callId,
+        isMuted: nextMuted,
+        isCameraOff: meetingIsVideoOff,
+        isScreenSharing: meetingIsScreenSharing,
+        isSpeaking: false,
+      });
+    }
+  };
+
+  const handleMeetingToggleVideo = () => {
+    if (meetingLocalStreamRef.current) {
+      const track = meetingLocalStreamRef.current.getVideoTracks()[0];
+      if (track) {
+        track.enabled = meetingIsVideoOff;
+      }
+    }
+    const nextVideoOff = !meetingIsVideoOff;
+    setMeetingIsVideoOff(nextVideoOff);
+    setMeetingParticipants((prev) =>
+      prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isCameraOff: nextVideoOff } : p))
+    );
+    const socket = getSocketClient();
+    if (socket && activeMeeting?.callId) {
+      socket.emit("group-call:media-state", {
+        callId: activeMeeting.callId,
+        isMuted: meetingIsMuted,
+        isCameraOff: nextVideoOff,
+        isScreenSharing: meetingIsScreenSharing,
+        isSpeaking: false,
+      });
+    }
+  };
+
+  const handleMeetingToggleScreenShare = async () => {
+    if (meetingIsScreenSharing) {
+      if (meetingScreenStreamRef.current) {
+        meetingScreenStreamRef.current.getTracks().forEach((t) => t.stop());
+        meetingScreenStreamRef.current = null;
+      }
+      setMeetingIsScreenSharing(false);
+      setMeetingParticipants((prev) =>
+        prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isScreenSharing: false } : p))
+      );
+      const socket = getSocketClient();
+      if (socket && activeMeeting?.callId) {
+        socket.emit("group-call:media-state", {
+          callId: activeMeeting.callId,
+          isMuted: meetingIsMuted,
+          isCameraOff: meetingIsVideoOff,
+          isScreenSharing: false,
+          isSpeaking: false,
+        });
+      }
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        meetingScreenStreamRef.current = screenStream;
+        setMeetingIsScreenSharing(true);
+        setMeetingParticipants((prev) =>
+          prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isScreenSharing: true } : p))
+        );
+
+        screenStream.getVideoTracks()[0].onended = () => {
+          setMeetingIsScreenSharing(false);
+          setMeetingParticipants((prev) =>
+            prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isScreenSharing: false } : p))
+          );
+          const socket = getSocketClient();
+          if (socket && activeMeeting?.callId) {
+            socket.emit("group-call:media-state", {
+              callId: activeMeeting.callId,
+              isMuted: meetingIsMuted,
+              isCameraOff: meetingIsVideoOff,
+              isScreenSharing: false,
+              isSpeaking: false,
+            });
+          }
+        };
+
+        const socket = getSocketClient();
+        if (socket && activeMeeting?.callId) {
+          socket.emit("group-call:media-state", {
+            callId: activeMeeting.callId,
+            isMuted: meetingIsMuted,
+            isCameraOff: meetingIsVideoOff,
+            isScreenSharing: true,
+            isSpeaking: false,
+          });
+        }
+      } catch (err: any) {
+        console.warn("Screen sharing cancelled or denied:", err);
+      }
+    }
+  };
+
+  const handleMeetingLeave = () => {
+    if (activeMeeting) {
+      const durationSeconds = Math.max(1, Math.round((Date.now() - activeMeeting.startedAt) / 1000));
+      const socket = getSocketClient();
+      if (socket) {
+        socket.emit("group-call:leave", {
+          callId: activeMeeting.callId,
+          durationSeconds,
+        });
+      }
+    }
+    cleanUpMeetingMedia();
+    toast.info("You left the meeting.");
+  };
+
+  const handleMeetingEndForEveryone = () => {
+    if (activeMeeting) {
+      const durationSeconds = Math.max(1, Math.round((Date.now() - activeMeeting.startedAt) / 1000));
+      const socket = getSocketClient();
+      if (socket) {
+        socket.emit("group-call:end", {
+          callId: activeMeeting.callId,
+          durationSeconds,
+        });
+      }
+      api.post(`/api/chat/meetings/${activeMeeting.callId}/end`).catch(() => {});
+    }
+    cleanUpMeetingMedia();
+    toast.info("Meeting ended for everyone.");
+    queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
+  };
+
+  const handleMeetingRemoveParticipant = (targetUserId: string) => {
+    if (!activeMeeting) return;
+    const socket = getSocketClient();
+    if (socket) {
+      socket.emit("group-call:remove_participant", {
+        callId: activeMeeting.callId,
+        targetUserId,
+      });
+    }
+    setMeetingParticipants((prev) => prev.filter((p) => p.userId !== targetUserId));
+    toast.info("Participant removed from meeting.");
+  };
+
+  const handleMeetingInviteColleagues = (targetUserIds: string[]) => {
+    if (!activeMeeting || targetUserIds.length === 0) return;
+    const socket = getSocketClient();
+    if (socket) {
+      socket.emit("group-call:invite_users", {
+        callId: activeMeeting.callId,
+        userIds: targetUserIds,
+      });
+    }
+    toast.success(`Invitation sent to ${targetUserIds.length} colleague${targetUserIds.length > 1 ? "s" : ""}.`);
+  };
+
+  const handleInMeetingSendMessage = async (text: string) => {
+    if (!activeThreadId || !text.trim()) return;
+    try {
+      await api.post("/api/chat/messages", {
+        threadId: activeThreadId,
+        content: text.trim(),
+        groupId: activeThreadType === "group" ? activeGroupId : undefined,
+        recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
+      });
+      queryClient.invalidateQueries({ queryKey: ["chat", "messages", activeThreadId] });
+    } catch (err: any) {
+      toast.error("Failed to send message: " + (err?.message || "error"));
+    }
+  };
+
+  const handleIncomingGroupMeeting = useCallback((data: any) => {
+    if (!data || !data.callId) return;
+    const dedupeKey = data.eventId || `group_call_${data.callId}`;
+    if (handledGroupEventsRef.current.has(dedupeKey)) return;
+    handledGroupEventsRef.current.add(dedupeKey);
+
+    if (data.callerId === currentUserId) return;
+    if (activeMeeting?.callId === data.callId) return;
+
+    if (activeMeeting || activeCallModalOpen) {
+      toast.info(`Incoming group meeting in ${data.groupName || "group"} from ${data.callerName || "a colleague"}`);
+      return;
+    }
+
+    setIncomingGroupMeeting({
+      callId: data.callId,
+      groupId: data.groupId,
+      groupName: data.groupName || "Group Meeting",
+      callType: data.callType || "audio",
+      callerId: data.callerId,
+      callerName: data.callerName || "Colleague",
+      callerAvatar: data.callerAvatar || null,
+      eventId: dedupeKey,
+    });
+    startRingtone();
+
+    setTimeout(() => {
+      setIncomingGroupMeeting((curr) => {
+        if (curr && curr.callId === data.callId) {
+          stopRingtone();
+          return null;
+        }
+        return curr;
+      });
+    }, 60000);
+  }, [currentUserId, activeMeeting, activeCallModalOpen, startRingtone, stopRingtone]);
+
+  const handleGroupStateSync = useCallback((data: any) => {
+    if (data && data.participants) {
+      const synced: MeetingParticipant[] = data.participants.map((p: any) => ({
+        userId: p.userId,
+        name: p.name,
+        avatar: p.avatar || null,
+        role: p.role || "participant",
+        isMuted: Boolean(p.isMuted),
+        isCameraOff: Boolean(p.isCameraOff),
+        isScreenSharing: Boolean(p.isScreenSharing),
+        isSpeaking: Boolean(p.isSpeaking),
+        isLocal: p.userId === currentUserId,
+      }));
+      setMeetingParticipants(synced);
+    }
+  }, [currentUserId]);
+
+  const handleGroupUserJoined = useCallback((data: any) => {
+    if (data && data.user) {
+      const newUser: MeetingParticipant = {
+        userId: data.user.userId,
+        name: data.user.name,
+        avatar: data.user.avatar || null,
+        role: data.user.role || "participant",
+        isMuted: Boolean(data.user.isMuted),
+        isCameraOff: Boolean(data.user.isCameraOff),
+        isScreenSharing: Boolean(data.user.isScreenSharing),
+        isSpeaking: false,
+        isLocal: data.user.userId === currentUserId,
+      };
+      setMeetingParticipants((prev) => {
+        if (prev.some((p) => p.userId === newUser.userId)) {
+          return prev.map((p) => (p.userId === newUser.userId ? { ...p, ...newUser } : p));
+        }
+        return [...prev, newUser];
+      });
+      toast.info(`${data.user.name} joined the meeting`);
+    }
+  }, [currentUserId]);
+
+  const handleGroupUserLeft = useCallback((data: any) => {
+    if (data && data.userId) {
+      setMeetingParticipants((prev) => {
+        const departing = prev.find((p) => p.userId === data.userId);
+        if (departing) {
+          toast.info(`${departing.name} left the meeting`);
+        }
+        return prev.filter((p) => p.userId !== data.userId);
+      });
+    }
+  }, []);
+
+  const handleGroupMediaState = useCallback((data: any) => {
+    if (data && data.userId) {
+      setMeetingParticipants((prev) =>
+        prev.map((p) =>
+          p.userId === data.userId
+            ? {
+                ...p,
+                isMuted: data.isMuted !== undefined ? Boolean(data.isMuted) : p.isMuted,
+                isCameraOff: data.isCameraOff !== undefined ? Boolean(data.isCameraOff) : p.isCameraOff,
+                isScreenSharing: data.isScreenSharing !== undefined ? Boolean(data.isScreenSharing) : p.isScreenSharing,
+                isSpeaking: data.isSpeaking !== undefined ? Boolean(data.isSpeaking) : p.isSpeaking,
+              }
+            : p
+        )
+      );
+    }
+  }, []);
+
+  const handleGroupMeetingEnded = useCallback((data: any) => {
+    if (activeMeeting?.callId === data?.callId || !data?.callId) {
+      toast.info(data?.reason || "Meeting ended by host.");
+      cleanUpMeetingMedia();
+      queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
+    }
+  }, [activeMeeting?.callId, cleanUpMeetingMedia, queryClient]);
+
+  const handleGroupMeetingRemoved = useCallback((data: any) => {
+    if (data?.targetUserId === currentUserId) {
+      toast.error("You were removed from the meeting by the host.");
+      cleanUpMeetingMedia();
+    }
+  }, [currentUserId, cleanUpMeetingMedia]);
+
+  // ──────────────────────────────────────────────────────────────────────────
   // 2. REAL-TIME SUBSCRIPTION LAYER (Socket.io & WebRTC Signaling)
   // ──────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1819,7 +2405,6 @@ export function UnifiedChatApp({
     const handleIncomingMessage = (payload: any) => {
       const msg = payload?.message || payload;
       const threadId = payload?.threadId || msg?.threadId;
-      console.log("[SOCKET_INCOMING]", Date.now(), "activeThread:", activeThreadId, "msgThread:", threadId, "content:", msg?.content);
 
       if (threadId === activeThreadId && msg && msg.id) {
         setOptimisticMessages((prev) =>
@@ -2278,6 +2863,15 @@ export function UnifiedChatApp({
     socket.on("call:signal", handleCallSignal);
     socket.on("call:ended", handleCallEnded);
 
+    // Multi-participant meeting socket events
+    socket.on("group-call:incoming", handleIncomingGroupMeeting);
+    socket.on("group-call:state_sync", handleGroupStateSync);
+    socket.on("group-call:user_joined", handleGroupUserJoined);
+    socket.on("group-call:user_left", handleGroupUserLeft);
+    socket.on("group-call:media_state", handleGroupMediaState);
+    socket.on("group-call:ended", handleGroupMeetingEnded);
+    socket.on("group-call:removed", handleGroupMeetingRemoved);
+
     const handleCallError = (data: any) => {
       console.warn("[CALL:ERROR]", data?.message);
       toast.error(data?.message || "Call action failed.");
@@ -2308,6 +2902,12 @@ export function UnifiedChatApp({
       if (eventName === "call:incoming") handleIncomingCall(data);
       if (eventName === "call:busy") handleCallBusy(data);
       if (eventName === "call:media-state") handleMediaState(data);
+      if (eventName === "group-call:incoming") handleIncomingGroupMeeting(data);
+      if (eventName === "group-call:ended") handleGroupMeetingEnded(data);
+      if (eventName === "group-call:state_sync") handleGroupStateSync(data);
+      if (eventName === "group-call:user_joined") handleGroupUserJoined(data);
+      if (eventName === "group-call:user_left") handleGroupUserLeft(data);
+      if (eventName === "group-call:media_state") handleGroupMediaState(data);
       if (eventName === "chat:message") handleIncomingMessage(data);
       if (eventName === "chat:message_edited") handleMessageEdited(data);
       if (eventName === "chat:message_deleted") handleMessageDeleted(data);
@@ -2346,9 +2946,34 @@ export function UnifiedChatApp({
       socket.off("call:ended", handleCallEnded);
       socket.off("call:error", handleCallError);
       socket.off("call:media-state", handleMediaState);
+
+      socket.off("group-call:incoming", handleIncomingGroupMeeting);
+      socket.off("group-call:state_sync", handleGroupStateSync);
+      socket.off("group-call:user_joined", handleGroupUserJoined);
+      socket.off("group-call:user_left", handleGroupUserLeft);
+      socket.off("group-call:media_state", handleGroupMediaState);
+      socket.off("group-call:ended", handleGroupMeetingEnded);
+      socket.off("group-call:removed", handleGroupMeetingRemoved);
+
       window.removeEventListener("hrms:pusher", handlePusherEvent);
     };
-  }, [activeThreadId, currentUserId, queryClient, cleanUpMedia, activeCallTargetId, activeCallId, startRingtone, activeCallTargetName]);
+  }, [
+    activeThreadId,
+    currentUserId,
+    queryClient,
+    cleanUpMedia,
+    activeCallTargetId,
+    activeCallId,
+    startRingtone,
+    activeCallTargetName,
+    handleIncomingGroupMeeting,
+    handleGroupStateSync,
+    handleGroupUserJoined,
+    handleGroupUserLeft,
+    handleGroupMediaState,
+    handleGroupMeetingEnded,
+    handleGroupMeetingRemoved,
+  ]);
 
   // Mobile PiP & Foreground Continuation Check (visibilitychange does not hang up)
   useEffect(() => {
@@ -2362,11 +2987,18 @@ export function UnifiedChatApp({
             setIsReconnecting(false);
           }
         }
+        if (isMeetingOpen && meetingLocalStreamRef.current) {
+          meetingLocalStreamRef.current.getTracks().forEach((track) => {
+            if (track.readyState === "ended") {
+              console.warn("Meeting track ended during background; state preserved.");
+            }
+          });
+        }
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [activeCallModalOpen]);
+  }, [activeCallModalOpen, isMeetingOpen]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 3. MUTATIONS & ACTIONS
@@ -4573,7 +5205,7 @@ export function UnifiedChatApp({
             <>
               {isConversationsLoading ? (
                 <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                  <RefreshCw className="size-5 animate-spin text-teal-600" />
+                  <RefreshCw className="size-5 animate-spin text-primary" />
                   <span>Loading conversations...</span>
                 </div>
               ) : isConversationsError ? (
@@ -4596,6 +5228,7 @@ export function UnifiedChatApp({
                   return (
                     <div
                       key={item.threadId}
+                      data-testid="chat-thread-direct"
                       onClick={() => {
                         setActiveThreadId(item.threadId);
                         setActiveThreadTitle(item.title);
@@ -4614,7 +5247,7 @@ export function UnifiedChatApp({
                           {item.avatarUrl && (
                             <AvatarImage src={item.avatarUrl} alt={item.title} className="object-cover" />
                           )}
-                          <AvatarFallback className={cn("text-white font-bold text-xs", item.avatarColor)}>
+                          <AvatarFallback className={cn("text-foreground font-bold text-xs", item.avatarColor)}>
                             {item.avatarLetter}
                           </AvatarFallback>
                         </Avatar>
@@ -4622,7 +5255,7 @@ export function UnifiedChatApp({
                           <span
                             className={cn(
                               "size-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-card",
-                              item.status === "online" ? "bg-emerald-500" : "bg-muted-foreground/40"
+                              item.status === "online" ? "bg-success" : "bg-muted-foreground/40"
                             )}
                           />
                         )}
@@ -4631,7 +5264,7 @@ export function UnifiedChatApp({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
                           <h4 className="text-xs font-semibold text-foreground truncate flex items-center gap-1">
-                            {item.isPinned && <Pin className="size-3 text-teal-600 flex-shrink-0" />}
+                            {item.isPinned && <Pin className="size-3 text-primary flex-shrink-0" />}
                             <span className="truncate">{item.title}</span>
                           </h4>
                           <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
@@ -4652,13 +5285,13 @@ export function UnifiedChatApp({
                           }}
                           className={cn(
                             "p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-opacity",
-                            item.isPinned ? "text-teal-600 opacity-100" : "opacity-0 group-hover:opacity-100"
+                            item.isPinned ? "text-primary opacity-100" : "opacity-0 group-hover:opacity-100"
                           )}
                         >
                           <Pin className="size-3.5" />
                         </button>
                         {item.unreadCount > 0 && (
-                          <Badge className="bg-teal-700 text-white text-[10px] h-4.5 px-1.5 rounded-full flex-shrink-0">
+                          <Badge className="bg-primary text-primary-foreground text-[10px] h-4.5 px-1.5 rounded-full flex-shrink-0">
                             {item.unreadCount}
                           </Badge>
                         )}
@@ -4675,7 +5308,7 @@ export function UnifiedChatApp({
             <>
               {isGroupsLoading ? (
                 <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                  <RefreshCw className="size-5 animate-spin text-teal-600" />
+                  <RefreshCw className="size-5 animate-spin text-primary" />
                   <span>Loading groups...</span>
                 </div>
               ) : isGroupsError ? (
@@ -4693,7 +5326,7 @@ export function UnifiedChatApp({
                   <p className="text-[11px]">Create a collaborative group for your department or project.</p>
                   <Button
                     size="sm"
-                    className="mt-2 text-xs bg-teal-700 hover:bg-teal-800 text-white"
+                    className="mt-2 text-xs bg-primary hover:bg-primary text-primary-foreground"
                     onClick={() => setCreateGroupOpen(true)}
                   >
                     <Plus className="size-3.5 mr-1" /> Create Group
@@ -4706,6 +5339,7 @@ export function UnifiedChatApp({
                   return (
                     <div
                       key={group.id}
+                      data-testid="chat-thread-group"
                       onClick={() => {
                         setActiveThreadId(threadId);
                         setActiveThreadTitle(group.name);
@@ -4723,7 +5357,7 @@ export function UnifiedChatApp({
                         {group.avatarUrl && (
                           <AvatarImage src={group.avatarUrl} alt={group.name} className="object-cover" />
                         )}
-                        <AvatarFallback className={cn("text-white font-bold text-xs", group.avatarColor)}>
+                        <AvatarFallback className={cn("text-foreground font-bold text-xs", group.avatarColor)}>
                           {group.avatarLetter}
                         </AvatarFallback>
                       </Avatar>
@@ -4731,7 +5365,7 @@ export function UnifiedChatApp({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
                           <h4 className="text-xs font-semibold text-foreground truncate flex items-center gap-1">
-                            {group.isPinned && <Pin className="size-3 text-teal-600 flex-shrink-0" />}
+                            {group.isPinned && <Pin className="size-3 text-primary flex-shrink-0" />}
                             <span className="truncate">{group.name}</span>
                           </h4>
                           <span className="text-[10px] text-muted-foreground">{group.time}</span>
@@ -4750,13 +5384,13 @@ export function UnifiedChatApp({
                           }}
                           className={cn(
                             "p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-opacity",
-                            group.isPinned ? "text-teal-600 opacity-100" : "opacity-0 group-hover:opacity-100"
+                            group.isPinned ? "text-primary opacity-100" : "opacity-0 group-hover:opacity-100"
                           )}
                         >
                           <Pin className="size-3.5" />
                         </button>
                         {group.unreadCount && group.unreadCount > 0 ? (
-                          <Badge className="bg-teal-700 text-white text-[10px] h-4.5 px-1.5 rounded-full flex-shrink-0">
+                          <Badge className="bg-primary text-primary-foreground text-[10px] h-4.5 px-1.5 rounded-full flex-shrink-0">
                             {group.unreadCount}
                           </Badge>
                         ) : null}
@@ -4773,7 +5407,7 @@ export function UnifiedChatApp({
             <>
               {isContactsLoading ? (
                 <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
-                  <RefreshCw className="size-5 animate-spin text-teal-600" />
+                  <RefreshCw className="size-5 animate-spin text-primary" />
                   <span>Loading directory...</span>
                 </div>
               ) : isContactsError ? (
@@ -4824,7 +5458,7 @@ export function UnifiedChatApp({
                         <span
                           className={cn(
                             "size-2.5 rounded-full absolute -bottom-0.5 -right-0.5 border-2 border-card",
-                            contact.status === "online" ? "bg-emerald-500" : "bg-muted-foreground/40"
+                            contact.status === "online" ? "bg-success" : "bg-muted-foreground/40"
                           )}
                         />
                       </div>
@@ -4850,7 +5484,7 @@ export function UnifiedChatApp({
                               contact.email || ""
                             );
                           }}
-                          className="size-7 text-muted-foreground hover:text-teal-700"
+                          className="size-7 text-muted-foreground hover:text-primary"
                         >
                           <Phone className="size-3.5" />
                         </Button>
@@ -4868,7 +5502,7 @@ export function UnifiedChatApp({
                               contact.email || ""
                             );
                           }}
-                          className="size-7 text-muted-foreground hover:text-teal-700"
+                          className="size-7 text-muted-foreground hover:text-primary"
                         >
                           <Video className="size-3.5" />
                         </Button>
@@ -4879,7 +5513,7 @@ export function UnifiedChatApp({
                             e.stopPropagation();
                             startDirectConversationMutation.mutate(contact.userId || contact.id);
                           }}
-                          className="h-7 px-2 text-xs text-teal-700 hover:text-teal-800"
+                          className="h-7 px-2 text-xs text-primary hover:text-primary"
                         >
                           Message
                         </Button>
@@ -4901,7 +5535,7 @@ export function UnifiedChatApp({
                 </p>
                 <Button
                   size="sm"
-                  className="w-full mt-2 text-xs bg-teal-700 hover:bg-teal-800 text-white gap-1.5"
+                  className="w-full mt-2 text-xs bg-primary hover:bg-primary text-primary-foreground gap-1.5"
                   onClick={() => setScheduleMeetingOpen(true)}
                 >
                   <CalendarPlus className="size-3.5" /> Schedule Meeting
@@ -4948,6 +5582,7 @@ export function UnifiedChatApp({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  data-testid="btn-mobile-back-to-list"
                   onClick={() => {
                     handleModeSelect("chats");
                     setMobilePane("list");
@@ -4977,7 +5612,7 @@ export function UnifiedChatApp({
                 <Button
                   size="sm"
                   onClick={() => setScheduleMeetingOpen(true)}
-                  className="text-xs h-8.5 bg-teal-700 hover:bg-teal-800 text-white gap-1.5"
+                  className="text-xs h-8.5 bg-primary hover:bg-primary text-primary-foreground gap-1.5"
                 >
                   <CalendarPlus className="size-3.5" />
                   <span>Schedule Meeting</span>
@@ -5016,7 +5651,7 @@ export function UnifiedChatApp({
                     className={cn(
                       "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
                       callTypeFilter === t.id
-                        ? "bg-teal-700 text-white font-semibold shadow-xs"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -5041,7 +5676,7 @@ export function UnifiedChatApp({
                     className={cn(
                       "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
                       callDirectionFilter === d.id
-                        ? "bg-teal-700 text-white font-semibold shadow-xs"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -5067,7 +5702,7 @@ export function UnifiedChatApp({
                     className={cn(
                       "px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer",
                       callStatusFilter === s.id
-                        ? "bg-teal-700 text-white font-semibold shadow-xs"
+                        ? "bg-primary text-primary-foreground font-semibold shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -5095,7 +5730,7 @@ export function UnifiedChatApp({
                   {isCallLogsLoading ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-xs text-muted-foreground">
-                        <RefreshCw className="size-5 animate-spin mx-auto mb-2 text-teal-600" />
+                        <RefreshCw className="size-5 animate-spin mx-auto mb-2 text-primary" />
                         Loading authoritative call history...
                       </TableCell>
                     </TableRow>
@@ -5126,7 +5761,7 @@ export function UnifiedChatApp({
                               ) : (
                                 <div
                                   className={cn(
-                                    "size-8 rounded-full flex items-center justify-center font-bold text-xs text-white",
+                                    "size-8 rounded-full flex items-center justify-center font-bold text-xs text-foreground",
                                     getAvatarColor(contactDisplayName)
                                   )}
                                 >
@@ -5147,13 +5782,13 @@ export function UnifiedChatApp({
                             <div className="inline-flex items-center text-xs font-medium gap-1.5">
                               {isIncoming ? (
                                 <>
-                                  <PhoneIncoming className="size-3.5 text-emerald-600" />
-                                  <span className="text-emerald-700 dark:text-emerald-400">Incoming</span>
+                                  <PhoneIncoming className="size-3.5 text-success" />
+                                  <span className="text-success dark:text-success">Incoming</span>
                                 </>
                               ) : (
                                 <>
-                                  <PhoneOutgoing className="size-3.5 text-blue-600" />
-                                  <span className="text-blue-700 dark:text-blue-400">Outgoing</span>
+                                  <PhoneOutgoing className="size-3.5 text-accent-foreground" />
+                                  <span className="text-accent-foreground dark:text-accent-foreground">Outgoing</span>
                                 </>
                               )}
                             </div>
@@ -5162,12 +5797,12 @@ export function UnifiedChatApp({
                             <div className="inline-flex items-center text-xs font-medium gap-1.5">
                               {isVideo ? (
                                 <>
-                                  <Video className="size-3.5 text-purple-600" />
-                                  <span className="text-purple-700 dark:text-purple-400">Video</span>
+                                  <Video className="size-3.5 text-accent-foreground" />
+                                  <span className="text-accent-foreground dark:text-accent-foreground">Video</span>
                                 </>
                               ) : (
                                 <>
-                                  <Phone className="size-3.5 text-slate-600" />
+                                  <Phone className="size-3.5 text-muted-foreground" />
                                   <span>Audio</span>
                                 </>
                               )}
@@ -5175,19 +5810,19 @@ export function UnifiedChatApp({
                           </TableCell>
                           <TableCell>
                             {call.status === "completed" ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-success/10 text-success dark:bg-success dark:text-success">
                                 Completed
                               </span>
                             ) : call.status === "missed" ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-destructive/10 text-destructive dark:bg-destructive dark:text-destructive">
                                 Missed
                               </span>
                             ) : call.status === "rejected" ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-warning/15 text-warning dark:bg-warning dark:text-warning">
                                 Rejected
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 capitalize">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-muted text-foreground dark:bg-card dark:text-foreground capitalize">
                                 {call.status || "Completed"}
                               </span>
                             )}
@@ -5203,7 +5838,7 @@ export function UnifiedChatApp({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-7 text-muted-foreground hover:text-teal-700"
+                                className="size-7 text-muted-foreground hover:text-primary"
                                 title="Audio Call"
                                 onClick={() =>
                                   handleInitiateCall(
@@ -5220,7 +5855,7 @@ export function UnifiedChatApp({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-7 text-muted-foreground hover:text-teal-700"
+                                className="size-7 text-muted-foreground hover:text-primary"
                                 title="Video Call"
                                 onClick={() =>
                                   handleInitiateCall(
@@ -5237,7 +5872,7 @@ export function UnifiedChatApp({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="size-7 text-muted-foreground hover:text-teal-700"
+                                className="size-7 text-muted-foreground hover:text-primary"
                                 title="Message"
                                 onClick={() => {
                                   const targetId = call.otherUserId || (call.callerId === currentUserId ? call.receiverId : call.callerId);
@@ -5308,6 +5943,7 @@ export function UnifiedChatApp({
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   type="button"
+                  data-testid="btn-mobile-back-to-list"
                   onClick={() => setMobilePane("list")}
                   className="md:hidden p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
                   aria-label="Back to conversations"
@@ -5316,6 +5952,7 @@ export function UnifiedChatApp({
                 </button>
                 <div
                   className="flex items-center gap-2 min-w-0 cursor-pointer"
+                  data-testid="btn-mobile-open-details"
                   onClick={() => {
                     setShowInfo(true);
                     setMobilePane("details");
@@ -5335,7 +5972,7 @@ export function UnifiedChatApp({
                         className="object-cover"
                       />
                     ) : null}
-                    <AvatarFallback className={cn("text-white font-bold text-xs", getAvatarColor(activeThreadTitle))}>
+                    <AvatarFallback className={cn("text-foreground font-bold text-xs", getAvatarColor(activeThreadTitle))}>
                       {(activeThreadTitle || "C").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -5349,7 +5986,7 @@ export function UnifiedChatApp({
                           <span
                             className={cn(
                               "size-1.5 rounded-full",
-                              onlineUserIds.includes(activeTargetUserId) ? "bg-emerald-500" : "bg-muted-foreground/40"
+                              onlineUserIds.includes(activeTargetUserId) ? "bg-success" : "bg-muted-foreground/40"
                             )}
                           />
                           <span>
@@ -5379,7 +6016,7 @@ export function UnifiedChatApp({
                   className={cn(
                     "p-2 rounded-lg transition-colors cursor-pointer",
                     inThreadSearchOpen
-                      ? "text-teal-700 bg-teal-50 dark:bg-teal-950/40"
+                      ? "text-primary bg-primary/10 dark:bg-primary/40"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   )}
                   title="Search in Conversation"
@@ -5425,36 +6062,20 @@ export function UnifiedChatApp({
                 {activeThreadType === "group" && (
                   <>
                     <button
-                      onClick={() => {
-                        const firstOther = activeGroup?.members.find((m) => m.userId !== currentUserId);
-                        handleInitiateCall(
-                          "audio",
-                          firstOther?.userId || activeGroupId,
-                          `${activeThreadTitle} (Group Audio)`,
-                          "",
-                          ""
-                        );
-                      }}
+                      onClick={() => handleStartGroupMeeting("audio")}
                       className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                      title="Group Voice Call (WebRTC)"
+                      title="Start Group Audio Meeting"
+                      data-testid="btn-start-group-audio"
                     >
-                      <Phone className="size-4.5" />
+                      <Phone className="size-4.5 text-primary" />
                     </button>
                     <button
-                      onClick={() => {
-                        const firstOther = activeGroup?.members.find((m) => m.userId !== currentUserId);
-                        handleInitiateCall(
-                          "video",
-                          firstOther?.userId || activeGroupId,
-                          `${activeThreadTitle} (Group Video)`,
-                          "",
-                          ""
-                        );
-                      }}
+                      onClick={() => handleStartGroupMeeting("video")}
                       className="p-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                      title="Group Video Call (WebRTC)"
+                      title="Start Group Video Meeting"
+                      data-testid="btn-start-group-video"
                     >
-                      <Video className="size-4.5" />
+                      <Video className="size-4.5 text-primary" />
                     </button>
                     <button
                       onClick={() => setAddMemberOpen(true)}
@@ -5478,7 +6099,7 @@ export function UnifiedChatApp({
                   className={cn(
                     "p-2 rounded-lg transition-colors cursor-pointer",
                     showInfo
-                      ? "text-teal-700 bg-teal-50 dark:bg-teal-950/40"
+                      ? "text-primary bg-primary/10 dark:bg-primary/40"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   )}
                   title="Toggle Details Panel"
@@ -5519,9 +6140,9 @@ export function UnifiedChatApp({
 
             {/* Pinned Messages Banner */}
             {pinnedMessages.length > 0 && (
-              <div className="px-4 py-1.5 bg-teal-50 dark:bg-teal-950/40 border-b border-teal-200 dark:border-teal-900/40 flex items-center justify-between text-xs text-teal-900 dark:text-teal-100">
+              <div className="px-4 py-1.5 bg-primary/10 dark:bg-primary/40 border-b border-primary/30 dark:border-primary/40 flex items-center justify-between text-xs text-primary dark:text-primary">
                 <div className="flex items-center gap-2 truncate">
-                  <Pin className="size-3.5 text-teal-600 flex-shrink-0" />
+                  <Pin className="size-3.5 text-primary flex-shrink-0" />
                   <span className="font-semibold">Pinned:</span>
                   <span className="truncate">{pinnedMessages[0].content}</span>
                   {pinnedMessages.length > 1 && (
@@ -5545,7 +6166,7 @@ export function UnifiedChatApp({
               onScroll={handleScroll}
               className={cn(
                 "flex-1 overflow-y-auto p-4 space-y-3.5 relative",
-                isDraggingOver && "bg-teal-50/50 dark:bg-teal-950/20"
+                isDraggingOver && "bg-primary/50 dark:bg-primary/20"
               )}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -5567,25 +6188,25 @@ export function UnifiedChatApp({
               {/* Infinite Scroll: Loading older messages spinner */}
               {isLoadingOlder && (
                 <div className="flex items-center justify-center py-2 text-xs text-muted-foreground gap-2">
-                  <RefreshCw className="size-4 animate-spin text-teal-600" />
+                  <RefreshCw className="size-4 animate-spin text-primary" />
                   <span>Loading older messages...</span>
                 </div>
               )}
 
               {/* Drag overlay notice */}
               {isDraggingOver && (
-                <div className="absolute inset-0 bg-teal-50/80 dark:bg-teal-950/80 z-20 flex flex-col items-center justify-center border-2 border-dashed border-teal-500 rounded-lg pointer-events-none">
-                  <Paperclip className="size-10 text-teal-600 animate-bounce mb-2" />
-                  <p className="text-sm font-bold text-teal-800 dark:text-teal-200">
+                <div className="absolute inset-0 bg-primary/80 dark:bg-primary/80 z-20 flex flex-col items-center justify-center border-2 border-dashed border-primary/30 rounded-lg pointer-events-none">
+                  <Paperclip className="size-10 text-primary animate-bounce mb-2" />
+                  <p className="text-sm font-bold text-primary dark:text-primary">
                     Drop files here to upload to this conversation
                   </p>
-                  <p className="text-xs text-teal-600">Documents, images, PDF (Max 30 MB)</p>
+                  <p className="text-xs text-primary">Documents, images, PDF (Max 30 MB)</p>
                 </div>
               )}
 
               {isMessagesLoading ? (
                 <div className="h-full flex items-center justify-center text-xs text-muted-foreground space-y-2 flex-col">
-                  <RefreshCw className="size-6 animate-spin text-teal-600" />
+                  <RefreshCw className="size-6 animate-spin text-primary" />
                   <p>Loading messages...</p>
                 </div>
               ) : isMessagesError ? (
@@ -5626,7 +6247,7 @@ export function UnifiedChatApp({
                       {msg.isSystemEvent ? (
                         <div className="flex items-center justify-center my-2 w-full">
                           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 text-muted-foreground text-[11px] max-w-md text-center border border-border/40">
-                            <InfoIcon className="size-3 flex-shrink-0 text-teal-600" />
+                            <InfoIcon className="size-3 flex-shrink-0 text-primary" />
                             <span>{msg.content}</span>
                             {msg.time && (
                               <span className="text-[10px] opacity-75 font-mono">({msg.time})</span>
@@ -5652,7 +6273,7 @@ export function UnifiedChatApp({
                               ) : null}
                               <AvatarFallback
                                 className={cn(
-                                  "text-white font-bold text-[10px]",
+                                  "text-foreground font-bold text-[10px]",
                                   getAvatarColor(msg.senderName)
                                 )}
                               >
@@ -5664,7 +6285,7 @@ export function UnifiedChatApp({
                           <div className="space-y-1 relative">
                             {/* In group chats, display sender display name above incoming bubble */}
                             {!isSent && activeThreadType === "group" && (
-                              <p className="text-[11px] font-semibold text-teal-600 dark:text-teal-400 pl-1 select-none">
+                              <p className="text-[11px] font-semibold text-primary dark:text-primary pl-1 select-none">
                                 {msg.senderName}
                               </p>
                             )}
@@ -5672,14 +6293,14 @@ export function UnifiedChatApp({
                             {/* Forwarded message indicator */}
                             {msg.isForwarded && (
                               <div className="flex items-center gap-1 text-[10px] italic text-muted-foreground/80 mb-0.5 select-none pl-0.5">
-                                <Share2 className="size-3 flex-shrink-0 text-teal-600" />
+                                <Share2 className="size-3 flex-shrink-0 text-primary" />
                                 <span>Forwarded{msg.forwardedFromSender ? ` from ${cleanPersonName(msg.forwardedFromSender)}` : ""}</span>
                               </div>
                             )}
 
                             {/* Reply reference preview */}
                         {msg.replyTo && (
-                          <div className="text-[10px] text-muted-foreground border-l-2 border-teal-600 pl-2 py-0.5 mb-1 bg-muted/40 rounded-r">
+                          <div className="text-[10px] text-muted-foreground border-l-2 border-primary/30 pl-2 py-0.5 mb-1 bg-muted/40 rounded-r">
                             <span className="font-semibold">{msg.replyTo.senderName}: </span>
                             <span className="truncate">{msg.replyTo.content}</span>
                           </div>
@@ -5695,7 +6316,7 @@ export function UnifiedChatApp({
                             msg.isDeletedForEveryone
                               ? "bg-muted/50 text-muted-foreground border border-dashed border-border italic"
                               : isSent
-                              ? "bg-teal-700 text-white rounded-br-none"
+                              ? "bg-primary text-primary-foreground rounded-br-none"
                               : "bg-muted/80 text-foreground border border-border/60 rounded-bl-none"
                           )}
                         >
@@ -5767,7 +6388,7 @@ export function UnifiedChatApp({
                                           alt={att.name}
                                           className="max-h-48 w-auto object-cover group-hover/img:scale-105 transition-transform"
                                         />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-foreground text-xs gap-1">
                                           <Eye className="size-4" /> View Full
                                         </div>
                                       </div>
@@ -5778,9 +6399,9 @@ export function UnifiedChatApp({
                                         className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
                                       >
                                         {isPdf ? (
-                                          <FileText className="size-5 text-rose-600 flex-shrink-0" />
+                                          <FileText className="size-5 text-destructive flex-shrink-0" />
                                         ) : (
-                                          <FileIcon className="size-5 text-teal-600 flex-shrink-0" />
+                                          <FileIcon className="size-5 text-primary flex-shrink-0" />
                                         )}
                                         <div className="flex-1 min-w-0">
                                           <p className="font-medium text-xs truncate">{att.name}</p>
@@ -5795,7 +6416,7 @@ export function UnifiedChatApp({
                                             link.download = att.name;
                                             link.click();
                                           }}
-                                          className="p-1 hover:bg-muted rounded text-teal-700 dark:text-teal-400"
+                                          className="p-1 hover:bg-muted rounded text-primary dark:text-primary"
                                           title="Download"
                                         >
                                           <Download className="size-4" />
@@ -5811,7 +6432,7 @@ export function UnifiedChatApp({
                                 <div className="mt-2 p-3 rounded-lg bg-card text-foreground border border-border/80 space-y-2 min-w-[240px]">
                                   <div className="flex items-center justify-between">
                                     <h5 className="font-semibold text-xs flex items-center gap-1.5">
-                                      <BarChart2 className="size-3.5 text-teal-600" />
+                                      <BarChart2 className="size-3.5 text-primary" />
                                       <span>{msg.poll.question}</span>
                                     </h5>
                                     {msg.poll.isClosed && (
@@ -5856,17 +6477,17 @@ export function UnifiedChatApp({
                                                 }}
                                                 className={cn(
                                                   "p-2 rounded border border-border/60 relative overflow-hidden transition-colors cursor-pointer select-none",
-                                                  hasVoted && "border-teal-500 bg-teal-50/40 dark:bg-teal-950/20"
+                                                  hasVoted && "border-primary/30 bg-primary/40 dark:bg-primary/20"
                                                 )}
                                               >
                                                 <div
-                                                  className="absolute inset-y-0 left-0 bg-teal-200/40 dark:bg-teal-800/20 pointer-events-none"
+                                                  className="absolute inset-y-0 left-0 bg-primary/40 dark:bg-primary/20 pointer-events-none"
                                                   style={{ width: `${Math.min(pct, 100)}%` }}
                                                 />
                                                 <div className="relative flex items-center justify-between text-xs">
                                                   <div className="flex items-center gap-1.5">
                                                     {hasVoted ? (
-                                                      <CheckSquare className="size-3.5 text-teal-600" />
+                                                      <CheckSquare className="size-3.5 text-primary" />
                                                     ) : (
                                                       <Square className="size-3.5 text-muted-foreground" />
                                                     )}
@@ -5926,7 +6547,7 @@ export function UnifiedChatApp({
                                       className={cn(
                                         "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors cursor-pointer",
                                         hasReacted
-                                          ? "bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-200 border-teal-300 dark:border-teal-700"
+                                          ? "bg-primary/10 dark:bg-primary text-primary dark:text-primary border-primary/30 dark:border-primary/30"
                                           : "bg-muted/60 hover:bg-muted border-border text-foreground"
                                       )}
                                       title="Click to view who reacted"
@@ -5944,7 +6565,7 @@ export function UnifiedChatApp({
                                       <button
                                         type="button"
                                         onClick={() => handleAddReaction(msg.id, emoji)}
-                                        className="text-[11px] text-teal-600 hover:underline cursor-pointer font-medium"
+                                        className="text-[11px] text-primary hover:underline cursor-pointer font-medium"
                                       >
                                         {hasReacted ? "Remove" : "React"}
                                       </button>
@@ -5957,7 +6578,7 @@ export function UnifiedChatApp({
                                             <div key={u.userId} className="flex items-center gap-2 py-0.5">
                                               <Avatar className="size-5">
                                                 <AvatarImage src={u.avatarUrl || undefined} />
-                                                <AvatarFallback className="text-[9px] bg-teal-100 text-teal-800 font-bold">
+                                                <AvatarFallback className="text-[9px] bg-primary/10 text-primary font-bold">
                                                   {(u.fullName || "U").slice(0, 2).toUpperCase()}
                                                 </AvatarFallback>
                                               </Avatar>
@@ -5987,7 +6608,7 @@ export function UnifiedChatApp({
                             isSent ? "justify-end" : "justify-start"
                           )}
                         >
-                          {msg.isPinned && <Pin className="size-3 text-teal-600" />}
+                          {msg.isPinned && <Pin className="size-3 text-primary" />}
                           <span>{msg.time}</span>
                           {isSent && (
                             <>
@@ -5996,7 +6617,7 @@ export function UnifiedChatApp({
                               ) : msg.status === "pending" ? (
                                 <Clock className="size-3 text-muted-foreground animate-spin" />
                               ) : msg.deliveryStatus === "seen" || msg.status === "read" ? (
-                                <span title="Seen"><CheckCheck className="size-3.5 text-teal-600 dark:text-teal-400" /></span>
+                                <span title="Seen"><CheckCheck className="size-3.5 text-primary dark:text-primary" /></span>
                               ) : msg.deliveryStatus === "delivered" || msg.status === "delivered" ? (
                                 <span title="Delivered"><CheckCheck className="size-3.5 text-muted-foreground" /></span>
                               ) : (
@@ -6143,7 +6764,7 @@ export function UnifiedChatApp({
 
               {isUserTyping && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
-                  <div className="size-2 rounded-full bg-teal-600 animate-ping" />
+                  <div className="size-2 rounded-full bg-primary animate-ping" />
                   <span>Someone is typing...</span>
                 </div>
               )}
@@ -6156,9 +6777,9 @@ export function UnifiedChatApp({
                   title="Scroll to bottom"
                   data-testid="scroll-to-bottom-btn"
                 >
-                  <ArrowDown className="size-4 text-teal-700 dark:text-teal-400" />
+                  <ArrowDown className="size-4 text-primary dark:text-primary" />
                   {unreadBelowCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-teal-600 text-white text-[10px] font-bold">
+                    <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
                       {unreadBelowCount}
                     </span>
                   )}
@@ -6283,7 +6904,7 @@ export function UnifiedChatApp({
             {replyingToMessage && (
               <div className="px-4 py-2 bg-muted/60 border-t border-border flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 min-w-0">
-                  <CornerUpLeft className="size-4 text-teal-600 flex-shrink-0" />
+                  <CornerUpLeft className="size-4 text-primary flex-shrink-0" />
                   <div className="truncate">
                     <span className="font-semibold text-foreground">
                       Replying to {replyingToMessage.senderName}:{" "}
@@ -6324,12 +6945,12 @@ export function UnifiedChatApp({
                             className="size-full object-cover"
                           />
                         ) : isPdf ? (
-                          <div className="flex flex-col items-center justify-center text-rose-600">
+                          <div className="flex flex-col items-center justify-center text-destructive">
                             <FileText className="size-6" />
                             <span className="text-[9px] font-bold mt-0.5">PDF</span>
                           </div>
                         ) : (
-                          <div className="flex flex-col items-center justify-center text-teal-600">
+                          <div className="flex flex-col items-center justify-center text-primary">
                             <FileIcon className="size-6" />
                             <span className="text-[9px] font-bold mt-0.5">{ext || "DOC"}</span>
                           </div>
@@ -6344,7 +6965,7 @@ export function UnifiedChatApp({
                         <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
                           <span>{formatFileSize(item.size)}</span>
                           {item.mediaFile && (
-                            <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300 border-teal-200">
+                            <Badge variant="outline" className="text-[8px] h-3.5 px-1 bg-primary/10 text-primary dark:bg-primary dark:text-primary border-primary/30">
                               From Media
                             </Badge>
                           )}
@@ -6355,7 +6976,7 @@ export function UnifiedChatApp({
                       <button
                         type="button"
                         onClick={() => removeComposerAttachment(idx)}
-                        className="absolute top-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-destructive hover:text-white flex items-center justify-center text-muted-foreground transition-colors"
+                        className="absolute top-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center text-muted-foreground transition-colors"
                         title="Remove attachment"
                       >
                         <X className="size-3" />
@@ -6363,7 +6984,7 @@ export function UnifiedChatApp({
 
                       {/* Replace Control (For local file) */}
                       {item.file && (
-                        <label className="absolute bottom-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-teal-700 hover:text-white flex items-center justify-center text-muted-foreground transition-colors cursor-pointer" title="Replace file">
+                        <label className="absolute bottom-1.5 right-1.5 size-5 rounded-full bg-muted/80 hover:bg-primary hover:text-primary-foreground flex items-center justify-center text-muted-foreground transition-colors cursor-pointer" title="Replace file">
                           <RotateCcw className="size-3" />
                           <input
                             type="file"
@@ -6388,7 +7009,7 @@ export function UnifiedChatApp({
                     setMediaPickerPurpose("composer");
                     setMediaPickerOpen(true);
                   }}
-                  className="h-14 px-3 text-xs flex flex-col items-center justify-center gap-1 border-dashed border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50/50 flex-shrink-0"
+                  className="h-14 px-3 text-xs flex flex-col items-center justify-center gap-1 border-dashed border-primary/40 text-primary dark:text-primary hover:bg-primary/50 flex-shrink-0"
                 >
                   <ImageIcon className="size-4" />
                   <span className="text-[10px] font-medium">+ Media Library</span>
@@ -6399,8 +7020,8 @@ export function UnifiedChatApp({
             {/* Message Composer / Voice Recording Bar */}
             {isRecordingVoice ? (
               <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3 animate-in fade-in">
-                <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 animate-pulse">
-                  <div className="size-3 rounded-full bg-rose-600" />
+                <div className="flex items-center gap-2 text-xs font-semibold text-destructive animate-pulse">
+                  <div className="size-3 rounded-full bg-destructive" />
                   <span>Recording voice message... ({formatDuration(voiceDuration)})</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -6428,7 +7049,7 @@ export function UnifiedChatApp({
                     type="button"
                     size="sm"
                     onClick={sendVoiceRecording}
-                    className="text-xs bg-teal-700 hover:bg-teal-800 text-white"
+                    className="text-xs bg-primary hover:bg-primary text-primary-foreground"
                     title="Send voice note"
                   >
                     <Send className="size-3.5 mr-1" /> Send Voice Note
@@ -6447,7 +7068,7 @@ export function UnifiedChatApp({
                   <button
                     type="button"
                     onClick={togglePlayVoicePreview}
-                    className="flex items-center justify-center size-8 rounded-full bg-teal-700 text-white hover:bg-teal-800 cursor-pointer"
+                    className="flex items-center justify-center size-8 rounded-full bg-primary text-primary-foreground hover:bg-primary cursor-pointer"
                     title={isPlayingVoicePreview ? "Pause" : "Play preview"}
                   >
                     {isPlayingVoicePreview ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
@@ -6468,7 +7089,7 @@ export function UnifiedChatApp({
                     type="button"
                     size="sm"
                     onClick={sendVoiceRecording}
-                    className="text-xs bg-teal-700 hover:bg-teal-800 text-white"
+                    className="text-xs bg-primary hover:bg-primary text-primary-foreground"
                   >
                     <Send className="size-3.5 mr-1" /> Send Voice Note
                   </Button>
@@ -6502,7 +7123,7 @@ export function UnifiedChatApp({
                         >
                           <div
                             className={cn(
-                              "size-5 rounded-full flex items-center justify-center font-bold text-[9px] text-white flex-shrink-0",
+                              "size-5 rounded-full flex items-center justify-center font-bold text-[9px] text-foreground flex-shrink-0",
                               getAvatarColor(m.name)
                             )}
                           >
@@ -6533,7 +7154,7 @@ export function UnifiedChatApp({
                       onClick={() => chatFileInputRef.current?.click()}
                       className="gap-2 cursor-pointer"
                     >
-                      <Upload className="size-3.5 text-teal-600" />
+                      <Upload className="size-3.5 text-primary" />
                       <span>Upload from Device</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
@@ -6543,7 +7164,7 @@ export function UnifiedChatApp({
                       }}
                       className="gap-2 cursor-pointer"
                     >
-                      <ImageIcon className="size-3.5 text-teal-600" />
+                      <ImageIcon className="size-3.5 text-primary" />
                       <span>Choose from Media Library</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -6592,7 +7213,7 @@ export function UnifiedChatApp({
                       ? "Type a message... (Use @ to mention group members)"
                       : "Type your message... (Paste images or drag files directly)"
                   }
-                  className="flex-1 text-xs h-9 bg-muted/30 border-border/80 rounded-full px-4 focus-visible:ring-teal-600 font-sans"
+                  className="flex-1 text-xs h-9 bg-muted/30 border-border/80 rounded-full px-4 focus-visible:ring-primary font-sans"
                 />
 
                 {/* Emoji Inserter */}
@@ -6636,7 +7257,7 @@ export function UnifiedChatApp({
                   onClick={handleSendMessage}
                   disabled={isSending || (!messageInput.trim() && composerAttachments.length === 0)}
                   size="sm"
-                  className="rounded-full size-8.5 p-0 bg-teal-700 hover:bg-teal-800 text-white cursor-pointer shadow-xs disabled:opacity-50"
+                  className="rounded-full size-8.5 p-0 bg-primary hover:bg-primary text-primary-foreground cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   {isSending ? (
                     <RefreshCw className="size-4 animate-spin" />
@@ -6657,7 +7278,7 @@ export function UnifiedChatApp({
             <Button
               size="sm"
               onClick={() => setNewChatOpen(true)}
-              className="text-xs bg-teal-700 hover:bg-teal-800 text-white"
+              className="text-xs bg-primary hover:bg-primary text-primary-foreground"
             >
               <Plus className="size-3.5 mr-1" /> Start New Chat
             </Button>
@@ -6676,6 +7297,7 @@ export function UnifiedChatApp({
           <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
             <button
               type="button"
+              data-testid="btn-mobile-back-to-chat"
               onClick={() => setMobilePane("chat")}
               className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
               aria-label="Back to conversation"
@@ -6693,13 +7315,13 @@ export function UnifiedChatApp({
                     {editGroupAvatarUrl ? (
                       <AvatarImage src={editGroupAvatarUrl} alt={editGroupName || "Group"} className="object-cover" />
                     ) : null}
-                    <AvatarFallback className={cn("text-white font-bold text-2xl", getAvatarColor(editGroupName || activeThreadTitle))}>
+                    <AvatarFallback className={cn("text-foreground font-bold text-2xl", getAvatarColor(editGroupName || activeThreadTitle))}>
                       {(editGroupName || activeThreadTitle || "G").charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   {isUploadingGroupAvatar && (
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
-                      <RefreshCw className="size-5 text-white animate-spin" />
+                      <RefreshCw className="size-5 text-foreground animate-spin" />
                     </div>
                   )}
                 </div>
@@ -6717,7 +7339,7 @@ export function UnifiedChatApp({
                       }}
                     />
                     <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-2xs">
-                      <Upload className="size-3.5 text-teal-600" />
+                      <Upload className="size-3.5 text-primary" />
                       <span>Upload</span>
                     </span>
                   </label>
@@ -6732,7 +7354,7 @@ export function UnifiedChatApp({
                       setMediaPickerOpen(true);
                     }}
                   >
-                    <FolderOpen className="size-3.5 text-teal-600" />
+                    <FolderOpen className="size-3.5 text-primary" />
                     <span>Media Library</span>
                   </Button>
 
@@ -6768,7 +7390,7 @@ export function UnifiedChatApp({
                       className="object-cover"
                     />
                   ) : null}
-                  <AvatarFallback className={cn("text-white font-bold text-2xl", getAvatarColor(activeThreadTitle))}>
+                  <AvatarFallback className={cn("text-foreground font-bold text-2xl", getAvatarColor(activeThreadTitle))}>
                     {(activeThreadTitle || "C").charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -6801,7 +7423,7 @@ export function UnifiedChatApp({
                   }
                   className="text-xs h-8 gap-1.5"
                 >
-                  <Phone className="size-3.5 text-teal-600" /> Audio
+                  <Phone className="size-3.5 text-primary" /> Audio
                 </Button>
                 <Button
                   size="sm"
@@ -6817,7 +7439,29 @@ export function UnifiedChatApp({
                   }
                   className="text-xs h-8 gap-1.5"
                 >
-                  <Video className="size-3.5 text-teal-600" /> Video
+                  <Video className="size-3.5 text-primary" /> Video
+                </Button>
+              </div>
+            )}
+            {activeThreadType === "group" && (
+              <div className="flex items-center gap-2 mt-4">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStartGroupMeeting("audio")}
+                  className="text-xs h-8 gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                  data-testid="btn-sidebar-start-group-audio"
+                >
+                  <Phone className="size-3.5 text-primary" /> Audio Meeting
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleStartGroupMeeting("video")}
+                  className="text-xs h-8 gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+                  data-testid="btn-sidebar-start-group-video"
+                >
+                  <Video className="size-3.5 text-primary" /> Video Meeting
                 </Button>
               </div>
             )}
@@ -6830,7 +7474,7 @@ export function UnifiedChatApp({
               className={cn(
                 "flex-1 py-2.5 font-medium border-b-2 text-center transition-colors cursor-pointer",
                 infoTab === "info"
-                  ? "border-teal-600 text-teal-700 dark:text-teal-400 font-semibold"
+                  ? "border-primary/30 text-primary dark:text-primary font-semibold"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
@@ -6843,7 +7487,7 @@ export function UnifiedChatApp({
                   className={cn(
                     "flex-1 py-2.5 font-medium border-b-2 text-center transition-colors cursor-pointer",
                     infoTab === "members"
-                      ? "border-teal-600 text-teal-700 dark:text-teal-400 font-semibold"
+                      ? "border-primary/30 text-primary dark:text-primary font-semibold"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -6854,7 +7498,7 @@ export function UnifiedChatApp({
                   className={cn(
                     "flex-1 py-2.5 font-medium border-b-2 text-center transition-colors cursor-pointer",
                     infoTab === "activity"
-                      ? "border-teal-600 text-teal-700 dark:text-teal-400 font-semibold"
+                      ? "border-primary/30 text-primary dark:text-primary font-semibold"
                       : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -6867,7 +7511,7 @@ export function UnifiedChatApp({
               className={cn(
                 "flex-1 py-2.5 font-medium border-b-2 text-center transition-colors cursor-pointer",
                 infoTab === "files"
-                  ? "border-teal-600 text-teal-700 dark:text-teal-400 font-semibold"
+                  ? "border-primary/30 text-primary dark:text-primary font-semibold"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
@@ -6935,7 +7579,7 @@ export function UnifiedChatApp({
                       maxLength={500}
                       rows={3}
                       placeholder="Add a description for this group..."
-                      className="w-full text-xs p-2 rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-1 focus:ring-teal-600 font-sans"
+                      className="w-full text-xs p-2 rounded-md border border-input bg-background resize-none focus:outline-none focus:ring-1 focus:ring-primary font-sans"
                     />
                     <p className="text-[10px] text-muted-foreground text-right">{editGroupDescription.length}/500</p>
                   </div>
@@ -6959,7 +7603,7 @@ export function UnifiedChatApp({
                     </Button>
                     <Button
                       size="sm"
-                      className="flex-1 text-xs bg-teal-700 hover:bg-teal-800 text-white font-sans"
+                      className="flex-1 text-xs bg-primary hover:bg-primary text-primary-foreground font-sans"
                       disabled={!editGroupName.trim() || updateGroupMutation.isPending}
                       onClick={() => {
                         const targetId = activeGroup?.id || activeGroupId || (activeThreadId?.startsWith("group_") ? activeThreadId.replace("group_", "") : "");
@@ -7009,7 +7653,7 @@ export function UnifiedChatApp({
                           setIsEditingGroupSidebar(true);
                         }}
                       >
-                        <Edit3 className="size-3.5 text-teal-600" />
+                        <Edit3 className="size-3.5 text-primary" />
                         <span>Edit Group Details</span>
                       </Button>
                     )}
@@ -7023,12 +7667,12 @@ export function UnifiedChatApp({
                     >
                       {activeGroup?.isMuted ? (
                         <>
-                          <BellOff className="size-3.5 text-amber-600" />
+                          <BellOff className="size-3.5 text-warning" />
                           <span>Unmute Notifications</span>
                         </>
                       ) : (
                         <>
-                          <Bell className="size-3.5 text-teal-600" />
+                          <Bell className="size-3.5 text-primary" />
                           <span>Mute Notifications</span>
                         </>
                       )}
@@ -7079,7 +7723,7 @@ export function UnifiedChatApp({
                           {m.avatarUrl && (
                             <AvatarImage src={m.avatarUrl} alt={m.name} className="object-cover" />
                           )}
-                          <AvatarFallback className={cn("text-white font-bold text-[10px]", getAvatarColor(m.name))}>
+                          <AvatarFallback className={cn("text-foreground font-bold text-[10px]", getAvatarColor(m.name))}>
                             {(m.name || "M").charAt(0).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
@@ -7095,11 +7739,11 @@ export function UnifiedChatApp({
                             className={cn(
                               "text-[9px] px-1 py-0 capitalize mt-0.5",
                               m.role === "owner"
-                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 font-bold"
+                                ? "bg-warning/10 text-warning dark:text-warning border-warning/30 font-bold"
                                 : m.role === "admin"
-                                ? "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-300 font-semibold"
+                                ? "bg-accent/10 text-accent-foreground dark:text-accent-foreground border-accent/30 font-semibold"
                                 : m.role === "moderator"
-                                ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300"
+                                ? "bg-accent/10 text-accent-foreground dark:text-accent-foreground border-accent/30"
                                 : "bg-muted text-muted-foreground"
                             )}
                           >
@@ -7185,7 +7829,7 @@ export function UnifiedChatApp({
               </p>
               {isActivityLoading ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
-                  <RefreshCw className="size-4 animate-spin mx-auto mb-2 text-teal-600" />
+                  <RefreshCw className="size-4 animate-spin mx-auto mb-2 text-primary" />
                   Loading activity...
                 </div>
               ) : groupActivityEvents.length === 0 ? (
@@ -7200,7 +7844,7 @@ export function UnifiedChatApp({
                       className="p-2.5 rounded-lg border border-border/60 bg-muted/30 text-xs space-y-1"
                     >
                       <div className="flex items-center gap-1.5 font-medium text-foreground">
-                        <InfoIcon className="size-3.5 text-teal-600 flex-shrink-0" />
+                        <InfoIcon className="size-3.5 text-primary flex-shrink-0" />
                         <span>{evt.content}</span>
                       </div>
                       <p className="text-[10px] text-muted-foreground font-mono">
@@ -7238,7 +7882,7 @@ export function UnifiedChatApp({
                       className="p-2 rounded-lg border border-border/70 bg-card hover:bg-muted/40 transition-colors flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="flex items-center gap-2 min-w-0">
-                        <FileIcon className="size-4 text-teal-600 flex-shrink-0" />
+                        <FileIcon className="size-4 text-primary flex-shrink-0" />
                         <div className="truncate">
                           <p className="font-medium truncate">{f.name}</p>
                           <p className="text-[10px] text-muted-foreground">
@@ -7251,7 +7895,7 @@ export function UnifiedChatApp({
                         download={f.name}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1 hover:bg-muted rounded text-teal-700"
+                        className="p-1 hover:bg-muted rounded text-primary"
                         title="Download file"
                       >
                         <Download className="size-3.5" />
@@ -7308,7 +7952,7 @@ export function UnifiedChatApp({
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={cn(
-                          "size-8 rounded-full flex items-center justify-center font-bold text-xs text-white flex-shrink-0",
+                          "size-8 rounded-full flex items-center justify-center font-bold text-xs text-foreground flex-shrink-0",
                           contact.avatarColor
                         )}
                       >
@@ -7321,7 +7965,7 @@ export function UnifiedChatApp({
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" className="h-7 text-xs text-teal-700">
+                    <Button size="sm" variant="outline" className="h-7 text-xs text-primary">
                       Start
                     </Button>
                   </div>
@@ -7369,7 +8013,7 @@ export function UnifiedChatApp({
                   )}
                   {isUploadingGroupAvatar && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <RefreshCw className="size-4 text-white animate-spin" />
+                      <RefreshCw className="size-4 text-foreground animate-spin" />
                     </div>
                   )}
                 </div>
@@ -7385,7 +8029,7 @@ export function UnifiedChatApp({
                         setMediaPickerOpen(true);
                       }}
                     >
-                      <ImageIcon className="size-3.5 text-teal-600" />
+                      <ImageIcon className="size-3.5 text-primary" />
                       Choose from Media Library
                     </Button>
                     <label className="cursor-pointer">
@@ -7400,7 +8044,7 @@ export function UnifiedChatApp({
                         }}
                       />
                       <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-input bg-background hover:bg-accent text-xs font-medium cursor-pointer shadow-xs">
-                        <Upload className="size-3.5 text-teal-600" />
+                        <Upload className="size-3.5 text-primary" />
                         Upload
                       </span>
                     </label>
@@ -7468,7 +8112,7 @@ export function UnifiedChatApp({
                     return (
                       <span
                         key={id}
-                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 border border-teal-200"
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] bg-primary/10 dark:bg-primary/60 text-primary dark:text-primary border border-primary/30"
                       >
                         <span className="font-medium">{c.name}</span>
                         <button
@@ -7530,7 +8174,7 @@ export function UnifiedChatApp({
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div
                           className={cn(
-                            "size-6 rounded-full flex items-center justify-center font-bold text-[10px] text-white flex-shrink-0",
+                            "size-6 rounded-full flex items-center justify-center font-bold text-[10px] text-foreground flex-shrink-0",
                             contact.avatarColor
                           )}
                         >
@@ -7554,7 +8198,7 @@ export function UnifiedChatApp({
             </Button>
             <Button
               size="sm"
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans"
               disabled={createGroupMutation.isPending}
               onClick={() => {
                 if (!newGroupName.trim()) {
@@ -7599,7 +8243,7 @@ export function UnifiedChatApp({
             <DialogTitle className="font-sans flex items-center justify-between">
               <span>Add Members to Group</span>
               {selectedAddMemberIds.length > 0 && (
-                <Badge variant="secondary" className="bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-200">
+                <Badge variant="secondary" className="bg-primary/10 text-primary dark:bg-primary/60 dark:text-primary">
                   {selectedAddMemberIds.length} selected
                 </Badge>
               )}
@@ -7659,7 +8303,7 @@ export function UnifiedChatApp({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-[11px] text-teal-700 hover:text-teal-800 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                        className="h-6 px-2 text-[11px] text-primary hover:text-primary hover:bg-primary/10 dark:hover:bg-primary/40"
                         onClick={() => {
                           if (allEligibleSelected) {
                             setSelectedAddMemberIds([]);
@@ -7708,7 +8352,7 @@ export function UnifiedChatApp({
                             className={cn(
                               "p-2 rounded-md flex items-center justify-between cursor-pointer text-xs transition-colors select-none",
                               isSelected
-                                ? "bg-teal-50 dark:bg-teal-950/60 font-medium text-teal-900 dark:text-teal-100 border border-teal-200 dark:border-teal-800"
+                                ? "bg-primary/10 dark:bg-primary/60 font-medium text-primary dark:text-primary border border-primary/30 dark:border-primary/30"
                                 : "hover:bg-muted/80 border border-transparent"
                             )}
                           >
@@ -7723,11 +8367,11 @@ export function UnifiedChatApp({
                                   );
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="data-[state=checked]:bg-teal-600 data-[state=checked]:border-teal-600"
+                                className="data-[state=checked]:bg-primary data-[state=checked]:border-primary/30"
                               />
                               <div
                                 className={cn(
-                                  "size-8 rounded-full flex items-center justify-center font-bold text-[11px] text-white shrink-0 shadow-xs",
+                                  "size-8 rounded-full flex items-center justify-center font-bold text-[11px] text-foreground shrink-0 shadow-xs",
                                   contact.avatarColor
                                 )}
                               >
@@ -7764,7 +8408,7 @@ export function UnifiedChatApp({
             </Button>
             <Button
               size="sm"
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans"
               disabled={selectedAddMemberIds.length === 0 || addGroupMemberMutation.isPending}
               onClick={() => {
                 if (activeGroup && selectedAddMemberIds.length > 0) {
@@ -7791,7 +8435,7 @@ export function UnifiedChatApp({
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center justify-center gap-2">
-              {preCallType === "video" ? <Video className="size-5 text-teal-600" /> : <Phone className="size-5 text-teal-600" />}
+              {preCallType === "video" ? <Video className="size-5 text-primary" /> : <Phone className="size-5 text-primary" />}
               <span>{preCallType === "video" ? "Video Call Setup" : "Voice Call Setup"}</span>
             </DialogTitle>
             <DialogDescription className="font-sans text-xs">
@@ -7801,8 +8445,8 @@ export function UnifiedChatApp({
 
           <div className="py-3 flex flex-col items-center font-sans space-y-3">
             {preCallPermissionState === "denied" ? (
-              <div className="w-full p-4 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 text-xs text-left space-y-2">
-                <div className="flex items-center gap-2 font-semibold text-red-900 dark:text-red-100">
+              <div className="w-full p-4 rounded-lg bg-destructive/10 dark:bg-destructive/40 border border-destructive/30 dark:border-destructive/30 text-destructive dark:text-destructive text-xs text-left space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-destructive dark:text-destructive">
                   <AlertCircle className="size-4 shrink-0" />
                   <span>Microphone or Camera Permission Blocked</span>
                 </div>
@@ -7812,16 +8456,16 @@ export function UnifiedChatApp({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="text-xs h-7 mt-1 border-red-300 text-red-800 hover:bg-red-100 dark:hover:bg-red-900/50"
+                  className="text-xs h-7 mt-1 border-destructive/30 text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/50"
                   onClick={retryPreCallPermission}
                 >
                   <RefreshCw className="size-3 mr-1" /> Retry Permissions
                 </Button>
               </div>
             ) : preCallType === "video" ? (
-              <div className="w-full h-52 bg-slate-950 rounded-xl relative overflow-hidden flex items-center justify-center border border-border">
+              <div className="w-full h-52 bg-background rounded-xl relative overflow-hidden flex items-center justify-center border border-border">
                 {preCallVideoOff ? (
-                  <div className="flex flex-col items-center justify-center text-slate-400 text-xs">
+                  <div className="flex flex-col items-center justify-center text-muted-foreground text-xs">
                     <VideoOff className="size-8 mb-2 opacity-60" />
                     <span>Camera is turned off</span>
                   </div>
@@ -7841,25 +8485,25 @@ export function UnifiedChatApp({
                     className="w-full h-full object-cover"
                   />
                 )}
-                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1.5">
-                  <span className={cn("size-2 rounded-full", preCallMicMuted ? "bg-amber-400" : "bg-emerald-400 animate-pulse")} />
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1.5">
+                  <span className={cn("size-2 rounded-full", preCallMicMuted ? "bg-warning" : "bg-success animate-pulse")} />
                   <span>{preCallMicMuted ? "Mic Muted" : "Mic Live"}</span>
                 </div>
-                <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
-                  <ShieldCheck className="size-3 text-teal-400" />
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1">
+                  <ShieldCheck className="size-3 text-primary" />
                   <span>HD Preview Ready</span>
                 </div>
               </div>
             ) : (
               <div className="w-full py-6 px-4 rounded-xl bg-muted/40 border border-border flex flex-col items-center justify-center gap-3">
-                <div className="size-16 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-2xl shadow-md">
+                <div className="size-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-2xl shadow-md">
                   {preCallTarget?.name?.charAt(0) || "C"}
                 </div>
                 <div className="text-center">
                   <p className="font-semibold text-xs text-foreground">{preCallTarget?.name}</p>
                   <p className="text-[11px] text-muted-foreground">{preCallTarget?.phone || preCallTarget?.email || "Internal Call"}</p>
                 </div>
-                <Badge variant="outline" className="text-[10px] text-teal-700 bg-teal-50 dark:bg-teal-950/40 border-teal-200">
+                <Badge variant="outline" className="text-[10px] text-primary bg-primary/10 dark:bg-primary/40 border-primary/30">
                   {preCallMicMuted ? "Microphone Muted" : "Microphone Ready"}
                 </Badge>
               </div>
@@ -7869,14 +8513,14 @@ export function UnifiedChatApp({
             <div className="w-full bg-muted/50 rounded-lg p-2.5 border border-border/70 space-y-1.5 text-left">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="flex items-center gap-1.5 font-medium text-foreground">
-                  <Activity className={cn("size-3.5", micVolumeLevel > 5 ? "text-emerald-500 animate-pulse" : "text-muted-foreground")} />
+                  <Activity className={cn("size-3.5", micVolumeLevel > 5 ? "text-success animate-pulse" : "text-muted-foreground")} />
                   <span>Microphone Input Level</span>
                 </span>
                 <span className="text-[10px] text-muted-foreground font-mono">
                   {preCallMicMuted ? "Muted" : `${Math.round(micVolumeLevel)}%`}
                 </span>
               </div>
-              <div className="flex items-center gap-1 h-3 w-full bg-slate-900/30 rounded px-1.5">
+              <div className="flex items-center gap-1 h-3 w-full bg-card/30 rounded px-1.5">
                 {Array.from({ length: 14 }).map((_, i) => {
                   const threshold = ((i + 1) / 14) * 100;
                   const isActive = !preCallMicMuted && micVolumeLevel >= threshold;
@@ -7889,10 +8533,10 @@ export function UnifiedChatApp({
                         "flex-1 h-1.5 rounded-[1px] transition-all duration-75",
                         isActive
                           ? isRed
-                            ? "bg-rose-500"
+                            ? "bg-destructive"
                             : isYellow
-                            ? "bg-amber-400"
-                            : "bg-emerald-400"
+                            ? "bg-warning"
+                            : "bg-success"
                           : "bg-muted-foreground/20"
                       )}
                     />
@@ -7992,7 +8636,7 @@ export function UnifiedChatApp({
                   variant="outline"
                   size="sm"
                   onClick={testSpeakerSound}
-                  className="h-7 text-xs shrink-0 flex items-center gap-1 border-teal-300 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                  className="h-7 text-xs shrink-0 flex items-center gap-1 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary/10 dark:hover:bg-primary/40"
                   title="Play test audio tone"
                 >
                   <Volume2 className="size-3" />
@@ -8001,12 +8645,12 @@ export function UnifiedChatApp({
               </div>
 
               {/* Network Latency Check Badge */}
-              <div className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/60 dark:border-teal-900/40 text-[11px] text-teal-900 dark:text-teal-200">
+              <div className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-primary/70 dark:bg-primary/30 border border-primary/60 dark:border-primary/40 text-[11px] text-primary dark:text-primary">
                 <span className="flex items-center gap-1.5">
-                  <Signal className="size-3.5 text-teal-600 dark:text-teal-400" />
+                  <Signal className="size-3.5 text-primary dark:text-primary" />
                   <span>Signaling Quality</span>
                 </span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <span className="font-semibold text-success dark:text-success flex items-center gap-1">
                   <ShieldCheck className="size-3.5" /> Low Latency (P2P Ready)
                 </span>
               </div>
@@ -8019,7 +8663,7 @@ export function UnifiedChatApp({
             </Button>
             <Button
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-sans flex items-center gap-1.5"
+              className="bg-success hover:bg-success text-success-foreground font-sans flex items-center gap-1.5"
               disabled={preCallPermissionState === "denied"}
               onClick={() => {
                 if (preCallTarget) {
@@ -8047,7 +8691,7 @@ export function UnifiedChatApp({
           className={cn(
             "font-sans text-center transition-all duration-200 [&>button:last-child]:hidden",
             activeCallType === "video"
-              ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-slate-950 text-white flex flex-col justify-between"
+              ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-background text-foreground flex flex-col justify-between"
               : "sm:max-w-md bg-card text-foreground"
           )}
           style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
@@ -8055,7 +8699,7 @@ export function UnifiedChatApp({
           {/* Header Bar */}
           <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
             <div className="flex items-center gap-2 text-left min-w-0">
-              <div className="p-1 rounded bg-teal-500/20 text-teal-400 shrink-0">
+              <div className="p-1 rounded bg-primary/20 text-primary shrink-0">
                 <LockIcon className="size-3.5" />
               </div>
               <div className="min-w-0">
@@ -8063,8 +8707,8 @@ export function UnifiedChatApp({
                   {activeCallTargetName || "Direct Meeting"}
                 </p>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="font-mono text-emerald-500 font-medium">{formatDuration(callDurationSeconds)}</span>
+                  <span className="size-1.5 rounded-full bg-success animate-pulse" />
+                  <span className="font-mono text-success font-medium">{formatDuration(callDurationSeconds)}</span>
                   <span>&bull;</span>
                   <span className="capitalize">{activeCallType} Call &bull; Encrypted</span>
                 </div>
@@ -8079,9 +8723,9 @@ export function UnifiedChatApp({
                 title={`Connection Round Trip: ${networkRttMs}ms (${networkQuality})`}
               >
                 <div className="flex items-end gap-0.5 h-3">
-                  <div className={cn("w-1 rounded-[1px] h-1.5", networkQuality !== "poor" ? "bg-emerald-500" : "bg-red-500")} />
-                  <div className={cn("w-1 rounded-[1px] h-2.5", networkQuality !== "poor" ? "bg-emerald-500" : "bg-red-500")} />
-                  <div className={cn("w-1 rounded-[1px] h-3", networkQuality === "excellent" ? "bg-emerald-500" : "bg-muted-foreground/30")} />
+                  <div className={cn("w-1 rounded-[1px] h-1.5", networkQuality !== "poor" ? "bg-success" : "bg-destructive")} />
+                  <div className={cn("w-1 rounded-[1px] h-2.5", networkQuality !== "poor" ? "bg-success" : "bg-destructive")} />
+                  <div className={cn("w-1 rounded-[1px] h-3", networkQuality === "excellent" ? "bg-success" : "bg-muted-foreground/30")} />
                 </div>
                 <span>{networkRttMs}ms</span>
               </div>
@@ -8142,7 +8786,7 @@ export function UnifiedChatApp({
 
           {/* Reconnecting State Alert */}
           {isReconnecting && (
-            <div className="w-full bg-amber-500/90 text-slate-950 px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold animate-pulse shadow-md my-1.5 shrink-0">
+            <div className="w-full bg-warning/90 text-foreground px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold animate-pulse shadow-md my-1.5 shrink-0">
               <RefreshCw className="size-3.5 animate-spin" />
               <span>Reconnecting WebRTC media stream... Network transition detected</span>
             </div>
@@ -8150,26 +8794,26 @@ export function UnifiedChatApp({
 
           {/* Remote Screen Sharing Alert Banner */}
           {remoteIsScreenSharing && !isScreenSharing && (
-            <div className="w-full bg-teal-600/90 text-white px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-md my-1 shrink-0 animate-in fade-in">
+            <div className="w-full bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-md my-1 shrink-0 animate-in fade-in">
               <Tv className="size-3.5 animate-pulse" />
               <span>{activeCallTargetName || "Colleague"} is sharing their screen</span>
             </div>
           )}
 
           {/* Media Stage */}
-          <div className={cn("w-full flex-1 min-h-0 my-2 relative overflow-hidden flex items-center justify-center", activeCallType === "video" ? "bg-slate-950 rounded-xl border border-slate-800" : "py-6")}>
+          <div className={cn("w-full flex-1 min-h-0 my-2 relative overflow-hidden flex items-center justify-center", activeCallType === "video" ? "bg-background rounded-xl border border-border" : "py-6")}>
             {activeCallType === "video" ? (
               isScreenSharing ? (
                 /* SCREEN SHARE PRESENTATION STAGE */
                 <div className="w-full h-full relative flex flex-col items-center justify-between p-2">
                   {/* Top Presenter Ownership Banner */}
-                  <div className="absolute top-3 z-30 flex items-center gap-3 px-3.5 py-1 rounded-full bg-slate-900/90 text-white border border-teal-500/50 shadow-xl text-xs">
-                    <Tv className="size-3.5 text-teal-400" />
+                  <div className="absolute top-3 z-30 flex items-center gap-3 px-3.5 py-1 rounded-full bg-card/90 text-foreground border border-primary/50 shadow-xl text-xs">
+                    <Tv className="size-3.5 text-primary" />
                     <span>Presenting your screen</span>
                     <Button
                       size="sm"
                       variant="destructive"
-                      className="h-6 text-[10px] px-2.5 rounded-full bg-red-600 hover:bg-red-700 cursor-pointer"
+                      className="h-6 text-[10px] px-2.5 rounded-full bg-destructive hover:bg-destructive cursor-pointer"
                       onClick={toggleScreenShare}
                     >
                       Stop Sharing
@@ -8197,7 +8841,7 @@ export function UnifiedChatApp({
                   {/* 10-12% Participant Thumbnail Strip */}
                   <div className="w-full h-24 pt-2 flex items-center justify-center gap-3 z-20 shrink-0">
                     {/* Remote participant card */}
-                    <div className={cn("h-full aspect-video rounded-lg bg-slate-900 relative overflow-hidden border", remoteIsSpeaking ? "border-emerald-500 ring-2 ring-emerald-500/50" : "border-slate-700")}>
+                    <div className={cn("h-full aspect-video rounded-lg bg-card relative overflow-hidden border", remoteIsSpeaking ? "border-success/30 ring-2 ring-success/50" : "border-border")}>
                       <video
                         ref={(el) => {
                           remoteVideoRef.current = el;
@@ -8211,7 +8855,7 @@ export function UnifiedChatApp({
                         playsInline
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-white flex items-center gap-1">
+                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-foreground flex items-center gap-1">
                         <span>{activeCallTargetName}</span>
                       </div>
                     </div>
@@ -8221,7 +8865,7 @@ export function UnifiedChatApp({
                 /* GRID MODE (EQUAL 50/50 TILES) */
                 <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 gap-3 p-2">
                   {/* Remote Tile */}
-                  <div className={cn("w-full h-full bg-slate-900 rounded-xl relative overflow-hidden flex items-center justify-center border", remoteIsSpeaking ? "border-emerald-500 ring-4 ring-emerald-500/40" : "border-slate-800")}>
+                  <div className={cn("w-full h-full bg-card rounded-xl relative overflow-hidden flex items-center justify-center border", remoteIsSpeaking ? "border-success/30 ring-4 ring-success/40" : "border-border")}>
                     <video
                       ref={(el) => {
                         remoteVideoRef.current = el;
@@ -8236,24 +8880,24 @@ export function UnifiedChatApp({
                       className="w-full h-full object-cover"
                     />
                     {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950 text-white">
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background text-foreground">
                         <div className={cn("size-16 rounded-full flex items-center justify-center text-xl font-bold", getAvatarColor(activeCallTargetName))}>
                           {(activeCallTargetName || "C").charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-xs text-slate-300">{activeCallTargetName}&apos;s camera paused</span>
+                        <span className="text-xs text-foreground">{activeCallTargetName}&apos;s camera paused</span>
                       </div>
                     )}
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1">
                       <span>{activeCallTargetName}</span>
-                      {remoteIsSpeaking && <span className="text-emerald-400 font-medium">&bull; Speaking</span>}
+                      {remoteIsSpeaking && <span className="text-success font-medium">&bull; Speaking</span>}
                     </div>
                   </div>
 
                   {/* Local Tile */}
-                  <div className={cn("w-full h-full bg-slate-900 rounded-xl relative overflow-hidden flex items-center justify-center border", localIsSpeaking ? "border-emerald-500 ring-4 ring-emerald-500/40" : "border-slate-800")}>
+                  <div className={cn("w-full h-full bg-card rounded-xl relative overflow-hidden flex items-center justify-center border", localIsSpeaking ? "border-success/30 ring-4 ring-success/40" : "border-border")}>
                     {isVideoOff ? (
                       <div className="flex flex-col items-center justify-center text-muted-foreground text-xs gap-1">
-                        <VideoOff className="size-6 text-slate-500" />
+                        <VideoOff className="size-6 text-foreground" />
                         <span>Your camera is turned off</span>
                       </div>
                     ) : (
@@ -8272,9 +8916,9 @@ export function UnifiedChatApp({
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-white flex items-center gap-1">
+                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1">
                       <span>You</span>
-                      {isMuted ? <span className="text-amber-400">&bull; Muted</span> : localIsSpeaking ? <span className="text-emerald-400 font-medium">&bull; Speaking</span> : null}
+                      {isMuted ? <span className="text-warning">&bull; Muted</span> : localIsSpeaking ? <span className="text-success font-medium">&bull; Speaking</span> : null}
                     </div>
                   </div>
                 </div>
@@ -8292,17 +8936,17 @@ export function UnifiedChatApp({
                     }}
                     autoPlay
                     playsInline
-                    className={cn("w-full h-full object-cover transition-all duration-300", remoteIsSpeaking && "ring-4 ring-emerald-500/50")}
+                    className={cn("w-full h-full object-cover transition-all duration-300", remoteIsSpeaking && "ring-4 ring-success/50")}
                   />
 
                   {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 text-white">
-                      <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-emerald-500 animate-pulse")}>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background text-foreground">
+                      <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-success animate-pulse")}>
                         {(activeCallTargetName || "C").charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-sm text-slate-300">{activeCallTargetName}&apos;s camera is off</span>
+                      <span className="text-sm text-foreground">{activeCallTargetName}&apos;s camera is off</span>
                       {remoteIsSpeaking && (
-                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-success/20 text-success text-xs font-semibold">
                           <Activity className="size-3 animate-pulse" /> Speaking...
                         </div>
                       )}
@@ -8311,8 +8955,8 @@ export function UnifiedChatApp({
 
                   {/* Floating local preview in corner */}
                   <div className={cn(
-                    "absolute bottom-3 right-3 bg-slate-900 rounded-xl overflow-hidden border-2 shadow-2xl z-10 transition-all",
-                    localIsSpeaking ? "border-emerald-500 ring-2 ring-emerald-500/40" : "border-slate-700",
+                    "absolute bottom-3 right-3 bg-card rounded-xl overflow-hidden border-2 shadow-2xl z-10 transition-all",
+                    localIsSpeaking ? "border-success/30 ring-2 ring-success/40" : "border-border",
                     "w-32 h-24 sm:w-44 sm:h-32"
                   )}>
                     {isVideoOff ? (
@@ -8335,9 +8979,9 @@ export function UnifiedChatApp({
                         className="w-full h-full object-cover"
                       />
                     )}
-                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-white flex items-center gap-1">
+                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-foreground flex items-center gap-1">
                       <span>You</span>
-                      {isMuted && <span className="text-rose-400 font-semibold">(Muted)</span>}
+                      {isMuted && <span className="text-destructive font-semibold">(Muted)</span>}
                     </div>
                   </div>
                 </div>
@@ -8349,15 +8993,15 @@ export function UnifiedChatApp({
                 <div className="relative">
                   <div
                     className={cn(
-                      "size-24 rounded-full text-white flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
+                      "size-24 rounded-full text-foreground flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
                       getAvatarColor(activeCallTargetName),
-                      remoteIsSpeaking ? "ring-8 ring-emerald-500/40 scale-105" : callStatus === "connected" ? "ring-4 ring-teal-500/20" : "animate-pulse"
+                      remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
                     )}
                   >
                     {(activeCallTargetName || "C").charAt(0).toUpperCase()}
                   </div>
                   {remoteIsSpeaking && (
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-semibold animate-pulse shadow-md flex items-center gap-1">
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-success text-success-foreground text-[9px] font-semibold animate-pulse shadow-md flex items-center gap-1">
                       <Activity className="size-2.5" /> Speaking
                     </div>
                   )}
@@ -8378,7 +9022,7 @@ export function UnifiedChatApp({
                       className={cn(
                         "w-1 rounded-full transition-all duration-150",
                         remoteIsSpeaking || localIsSpeaking
-                          ? "bg-teal-600 animate-pulse"
+                          ? "bg-primary animate-pulse"
                           : "bg-muted-foreground/30 h-1.5"
                       )}
                       style={{
@@ -8398,7 +9042,7 @@ export function UnifiedChatApp({
               variant={isMuted ? "destructive" : "outline"}
               size="icon"
               data-testid="call-btn-mute"
-              className={cn("rounded-full size-10 sm:size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-emerald-400")}
+              className={cn("rounded-full size-10 sm:size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-success")}
               title={isMuted ? "Unmute Mic" : "Mute Mic"}
               onClick={toggleMute}
             >
@@ -8425,7 +9069,7 @@ export function UnifiedChatApp({
                   data-testid="call-btn-screenshare"
                   className={cn(
                     "rounded-full size-10 sm:size-11 cursor-pointer",
-                    isScreenSharing && "bg-teal-600 text-white hover:bg-teal-700 ring-2 ring-teal-400"
+                    isScreenSharing && "bg-primary text-primary-foreground hover:bg-primary ring-2 ring-primary"
                   )}
                   title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
                   onClick={toggleScreenShare}
@@ -8475,7 +9119,7 @@ export function UnifiedChatApp({
               variant="destructive"
               size="icon"
               data-testid="call-btn-hangup"
-              className="rounded-full size-11 sm:size-12 cursor-pointer shadow-xl bg-red-600 hover:bg-red-700 text-white ml-1 sm:ml-2"
+              className="rounded-full size-11 sm:size-12 cursor-pointer shadow-xl bg-destructive hover:bg-destructive text-destructive-foreground ml-1 sm:ml-2"
               title="End Call"
               onClick={handleEndCall}
             >
@@ -8489,12 +9133,12 @@ export function UnifiedChatApp({
       {activeCallModalOpen && isCallMinimized && (
         <div
           data-testid="floating-pip-widget"
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999] bg-slate-900/95 backdrop-blur-md text-white border border-slate-700 rounded-2xl p-2.5 sm:p-3 shadow-2xl max-w-[calc(100vw-32px)] animate-in fade-in slide-in-from-bottom-4 duration-200"
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999] bg-card/95 backdrop-blur-md text-foreground border border-border rounded-2xl p-2.5 sm:p-3 shadow-2xl max-w-[calc(100vw-32px)] animate-in fade-in slide-in-from-bottom-4 duration-200"
         >
           {activeCallType === "video" ? (
             /* VIDEO PIP CARD */
             <div className="flex flex-col gap-2">
-              <div className="relative w-48 sm:w-60 aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+              <div className="relative w-48 sm:w-60 aspect-video rounded-xl overflow-hidden bg-background border border-border flex items-center justify-center">
                 <video
                   ref={(el) => {
                     if (el && remoteStreamRef.current) {
@@ -8508,16 +9152,16 @@ export function UnifiedChatApp({
                   className="w-full h-full object-cover"
                 />
                 {(!remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled) || isVideoOff) && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white gap-1.5">
-                    <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-md", getAvatarColor(activeCallTargetName))}>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-background text-foreground gap-1.5">
+                    <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
                       {(activeCallTargetName || "C").charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-[10px] text-slate-300 font-medium truncate max-w-[120px]">{activeCallTargetName}</span>
+                    <span className="text-[10px] text-foreground font-medium truncate max-w-[120px]">{activeCallTargetName}</span>
                   </div>
                 )}
                 {/* Header chip on video */}
-                <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[9px] text-emerald-400 font-mono flex items-center gap-1.5">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[9px] text-success font-mono flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-success animate-pulse" />
                   <span>{formatDuration(callDurationSeconds)}</span>
                 </div>
               </div>
@@ -8525,14 +9169,14 @@ export function UnifiedChatApp({
               {/* PiP Action Toolbar */}
               <div className="flex items-center justify-between px-1">
                 <div className="min-w-0 pr-1">
-                  <p className="text-xs font-semibold truncate max-w-[110px] text-slate-100">{activeCallTargetName}</p>
+                  <p className="text-xs font-semibold truncate max-w-[110px] text-foreground">{activeCallTargetName}</p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Button
                     variant="ghost"
                     size="icon"
                     data-testid="pip-btn-mute"
-                    className={cn("size-7 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
+                    className={cn("size-7 rounded-full", isMuted ? "bg-destructive/20 text-destructive" : "text-foreground hover:text-foreground")}
                     onClick={toggleMute}
                     title={isMuted ? "Unmute Mic" : "Mute Mic"}
                   >
@@ -8542,7 +9186,7 @@ export function UnifiedChatApp({
                     variant="ghost"
                     size="icon"
                     data-testid="pip-btn-maximize"
-                    className="size-7 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+                    className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-card"
                     onClick={() => setIsCallMinimized(false)}
                     title="Maximize Call Window"
                   >
@@ -8552,7 +9196,7 @@ export function UnifiedChatApp({
                     variant="destructive"
                     size="icon"
                     data-testid="pip-btn-hangup"
-                    className="size-7 rounded-full bg-red-600 hover:bg-red-700 text-white"
+                    className="size-7 rounded-full bg-destructive hover:bg-destructive text-destructive-foreground"
                     onClick={handleEndCall}
                     title="Hang Up Call"
                   >
@@ -8565,26 +9209,26 @@ export function UnifiedChatApp({
             /* AUDIO PIP CARD */
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md", getAvatarColor(activeCallTargetName))}>
+                <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
                   {(activeCallTargetName || "C").charAt(0).toUpperCase()}
                 </div>
-                <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
+                <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-success rounded-full ring-2 ring-ring animate-pulse" />
               </div>
 
               <div className="min-w-0 pr-1">
-                <p className="text-xs font-semibold truncate max-w-[120px] text-slate-100">{activeCallTargetName}</p>
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <p className="text-xs font-semibold truncate max-w-[120px] text-foreground">{activeCallTargetName}</p>
+                <div className="flex items-center gap-1.5 text-[10px] text-success font-mono">
+                  <span className="size-1.5 rounded-full bg-success animate-ping" />
                   <span>{formatDuration(callDurationSeconds)}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
+              <div className="flex items-center gap-1.5 border-l border-border/80 pl-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   data-testid="pip-btn-mute"
-                  className={cn("size-8 rounded-full", isMuted ? "bg-red-500/20 text-red-400" : "text-slate-300 hover:text-white")}
+                  className={cn("size-8 rounded-full", isMuted ? "bg-destructive/20 text-destructive" : "text-foreground hover:text-foreground")}
                   onClick={toggleMute}
                   title={isMuted ? "Unmute Mic" : "Mute Mic"}
                 >
@@ -8595,7 +9239,7 @@ export function UnifiedChatApp({
                   variant="ghost"
                   size="icon"
                   data-testid="pip-btn-maximize"
-                  className="size-8 rounded-full text-slate-300 hover:text-white hover:bg-slate-800"
+                  className="size-8 rounded-full text-foreground hover:text-foreground hover:bg-card"
                   onClick={() => setIsCallMinimized(false)}
                   title="Maximize Call Window"
                 >
@@ -8606,7 +9250,7 @@ export function UnifiedChatApp({
                   variant="destructive"
                   size="icon"
                   data-testid="pip-btn-hangup"
-                  className="size-8 rounded-full bg-red-600 hover:bg-red-700 text-white"
+                  className="size-8 rounded-full bg-destructive hover:bg-destructive text-destructive-foreground"
                   onClick={handleEndCall}
                   title="Hang Up Call"
                 >
@@ -8626,7 +9270,7 @@ export function UnifiedChatApp({
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
-              <UserPlus className="size-5 text-teal-600" />
+              <UserPlus className="size-5 text-primary" />
               <span>Add Colleague to Meeting</span>
             </DialogTitle>
             <DialogDescription className="font-sans text-xs">
@@ -8636,12 +9280,12 @@ export function UnifiedChatApp({
 
           <div className="py-2 space-y-3 font-sans">
             {/* Strict SFU Deployment Notice */}
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-200">
-                <InfoIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="p-3 rounded-lg bg-warning/15 dark:bg-warning/40 border border-warning/30 dark:border-warning/60 text-warning dark:text-warning space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-xs text-warning dark:text-warning">
+                <InfoIcon className="size-4 text-warning dark:text-warning shrink-0" />
                 <span>Multi-participant calls require LiveKit/mediasoup SFU and TURN deployment. This call will remain one-to-one.</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/90">
+              <p className="text-[11px] leading-relaxed text-warning dark:text-warning">
                 Adding participants to an active 1-to-1 WebRTC call is disabled. Direct peer-to-peer WebRTC cannot bridge 3+ participants without an SFU media server. For group discussions, please create or open a group chat.
               </p>
             </div>
@@ -8670,7 +9314,7 @@ export function UnifiedChatApp({
                 .map((contact) => (
                   <div key={contact.id} className="pt-1.5 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className={cn("size-7 rounded-full flex items-center justify-center font-bold text-xs text-white", contact.avatarColor)}>
+                      <div className={cn("size-7 rounded-full flex items-center justify-center font-bold text-xs text-foreground", contact.avatarColor)}>
                         {contact.avatarLetter}
                       </div>
                       <div className="min-w-0">
@@ -8693,9 +9337,9 @@ export function UnifiedChatApp({
             </div>
 
             {/* SFU Architecture Disclosure Notice */}
-            <div className="p-2.5 rounded-lg bg-slate-100 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-[11px] text-muted-foreground space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                <InfoIcon className="size-3.5 text-teal-600 shrink-0" />
+            <div className="p-2.5 rounded-lg bg-muted dark:bg-card/80 border border-border dark:border-border text-[11px] text-muted-foreground space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-foreground dark:text-foreground">
+                <InfoIcon className="size-3.5 text-primary shrink-0" />
                 <span>Multi-Party Architecture Boundary</span>
               </div>
               <p className="text-[10px] leading-relaxed">
@@ -8720,7 +9364,7 @@ export function UnifiedChatApp({
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
-              <Settings className="size-5 text-teal-600" />
+              <Settings className="size-5 text-primary" />
               <span>Call & Device Settings</span>
             </DialogTitle>
             <DialogDescription className="font-sans text-xs">
@@ -8732,7 +9376,7 @@ export function UnifiedChatApp({
             {/* Microphone Selector */}
             <div className="space-y-1 text-left">
               <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
-                <Mic className="size-3.5 text-teal-600" /> Microphone
+                <Mic className="size-3.5 text-primary" /> Microphone
               </label>
               <select
                 value={selectedAudioInputId}
@@ -8760,7 +9404,7 @@ export function UnifiedChatApp({
             {activeCallType === "video" && (
               <div className="space-y-1 text-left">
                 <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
-                  <Video className="size-3.5 text-teal-600" /> Camera
+                  <Video className="size-3.5 text-primary" /> Camera
                 </label>
                 <select
                   value={selectedVideoDeviceId}
@@ -8779,7 +9423,7 @@ export function UnifiedChatApp({
             {/* Speaker Selector & Test Sound */}
             <div className="space-y-1 text-left">
               <label className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
-                <Volume2 className="size-3.5 text-teal-600" /> Audio Output (Speaker)
+                <Volume2 className="size-3.5 text-primary" /> Audio Output (Speaker)
               </label>
               <div className="flex items-center gap-2">
                 <select
@@ -8802,7 +9446,7 @@ export function UnifiedChatApp({
                   variant="outline"
                   size="sm"
                   onClick={testSpeakerSound}
-                  className="h-8 text-xs shrink-0 flex items-center gap-1 border-teal-300 text-teal-700 dark:text-teal-300"
+                  className="h-8 text-xs shrink-0 flex items-center gap-1 border-primary/30 text-primary dark:text-primary"
                 >
                   <Volume2 className="size-3 mr-1" /> Test
                 </Button>
@@ -8812,7 +9456,7 @@ export function UnifiedChatApp({
             {/* WebRTC Quality Diagnostics */}
             <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1.5 text-left">
               <p className="font-semibold text-[11px] text-foreground flex items-center gap-1.5">
-                <Activity className="size-3.5 text-teal-600" /> WebRTC Diagnostics
+                <Activity className="size-3.5 text-primary" /> WebRTC Diagnostics
               </p>
               <div className="grid grid-cols-2 gap-2 text-[10px]">
                 <div>
@@ -8821,7 +9465,7 @@ export function UnifiedChatApp({
                 </div>
                 <div>
                   <span className="text-muted-foreground block">Connection Quality:</span>
-                  <span className={cn("font-medium capitalize", networkQuality === "excellent" ? "text-emerald-600" : networkQuality === "good" ? "text-amber-600" : "text-rose-600")}>
+                  <span className={cn("font-medium capitalize", networkQuality === "excellent" ? "text-success" : networkQuality === "good" ? "text-warning" : "text-destructive")}>
                     {networkQuality}
                   </span>
                 </div>
@@ -8831,7 +9475,7 @@ export function UnifiedChatApp({
                 </div>
                 <div>
                   <span className="text-muted-foreground block">Security:</span>
-                  <span className="font-medium text-emerald-600">DTLS / SRTP 128-bit</span>
+                  <span className="font-medium text-success">DTLS / SRTP 128-bit</span>
                 </div>
               </div>
             </div>
@@ -8853,7 +9497,7 @@ export function UnifiedChatApp({
             style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
           >
             <div className="py-4 flex flex-col items-center font-sans space-y-3">
-              <div className="size-16 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shadow-inner">
+              <div className="size-16 rounded-full bg-warning/15 dark:bg-warning/60 text-warning dark:text-warning flex items-center justify-center shadow-inner">
                 <PhoneOff className="size-7" />
               </div>
               <div>
@@ -8866,7 +9510,7 @@ export function UnifiedChatApp({
               <div className="w-full flex flex-col gap-2 pt-2">
                 <Button
                   size="sm"
-                  className="w-full bg-teal-700 hover:bg-teal-800 text-white font-sans flex items-center justify-center gap-1.5"
+                  className="w-full bg-primary hover:bg-primary text-primary-foreground font-sans flex items-center justify-center gap-1.5"
                   onClick={() => {
                     const targetId = busyStateData.targetUserId;
                     setBusyStateData(null);
@@ -8893,30 +9537,30 @@ export function UnifiedChatApp({
 
       {/* 6. CALL WAITING FLOATING NOTICE (NON-DESTRUCTIVE FOR BUSY RECEIVER) */}
       {callWaitingNotice && (
-        <div className="fixed top-5 right-5 z-[99999] max-w-sm bg-slate-900/95 text-white border border-amber-500/40 rounded-xl p-3 shadow-2xl animate-in slide-in-from-top-4 duration-300 backdrop-blur-md">
+        <div className="fixed top-5 right-5 z-[99999] max-w-sm bg-card/95 text-foreground border border-warning/40 rounded-xl p-3 shadow-2xl animate-in slide-in-from-top-4 duration-300 backdrop-blur-md">
           <div className="flex items-start gap-3">
-            <div className="size-9 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <div className="size-9 rounded-full bg-warning/20 text-warning flex items-center justify-center shrink-0">
               <PhoneForwarded className="size-4 animate-bounce" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-amber-300">Call Waiting Notice</p>
+                <p className="text-xs font-semibold text-warning">Call Waiting Notice</p>
                 <button
                   onClick={() => setCallWaitingNotice(null)}
-                  className="text-slate-400 hover:text-white"
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <X className="size-3.5" />
                 </button>
               </div>
-              <p className="text-xs text-slate-200 mt-0.5 truncate">
-                <span className="font-semibold text-white">{callWaitingNotice.requestedByName}</span> tried to call you.
+              <p className="text-xs text-foreground mt-0.5 truncate">
+                <span className="font-semibold text-foreground">{callWaitingNotice.requestedByName}</span> tried to call you.
               </p>
-              <p className="text-[10px] text-slate-400 mt-0.5">Your current active call was preserved without interruption.</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Your current active call was preserved without interruption.</p>
               <div className="flex items-center gap-2 mt-2">
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-6 text-[11px] px-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-500/30"
+                  className="h-6 text-[11px] px-2 bg-warning/20 hover:bg-warning/30 text-warning border-warning/30"
                   onClick={() => {
                     const callerId = callWaitingNotice.requestedBy;
                     setCallWaitingNotice(null);
@@ -8933,7 +9577,7 @@ export function UnifiedChatApp({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-6 text-[11px] px-2 text-slate-400 hover:text-white"
+                  className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground"
                   onClick={() => setCallWaitingNotice(null)}
                 >
                   Dismiss
@@ -8949,18 +9593,18 @@ export function UnifiedChatApp({
         <Dialog open={!!incomingCall} onOpenChange={() => handleRejectIncomingCall("dismissed")}>
           <DialogContent
             data-testid="incoming-call-dialog"
-            className="sm:max-w-md font-sans text-center z-[100000] border-2 border-teal-500/50 shadow-2xl overflow-hidden p-6 [&>button:last-child]:hidden"
+            className="sm:max-w-md font-sans text-center z-[100000] border-2 border-primary/50 shadow-2xl overflow-hidden p-6 [&>button:last-child]:hidden"
             style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
           >
             <div className="py-2 flex flex-col items-center font-sans space-y-4">
               {/* Concentric Animated Sonar Rings */}
               <div className="relative my-2 flex items-center justify-center">
-                <div className="absolute size-32 rounded-full bg-teal-500/20 animate-ping -z-10" />
-                <div className="absolute size-28 rounded-full bg-teal-500/30 animate-pulse -z-10" />
-                <div className="size-24 rounded-full bg-teal-600 text-white flex items-center justify-center font-bold text-3xl shadow-2xl ring-8 ring-teal-500/20">
+                <div className="absolute size-32 rounded-full bg-primary/20 animate-ping -z-10" />
+                <div className="absolute size-28 rounded-full bg-primary/30 animate-pulse -z-10" />
+                <div className="size-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-3xl shadow-2xl ring-8 ring-primary/20">
                   {incomingCall.callerName.charAt(0).toUpperCase()}
                 </div>
-                <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-teal-700 text-white shadow-lg ring-2 ring-background">
+                <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-primary text-primary-foreground shadow-lg ring-2 ring-background">
                   {incomingCall.type === "video" ? <Video className="size-4" /> : <Phone className="size-4" />}
                 </div>
               </div>
@@ -8970,8 +9614,8 @@ export function UnifiedChatApp({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {incomingCall.callerEmail || incomingCall.callerPhone || "Colleague"}
                 </p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-200 text-xs font-semibold">
-                  <span className="size-2 rounded-full bg-teal-600 animate-ping" />
+                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/60 text-primary dark:text-primary text-xs font-semibold">
+                  <span className="size-2 rounded-full bg-primary animate-ping" />
                   <span>Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call</span>
                 </div>
               </div>
@@ -9038,7 +9682,7 @@ export function UnifiedChatApp({
                     variant="destructive"
                     size="icon"
                     data-testid="btn-decline-call"
-                    className="rounded-full size-14 shadow-xl bg-red-600 hover:bg-red-700 cursor-pointer"
+                    className="rounded-full size-14 shadow-xl bg-destructive hover:bg-destructive cursor-pointer"
                     onClick={() => handleRejectIncomingCall("declined")}
                     title="Decline Call"
                   >
@@ -9051,19 +9695,63 @@ export function UnifiedChatApp({
                   <Button
                     size="icon"
                     data-testid="btn-accept-call"
-                    className="rounded-full size-14 shadow-xl bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer ring-4 ring-emerald-500/30 animate-pulse"
+                    className="rounded-full size-14 shadow-xl bg-success hover:bg-success text-success-foreground cursor-pointer ring-4 ring-success/30 animate-pulse"
                     onClick={handleAcceptIncomingCall}
                     title="Accept Call"
                   >
                     <Phone className="size-6" />
                   </Button>
-                  <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">Accept</span>
+                  <span className="text-[11px] font-medium text-success dark:text-success">Accept</span>
                 </div>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 7b. INCOMING GROUP MEETING DIALOG */}
+      <IncomingGroupMeetingDialog
+        incoming={incomingGroupMeeting}
+        onAccept={handleAcceptGroupMeeting}
+        onDecline={handleDeclineGroupMeeting}
+      />
+
+      {/* 4b. MULTI-PARTICIPANT GROUP MEETING DIALOG */}
+      <MultiParticipantMeetingDialog
+        open={isMeetingOpen}
+        onOpenChange={setIsMeetingOpen}
+        meeting={activeMeeting}
+        participants={meetingParticipants}
+        currentUserId={currentUserId}
+        currentUserName={(currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "You"}
+        currentUserAvatar={(currentUser as any)?.avatarUrl || null}
+        isMuted={meetingIsMuted}
+        isVideoOff={meetingIsVideoOff}
+        isScreenSharing={meetingIsScreenSharing}
+        localStream={meetingLocalStreamRef.current}
+        screenStream={meetingScreenStreamRef.current}
+        sfuConfig={meetingSfuConfig}
+        availableColleagues={contacts.map((c) => ({
+          id: c.userId || c.id,
+          name: c.name || "Colleague",
+          email: c.email || undefined,
+          avatarUrl: c.avatarUrl || null,
+        }))}
+        threadMessages={allMessages.map((m) => ({
+          id: m.id,
+          senderName: m.senderName,
+          content: m.content,
+          createdAt: m.time,
+        }))}
+        onToggleMute={handleMeetingToggleMute}
+        onToggleVideo={handleMeetingToggleVideo}
+        onToggleScreenShare={handleMeetingToggleScreenShare}
+        onLeaveMeeting={handleMeetingLeave}
+        onEndMeetingForEveryone={handleMeetingEndForEveryone}
+        onRemoveParticipant={handleMeetingRemoveParticipant}
+        onInviteColleagues={handleMeetingInviteColleagues}
+        onSendMessage={handleInMeetingSendMessage}
+      />
 
       {/* 6. CREATE POLL DIALOG */}
       <Dialog open={createPollOpen} onOpenChange={setCreatePollOpen}>
@@ -9073,7 +9761,7 @@ export function UnifiedChatApp({
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
-              <BarChart2 className="size-4 text-teal-600" /> Create a Poll
+              <BarChart2 className="size-4 text-primary" /> Create a Poll
             </DialogTitle>
             <DialogDescription className="font-sans">
               Ask a question and gather opinions from team members in real-time.
@@ -9151,7 +9839,7 @@ export function UnifiedChatApp({
             <Button
               size="sm"
               onClick={handleCreatePoll}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans"
             >
               Create Poll
             </Button>
@@ -9182,7 +9870,7 @@ export function UnifiedChatApp({
             <Button
               size="sm"
               onClick={handleEditMessage}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans"
             >
               Save Changes
             </Button>
@@ -9207,7 +9895,7 @@ export function UnifiedChatApp({
             <DialogTitle className="font-sans flex items-center justify-between">
               <span>Forward Message</span>
               {selectedForwardThreadIds.length > 0 && (
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-800 dark:text-teal-200">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 dark:bg-primary text-primary dark:text-primary">
                   {selectedForwardThreadIds.length} selected
                 </span>
               )}
@@ -9220,7 +9908,7 @@ export function UnifiedChatApp({
           {/* Forward Preview Snippet */}
           {forwardMessage && (
             <div className="p-2.5 rounded-lg bg-muted/60 border border-border/70 text-xs flex items-start gap-2">
-              <Share2 className="size-4 text-teal-600 flex-shrink-0 mt-0.5" />
+              <Share2 className="size-4 text-primary flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-foreground truncate">
                   From: {cleanPersonName(forwardMessage.senderName)}
@@ -9340,7 +10028,7 @@ export function UnifiedChatApp({
                         className={cn(
                           "p-2 rounded-lg cursor-pointer text-xs flex items-center justify-between border transition-all",
                           isChecked
-                            ? "bg-teal-50 dark:bg-teal-950/60 border-teal-500/50 text-foreground font-semibold"
+                            ? "bg-primary/10 dark:bg-primary/60 border-primary/50 text-primary-foreground font-semibold"
                             : "border-transparent hover:bg-muted/60"
                         )}
                       >
@@ -9349,11 +10037,11 @@ export function UnifiedChatApp({
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}} // handled by parent onClick
-                            className="size-4 rounded border-border text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
                           />
                           <Avatar className="size-7 flex-shrink-0">
                             {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt={c.title} />}
-                            <AvatarFallback className="text-[10px] font-bold bg-teal-700 text-white">
+                            <AvatarFallback className="text-[10px] font-bold bg-primary text-primary-foreground">
                               {c.avatarLetter}
                             </AvatarFallback>
                           </Avatar>
@@ -9394,7 +10082,7 @@ export function UnifiedChatApp({
                         className={cn(
                           "p-2 rounded-lg cursor-pointer text-xs flex items-center justify-between border transition-all",
                           isChecked
-                            ? "bg-teal-50 dark:bg-teal-950/60 border-teal-500/50 text-foreground font-semibold"
+                            ? "bg-primary/10 dark:bg-primary/60 border-primary/50 text-primary-foreground font-semibold"
                             : "border-transparent hover:bg-muted/60"
                         )}
                       >
@@ -9403,11 +10091,11 @@ export function UnifiedChatApp({
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            className="size-4 rounded border-border text-teal-600 focus:ring-teal-500 cursor-pointer"
+                            className="size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
                           />
                           <Avatar className="size-7 flex-shrink-0">
                             {g.avatarUrl && <AvatarImage src={g.avatarUrl} alt={g.name} />}
-                            <AvatarFallback className="text-[10px] font-bold bg-teal-800 text-white">
+                            <AvatarFallback className="text-[10px] font-bold bg-primary text-primary-foreground">
                               {g.avatarLetter}
                             </AvatarFallback>
                           </Avatar>
@@ -9443,7 +10131,7 @@ export function UnifiedChatApp({
               size="sm"
               disabled={selectedForwardThreadIds.length === 0 || isForwarding}
               onClick={handleBatchForwardMessage}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans flex items-center gap-1.5"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans flex items-center gap-1.5"
             >
               <Share2 className="size-3.5" />
               <span>
@@ -9484,11 +10172,11 @@ export function UnifiedChatApp({
               <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40 flex-shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   {isImg ? (
-                    <ImageIcon className="size-4 text-teal-600 flex-shrink-0" />
+                    <ImageIcon className="size-4 text-primary flex-shrink-0" />
                   ) : isPdf ? (
-                    <FileText className="size-4 text-red-500 flex-shrink-0" />
+                    <FileText className="size-4 text-destructive flex-shrink-0" />
                   ) : (
-                    <FileIcon className="size-4 text-blue-500 flex-shrink-0" />
+                    <FileIcon className="size-4 text-accent-foreground flex-shrink-0" />
                   )}
                   <div className="truncate">
                     <p className="text-xs font-semibold text-foreground truncate max-w-sm sm:max-w-md">
@@ -9585,7 +10273,7 @@ export function UnifiedChatApp({
                   </div>
                 ) : (
                   <div className="max-w-md w-full bg-background p-6 rounded-xl border shadow-sm text-center space-y-4">
-                    <div className="size-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 flex items-center justify-center mx-auto border border-blue-200">
+                    <div className="size-16 rounded-2xl bg-accent/15 dark:bg-accent/40 text-accent-foreground flex items-center justify-center mx-auto border border-accent/30">
                       <FileIcon className="size-8" />
                     </div>
                     <div>
@@ -9601,7 +10289,7 @@ export function UnifiedChatApp({
                       <a
                         href={currentItem.url}
                         download={fileName}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-xs transition-colors"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary hover:bg-primary text-primary-foreground text-xs font-semibold shadow-xs transition-colors"
                       >
                         <Download className="size-4" /> Download Document
                       </a>
@@ -9665,7 +10353,7 @@ export function UnifiedChatApp({
 
             <div className="space-y-4 py-2 font-sans">
               <div className="p-4 rounded-xl bg-muted/40 border text-center space-y-3">
-                <div className="size-16 rounded-full mx-auto overflow-hidden bg-muted border-2 border-primary/20 flex items-center justify-center font-bold text-xl text-white bg-teal-700">
+                <div className="size-16 rounded-full mx-auto overflow-hidden bg-muted border-2 border-primary/20 flex items-center justify-center font-bold text-xl text-foreground bg-primary">
                   {viewCallerDetails.callerAvatarUrl ? (
                     <img
                       src={viewCallerDetails.callerAvatarUrl}
@@ -9681,7 +10369,7 @@ export function UnifiedChatApp({
                   <Button
                     size="icon"
                     variant="outline"
-                    className="size-9 rounded-full hover:bg-teal-50 hover:text-teal-700"
+                    className="size-9 rounded-full hover:bg-primary/10 hover:text-primary"
                     title="Video Call"
                     onClick={() => {
                       setViewCallerDetails(null);
@@ -9699,7 +10387,7 @@ export function UnifiedChatApp({
                   <Button
                     size="icon"
                     variant="outline"
-                    className="size-9 rounded-full hover:bg-teal-50 hover:text-teal-700"
+                    className="size-9 rounded-full hover:bg-primary/10 hover:text-primary"
                     title="Audio Call"
                     onClick={() => {
                       setViewCallerDetails(null);
@@ -9732,7 +10420,7 @@ export function UnifiedChatApp({
                 </div>
                 <div className="py-2 flex items-center justify-between">
                   <span className="text-muted-foreground">Session Duration</span>
-                  <span className="font-mono text-teal-600 font-bold">
+                  <span className="font-mono text-primary font-bold">
                     {formatDuration(viewCallerDetails.durationSeconds)}
                   </span>
                 </div>
@@ -9756,7 +10444,7 @@ export function UnifiedChatApp({
         >
           <DialogHeader>
             <DialogTitle className="text-base font-bold font-sans flex items-center gap-2">
-              <CalendarPlus className="size-4 text-teal-600" /> Schedule Meeting
+              <CalendarPlus className="size-4 text-primary" /> Schedule Meeting
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground font-sans">
               Schedule a calendar event with colleagues. Invites, notifications, and reminders will be dispatched automatically.
@@ -9853,7 +10541,7 @@ export function UnifiedChatApp({
                           {c.avatarUrl ? (
                             <img src={c.avatarUrl} alt={c.name} className="size-5 rounded-full object-cover" />
                           ) : (
-                            <span className="size-5 rounded-full bg-teal-600 text-white text-[9px] flex items-center justify-center font-bold">
+                            <span className="size-5 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
                               {c.avatarLetter}
                             </span>
                           )}
@@ -9906,7 +10594,7 @@ export function UnifiedChatApp({
                   ],
                 });
               }}
-              className="bg-teal-700 hover:bg-teal-800 text-white font-sans gap-1.5"
+              className="bg-primary hover:bg-primary text-primary-foreground font-sans gap-1.5"
             >
               {scheduleMeetingMutation.isPending ? (
                 <RefreshCw className="size-3.5 animate-spin" />
@@ -9933,7 +10621,7 @@ export function UnifiedChatApp({
           </DialogHeader>
 
           <div className="space-y-3 py-2 text-xs font-sans">
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg text-amber-900 dark:text-amber-200 text-xs">
+            <div className="p-3 bg-warning/15 dark:bg-warning/30 border border-warning/30 dark:border-warning/50 rounded-lg text-warning dark:text-warning text-xs">
               <strong>Important:</strong> Group ownership gives full administrative control. Only transfer ownership to trusted team members.
             </div>
 
@@ -9970,7 +10658,7 @@ export function UnifiedChatApp({
                   newOwnerId: selectedNewOwnerId,
                 });
               }}
-              className="bg-amber-600 hover:bg-amber-700 text-white font-sans"
+              className="bg-warning hover:bg-warning text-foreground font-sans"
             >
               Confirm Ownership Transfer
             </Button>

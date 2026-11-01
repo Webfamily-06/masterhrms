@@ -42,7 +42,7 @@ export const DEFAULT_BRANDING: TenantBranding = {
   activeLogo: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
   primaryColor: "#2563EB",
-  footerText: "© 2026 Master HRMS. All rights reserved.",
+  footerText: `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
   timezone: "Asia/Kolkata",
   currency: "INR",
   currencySymbol: "₹",

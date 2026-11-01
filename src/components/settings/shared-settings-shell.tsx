@@ -593,7 +593,7 @@ export function SharedSettingsShell({
                     id="footer_text"
                     value={form["branding.footer_text"] || ""}
                     onChange={(e) => updateFormField("branding.footer_text", e.target.value)}
-                    placeholder="© 2026 Master HRMS. All rights reserved."
+                    placeholder="© 2026 Webfamily Tech Solutions. All rights reserved."
                     className="h-9 text-xs"
                   />
                 </div>
@@ -1158,7 +1158,7 @@ export function SharedSettingsShell({
             primaryColor={form["branding.primary_color"] || "#2563EB"}
             logoLightUrl={form["branding.logo_light_id"] || "/logo.webp"}
             logoDarkUrl={form["branding.logo_dark_id"] || "/white-logo.webp"}
-            footerText={form["branding.footer_text"] || "© 2026 Master HRMS. All rights reserved."}
+            footerText={form["branding.footer_text"] || "© 2026 Webfamily Tech Solutions. All rights reserved."}
             currencyCode={form["locale.default_currency"] || "INR"}
             dateFormat={form["locale.date_format"] || "DD-MM-YYYY"}
             timezone={form["locale.timezone"] || "Asia/Kolkata"}

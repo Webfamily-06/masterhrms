@@ -18,7 +18,7 @@ const ServicesHero = () => {
 
             <TextReveal delay={0.2}>
               <p className="text-tagline-1 text-secondary/60 mx-auto max-w-[560px]">
-                Nexsas helps teams design, launch, and scale automation systems that reduce manual
+                Master HRMS helps teams design, launch, and scale automation systems that reduce manual
                 work and improve execution across the business.
               </p>
             </TextReveal>

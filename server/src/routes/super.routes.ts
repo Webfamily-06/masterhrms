@@ -2521,7 +2521,7 @@ superRouter.post("/addons/:slug/releases", requireAuth, requireSuperAdmin, async
       changeSummary: changeSummary.trim(),
       releaseNotes: releaseNotes ? String(releaseNotes).trim() : null,
       isPublic: Boolean(isPublic),
-      actorEmail: req.user?.email || "superadmin@masterhrms.com",
+      actorEmail: req.user?.email || (req.user as any)?.id || "system",
       metadataDiff: metadataDiff && typeof metadataDiff === "object" ? metadataDiff : null,
       createdAt: new Date().toISOString(),
     };

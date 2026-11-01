@@ -93,7 +93,11 @@ export function Super06LoginPage() {
   const logoLightUrl = appConfig.logoLightUrl || branding.logoUrl || "/logo.webp";
   const logoDarkUrl = appConfig.logoDarkUrl || branding.logoDark || "/white-logo.webp";
   const appName = appConfig.appName || branding.name || "Master HRMS";
-  const footerText = appConfig.footerText || branding.footerText || "© 2026 Master HRMS. All rights reserved.";
+  const rawFooter = appConfig.footerText || branding.footerText;
+  const footerText =
+    rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
+      ? rawFooter
+      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   // Guarantee application default theme color (#2563EB)
   useEffect(() => {
@@ -515,31 +519,33 @@ export function Super06LoginPage() {
         ) : (
           /* Main Super Admin Sign In Form matching auth.tsx */
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {/* Super Admin Credentials Box matching default UI */}
-            <div className="rounded-md border border-border-color bg-light dark:bg-slate-800/50 p-2.5 space-y-1.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-title flex items-center gap-1.5 text-[11px]">
-                  <ShieldCheck className="size-3.5 text-primary" /> Super Admin Credentials
-                </span>
-                <span className="text-[10px] text-default font-mono">Password: admin123</span>
+            {/* Super Admin Credentials Box (Development / Demo only) */}
+            {(import.meta.env.DEV || (import.meta.env as any).VITE_ENABLE_DEMO_CREDENTIALS === "true") && (
+              <div className="rounded-md border border-border-color bg-light dark:bg-slate-800/50 p-2.5 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-title flex items-center gap-1.5 text-[11px]">
+                    <ShieldCheck className="size-3.5 text-primary" /> Super Admin Credentials
+                  </span>
+                  <span className="text-[10px] text-default font-mono">Password: admin123</span>
+                </div>
+                <div className="pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail("admin@masterhrms.com");
+                      setPassword("admin123");
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="text-[11px] font-bold text-title">Super Admin</div>
+                      <div className="text-[10px] text-default">admin@masterhrms.com</div>
+                    </div>
+                    <span className="text-[11px] font-semibold text-primary">Autofill</span>
+                  </button>
+                </div>
               </div>
-              <div className="pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail("admin@masterhrms.com");
-                    setPassword("admin123");
-                  }}
-                  className="w-full px-2.5 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors flex items-center justify-between"
-                >
-                  <div>
-                    <div className="text-[11px] font-bold text-title">Super Admin</div>
-                    <div className="text-[10px] text-default">admin@masterhrms.com</div>
-                  </div>
-                  <span className="text-[11px] font-semibold text-primary">Autofill</span>
-                </button>
-              </div>
-            </div>
+            )}
 
             <div>
               <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">

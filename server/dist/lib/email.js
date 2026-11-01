@@ -162,7 +162,7 @@ function getDefaultOtpEmailTemplate(params) {
           <tr>
             <td align="center" style="padding: 20px 12px;">
               <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700; color: #64748b; margin-bottom: 10px;">Your 6-Digit Verification Code</div>
-              
+
               <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto; display: inline-table;">
                 <tr>
                   <td align="center" style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 900; color: #ea580c; letter-spacing: 8px; white-space: nowrap; word-break: keep-all; padding: 2px 8px;">
@@ -375,7 +375,7 @@ exports.LIFECYCLE_EMAIL_TEMPLATES = {
     </tr>
     <tr>
       <td style="padding: 16px 32px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
-        <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Master HRMS SaaS Platform. All rights reserved.</p>
+        <p style="color: #94a3b8; font-size: 12px; margin: 0;">© 2026 Webfamily Tech Solutions. All rights reserved.</p>
       </td>
     </tr>
   </table>
@@ -887,7 +887,7 @@ async function sendPaymentConfirmationEmail(params) {
         <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
           Thank you for your payment. Your workspace subscription has been updated and is active. Details of this authoritative financial settlement are summarized below:
         </p>
-        
+
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 24px; font-size: 12px;">
           <tr>
             <td style="padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-weight: 600;">Organization / Customer:</td>
@@ -1045,7 +1045,7 @@ async function sendPaymentRejectionEmail(params) {
         <p style="font-size: 13px; line-height: 1.6; color: #475569; margin: 0 0 20px 0;">
           Our finance administration team was unable to verify your offline / bank transfer submission for invoice <strong>#${invoiceNo}</strong>.
         </p>
-        
+
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; margin-bottom: 20px; font-size: 12px;">
           <tr>
             <td style="padding: 10px 14px; color: #9f1239; font-weight: 600;">Plan / Item:</td>

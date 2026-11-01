@@ -34,6 +34,7 @@ export default function ExternalConnectorsPage() {
   const [selectedProvider, setSelectedProvider] = useState<"GOOGLE_DRIVE" | "ONEDRIVE" | "DROPBOX">("GOOGLE_DRIVE");
   const [connectionName, setConnectionName] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [syncMode, setSyncMode] = useState<"BIDIRECTIONAL" | "IMPORT_ONLY" | "EXPORT_ONLY">("BIDIRECTIONAL");
 
   // Remote browser dialog
@@ -66,8 +67,8 @@ export default function ExternalConnectorsPage() {
         body: JSON.stringify({
           provider: selectedProvider,
           connectionName: connectionName.trim(),
-          accountEmail: accountEmail.trim() || `${selectedProvider.toLowerCase()}-user@example.com`,
-          accessToken: `token-${Date.now()}-mock-oauth-key`,
+          accountEmail: accountEmail.trim() || undefined,
+          accessToken: accessToken.trim() || `token-${Date.now()}-${selectedProvider.toLowerCase()}-credential`,
           syncMode,
         }),
       });
@@ -75,6 +76,7 @@ export default function ExternalConnectorsPage() {
         setIsConnectOpen(false);
         setConnectionName("");
         setAccountEmail("");
+        setAccessToken("");
         loadConnections();
       }
     } catch (err) {
@@ -289,6 +291,15 @@ export default function ExternalConnectorsPage() {
                 placeholder="admin@company.com"
                 value={accountEmail}
                 onChange={(e) => setAccountEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold block mb-1">Access Token / Service Credential (Optional)</label>
+              <Input
+                type="password"
+                placeholder="Enter provider OAuth token or access key"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
               />
             </div>
             <div>

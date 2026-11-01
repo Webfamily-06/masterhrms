@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
-export const DEFAULT_URL = 'https://next-saas-next.vercel.app/';
-export const DEFAULT_TITLE = 'Nexsas - Software, SaaS & Startup Tailwind Template';
+export const DEFAULT_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://masterhrms.com';
+export const DEFAULT_TITLE = 'Master HRMS & Multi-Tenant Enterprise Platform';
 export const DEFAULT_DESCRIPTION =
-  'Nexsas - the ultimate collection of 42+ premium Nextjs templates for SaaS businesses and startups. Built with Tailwind CSS, featuring responsive design, authentication flows, pricing pages, and modern UI components. Perfect for web applications and digital products.';
+  'Comprehensive enterprise HRMS, payroll compliance, project tracking, biometric integration, and cloud management platform powered by Webfamily Tech Solutions.';
 export const DEFAULT_IMAGE_URL =
   'https://images.prismic.io/staticmania/aPD-K55xUNkB2D2X_og-image.jpg';
 
@@ -13,7 +13,7 @@ const defaultMetadata: Metadata = {
   description: DEFAULT_DESCRIPTION,
   openGraph: {
     type: 'website',
-    siteName: 'Nexsas',
+    siteName: 'Master HRMS',
     url: DEFAULT_URL,
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,

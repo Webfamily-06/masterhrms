@@ -390,7 +390,7 @@ export default function CustomerPortalStatementPage() {
       {/* Footer */}
       <footer className="bg-white dark:bg-zinc-900 border-t border-border py-6 px-4 text-center text-xs text-muted-foreground">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 Master ERP & TSV Global Solutions. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
           <div className="flex items-center gap-4 text-muted-foreground">
             <Link to="/" className="hover:text-foreground">Home</Link>
             <Link to="/store" className="hover:text-foreground">Store</Link>

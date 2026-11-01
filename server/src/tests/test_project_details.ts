@@ -1,5 +1,5 @@
-import { generateToken } from "./lib/jwt";
-import { prisma } from "./prisma";
+import { generateToken } from "../lib/jwt";
+import { prisma } from "../prisma";
 
 const BASE_URL = "http://localhost:4000/api";
 

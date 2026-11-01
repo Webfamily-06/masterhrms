@@ -83,7 +83,11 @@ function Super06AuthContent() {
   const logoLightUrl = appConfig?.logoLightUrl || branding?.logoUrl || '/logo.webp';
   const logoDarkUrl = appConfig?.logoDarkUrl || branding?.logoDark || '/white-logo.webp';
   const appName = appConfig?.appName || branding?.name || 'Master HRMS';
-  const footerText = appConfig?.footerText || branding?.footerText || '© 2026 Master HRMS. All rights reserved.';
+  const rawFooter = appConfig?.footerText || branding?.footerText;
+  const footerText =
+    rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
+      ? rawFooter
+      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   useEffect(() => {
     const activeColor = branding?.primaryColor || appConfig?.primaryColor || '#2563EB';
@@ -266,8 +270,8 @@ function Super06AuthContent() {
           <p className="text-xs text-slate-400">Master Root Control & Multi-Tenant Management</p>
         </div>
 
-        {/* Quick credential filler for verified Super Admin */}
-        {mode === 'signin' && (
+        {/* Quick credential filler for verified Super Admin (Development / Demo only) */}
+        {mode === 'signin' && (process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_DEMO_CREDENTIALS === 'true') && (
           <div className="mb-4 p-3 bg-slate-800/80 border border-slate-700/60 rounded-lg text-xs space-y-1.5">
             <div className="flex items-center justify-between text-slate-300 font-semibold">
               <span className="flex items-center gap-1.5 text-primary">

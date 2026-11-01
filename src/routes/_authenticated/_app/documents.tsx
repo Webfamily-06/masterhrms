@@ -1178,7 +1178,7 @@ export function DocumentsPage() {
                   <div className="font-mono text-[10px] space-y-0.5 text-muted-foreground">
                     <div>Signer: <strong className="text-foreground">{selectedAuditDrawer.signerName}</strong></div>
                     <div>Signed At: {new Date(selectedAuditDrawer.signedAt).toISOString()}</div>
-                    <div>Signer IP: {selectedAuditDrawer.signerIp || "127.0.0.1 (Verified)"}</div>
+                    <div>Signer IP: {selectedAuditDrawer.signerIp || "Not Recorded"}</div>
                   </div>
                 </div>
               ) : (

@@ -7,7 +7,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   ...generateMetadata(),
-  title: 'Services - Automation SaaS || Nexsas',
+  title: 'Services — Webfamily Tech Solutions',
 };
 
 const ServicesPage = () => {

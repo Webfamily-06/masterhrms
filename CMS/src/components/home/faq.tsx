@@ -25,10 +25,10 @@ interface FaqItem {
 
 const DEFAULT_FAQS: FaqItem[] = [
   {
-    value: 'what-does-nexsas-automate',
-    question: 'What does Nexsas automate?',
+    value: 'what-does-platform-automate',
+    question: 'What does Master HRMS automate?',
     answer:
-      'Nexsas connects your tools and automates repetitive tasks like routing requests, updating records, sending notifications, and syncing data across your stack.',
+      'Master HRMS connects your tools and automates repetitive tasks like routing requests, updating records, sending notifications, and syncing data across your stack.',
   },
   {
     value: 'which-apps-can-i-connect',
@@ -50,7 +50,7 @@ const DEFAULT_FAQS: FaqItem[] = [
   },
   {
     value: 'coding-skills-required',
-    question: 'Do I need coding skills to use Nexsas?',
+    question: 'Do I need coding skills to use Master HRMS?',
     answer:
       'No. Start with templates and a visual builder. If you want advanced customization, you can add rules, webhooks, and custom fields without changing your existing tools.',
   },

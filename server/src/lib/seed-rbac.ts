@@ -216,21 +216,17 @@ interface DbPermission {
 
     for (const prof of profiles) {
       const isUserAdmin =
-        prof.email === "gowthamtooquik@gmail.com" ||
-        prof.user.email === "gowthamtooquik@gmail.com" ||
-        prof.fullName?.toLowerCase().includes("tenant administrator") ||
-        prof.fullName?.toLowerCase().includes("tenant admin") ||
         prof.user.roles.some((r) =>
           (r.role as string) === "admin" ||
           (r.role as string) === "workspace_admin" ||
           (r.role as string) === "tenant_admin" ||
           (r.role as string) === "super_admin"
-        );
+        ) ||
+        Boolean(prof.fullName?.toLowerCase().includes("tenant administrator")) ||
+        Boolean(prof.fullName?.toLowerCase().includes("tenant admin"));
       const isHrUser =
         !isUserAdmin &&
-        (prof.email === "hr@masterhrms.com" ||
-          prof.user.email === "hr@masterhrms.com" ||
-          prof.user.roles.some((r) => (r.role as string) === "hr_admin"));
+        prof.user.roles.some((r) => (r.role as string) === "hr_admin");
 
       const targetRoleId = isUserAdmin
         ? adminRole.id

@@ -101,7 +101,7 @@ exports.SETTINGS_REGISTRY = {
         label: "Footer Copyright Text",
         help: "Copyright and legal disclaimer appearing in portals and transactional emails.",
         type: "string",
-        default: "© 2026 Master HRMS. All rights reserved.",
+        default: "© 2026 Webfamily Tech Solutions. All rights reserved.",
         scopes: ["PLATFORM", "TENANT"],
         validation: (val) => {
             if (typeof val !== "string")

@@ -42,7 +42,7 @@ export const DEFAULT_BRANDING: TenantBranding = {
   activeLogo: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
   primaryColor: "#2563EB",
-  footerText: "© 2026 Master HRMS. All rights reserved.",
+  footerText: `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
   timezone: "Asia/Kolkata",
   currency: "INR",
   currencySymbol: "₹",
@@ -84,7 +84,11 @@ export function useTenantBranding() {
                 logoDark: isWhiteLabeled ? (hostRes.logoDark || hostRes.logoUrl || DEFAULT_BRANDING.logoDark) : DEFAULT_BRANDING.logoDark,
                 faviconUrl: isWhiteLabeled ? (hostRes.faviconUrl || DEFAULT_BRANDING.faviconUrl) : DEFAULT_BRANDING.faviconUrl,
                 primaryColor: isWhiteLabeled ? (hostRes.primaryColor || DEFAULT_BRANDING.primaryColor) : DEFAULT_BRANDING.primaryColor,
-                footerText: isWhiteLabeled ? (hostRes.footerText || hostRes.brand?.footerText || DEFAULT_BRANDING.footerText) : DEFAULT_BRANDING.footerText,
+                footerText: isWhiteLabeled
+                  ? ((hostRes.footerText && !hostRes.footerText.includes("Apex HRMS") && !hostRes.footerText.includes("Persisted Forever"))
+                      ? hostRes.footerText
+                      : DEFAULT_BRANDING.footerText)
+                  : DEFAULT_BRANDING.footerText,
                 timezone: hostRes.timezone || "Asia/Kolkata",
                 baseDomain: hostRes.baseDomain,
                 workspaceUrl: hostRes.workspaceUrl,

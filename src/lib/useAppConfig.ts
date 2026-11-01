@@ -47,7 +47,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   logoLightUrl: "/logo.webp",
   logoDarkUrl: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
-  footerText: "© 2026 Master HRMS. All rights reserved.",
+  footerText: `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
   locale: {
     defaultCurrency: "INR",
     currencySymbol: "₹",

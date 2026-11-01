@@ -2,8 +2,15 @@
  * Backend API Client for Master HRMS (Node.js + Express + MySQL)
  */
 
-export const API_URL = (typeof window !== 'undefined' ? '/api' : 'http://localhost:4000/api');
+export const API_URL =
+  typeof window !== 'undefined'
+    ? '/api'
+    : `${(process.env?.INTERNAL_API_URL || process.env?.SERVER_URL || 'http://localhost:4000').replace(/\/+$/, '')}/api`;
+
 export const API_BASE =
+  (typeof process !== "undefined" && process.env?.INTERNAL_API_URL
+    ? `${process.env.INTERNAL_API_URL.replace(/\/+$/, "")}/api`
+    : undefined) ||
   (typeof process !== "undefined" && process.env?.SERVER_URL
     ? `${process.env.SERVER_URL.replace(/\/+$/, "")}/api`
     : undefined) ||

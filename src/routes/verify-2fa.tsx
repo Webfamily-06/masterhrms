@@ -274,7 +274,7 @@ function Verify2faPage() {
             <div className="size-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-inner">
               <ShieldCheck className="size-8 stroke-[1.8]" />
             </div>
-            
+
             <div className="space-y-1">
               <div className="flex items-center justify-center gap-2">
                 <h1 className="text-2xl font-black tracking-tight text-foreground">
@@ -391,7 +391,7 @@ function Verify2faPage() {
             {/* Resend Section with Cooldown */}
             <div className="text-center pt-2 space-y-2">
               <p className="text-xs text-muted-foreground">Didn't receive the code?</p>
-              
+
               {cooldown > 0 ? (
                 <div className="text-xs font-mono text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
                   <RefreshCw className="size-3 animate-spin text-muted-foreground/60" />
@@ -434,7 +434,7 @@ function Verify2faPage() {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-muted-foreground">
-        © 2026 TSV Global Solutions. All rights reserved. Secure 2FA Protocol.
+        © {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved. Secure 2FA Protocol.
       </footer>
     </div>
   );

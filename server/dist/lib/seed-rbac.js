@@ -169,18 +169,14 @@ async function seedRbac() {
             },
         });
         for (const prof of profiles) {
-            const isUserAdmin = prof.email === "gowthamtooquik@gmail.com" ||
-                prof.user.email === "gowthamtooquik@gmail.com" ||
-                prof.fullName?.toLowerCase().includes("tenant administrator") ||
-                prof.fullName?.toLowerCase().includes("tenant admin") ||
-                prof.user.roles.some((r) => r.role === "admin" ||
-                    r.role === "workspace_admin" ||
-                    r.role === "tenant_admin" ||
-                    r.role === "super_admin");
+            const isUserAdmin = prof.user.roles.some((r) => r.role === "admin" ||
+                r.role === "workspace_admin" ||
+                r.role === "tenant_admin" ||
+                r.role === "super_admin") ||
+                Boolean(prof.fullName?.toLowerCase().includes("tenant administrator")) ||
+                Boolean(prof.fullName?.toLowerCase().includes("tenant admin"));
             const isHrUser = !isUserAdmin &&
-                (prof.email === "hr@masterhrms.com" ||
-                    prof.user.email === "hr@masterhrms.com" ||
-                    prof.user.roles.some((r) => r.role === "hr_admin"));
+                prof.user.roles.some((r) => r.role === "hr_admin");
             const targetRoleId = isUserAdmin
                 ? adminRole.id
                 : isHrUser

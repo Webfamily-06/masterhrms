@@ -141,26 +141,19 @@ function AuthPage() {
     staleTime: 60 * 1000,
   });
 
-  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || {
-    email: "gowthamtooquik@gmail.com",
-    name: "Gowtham (Tenant Administrator)",
-    role: "Tenant Admin",
-  };
-  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || {
-    email: "hr@masterhrms.com",
-    name: "Sarah Jenkins (HR Director)",
-    role: "HR Admin",
-  };
-  const employeeCreds = tenantCredsData?.credentials?.employee || {
-    email: "employee@masterhrms.com",
-    name: "Alex Morgan (Staff)",
-    role: "Employee",
-  };
+  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || null;
+  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || null;
+  const employeeCreds = tenantCredsData?.credentials?.employee || null;
+  const hasWorkspaceCreds = Boolean(tenantAdminCreds || hrAdminCreds || employeeCreds);
 
   const logoLightUrl = appConfig.logoLightUrl || branding.logoUrl || "/logo.webp";
   const logoDarkUrl = appConfig.logoDarkUrl || branding.logoDark || "/white-logo.webp";
   const appName = appConfig.appName || branding.name || "Master Workspace ERP";
-  const footerText = appConfig.footerText || branding.footerText || "© 2026 Master HRMS. All rights reserved.";
+  const rawFooter = appConfig.footerText || branding.footerText;
+  const footerText =
+    rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
+      ? rawFooter
+      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const githubVisible = Boolean(oauthConfig?.github?.enabled);
@@ -784,8 +777,8 @@ function AuthPage() {
         ) : (
           /* Main Sign In / Sign Up Form matching ui/login.html */
           <form className="space-y-4" onSubmit={handleSubmit}>
-            {/* Workspace Credentials Switcher (Fetched dynamically from DB) */}
-            {mode === "signin" && (
+            {/* Workspace Credentials Switcher (Development / Demo only) */}
+            {mode === "signin" && hasWorkspaceCreds && (import.meta.env.DEV || (import.meta.env as any).VITE_ENABLE_DEMO_CREDENTIALS === "true") && (
               <div className="rounded-md border border-border-color bg-light dark:bg-slate-800/50 p-2.5 space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-title flex items-center gap-1.5 text-[11px]">
@@ -794,45 +787,51 @@ function AuthPage() {
                   <span className="text-[10px] text-default font-mono">Password: admin123</span>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail(tenantAdminCreds.email);
-                      setPassword("admin123");
-                    }}
-                    className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
-                  >
-                    <div className="text-[11px] font-bold text-title truncate">{tenantAdminCreds.role || "Tenant Admin"}</div>
-                    <div className="text-[10px] text-default truncate" title={tenantAdminCreds.name}>
-                      {tenantAdminCreds.name?.split(" ")[0] || "Admin"}
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail(hrAdminCreds.email);
-                      setPassword("admin123");
-                    }}
-                    className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
-                  >
-                    <div className="text-[11px] font-bold text-title truncate">{hrAdminCreds.role || "HR Admin"}</div>
-                    <div className="text-[10px] text-default truncate" title={hrAdminCreds.name}>
-                      {hrAdminCreds.name?.split(" ")[0] || "HR"}
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail(employeeCreds.email);
-                      setPassword("admin123");
-                    }}
-                    className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
-                  >
-                    <div className="text-[11px] font-bold text-title truncate">{employeeCreds.role || "Employee"}</div>
-                    <div className="text-[10px] text-default truncate" title={employeeCreds.name}>
-                      {employeeCreds.name?.split(" ")[0] || "Staff"}
-                    </div>
-                  </button>
+                  {tenantAdminCreds && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(tenantAdminCreds.email);
+                        setPassword("admin123");
+                      }}
+                      className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
+                    >
+                      <div className="text-[11px] font-bold text-title truncate">{tenantAdminCreds.role || "Tenant Admin"}</div>
+                      <div className="text-[10px] text-default truncate" title={tenantAdminCreds.name}>
+                        {tenantAdminCreds.name?.split(" ")[0] || "Admin"}
+                      </div>
+                    </button>
+                  )}
+                  {hrAdminCreds && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(hrAdminCreds.email);
+                        setPassword("admin123");
+                      }}
+                      className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
+                    >
+                      <div className="text-[11px] font-bold text-title truncate">{hrAdminCreds.role || "HR Admin"}</div>
+                      <div className="text-[10px] text-default truncate" title={hrAdminCreds.name}>
+                        {hrAdminCreds.name?.split(" ")[0] || "HR"}
+                      </div>
+                    </button>
+                  )}
+                  {employeeCreds && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail(employeeCreds.email);
+                        setPassword("admin123");
+                      }}
+                      className="px-2 py-1.5 rounded border border-border-color bg-white dark:bg-slate-800 hover:border-primary text-left cursor-pointer transition-colors"
+                    >
+                      <div className="text-[11px] font-bold text-title truncate">{employeeCreds.role || "Employee"}</div>
+                      <div className="text-[10px] text-default truncate" title={employeeCreds.name}>
+                        {employeeCreds.name?.split(" ")[0] || "Staff"}
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
             )}

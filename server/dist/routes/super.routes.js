@@ -2200,7 +2200,7 @@ exports.superRouter.post("/addons/:slug/releases", auth_1.requireAuth, auth_1.re
             changeSummary: changeSummary.trim(),
             releaseNotes: releaseNotes ? String(releaseNotes).trim() : null,
             isPublic: Boolean(isPublic),
-            actorEmail: req.user?.email || "superadmin@masterhrms.com",
+            actorEmail: req.user?.email || req.user?.id || "system",
             metadataDiff: metadataDiff && typeof metadataDiff === "object" ? metadataDiff : null,
             createdAt: new Date().toISOString(),
         };

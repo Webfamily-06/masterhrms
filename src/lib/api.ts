@@ -3,6 +3,9 @@
  */
 
 export const API_BASE =
+  (typeof process !== "undefined" && process.env?.INTERNAL_API_URL
+    ? `${process.env.INTERNAL_API_URL.replace(/\/+$/, "")}/api`
+    : undefined) ||
   (typeof process !== "undefined" && process.env?.SERVER_URL
     ? `${process.env.SERVER_URL.replace(/\/+$/, "")}/api`
     : undefined) ||

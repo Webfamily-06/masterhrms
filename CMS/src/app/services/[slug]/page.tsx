@@ -21,8 +21,8 @@ async function generateMetadata({
   const doc = getMarkDownContent('src/data/services/', slug);
   const data = doc.data as Partial<ServiceData>;
   const title = data.title
-    ? `${data.title} - Automation SaaS || Nexsas`
-    : 'Service Details - Automation SaaS || Nexsas';
+    ? `${data.title} — Webfamily Tech Solutions`
+    : 'Service Details — Webfamily Tech Solutions';
 
   return buildMeta(title);
 }

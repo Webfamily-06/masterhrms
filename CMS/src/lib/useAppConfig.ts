@@ -47,7 +47,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   logoLightUrl: "/logo.webp",
   logoDarkUrl: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
-  footerText: "© 2026 Master HRMS. All rights reserved.",
+  footerText: `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
   locale: {
     defaultCurrency: "INR",
     currencySymbol: "₹",
@@ -129,23 +129,30 @@ export function useAppConfig() {
   const predicted = resolveBrandingContext({ host, pathname: currentPath });
   const queryKey = ["app-config", host, predicted.context, authToken ? authToken.slice(-16) : "public"];
 
+  const sanitizeFooter = (item: any) => {
+    if (item && item.footerText && (item.footerText.includes("Apex HRMS") || item.footerText.includes("Persisted Forever"))) {
+      item.footerText = `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
+    }
+    return item;
+  };
+
   const { data: config = DEFAULT_APP_CONFIG, isLoading, isError } = useQuery<AppConfig>({
     queryKey,
     queryFn: async () => {
       const pathParam = encodeURIComponent(currentPath);
       try {
         const res = await api.get(`/v1/public/app-config?pathname=${pathParam}`);
-        if (res && (res.appName || res.primaryColor)) return res;
+        if (res && (res.appName || res.primaryColor)) return sanitizeFooter(res);
       } catch (err) {}
 
       try {
         const fallback = await api.get(`/public/app-config?pathname=${pathParam}`);
-        if (fallback && (fallback.appName || fallback.primaryColor)) return fallback;
+        if (fallback && (fallback.appName || fallback.primaryColor)) return sanitizeFooter(fallback);
       } catch {}
 
       try {
         const fallback2 = await api.get(`/app-config?pathname=${pathParam}`);
-        if (fallback2 && (fallback2.appName || fallback2.primaryColor)) return fallback2;
+        if (fallback2 && (fallback2.appName || fallback2.primaryColor)) return sanitizeFooter(fallback2);
       } catch {}
 
       return DEFAULT_APP_CONFIG;

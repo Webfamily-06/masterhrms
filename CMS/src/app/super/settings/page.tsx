@@ -216,6 +216,26 @@ export type SuperSettings = {
   platformPhone?: string;
 };
 
+const getDefaultOauthBaseUrl = () => {
+  if (typeof process !== "undefined" && (process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL)) {
+    return (process.env.NEXT_PUBLIC_API_URL || process.env.API_BASE_URL)!.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return `${window.location.protocol}//api.${getPlatformBaseDomain()}`;
+  }
+  return "http://localhost:4000";
+};
+
+const getDefaultFrontendBaseUrl = () => {
+  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return `${window.location.protocol}//${getPlatformBaseDomain()}`;
+  }
+  return "http://localhost:3000";
+};
+
 const DEFAULT_SETTINGS: SuperSettings = {
   appName: "Master HRMS & ERP",
   supportEmail: `hello@${getPlatformBaseDomain()}`,
@@ -225,7 +245,7 @@ const DEFAULT_SETTINGS: SuperSettings = {
   logoLightId: null,
   logoDarkId: null,
   faviconId: null,
-  footerText: "© 2026 Master HRMS. All rights reserved.",
+  footerText: "© 2026 Webfamily Tech Solutions. All rights reserved.",
   primaryThemeColor: "#FF6B00",
   fontFamily: "Inter",
 
@@ -271,14 +291,14 @@ const DEFAULT_SETTINGS: SuperSettings = {
   otpEmailSubject: "{{appName}} — Your Login Verification Code",
   otpEmailTemplate: "",
 
-  // OAuth Defaults
-  oauthBaseUrl: "http://localhost:4000",
-  frontendBaseUrl: "http://localhost:8080",
+  // OAuth Defaults (Dynamically resolved from environment & domain)
+  oauthBaseUrl: getDefaultOauthBaseUrl(),
+  frontendBaseUrl: getDefaultFrontendBaseUrl(),
 
   googleEnabled: true,
   googleClientId: "",
   googleClientSecret: "",
-  googleCallbackUrl: "http://localhost:4000/api/auth/oauth/google/callback",
+  googleCallbackUrl: `${getDefaultOauthBaseUrl()}/api/auth/oauth/google/callback`,
   googleScope: "openid email profile",
 
   appleEnabled: true,
@@ -286,23 +306,23 @@ const DEFAULT_SETTINGS: SuperSettings = {
   appleTeamId: "",
   appleKeyId: "",
   applePrivateKey: "",
-  appleCallbackUrl: "http://localhost:4000/api/auth/oauth/apple/callback",
+  appleCallbackUrl: `${getDefaultOauthBaseUrl()}/api/auth/oauth/apple/callback`,
 
   linkedinEnabled: true,
   linkedinClientId: "",
   linkedinClientSecret: "",
-  linkedinCallbackUrl: "http://localhost:4000/api/auth/oauth/linkedin/callback",
+  linkedinCallbackUrl: `${getDefaultOauthBaseUrl()}/api/auth/oauth/linkedin/callback`,
   linkedinScope: "openid profile email",
 
   facebookEnabled: true,
   facebookAppId: "",
   facebookAppSecret: "",
-  facebookCallbackUrl: "http://localhost:4000/api/auth/oauth/facebook/callback",
+  facebookCallbackUrl: `${getDefaultOauthBaseUrl()}/api/auth/oauth/facebook/callback`,
   facebookScope: "email,public_profile",
 
-  pusherAppId: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_APP_ID || process.env.VITE_PUSHER_APP_ID) : undefined) as string) || "1789012",
-  pusherKey: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_KEY || process.env.VITE_PUSHER_KEY) : undefined) as string) || "psh_key_998877",
-  pusherSecret: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_SECRET || process.env.VITE_PUSHER_SECRET) : undefined) as string) || "psh_sec_443322",
+  pusherAppId: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_APP_ID || process.env.VITE_PUSHER_APP_ID) : undefined) as string) || "",
+  pusherKey: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_KEY || process.env.VITE_PUSHER_KEY) : undefined) as string) || "",
+  pusherSecret: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_SECRET || process.env.VITE_PUSHER_SECRET) : undefined) as string) || "",
   pusherCluster: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_CLUSTER || process.env.VITE_PUSHER_CLUSTER) : undefined) as string) || "ap2",
   pusherEnabled: ((typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_PUSHER_ENABLED || process.env.VITE_PUSHER_ENABLED) : undefined) as string) !== "false",
 
@@ -753,7 +773,7 @@ function SuperSettingsAdmin() {
           "branding.logo_light_id": updatedForm.logoLightId || null,
           "branding.logo_dark_id": updatedForm.logoDarkId || null,
           "branding.favicon_id": updatedForm.faviconId || null,
-          "branding.footer_text": updatedForm.footerText || "© 2026 Master HRMS. All rights reserved.",
+          "branding.footer_text": updatedForm.footerText || "© 2026 Webfamily Tech Solutions. All rights reserved.",
         }),
         api.put("/v1/settings/PLATFORM/payments", {
           "payments.razorpay_enabled": Boolean(updatedForm.razorpayEnabled),
@@ -1217,7 +1237,7 @@ function SuperSettingsAdmin() {
                   <Input
                     value={form.footerText || ""}
                     onChange={(e) => setForm({ ...form, footerText: e.target.value })}
-                    placeholder="© 2026 Master HRMS. All rights reserved."
+                    placeholder="© 2026 Webfamily Tech Solutions. All rights reserved."
                     className="text-xs"
                   />
                 </div>
@@ -2571,7 +2591,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.oauthBaseUrl}
                   onChange={(e) => setForm({ ...form, oauthBaseUrl: e.target.value })}
-                  placeholder="e.g. https://api.yourdomain.com or http://localhost:4000"
+                  placeholder="e.g. https://api.yourdomain.com"
                   className="text-xs font-mono"
                 />
                 <p className="text-[10px] text-muted-foreground">
@@ -2584,7 +2604,7 @@ function SuperSettingsAdmin() {
                 <Input
                   value={form.frontendBaseUrl}
                   onChange={(e) => setForm({ ...form, frontendBaseUrl: e.target.value })}
-                  placeholder="e.g. https://yourdomain.com or http://localhost:8080"
+                  placeholder="e.g. https://app.yourdomain.com"
                   className="text-xs font-mono"
                 />
                 <p className="text-[10px] text-muted-foreground">

@@ -3,7 +3,7 @@ name: John Doe
 title: Product manager
 image: /assets/avatar-07.jpg
 heroImage: /assets/avatar-07.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
 bio: John translates customer feedback into product decisions, aligning roadmap priorities with the automation outcomes teams need most.
 order: 7

@@ -328,4 +328,13 @@ describe("Platform Identity & Colors Settings Restart Persistence & DB Source-of
     expect(publicConfig.primaryColor).toBe("#7C3AED");
     expect(publicConfig.scope).toBe("PLATFORM");
   });
+
+  afterAll(async () => {
+    try {
+      await SettingsService.set("branding.app_name", "Master HRMS & ERP", "PLATFORM", "global", superUser.id);
+      await SettingsService.set("branding.primary_color", "#2563EB", "PLATFORM", "global", superUser.id);
+      await SettingsService.set("branding.footer_text", "© 2026 Webfamily Tech Solutions. All rights reserved.", "PLATFORM", "global", superUser.id);
+      SettingsService.clearCache();
+    } catch {}
+  });
 });

@@ -26,6 +26,8 @@ export interface EmailTemplate {
   variables: string[];
 }
 
+const defaultAppBaseUrl = (process.env.APP_URL || process.env.FRONTEND_BASE_URL || (process.env.NODE_ENV === "production" ? "https://app.masterhrms.com" : "http://localhost:3000")).replace(/\/+$/, "");
+
 export const SAMPLE_VARS: Record<string, string> = {
   // Calendar variables
   recipientName: "Alex Morgan",
@@ -48,8 +50,8 @@ export const SAMPLE_VARS: Record<string, string> = {
   event_description: "Reviewing Q3 business performance and aligning team targets for the upcoming quarter.",
   reminderText: "Event starts in 1 hour",
   reminder_text: "Event starts in 1 hour",
-  calendarUrl: "http://master.localhost:3000/hr/calendar",
-  calendar_url: "http://master.localhost:3000/hr/calendar",
+  calendarUrl: `${defaultAppBaseUrl}/hr/calendar`,
+  calendar_url: `${defaultAppBaseUrl}/hr/calendar`,
 
   // Tasks variables
   task_title: "Q4 Performance Benchmarking & Team Audit",
@@ -65,8 +67,8 @@ export const SAMPLE_VARS: Record<string, string> = {
   startDate: "26 Oct 2026",
   due_date: "31 Oct 2026",
   dueDate: "31 Oct 2026",
-  task_url: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
-  taskUrl: "http://master.localhost:3000/hr/todo?taskId=task-bench-402",
+  task_url: `${defaultAppBaseUrl}/hr/todo?taskId=task-bench-402`,
+  taskUrl: `${defaultAppBaseUrl}/hr/todo?taskId=task-bench-402`,
   app_name: "Master HRMS & ERP",
   appName: "Master HRMS & ERP",
 

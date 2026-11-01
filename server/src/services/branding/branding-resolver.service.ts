@@ -264,9 +264,11 @@ export class BrandingResolverService {
         : null) ||
       "/favicon.webp";
 
+    const rawFooter = brandingData.values["branding.footer_text"];
     const footerText =
-      brandingData.values["branding.footer_text"] ||
-      "© 2026 Master HRMS. All rights reserved.";
+      rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
+        ? rawFooter
+        : "© 2026 Webfamily Tech Solutions. All rights reserved.";
 
     const locale = {
       defaultCurrency: localeData.values["locale.default_currency"] || "INR",

@@ -115,7 +115,7 @@ exports.complianceControlRouter.post("/rules/draft", async (req, res) => {
                 error: "Missing required fields: ruleIdentifier, ruleType, configJson, and effectiveFrom are mandatory.",
             });
         }
-        const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+        const actorEmail = req.user?.email || req.user?.id || "system";
         const draft = await registryService.createDraft({
             tenantId: isGlobal ? null : (tenantId || null),
             ruleIdentifier,
@@ -182,7 +182,7 @@ exports.complianceControlRouter.put("/rules/:id", async (req, res) => {
                 ...(changeLog ? { changeLog } : {}),
             },
         });
-        const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+        const actorEmail = req.user?.email || req.user?.id || "system";
         await prisma_1.rawPrisma.statutoryRuleAuditLog.create({
             data: {
                 ruleId: id,
@@ -212,7 +212,7 @@ exports.complianceControlRouter.put("/rules/:id", async (req, res) => {
 exports.complianceControlRouter.post("/rules/:id/submit", async (req, res) => {
     try {
         const { id } = req.params;
-        const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+        const actorEmail = req.user?.email || req.user?.id || "system";
         const updated = await registryService.submitForReview(id, actorEmail, "SUPER_ADMIN");
         return res.json({
             success: true,
@@ -254,7 +254,7 @@ exports.complianceControlRouter.post("/rules/:id/approve", async (req, res) => {
 exports.complianceControlRouter.post("/rules/:id/publish", async (req, res) => {
     try {
         const { id } = req.params;
-        const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+        const actorEmail = req.user?.email || req.user?.id || "system";
         const published = await registryService.publishRule(id, actorEmail, "SUPER_ADMIN");
         return res.json({
             success: true,
@@ -278,7 +278,7 @@ exports.complianceControlRouter.post("/rules/:id/rollback", async (req, res) => 
         if (!targetVersionId) {
             return res.status(400).json({ error: "targetVersionId is required for rollback." });
         }
-        const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+        const actorEmail = req.user?.email || req.user?.id || "system";
         const restored = await registryService.rollbackRule(id, targetVersionId, actorEmail, "SUPER_ADMIN");
         return res.json({
             success: true,

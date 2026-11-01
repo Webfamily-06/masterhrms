@@ -3,7 +3,7 @@ name: Daniel Kim
 title: Workflow product lead
 image: /assets/avatar-04.jpg
 heroImage: /assets/avatar-04.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
 bio: Daniel shapes the workflow product experience, connecting customer problems to intuitive builder tools, templates, and rollout plans.
 order: 4
@@ -29,7 +29,7 @@ Owned roadmap items for workflow automation features used by operations and engi
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Leads workflow product strategy, prioritization, and delivery for builder experiences, templates, and customer onboarding paths.
 

@@ -6,7 +6,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   ...generateMetadata(),
-  title: 'Team - Automation SaaS || Nexsas',
+  title: 'Team — Webfamily Tech Solutions',
 };
 
 const Page = () => {

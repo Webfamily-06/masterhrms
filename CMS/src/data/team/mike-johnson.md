@@ -3,7 +3,7 @@ name: Mike Johnson
 title: Head of marketing
 image: /assets/avatar-09.jpg
 heroImage: /assets/avatar-09.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
 bio: Mike leads go-to-market strategy for Webfamily Tech Solutions, connecting product value to campaigns, content, and growth programs that reach operations teams.
 order: 9

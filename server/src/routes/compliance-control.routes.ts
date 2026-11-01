@@ -157,7 +157,7 @@ complianceControlRouter.post("/rules/draft", async (req: AuthRequest, res: Respo
       });
     }
 
-    const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+    const actorEmail = req.user?.email || (req.user as any)?.id || "system";
 
     const draft = await registryService.createDraft({
       tenantId: isGlobal ? null : (tenantId || null),
@@ -241,7 +241,7 @@ complianceControlRouter.put("/rules/:id", async (req: AuthRequest, res: Response
       },
     });
 
-    const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+    const actorEmail = req.user?.email || (req.user as any)?.id || "system";
 
     await prisma.statutoryRuleAuditLog.create({
       data: {
@@ -273,7 +273,7 @@ complianceControlRouter.put("/rules/:id", async (req: AuthRequest, res: Response
 complianceControlRouter.post("/rules/:id/submit", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+    const actorEmail = req.user?.email || (req.user as any)?.id || "system";
 
     const updated = await registryService.submitForReview(id, actorEmail, "SUPER_ADMIN");
 
@@ -324,7 +324,7 @@ complianceControlRouter.post("/rules/:id/approve", async (req: AuthRequest, res:
 complianceControlRouter.post("/rules/:id/publish", async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+    const actorEmail = req.user?.email || (req.user as any)?.id || "system";
 
     const published = await registryService.publishRule(id, actorEmail, "SUPER_ADMIN");
 
@@ -352,7 +352,7 @@ complianceControlRouter.post("/rules/:id/rollback", async (req: AuthRequest, res
       return res.status(400).json({ error: "targetVersionId is required for rollback." });
     }
 
-    const actorEmail = req.user?.email || "superadmin@masterhrms.com";
+    const actorEmail = req.user?.email || (req.user as any)?.id || "system";
     const restored = await registryService.rollbackRule(id, targetVersionId, actorEmail, "SUPER_ADMIN");
 
     return res.json({

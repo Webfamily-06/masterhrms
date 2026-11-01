@@ -3,9 +3,9 @@ name: Michael Rivera
 title: Platform infrastructure lead
 image: /assets/avatar-03.jpg
 heroImage: /assets/avatar-03.jpg
-email: hello@pixels71.com
+email: contact@webfamily.in
 phone: +1 (368) 567 89 54
-bio: Michael keeps Nexsas infrastructure stable under load, owning deployment pipelines, uptime, and the systems that power automation at scale.
+bio: Michael keeps Master HRMS infrastructure stable under load, owning deployment pipelines, uptime, and the systems that power automation at scale.
 order: 3
 ---
 
@@ -29,7 +29,7 @@ Supported large-scale service operations and infrastructure automation for high-
 
 2020 - Present
 
-#### Nexsas
+#### Master HRMS
 
 Leads platform infrastructure, monitoring, and incident response for the automation cloud and connected integration services.
 

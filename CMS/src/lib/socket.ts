@@ -30,7 +30,9 @@ export function getSocketClient(): Socket {
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
     });
-    globalSocket.on("connect", () => console.log("⚡ [SOCKET_CLIENT] Connected! socketId:", globalSocket?.id));
+    globalSocket.on("connect", () => {
+      if (process.env.NODE_ENV !== "production") console.log("⚡ [SOCKET_CLIENT] Connected! socketId:", globalSocket?.id);
+    });
     globalSocket.on("connect_error", (err) => console.error("⚡ [SOCKET_CLIENT] Connection error:", err.message));
     if (typeof window !== "undefined") (window as any).__socket = globalSocket;
     const reconnect = () => {
@@ -299,7 +301,9 @@ export function useRealtimeSocket() {
     }
 
     function onSettingsUpdated(data: any) {
-      console.log("[Realtime] settings.updated received:", data);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[Realtime] settings.updated received:", data);
+      }
       qc.invalidateQueries({ queryKey: ["app-config"] });
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });
       qc.invalidateQueries({ queryKey: ["realtime-platform-settings"] });

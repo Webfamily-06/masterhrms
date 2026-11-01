@@ -3,7 +3,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   ...generateMetadata(),
-  title: 'About - Automation SaaS || Nexsas',
+  title: 'About — Webfamily Tech Solutions',
 };
 
 import AboutClients from '@/src/components/about/clients';

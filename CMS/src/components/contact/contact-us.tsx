@@ -14,7 +14,7 @@ const ContactUs = () => {
   const title = hero.title || "We'd love to hear from you";
   const subtitle =
     hero.subtitle ||
-    "Let's explore how Nexsas can support your goals with automation and AI-driven workflows.";
+    "Let's explore how Master HRMS can support your goals with automation and AI-driven workflows.";
 
   return (
     <section className="pt-20 md:pt-25 lg:pt-39">

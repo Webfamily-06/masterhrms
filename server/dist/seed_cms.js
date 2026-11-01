@@ -61,7 +61,7 @@ async function main() {
         create: {
             slug: "footer",
             title: "Footer Links",
-            content: { copyright: "© 2026 Master HRMS Inc. All rights reserved." },
+            content: { copyright: `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.` },
             published: true,
         },
     });

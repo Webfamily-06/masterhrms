@@ -1227,7 +1227,11 @@ exports.workspaceRouter.get("/settings", async (req, res) => {
         const brandingGroup = await settings_service_1.SettingsService.getGroup("TENANT", tenantId, "branding");
         const defaultBrand = {
             titleText: brandingGroup.values["branding.app_name"] || tenant.name,
-            footerText: brandingGroup.values["branding.footer_text"] || `© ${new Date().getFullYear()} ${tenant.name}. All rights reserved.`,
+            footerText: brandingGroup.values["branding.footer_text"] &&
+                !brandingGroup.values["branding.footer_text"].includes("Apex HRMS") &&
+                !brandingGroup.values["branding.footer_text"].includes("Persisted Forever")
+                ? brandingGroup.values["branding.footer_text"]
+                : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
             logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl,
             logoLight: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl,
             favicon: brandingGroup.mediaUrls["branding.favicon_id"] || tenant.logoUrl,
