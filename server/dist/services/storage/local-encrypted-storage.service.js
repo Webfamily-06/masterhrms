@@ -49,16 +49,20 @@ function getEncryptionKey() {
  * to ensure backward compatibility with previously stored files.
  */
 function getDecryptionKeys() {
-    const { active, legacy } = (0, crypto_config_1.getStorageEncryptionKeys)();
-    return [active, ...legacy];
+    try {
+        const { active, legacy } = (0, crypto_config_1.getStorageEncryptionKeys)();
+        return [active, ...legacy];
+    }
+    catch {
+        return (0, crypto_config_1.getStorageDecryptionKeys)();
+    }
 }
 /**
  * Local Encrypted Disk Storage Engine with AES-256-GCM and Tenant Directory Partitioning.
  */
 class LocalEncryptedStorageService {
-    encryptionKey;
     constructor() {
-        this.encryptionKey = getEncryptionKey();
+        // Lazy key resolution in save() and getBuffer() ensures module import safety
     }
     /**
      * Encrypts and saves a validated document file under tenant-isolated storage.
@@ -90,7 +94,7 @@ class LocalEncryptedStorageService {
         }
         // 5. Encrypt buffer with AES-256-GCM
         const iv = crypto_1.default.randomBytes(12); // Standard 96-bit IV for GCM
-        const cipher = crypto_1.default.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+        const cipher = crypto_1.default.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
         const encryptedBody = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
         const authTag = cipher.getAuthTag(); // 16 bytes authentication tag
         // Disk format: [12 bytes IV] + [16 bytes AuthTag] + [Encrypted Data]

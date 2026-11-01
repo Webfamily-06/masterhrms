@@ -165,12 +165,17 @@ export class LocalStorageProvider implements IStorageProvider {
     if (Date.now() > exp) {
       return false;
     }
-    const expected = crypto
-      .createHmac("sha256", getFileSigningSecret())
-      .update(`${type}:${storageKey}:${exp}`)
-      .digest("hex");
-    if (timingSafeEqualHex(sig, expected)) {
-      return true;
+    try {
+      const activeSecret = getFileSigningSecret();
+      const expected = crypto
+        .createHmac("sha256", activeSecret)
+        .update(`${type}:${storageKey}:${exp}`)
+        .digest("hex");
+      if (timingSafeEqualHex(sig, expected)) {
+        return true;
+      }
+    } catch {
+      // If active secret throws in production, proceed to legacy rotation secrets
     }
 
     // Legacy fallback verification for in-flight requests during key rotation
@@ -194,12 +199,17 @@ export class LocalStorageProvider implements IStorageProvider {
     if (Date.now() > exp) {
       return false;
     }
-    const expected = crypto
-      .createHmac("sha256", getFileSigningSecret())
-      .update(`${storageKey}:${exp}`)
-      .digest("hex");
-    if (timingSafeEqualHex(token, expected)) {
-      return true;
+    try {
+      const activeSecret = getFileSigningSecret();
+      const expected = crypto
+        .createHmac("sha256", activeSecret)
+        .update(`${storageKey}:${exp}`)
+        .digest("hex");
+      if (timingSafeEqualHex(token, expected)) {
+        return true;
+      }
+    } catch {
+      // If active secret throws in production, proceed to legacy rotation secrets
     }
 
     for (const legacySecret of getLegacyFileSigningSecrets()) {

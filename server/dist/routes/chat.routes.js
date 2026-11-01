@@ -2449,6 +2449,12 @@ exports.chatRouter.post("/messages/delivered", auth_1.requireAuth, async (req, r
             userId: currentUserId,
             deliveredAt: new Date().toISOString(),
         });
+        void pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:delivered", {
+            messageIds,
+            threadId,
+            userId: currentUserId,
+            deliveredAt: new Date().toISOString(),
+        }).catch(() => { });
         return res.json({ success: true });
     }
     catch (err) {

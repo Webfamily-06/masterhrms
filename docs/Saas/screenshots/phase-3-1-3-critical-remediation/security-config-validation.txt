@@ -1,0 +1,36 @@
+=== DEV MODE VALIDATION ===
+{
+  "valid": true,
+  "warnings": [],
+  "errors": []
+}
+
+=== PROD MODE (MISSING KEYS) ===
+{
+  "valid": false,
+  "warnings": [
+    "STORAGE_ENCRYPTION_KEY is unset in production. Required if Local encrypted storage key (64-char hex or >= 32 chars). is enabled.",
+    "FILE_SIGNING_SECRET is unset in production. Required if Dedicated secret for file URL HMAC signatures (>= 32 chars). is enabled.",
+    "CONNECTOR_ENCRYPTION_KEY is unset in production. Required if OAuth connector credentials key (64-char hex or >= 32 chars). is enabled.",
+    "EMAIL_CRYPTO_SECRET is unset in production. Required if Personal mailbox credentials key (>= 32 chars). is enabled.",
+    "SETTINGS_ENCRYPTION_KEY is unset in production. Required if Tenant and system settings encryption key (>= 32 chars). is enabled.",
+    "AI_ENCRYPTION_KEY is unset in production. Required if AI provider credential key (>= 32 chars). is enabled."
+  ],
+  "errors": [
+    "[CRITICAL SECURITY] Production environment requires a non-empty JWT_SECRET. Server refused to start."
+  ]
+}
+
+=== PROD MODE (VALID JWT, ALL SERVICES CHECKED) ===
+{
+  "valid": false,
+  "warnings": [],
+  "errors": [
+    "STORAGE_ENCRYPTION_KEY is unset in production. Required if Local encrypted storage key (64-char hex or >= 32 chars). is enabled.",
+    "FILE_SIGNING_SECRET is unset in production. Required if Dedicated secret for file URL HMAC signatures (>= 32 chars). is enabled.",
+    "CONNECTOR_ENCRYPTION_KEY is unset in production. Required if OAuth connector credentials key (64-char hex or >= 32 chars). is enabled.",
+    "EMAIL_CRYPTO_SECRET is unset in production. Required if Personal mailbox credentials key (>= 32 chars). is enabled.",
+    "SETTINGS_ENCRYPTION_KEY is unset in production. Required if Tenant and system settings encryption key (>= 32 chars). is enabled.",
+    "AI_ENCRYPTION_KEY is unset in production. Required if AI provider credential key (>= 32 chars). is enabled."
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-31T20:06:05.520Z",
+  "timestamp": "2026-11-01T08:47:11.934Z",
   "suite": "MASTERHRMS_PHASE_3_1_CALENDAR_RESPONSIVE_HARDENED_VERIFICATION",
   "totalTests": 40,
   "passedTests": 40,
@@ -237,10 +237,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -335,10 +337,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_360x800.png",
@@ -432,12 +431,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "me_calendar_360x800.png",
@@ -531,12 +525,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "canonical_calendar_360x800.png",
@@ -661,14 +650,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -878,10 +860,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -976,12 +960,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_390x844.png",
@@ -1075,12 +1054,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "me_calendar_390x844.png",
@@ -1174,12 +1148,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "canonical_calendar_390x844.png",
@@ -1304,14 +1273,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -1521,10 +1483,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -1619,21 +1583,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "WebSocket connection to 'ws://localhost:4000/socket.io/?EIO=4&transport=websocket' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
-        "⚡ [SOCKET_CLIENT] Connection error: websocket error",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_430x932.png",
@@ -1946,14 +1896,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -2163,10 +2106,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -2261,12 +2206,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_768x1024.png",
@@ -2360,12 +2300,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "me_calendar_768x1024.png",
@@ -2459,12 +2394,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "canonical_calendar_768x1024.png",
@@ -2589,14 +2519,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -2806,10 +2729,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -2904,12 +2829,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_1023x768.png",
@@ -3003,12 +2923,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "me_calendar_1023x768.png",
@@ -3102,12 +3017,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "canonical_calendar_1023x768.png",
@@ -3232,14 +3142,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -3407,10 +3310,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -3650,14 +3555,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -3825,10 +3723,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -4068,14 +3968,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -4243,10 +4136,12 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
       ],
       "failedReasons": [],
       "screenshots": {
@@ -4299,21 +4194,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "WebSocket connection to 'ws://localhost:4000/socket.io/?EIO=4&transport=websocket' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED",
-        "⚡ [SOCKET_CLIENT] Connection error: websocket error",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
-        "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "tenant_calendar_1440x900.png",
@@ -4417,9 +4298,7 @@
       ],
       "consoleErrors": [],
       "pageErrors": [],
-      "externalWarnings": [
-        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
-      ],
+      "externalWarnings": [],
       "failedReasons": [],
       "screenshots": {
         "base": "canonical_calendar_1440x900.png",
@@ -4502,14 +4381,7 @@
       "consoleErrors": [],
       "pageErrors": [],
       "externalWarnings": [
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)",
-        "Failed to load resource: the server responded with a status of 403 (Forbidden)"
+        "⚡ [SOCKET_CLIENT] Connection error: Workspace authentication required"
       ],
       "failedReasons": [],
       "screenshots": {

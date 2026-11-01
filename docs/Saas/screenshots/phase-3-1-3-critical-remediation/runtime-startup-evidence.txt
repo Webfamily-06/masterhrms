@@ -1,0 +1,9 @@
+=== RUNTIME STARTUP TESTS ===
+1. Fail-closed test on empty JWT_SECRET in production:
+PASSED: Caught expected error -> [CRITICAL SECURITY] Production environment requires a non-empty JWT_SECRET. Server refused to start.
+
+2. Fail-closed test on short JWT_SECRET in production:
+PASSED: Caught expected error -> [CRITICAL SECURITY] Production JWT_SECRET must have at least 32 characters of entropy (current length: 9).
+
+3. Valid dedicated key resolution in production:
+PASSED: Resolved secret length = 60

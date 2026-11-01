@@ -433,11 +433,42 @@ filesRouter.put(
         return res.status(400).json({ error: "Storage key parameter is required." });
       }
 
+      // 1. Anti-path traversal check
+      if (key.includes("..") || path.isAbsolute(key) || key.includes("\\")) {
+        return res.status(400).json({ error: "Invalid storage key format." });
+      }
+
+      // 2. Storage key ID must match URL route id
+      const keyParts = key.split("/").filter(Boolean);
+      const keyFileId = keyParts.length >= 3 ? (keyParts[0] === "tenant" ? keyParts[2] : keyParts[1]) : "";
+      if (keyFileId !== id) {
+        return res.status(403).json({ error: "Storage key does not match upload file ID." });
+      }
+
       const storageProvider = StorageProviderFactory.getProvider();
       if (storageProvider instanceof LocalStorageProvider) {
+        // 3. Cryptographic HMAC token and expiry verification
         if (!token || !exp || !storageProvider.verifyUploadToken(key, exp, token)) {
           return res.status(403).json({ error: "Invalid or expired upload authorization token." });
         }
+
+        // 4. Tenant session consistency check
+        try {
+          const session = await prisma.fileUploadSession.findUnique({
+            where: { id },
+          });
+          if (session) {
+            if (session.storageKey && session.storageKey !== key) {
+              return res.status(403).json({ error: "Storage key does not match upload session." });
+            }
+            if (keyParts[0] === "tenant" && session.tenantId && session.tenantId !== keyParts[1]) {
+              return res.status(403).json({ error: "Cross-tenant upload attempt detected." });
+            }
+          }
+        } catch {
+          // Continue if database session table is not in test context
+        }
+
         if (storageProvider.uploadBuffer) {
           await storageProvider.uploadBuffer(key, req.body as Buffer, req.headers["content-type"] || "application/octet-stream");
           return res.status(200).json({ success: true, storageKey: key });

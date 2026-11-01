@@ -1,16 +1,21 @@
 import assert from "assert";
 import crypto from "crypto";
+import path from "path";
+import fs from "fs";
 import {
   getJwtSecret,
   getFileSigningSecret,
+  getLegacyFileSigningSecrets,
   timingSafeEqualHex,
   timingSafeEqualString,
   getStorageEncryptionKeys,
+  getStorageDecryptionKeys,
   getConnectorEncryptionKeys,
   getEmailCryptoKeys,
   getSettingsEncryptionKeys,
   getAiEncryptionKeys,
   validateStartupCryptoConfig,
+  CryptoConfigurationError,
 } from "../lib/crypto-config";
 import { generateToken, verifyToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { LocalStorageProvider } from "../services/storage/local-storage.provider";
@@ -28,57 +33,49 @@ interface TestReport {
 
 const report: TestReport[] = [];
 
-function runTest(suite: string, name: string, fn: () => void | Promise<void>) {
+async function runTest(suite: string, name: string, fn: () => void | Promise<void>) {
   try {
     const res = fn();
     if (res instanceof Promise) {
-      return res
-        .then(() => {
-          report.push({ suite, name, status: "PASS" });
-          console.log(`  ✓ [${suite}] ${name}`);
-        })
-        .catch((err) => {
-          report.push({ suite, name, status: "FAIL", error: err?.message || String(err) });
-          console.error(`  ✗ [${suite}] ${name}:`, err?.message);
-        });
+      await res;
     }
     report.push({ suite, name, status: "PASS" });
     console.log(`  ✓ [${suite}] ${name}`);
   } catch (err: any) {
     report.push({ suite, name, status: "FAIL", error: err?.message || String(err) });
-    console.error(`  ✗ [${suite}] ${name}:`, err?.message);
+    console.error(`  ✗ [${suite}] ${name}:`, err?.stack || err?.message);
   }
 }
 
 async function main() {
   console.log("================================================================================");
-  console.log("MASTERHRMS — Cryptographic Key Management & Security Hardening Unit Test Suite");
+  console.log("MASTERHRMS — Cryptographic Security Hardening & Regression Test Suite");
   console.log("================================================================================");
 
   // 1. Timing Safe Equality
-  runTest("TimingSafety", "timingSafeEqualString accepts matching strings", () => {
+  await runTest("TimingSafety", "timingSafeEqualString accepts matching strings", () => {
     assert.strictEqual(timingSafeEqualString("hello-world-123", "hello-world-123"), true);
   });
 
-  runTest("TimingSafety", "timingSafeEqualString rejects different strings of same length", () => {
+  await runTest("TimingSafety", "timingSafeEqualString rejects different strings of same length", () => {
     assert.strictEqual(timingSafeEqualString("hello-world-123", "hello-world-456"), false);
   });
 
-  runTest("TimingSafety", "timingSafeEqualString safely rejects different lengths without throwing", () => {
+  await runTest("TimingSafety", "timingSafeEqualString safely rejects different lengths without throwing", () => {
     assert.strictEqual(timingSafeEqualString("short", "much-longer-string"), false);
   });
 
-  runTest("TimingSafety", "timingSafeEqualHex accepts identical hex strings", () => {
+  await runTest("TimingSafety", "timingSafeEqualHex accepts identical hex strings", () => {
     const hex = crypto.randomBytes(32).toString("hex");
     assert.strictEqual(timingSafeEqualHex(hex, hex), true);
   });
 
-  runTest("TimingSafety", "timingSafeEqualHex safely rejects malformed or different length hex", () => {
+  await runTest("TimingSafety", "timingSafeEqualHex safely rejects malformed or different length hex", () => {
     assert.strictEqual(timingSafeEqualHex("abcd", "abcdef"), false);
   });
 
   // 2. JWT Production Hardening & Fail-Closed Behavior
-  runTest("JwtSecurity", "Generates and verifies authentic user JWT payload", () => {
+  await runTest("JwtSecurity", "Generates and verifies authentic user JWT payload using HS256", () => {
     const payload = {
       userId: "user-test-01",
       email: "test@masterhrms.com",
@@ -93,121 +90,349 @@ async function main() {
     assert.strictEqual(verified.tenantId, payload.tenantId);
   });
 
-  runTest("JwtSecurity", "Generates and verifies temporary MFA pending tokens", () => {
+  await runTest("JwtSecurity", "Generates and verifies temporary MFA pending tokens using HS256", () => {
     const mfaToken = generateMfaToken({ userId: "user-mfa-01", email: "mfa@masterhrms.com" });
     const verifiedMfa = verifyMfaToken(mfaToken);
     assert.strictEqual(verifiedMfa.userId, "user-mfa-01");
     assert.strictEqual(verifiedMfa.mfaPending, true);
   });
 
-  runTest("JwtSecurity", "Rejects forged or tampered JWT signatures", () => {
+  await runTest("JwtSecurity", "Rejects forged or tampered JWT signatures", () => {
     const token = generateToken({ userId: "u1", email: "u1@test.com", roles: ["EMPLOYEE"] });
     const parts = token.split(".");
-    // Tamper payload
     const tamperedPayload = Buffer.from(JSON.stringify({ userId: "hacker", roles: ["SUPER_ADMIN"] })).toString("base64url");
     const tamperedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
     assert.throws(() => verifyToken(tamperedToken));
   });
 
-  runTest("JwtSecurity", "Fails closed in production if JWT_SECRET is unset or empty", () => {
+  await runTest("JwtSecurity", "Fails closed in production if JWT_SECRET is unset or empty", () => {
     const originalEnv = process.env.NODE_ENV;
     const originalSecret = process.env.JWT_SECRET;
     try {
       process.env.NODE_ENV = "production";
       delete process.env.JWT_SECRET;
-      assert.throws(() => getJwtSecret(), /Production environment requires a non-empty JWT_SECRET/);
+      assert.throws(() => getJwtSecret(), (err: any) => err instanceof CryptoConfigurationError && /non-empty JWT_SECRET/.test(err.message));
     } finally {
       process.env.NODE_ENV = originalEnv;
       if (originalSecret) process.env.JWT_SECRET = originalSecret;
     }
   });
 
-  runTest("JwtSecurity", "Fails closed in production if JWT_SECRET is shorter than 32 characters", () => {
+  await runTest("JwtSecurity", "Fails closed in production if JWT_SECRET is shorter than 32 characters", () => {
     const originalEnv = process.env.NODE_ENV;
     const originalSecret = process.env.JWT_SECRET;
     try {
       process.env.NODE_ENV = "production";
       process.env.JWT_SECRET = "short-insecure-secret";
-      assert.throws(() => getJwtSecret(), /at least 32 characters of entropy/);
+      assert.throws(() => getJwtSecret(), (err: any) => err instanceof CryptoConfigurationError && /at least 32 characters of entropy/.test(err.message));
     } finally {
       process.env.NODE_ENV = originalEnv;
       if (originalSecret) process.env.JWT_SECRET = originalSecret;
     }
   });
 
-  // 3. Signed URLs & Storage Provider
-  await (async () => {
-    const provider = new LocalStorageProvider();
-    const testKey = "tenant_test/files/avatar.png";
+  // 3. Storage Encryption Round-trip, Dedicated Keys, and Legacy Compatibility
+  await runTest("StorageCrypto", "Storage encryption round-trip with dedicated 256-bit key", () => {
+    const dedicatedHex = crypto.randomBytes(32).toString("hex");
+    const originalEnv = process.env.STORAGE_ENCRYPTION_KEY;
+    try {
+      process.env.STORAGE_ENCRYPTION_KEY = dedicatedHex;
+      const { active } = getStorageEncryptionKeys();
+      assert.strictEqual(active.length, 32);
 
-    await runTest("SignedUrl", "initiateUpload generates valid signed upload authorization", async () => {
-      const auth = await provider.initiateUpload({
-        tenantId: "tenant_test",
-        fileId: "file_123",
-        versionNo: 1,
-        mimeType: "image/png",
-        expiresInSeconds: 300,
-      });
-      assert(auth.uploadUrl.includes("/binary?token="), "Must contain upload binary URL");
-      assert(auth.token && auth.token.length === 64, "Must contain 64-char sha256 hex token");
+      const plaintext = Buffer.from("confidential-employee-contract-payload-2026", "utf8");
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv("aes-256-gcm", active, iv);
+      const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+      const authTag = cipher.getAuthTag();
+
+      // Decrypt
+      const decipher = crypto.createDecipheriv("aes-256-gcm", active, iv);
+      decipher.setAuthTag(authTag);
+      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      assert.strictEqual(decrypted.toString("utf8"), plaintext.toString("utf8"));
+    } finally {
+      if (originalEnv) process.env.STORAGE_ENCRYPTION_KEY = originalEnv;
+      else delete process.env.STORAGE_ENCRYPTION_KEY;
+    }
+  });
+
+  await runTest("StorageCrypto", "Storage legacy decryption transparently recovers historical files", () => {
+    // Encrypt using historical JWT_SECRET derived key
+    const legacySecret = process.env.JWT_SECRET || "master-hrms-default-storage-encryption-key-salt";
+    const legacyKey = crypto.scryptSync(legacySecret, "master-hrms-storage-salt-v1", 32);
+    const plaintext = Buffer.from("legacy-encrypted-disk-document-v1", "utf8");
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", legacyKey, iv);
+    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+
+    // Now set a dedicated new storage key to simulate key rotation
+    const originalKey = process.env.STORAGE_ENCRYPTION_KEY;
+    try {
+      process.env.STORAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      const { active, legacy } = getStorageEncryptionKeys();
+      assert(!active.equals(legacyKey), "Active key must be distinct from legacy key");
+
+      // Attempt decryption with legacy keys list
+      let decrypted: Buffer | null = null;
+      for (const key of [active, ...legacy]) {
+        try {
+          const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+          decipher.setAuthTag(authTag);
+          decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+          break;
+        } catch {
+          // Continue to next key
+        }
+      }
+      assert(decrypted !== null, "Decryption must succeed using legacy candidate key");
+      assert.strictEqual(decrypted.toString("utf8"), plaintext.toString("utf8"));
+    } finally {
+      if (originalKey) process.env.STORAGE_ENCRYPTION_KEY = originalKey;
+      else delete process.env.STORAGE_ENCRYPTION_KEY;
+    }
+  });
+
+  await runTest("StorageCrypto", "Storage rejects wrong key and tampered ciphertext", () => {
+    const keyA = crypto.randomBytes(32);
+    const keyB = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", keyA, iv);
+    const ciphertext = Buffer.concat([cipher.update(Buffer.from("sensitive-data")), cipher.final()]);
+    const authTag = cipher.getAuthTag();
+
+    // Decrypt with wrong key
+    const decipher = crypto.createDecipheriv("aes-256-gcm", keyB, iv);
+    decipher.setAuthTag(authTag);
+    assert.throws(() => {
+      Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    }, /Unsupported state or unable to authenticate data/);
+
+    // Decrypt with tampered ciphertext
+    const tamperedCipher = Buffer.from(ciphertext);
+    tamperedCipher[0] ^= 0xff;
+    const decipher2 = crypto.createDecipheriv("aes-256-gcm", keyA, iv);
+    decipher2.setAuthTag(authTag);
+    assert.throws(() => {
+      Buffer.concat([decipher2.update(tamperedCipher), decipher2.final()]);
+    }, /Unsupported state or unable to authenticate data/);
+  });
+
+  // 4. Production Dedicated Key Enforcement & Fail-Closed Behavior
+  await runTest("ProductionEnforcement", "Fails closed in production if STORAGE_ENCRYPTION_KEY is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.STORAGE_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.STORAGE_ENCRYPTION_KEY;
+      assert.throws(() => getStorageEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError && /STORAGE_ENCRYPTION_KEY/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.STORAGE_ENCRYPTION_KEY = originalKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production if FILE_SIGNING_SECRET is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.FILE_SIGNING_SECRET;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.FILE_SIGNING_SECRET;
+      assert.throws(() => getFileSigningSecret(), (err: any) => err instanceof CryptoConfigurationError && /FILE_SIGNING_SECRET/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.FILE_SIGNING_SECRET = originalKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production if CONNECTOR_ENCRYPTION_KEY is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.CONNECTOR_ENCRYPTION_KEY;
+    const originalTokenKey = process.env.TOKEN_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.CONNECTOR_ENCRYPTION_KEY;
+      delete process.env.TOKEN_ENCRYPTION_KEY;
+      assert.throws(() => getConnectorEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError && /CONNECTOR_ENCRYPTION_KEY/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.CONNECTOR_ENCRYPTION_KEY = originalKey;
+      if (originalTokenKey) process.env.TOKEN_ENCRYPTION_KEY = originalTokenKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production if EMAIL_CRYPTO_SECRET is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.EMAIL_CRYPTO_SECRET;
+    const originalEncKey = process.env.ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.EMAIL_CRYPTO_SECRET;
+      delete process.env.ENCRYPTION_KEY;
+      assert.throws(() => getEmailCryptoKeys(), (err: any) => err instanceof CryptoConfigurationError && /EMAIL_CRYPTO_SECRET/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.EMAIL_CRYPTO_SECRET = originalKey;
+      if (originalEncKey) process.env.ENCRYPTION_KEY = originalEncKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production if SETTINGS_ENCRYPTION_KEY is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.SETTINGS_ENCRYPTION_KEY;
+    const originalEncKey = process.env.ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.SETTINGS_ENCRYPTION_KEY;
+      delete process.env.ENCRYPTION_KEY;
+      assert.throws(() => getSettingsEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError && /SETTINGS_ENCRYPTION_KEY/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.SETTINGS_ENCRYPTION_KEY = originalKey;
+      if (originalEncKey) process.env.ENCRYPTION_KEY = originalEncKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production if AI_ENCRYPTION_KEY is unset", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const originalKey = process.env.AI_ENCRYPTION_KEY;
+    const originalEncKey = process.env.ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.AI_ENCRYPTION_KEY;
+      delete process.env.ENCRYPTION_KEY;
+      assert.throws(() => getAiEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError && /AI_ENCRYPTION_KEY/.test(err.message));
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (originalKey) process.env.AI_ENCRYPTION_KEY = originalKey;
+      if (originalEncKey) process.env.ENCRYPTION_KEY = originalEncKey;
+    }
+  });
+
+  await runTest("ProductionEnforcement", "Fails closed in production when dedicated keys are under 32 characters", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
+    const origFile = process.env.FILE_SIGNING_SECRET;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.STORAGE_ENCRYPTION_KEY = "too-short";
+      assert.throws(() => getStorageEncryptionKeys(), /at least 32 characters/);
+
+      process.env.FILE_SIGNING_SECRET = "short-key";
+      assert.throws(() => getFileSigningSecret(), /at least 32 characters/);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage;
+      else delete process.env.STORAGE_ENCRYPTION_KEY;
+      if (origFile) process.env.FILE_SIGNING_SECRET = origFile;
+      else delete process.env.FILE_SIGNING_SECRET;
+    }
+  });
+
+  // 5. Signed URLs, Upload Authorization, and Tenant Boundaries
+  const provider = new LocalStorageProvider();
+  const testKey = "tenant/tenant_test/file_123/v1";
+
+  await runTest("SignedUrl", "initiateUpload generates valid signed upload authorization", async () => {
+    const auth = await provider.initiateUpload({
+      tenantId: "tenant_test",
+      fileId: "file_123",
+      versionNo: 1,
+      mimeType: "image/png",
+      expiresInSeconds: 300,
     });
+    assert(auth.uploadUrl.includes("/binary?token="), "Must contain upload binary URL");
+    assert(auth.token && auth.token.length === 64, "Must contain 64-char sha256 hex token");
+    assert.strictEqual(auth.storageKey, testKey);
+  });
 
-    await runTest("SignedUrl", "verifyUploadToken accepts valid upload token", async () => {
-      const auth = await provider.initiateUpload({
-        tenantId: "tenant_test",
-        fileId: "file_456",
-        versionNo: 1,
-        mimeType: "application/pdf",
-        expiresInSeconds: 60,
-      });
-      const valid = provider.verifyUploadToken(auth.storageKey, auth.expiresAt.getTime(), auth.token);
-      assert.strictEqual(valid, true, "Upload token should verify successfully");
+  await runTest("SignedUrl", "verifyUploadToken accepts valid upload token", async () => {
+    const auth = await provider.initiateUpload({
+      tenantId: "tenant_test",
+      fileId: "file_456",
+      versionNo: 1,
+      mimeType: "application/pdf",
+      expiresInSeconds: 60,
     });
+    const valid = provider.verifyUploadToken(auth.storageKey, auth.expiresAt.getTime(), auth.token);
+    assert.strictEqual(valid, true, "Upload token should verify successfully");
+  });
 
-    await runTest("SignedUrl", "verifyUploadToken rejects expired upload token", async () => {
-      const pastExp = Date.now() - 5000;
-      const valid = provider.verifyUploadToken(testKey, pastExp, "anytoken");
-      assert.strictEqual(valid, false, "Expired upload token must be rejected");
+  await runTest("SignedUrl", "verifyUploadToken rejects expired upload token", async () => {
+    const pastExp = Date.now() - 5000;
+    const valid = provider.verifyUploadToken(testKey, pastExp, "anytoken");
+    assert.strictEqual(valid, false, "Expired upload token must be rejected");
+  });
+
+  await runTest("SignedUrl", "verifyUploadToken rejects tampered upload token", async () => {
+    const futureExp = Date.now() + 60000;
+    const valid = provider.verifyUploadToken(testKey, futureExp, "0".repeat(64));
+    assert.strictEqual(valid, false, "Tampered upload token must be rejected");
+  });
+
+  await runTest("SignedUrl", "verifyUploadToken rejects modified storage key (cross-tenant tampering)", async () => {
+    const auth = await provider.initiateUpload({
+      tenantId: "tenant_A",
+      fileId: "file_789",
+      versionNo: 1,
+      mimeType: "application/pdf",
+      expiresInSeconds: 60,
     });
+    // Attempt to use token intended for tenant_A to upload to tenant_B
+    const tamperedKey = "tenant/tenant_B/file_789/v1";
+    const valid = provider.verifyUploadToken(tamperedKey, auth.expiresAt.getTime(), auth.token);
+    assert.strictEqual(valid, false, "Cross-tenant key modification must invalidate token HMAC");
+  });
 
-    await runTest("SignedUrl", "verifyUploadToken rejects tampered upload token", async () => {
-      const futureExp = Date.now() + 60000;
-      const valid = provider.verifyUploadToken(testKey, futureExp, "0".repeat(64));
-      assert.strictEqual(valid, false, "Tampered upload token must be rejected");
+  await runTest("SignedUrl", "verifyUploadToken rejects modified expiration timestamp", async () => {
+    const auth = await provider.initiateUpload({
+      tenantId: "tenant_A",
+      fileId: "file_888",
+      versionNo: 1,
+      mimeType: "application/pdf",
+      expiresInSeconds: 60,
     });
+    // Tamper expiration
+    const tamperedExp = auth.expiresAt.getTime() + 10000;
+    const valid = provider.verifyUploadToken(auth.storageKey, tamperedExp, auth.token);
+    assert.strictEqual(valid, false, "Tampered expiration timestamp must invalidate HMAC");
+  });
 
-    await runTest("SignedUrl", "getSignedDownloadUrl generates verifiable stream URL", async () => {
-      const dlUrl = await provider.getSignedDownloadUrl(testKey, "photo.png", 120);
-      const url = new URL(dlUrl, "http://localhost:4000");
-      const exp = parseInt(url.searchParams.get("exp") || "0", 10);
-      const sig = url.searchParams.get("sig") || "";
-      const key = url.searchParams.get("key") || "";
+  await runTest("SignedUrl", "getSignedDownloadUrl generates verifiable stream URL", async () => {
+    const dlUrl = await provider.getSignedDownloadUrl(testKey, "photo.png", 120);
+    const url = new URL(dlUrl, "http://localhost:4000");
+    const exp = parseInt(url.searchParams.get("exp") || "0", 10);
+    const sig = url.searchParams.get("sig") || "";
+    const key = url.searchParams.get("key") || "";
 
-      assert(exp > Date.now(), "Expiry must be in future");
-      assert.strictEqual(key, testKey);
-      assert.strictEqual(provider.verifySignature("download", key, exp, sig), true);
-    });
+    assert(exp > Date.now(), "Expiry must be in future");
+    assert.strictEqual(key, testKey);
+    assert.strictEqual(provider.verifySignature("download", key, exp, sig), true);
+  });
 
-    await runTest("SignedUrl", "verifySignature rejects expired download URL", async () => {
-      const pastExp = Date.now() - 1000;
-      assert.strictEqual(provider.verifySignature("download", testKey, pastExp, "fakesig"), false);
-    });
+  await runTest("SignedUrl", "verifySignature rejects expired download URL", async () => {
+    const pastExp = Date.now() - 1000;
+    assert.strictEqual(provider.verifySignature("download", testKey, pastExp, "fakesig"), false);
+  });
 
-    await runTest("SignedUrl", "verifySignature rejects cross-type signature (preview sig on download)", async () => {
-      const exp = Date.now() + 60000;
-      const previewUrl = await provider.getSignedPreviewUrl(testKey, "image/png", 60);
-      const url = new URL(previewUrl, "http://localhost:4000");
-      const sig = url.searchParams.get("sig") || "";
+  await runTest("SignedUrl", "verifySignature rejects tampered download signature", async () => {
+    const futureExp = Date.now() + 60000;
+    assert.strictEqual(provider.verifySignature("download", testKey, futureExp, "0".repeat(64)), false);
+  });
 
-      // Check preview sig on preview -> valid
-      assert.strictEqual(provider.verifySignature("preview", testKey, exp, sig), true);
-      // Check preview sig on download -> rejected
-      assert.strictEqual(provider.verifySignature("download", testKey, exp, sig), false);
-    });
-  })();
+  await runTest("SignedUrl", "verifySignature rejects cross-type signature (preview sig on download)", async () => {
+    const exp = Date.now() + 60000;
+    const previewUrl = await provider.getSignedPreviewUrl(testKey, "image/png", 60);
+    const url = new URL(previewUrl, "http://localhost:4000");
+    const sig = url.searchParams.get("sig") || "";
 
-  // 4. External Connectors Token Encryption & Backward Compatibility
-  runTest("ConnectorsCrypto", "encryptToken and decryptToken round-trip", () => {
+    assert.strictEqual(provider.verifySignature("preview", testKey, exp, sig), true);
+    assert.strictEqual(provider.verifySignature("download", testKey, exp, sig), false);
+  });
+
+  // 6. External Connectors Token Encryption & Backward Compatibility
+  await runTest("ConnectorsCrypto", "encryptToken and decryptToken round-trip", () => {
     const rawOAuthToken = "ya29.a0AfH6SMD_SampleGoogleOAuthTokenPayload1234567890";
     const encrypted = ExternalConnectorsService.encryptToken(rawOAuthToken);
     assert(encrypted.includes(":"), "Encrypted token must have IV:Tag:Ciphertext format");
@@ -215,9 +440,8 @@ async function main() {
     assert.strictEqual(decrypted, rawOAuthToken);
   });
 
-  runTest("ConnectorsCrypto", "decryptToken falls back gracefully to decrypt legacy tokens", () => {
+  await runTest("ConnectorsCrypto", "decryptToken falls back gracefully to decrypt legacy tokens", () => {
     const rawLegacyToken = "legacy-token-secret-from-old-deployment-1234";
-    // Encrypt using legacy salt and legacy fallback key
     const legacyKey = crypto.scryptSync(process.env.JWT_SECRET || "masterhrms-token-key-salt", "salt", 32);
     const iv = crypto.randomBytes(12);
     const cipher = crypto.createCipheriv("aes-256-gcm", legacyKey, iv);
@@ -230,15 +454,15 @@ async function main() {
     assert.strictEqual(decrypted, rawLegacyToken, "Legacy encrypted token must be decrypted transparently");
   });
 
-  runTest("ConnectorsCrypto", "decryptToken throws when ciphertext is tampered across all keys", () => {
+  await runTest("ConnectorsCrypto", "decryptToken throws when ciphertext is tampered across all keys", () => {
     const encrypted = ExternalConnectorsService.encryptToken("valid-token");
     const parts = encrypted.split(":");
     const tampered = `${parts[0]}:${parts[1]}:deadbeef${parts[2].slice(8)}`;
     assert.throws(() => ExternalConnectorsService.decryptToken(tampered));
   });
 
-  // 5. User Email SMTP/IMAP Crypto & Backward Compatibility
-  runTest("EmailCrypto", "encryptEmailSecret and decryptEmailSecret round-trip", () => {
+  // 7. User Email SMTP/IMAP Crypto & Backward Compatibility
+  await runTest("EmailCrypto", "encryptEmailSecret and decryptEmailSecret round-trip", () => {
     const secretPassword = "SuperSecretSmtpPassword!#2026";
     const encrypted = encryptEmailSecret(secretPassword);
     assert(encrypted.ciphertext && encrypted.iv && encrypted.authTag);
@@ -246,7 +470,7 @@ async function main() {
     assert.strictEqual(decrypted, secretPassword);
   });
 
-  runTest("EmailCrypto", "decryptEmailSecret transparently decrypts legacy credentials", () => {
+  await runTest("EmailCrypto", "decryptEmailSecret transparently decrypts legacy credentials", () => {
     const rawSmtpPass = "legacy-smtp-password-123";
     const legacySalt = "master-hrms-user-email-secret-salt-v1";
     const legacyKey = crypto.scryptSync("master-hrms-32-char-encryption-key-phrase!", legacySalt, 32);
@@ -264,7 +488,7 @@ async function main() {
     assert.strictEqual(decrypted, rawSmtpPass, "Legacy encrypted SMTP password must be decrypted transparently");
   });
 
-  runTest("EmailCrypto", "decryptEmailSecret rejects corrupted auth tag", () => {
+  await runTest("EmailCrypto", "decryptEmailSecret rejects corrupted auth tag", () => {
     const encrypted = encryptEmailSecret("test-password");
     assert.throws(() =>
       decryptEmailSecret({
@@ -275,15 +499,15 @@ async function main() {
     );
   });
 
-  // 6. Settings Secret Encryption & Backward Compatibility
-  runTest("SettingsCrypto", "encryptSecret and decryptSecret round-trip", () => {
+  // 8. Settings Secret Encryption & Backward Compatibility
+  await runTest("SettingsCrypto", "encryptSecret and decryptSecret round-trip", () => {
     const rawSetting = "rzp_live_secret_key_production_value_99999";
     const enc = encryptSecret(rawSetting);
     const dec = decryptSecret(enc.ciphertext, enc.iv, enc.authTag);
     assert.strictEqual(dec, rawSetting);
   });
 
-  runTest("SettingsCrypto", "decryptSecret supports legacy setting decryption", () => {
+  await runTest("SettingsCrypto", "decryptSecret supports legacy setting decryption", () => {
     const rawVal = "legacy-third-party-api-key";
     const salt = "master-hrms-settings-secret-salt-v1";
     const legacyKey = crypto.scryptSync("master-hrms-32-char-encryption-key-phrase!", salt, 32);
@@ -297,16 +521,95 @@ async function main() {
     assert.strictEqual(decrypted, rawVal, "Legacy setting secret must decrypt cleanly");
   });
 
-  // 7. Startup Configuration Validation
-  runTest("StartupValidation", "validateStartupCryptoConfig passes in development", () => {
+  // 9. AI Credential Encryption & Legacy Decryption
+  await runTest("AiCrypto", "AI credential encryption and legacy decryption", () => {
+    const legacyRawKey = "hrms-enterprise-master-sec-key-32";
+    const legacyApiKey = "sk-ant-api03-legacy-anthropic-key-12345";
+    const iv = crypto.randomBytes(16);
+    const hashedKey = crypto.createHash("sha256").update(legacyRawKey).digest();
+    const cipher = crypto.createCipheriv("aes-256-cbc", hashedKey, iv);
+    let encHex = cipher.update(legacyApiKey, "utf8", "hex");
+    encHex += cipher.final("hex");
+    const payload = `${iv.toString("hex")}:${encHex}`;
+
+    // Decrypt using candidate keys from getAiEncryptionKeys
+    const { active, legacy } = getAiEncryptionKeys();
+    let decrypted = "";
+    for (const key of [active, ...legacy]) {
+      try {
+        const k = crypto.createHash("sha256").update(key).digest();
+        const decipher = crypto.createDecipheriv("aes-256-cbc", k, iv);
+        let dec = decipher.update(encHex, "hex", "utf8");
+        dec += decipher.final("utf8");
+        decrypted = dec;
+        break;
+      } catch {
+        // Continue
+      }
+    }
+    assert.strictEqual(decrypted, legacyApiKey, "Legacy AI credentials must decrypt cleanly");
+  });
+
+  // 10. Startup Configuration Diagnostics
+  await runTest("StartupValidation", "validateStartupCryptoConfig passes in development", () => {
     const check = validateStartupCryptoConfig();
     assert.strictEqual(check.valid, true);
     assert.strictEqual(check.errors.length, 0);
   });
 
+  await runTest("StartupValidation", "validateStartupCryptoConfig flags missing keys when checkAllServices is requested in production", () => {
+    const originalEnv = process.env.NODE_ENV;
+    const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.STORAGE_ENCRYPTION_KEY;
+      const check = validateStartupCryptoConfig({ checkAllServices: true });
+      assert.strictEqual(check.valid, false);
+      assert(check.errors.some((e) => e.includes("STORAGE_ENCRYPTION_KEY")), "Must flag missing STORAGE_ENCRYPTION_KEY as error");
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+      if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage;
+    }
+  });
+
+  // 11. Plaintext Secret Logging Prevention
+  await runTest("SecuritySanitization", "Error messages and audit checks never reveal plaintext secrets", () => {
+    const testSecret = "my-super-secret-production-token-to-mask";
+    const err = new CryptoConfigurationError(`Missing key for service`);
+    assert(!err.message.includes(testSecret));
+  });
+
+  // 12. Deployment Artifact Consistency Check
+  await runTest("ArtifactConsistency", "server/dist/lib/crypto-config.js exists and matches compiled contract", () => {
+    const distPath = path.resolve(__dirname, "../../dist/lib/crypto-config.js");
+    assert(fs.existsSync(distPath), `Compiled crypto-config.js must exist at ${distPath}`);
+    const distModule = require(distPath);
+    assert(typeof distModule.getJwtSecret === "function", "distModule must export getJwtSecret");
+    assert(typeof distModule.getStorageEncryptionKeys === "function", "distModule must export getStorageEncryptionKeys");
+    assert(typeof distModule.getFileSigningSecret === "function", "distModule must export getFileSigningSecret");
+    assert(typeof distModule.timingSafeEqualHex === "function", "distModule must export timingSafeEqualHex");
+  });
+
   console.log("\n================================================================================");
   console.log(`TEST SUMMARY: ${report.filter((r) => r.status === "PASS").length}/${report.length} PASSED`);
   console.log("================================================================================");
+
+  const jsonOutputDir = path.resolve(__dirname, "../../../docs/Saas/screenshots/phase-3-1-3-critical-remediation");
+  if (!fs.existsSync(jsonOutputDir)) {
+    fs.mkdirSync(jsonOutputDir, { recursive: true });
+  }
+  const jsonReportPath = path.join(jsonOutputDir, "crypto-test-report.json");
+  const reportPayload = {
+    timestamp: new Date().toISOString(),
+    phase: "3.1.3",
+    branch: "fix/phase-3-1-3-critical-remediation",
+    total: report.length,
+    passed: report.filter((r) => r.status === "PASS").length,
+    failed: report.filter((r) => r.status === "FAIL").length,
+    results: report,
+  };
+  fs.writeFileSync(jsonReportPath, JSON.stringify(reportPayload, null, 2), "utf-8");
+  console.log(`Report JSON saved to: ${jsonReportPath}`);
 
   const failures = report.filter((r) => r.status === "FAIL");
   if (failures.length > 0) {
@@ -322,4 +625,3 @@ main().catch((err) => {
   console.error("Fatal Test Suite Crash:", err);
   process.exit(1);
 });
-

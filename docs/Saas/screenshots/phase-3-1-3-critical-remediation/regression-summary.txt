@@ -1,0 +1,24 @@
+================================================================================
+MASTERHRMS — PHASE 3.1.3 REGRESSION SUMMARY
+================================================================================
+Timestamp: 2026-11-01T09:30:00Z
+Branch: fix/phase-3-1-3-critical-remediation
+Commit: 5dca806e (Base)
+
+Suite 1: Calendar Responsive Regression (verify_phase3_calendar_responsive.cjs)
+- Viewports: 1440x900, 1280x800, 1024x768, 1023x768, 768x1024, 430x932, 390x844, 360x800
+- Routes: /me/calendar, /hr/calendar, /tenant/calendar, /apps/calendar, /calendar (redirect)
+- Results: 40/40 tests PASSED (527/527 assertions, 0 failures)
+
+Suite 2: Calendar Six-Dialog Accessibility (verify_phase3_1_2_dialogs.cjs)
+- Dialogs: create_event, add_category, event_details, audit_trail, conflict_modal, recurrence_scope
+- Viewports: 1440, 1280, 1024, 1023, 768, 430, 390, 360
+- Results: 36/36 scenarios PASSED (246/246 assertions, 0 failures)
+
+Suite 3: Cryptographic Security Hardening (test:crypto)
+- Suites: TimingSafety, JwtSecurity, StorageCrypto, ProductionEnforcement, SignedUrl,
+          ConnectorsCrypto, EmailCrypto, SettingsCrypto, AiCrypto, StartupValidation,
+          SecuritySanitization, ArtifactConsistency
+- Results: 43/43 tests PASSED (0 failures)
+
+All regression suites: 100% PASS

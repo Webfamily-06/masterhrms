@@ -26,10 +26,18 @@ const JWT_SECRET = "1ZYZ7mY+t2XA5DjcbUZrz4bekU+E3s03xfssWUoOtwq+FFBYdNtHhXY4NG8U
 const BASE_URL = "http://localhost:3000";
 
 const hrPayload = {
+  id: "user-hr-001",
   userId: "user-hr-001",
-  email: "hr@masterhrms.com",
+  email: "admin@masterhrms.com",
   tenantId: "tenant-default-001",
-  roles: ["hr_admin"],
+  roles: ["admin", "tenant_admin", "hr_admin"],
+  permissions: ["*"],
+  enabledModules: ["hrm", "hrms", "chat", "calling"],
+  profile: {
+    tenantId: "tenant-default-001",
+    fullName: "HR Admin",
+    tenant: { id: "tenant-default-001", name: "Default Tenant", slug: "default" },
+  },
 };
 
 const hrToken = jwt.sign(hrPayload, JWT_SECRET, { expiresIn: "12h" });
@@ -45,20 +53,28 @@ async function setAuth(context, page, token, user) {
     { name: "hrms_auth_token", value: token, domain: "localhost", path: "/" },
     { name: "auth_token", value: token, domain: "localhost", path: "/" },
   ]);
-  await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-  await page.evaluate(
+  await context.addInitScript(
     ({ t, u }) => {
-      localStorage.setItem("hrms_auth_token", t);
-      localStorage.setItem("auth_token", t);
-      localStorage.setItem("token", t);
-      localStorage.setItem("hrms_user", JSON.stringify(u));
-      localStorage.setItem("user", JSON.stringify(u));
-      localStorage.setItem("current_user", JSON.stringify(u));
-      localStorage.setItem("master_hrms_active_tenant", u.tenantId || "tenant-default-001");
+      window.localStorage.setItem("hrms_auth_token", t);
+      window.localStorage.setItem("auth_token", t);
+      window.localStorage.setItem("token", t);
+      window.localStorage.setItem("hrms_user", JSON.stringify(u));
+      window.localStorage.setItem("user", JSON.stringify(u));
+      window.localStorage.setItem("current_user", JSON.stringify(u));
+      window.localStorage.setItem("master_hrms_active_tenant", u.tenantId || "tenant-default-001");
+      window.localStorage.setItem("tenantId", u.tenantId || "tenant-default-001");
       document.cookie = `hrms_auth_token=${encodeURIComponent(t)}; path=/; max-age=604800; SameSite=Lax`;
     },
     { t: token, u: user }
   );
+
+  await page.route("**/api/**auth/me**", (r) => {
+    r.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(user),
+    });
+  });
 }
 
 async function runVerification() {
@@ -93,9 +109,10 @@ async function runVerification() {
     const desktopPage = await desktopContext.newPage();
     desktopPage.on("console", msg => console.log("  [CONSOLE]", msg.type(), msg.text()));
     desktopPage.on("pageerror", err => console.log("  [PAGE ERROR]", err.message));
+    desktopPage.on("response", res => { if (res.status() >= 400) console.log("  [HTTP ERROR]", res.status(), res.url()); });
 
     await setAuth(desktopContext, desktopPage, hrToken, hrPayload);
-    await desktopPage.goto(`${BASE_URL}/hr/chat`, { waitUntil: "networkidle" });
+    await desktopPage.goto(`${BASE_URL}/hr/chat`, { waitUntil: "domcontentloaded" });
     await desktopPage.waitForTimeout(2000);
 
     // 1.1 Verify no unwanted flimsy text in the initial UI
@@ -228,7 +245,7 @@ async function runVerification() {
     const mobilePage = await mobileContext.newPage();
 
     await setAuth(mobileContext, mobilePage, hrToken, hrPayload);
-    await mobilePage.goto(`${BASE_URL}/hr/chat`, { waitUntil: "networkidle" });
+    await mobilePage.goto(`${BASE_URL}/hr/chat`, { waitUntil: "domcontentloaded" });
     await mobilePage.waitForTimeout(2000);
 
     // 2.1 Trigger Incoming Call on Mobile

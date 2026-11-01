@@ -1,0 +1,42 @@
+================================================================================
+MASTERHRMS — PHASE 3.1.3 BUILD LOGS (SECRETS REDACTED)
+================================================================================
+
+--- BACKEND BUILD (npm --prefix server run build) ---
+> hrms-server@1.0.0 build
+> prisma generate && tsc
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+
+✔ Generated Prisma Client (v5.19.1) to ./node_modules/@prisma/client in 241ms
+
+[tsc] Compilation succeeded with 0 errors. Output written to server/dist/.
+All 6 core modules verified in server/dist/:
+- server/dist/index.js
+- server/dist/lib/crypto-config.js
+- server/dist/lib/jwt.js
+- server/dist/routes/files.routes.js
+- server/dist/services/storage/local-encrypted-storage.service.js
+- server/dist/services/storage/local-storage.provider.js
+
+--- FRONTEND TYPECHECK (npm --prefix CMS run typecheck) ---
+> master-hrms-cms@0.1.0 typecheck
+> tsc --noEmit
+Passed with 0 errors.
+
+--- FRONTEND PRODUCTION BUILD (npm --prefix CMS run build) ---
+> master-hrms-cms@0.1.0 build
+> next build
+
+▲ Next.js 15.1.7 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · turbo
+Creating an optimized production build ...
+Compiled successfully in 4.8s
+Collecting page data ...
+Generating static pages (539/539) ...
+Finalizing page optimization ...
+
+Route optimization completed. 539 static and dynamic routes compiled successfully.

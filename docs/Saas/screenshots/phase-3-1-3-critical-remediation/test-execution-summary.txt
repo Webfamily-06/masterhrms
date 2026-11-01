@@ -1,0 +1,55 @@
+
+> hrms-server@1.0.0 test:crypto
+> tsx src/tests/crypto-security-hardening.test.ts
+
+================================================================================
+MASTERHRMS — Cryptographic Security Hardening & Regression Test Suite
+================================================================================
+  ✓ [TimingSafety] timingSafeEqualString accepts matching strings
+  ✓ [TimingSafety] timingSafeEqualString rejects different strings of same length
+  ✓ [TimingSafety] timingSafeEqualString safely rejects different lengths without throwing
+  ✓ [TimingSafety] timingSafeEqualHex accepts identical hex strings
+  ✓ [TimingSafety] timingSafeEqualHex safely rejects malformed or different length hex
+  ✓ [JwtSecurity] Generates and verifies authentic user JWT payload using HS256
+  ✓ [JwtSecurity] Generates and verifies temporary MFA pending tokens using HS256
+  ✓ [JwtSecurity] Rejects forged or tampered JWT signatures
+  ✓ [JwtSecurity] Fails closed in production if JWT_SECRET is unset or empty
+  ✓ [JwtSecurity] Fails closed in production if JWT_SECRET is shorter than 32 characters
+  ✓ [StorageCrypto] Storage encryption round-trip with dedicated 256-bit key
+  ✓ [StorageCrypto] Storage legacy decryption transparently recovers historical files
+  ✓ [StorageCrypto] Storage rejects wrong key and tampered ciphertext
+  ✓ [ProductionEnforcement] Fails closed in production if STORAGE_ENCRYPTION_KEY is unset
+  ✓ [ProductionEnforcement] Fails closed in production if FILE_SIGNING_SECRET is unset
+  ✓ [ProductionEnforcement] Fails closed in production if CONNECTOR_ENCRYPTION_KEY is unset
+  ✓ [ProductionEnforcement] Fails closed in production if EMAIL_CRYPTO_SECRET is unset
+  ✓ [ProductionEnforcement] Fails closed in production if SETTINGS_ENCRYPTION_KEY is unset
+  ✓ [ProductionEnforcement] Fails closed in production if AI_ENCRYPTION_KEY is unset
+  ✓ [ProductionEnforcement] Fails closed in production when dedicated keys are under 32 characters
+  ✓ [SignedUrl] initiateUpload generates valid signed upload authorization
+  ✓ [SignedUrl] verifyUploadToken accepts valid upload token
+  ✓ [SignedUrl] verifyUploadToken rejects expired upload token
+  ✓ [SignedUrl] verifyUploadToken rejects tampered upload token
+  ✓ [SignedUrl] verifyUploadToken rejects modified storage key (cross-tenant tampering)
+  ✓ [SignedUrl] verifyUploadToken rejects modified expiration timestamp
+  ✓ [SignedUrl] getSignedDownloadUrl generates verifiable stream URL
+  ✓ [SignedUrl] verifySignature rejects expired download URL
+  ✓ [SignedUrl] verifySignature rejects tampered download signature
+  ✓ [SignedUrl] verifySignature rejects cross-type signature (preview sig on download)
+  ✓ [ConnectorsCrypto] encryptToken and decryptToken round-trip
+  ✓ [ConnectorsCrypto] decryptToken falls back gracefully to decrypt legacy tokens
+  ✓ [ConnectorsCrypto] decryptToken throws when ciphertext is tampered across all keys
+  ✓ [EmailCrypto] encryptEmailSecret and decryptEmailSecret round-trip
+  ✓ [EmailCrypto] decryptEmailSecret transparently decrypts legacy credentials
+  ✓ [EmailCrypto] decryptEmailSecret rejects corrupted auth tag
+  ✓ [SettingsCrypto] encryptSecret and decryptSecret round-trip
+  ✓ [SettingsCrypto] decryptSecret supports legacy setting decryption
+  ✓ [AiCrypto] AI credential encryption and legacy decryption
+  ✓ [StartupValidation] validateStartupCryptoConfig passes in development
+  ✓ [StartupValidation] validateStartupCryptoConfig flags missing keys when checkAllServices is requested in production
+  ✓ [SecuritySanitization] Error messages and audit checks never reveal plaintext secrets
+  ✓ [ArtifactConsistency] server/dist/lib/crypto-config.js exists and matches compiled contract
+
+================================================================================
+TEST SUMMARY: 43/43 PASSED
+================================================================================
+Report JSON saved to: /Users/apple/Documents/hrms/docs/Saas/screenshots/phase-3-1-3-critical-remediation/crypto-test-report.json

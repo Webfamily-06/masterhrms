@@ -13,6 +13,7 @@ server/node_modules/
 
 # Production Builds
 dist/
+!server/dist/
 dist-ssr/
 .output/
 .vinxi/
@@ -64,6 +65,7 @@ server/backups/
 node_modules/
 .next/
 dist/
+!server/dist/
 build/
 
 
@@ -81,6 +83,7 @@ server/node_modules/
 .next/
 .output/
 dist/
+!server/dist/
 build/
 
 # IDE / AI tools

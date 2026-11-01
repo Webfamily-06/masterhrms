@@ -37,7 +37,7 @@ try {
   console.warn(`[STORAGE WARNING]: Could not initialize base storage directory at ${STORAGE_ROOT_DIR}: ${err?.message}`);
 }
 
-import { getStorageEncryptionKeys } from '../../lib/crypto-config';
+import { getStorageEncryptionKeys, getStorageDecryptionKeys } from '../../lib/crypto-config';
 
 /**
  * Resolves the active 256-bit AES encryption key for local encrypted storage.
@@ -51,18 +51,20 @@ function getEncryptionKey(): Buffer {
  * to ensure backward compatibility with previously stored files.
  */
 function getDecryptionKeys(): Buffer[] {
-  const { active, legacy } = getStorageEncryptionKeys();
-  return [active, ...legacy];
+  try {
+    const { active, legacy } = getStorageEncryptionKeys();
+    return [active, ...legacy];
+  } catch {
+    return getStorageDecryptionKeys();
+  }
 }
 
 /**
  * Local Encrypted Disk Storage Engine with AES-256-GCM and Tenant Directory Partitioning.
  */
 export class LocalEncryptedStorageService implements IStorageService {
-  private encryptionKey: Buffer;
-
   constructor() {
-    this.encryptionKey = getEncryptionKey();
+    // Lazy key resolution in save() and getBuffer() ensures module import safety
   }
 
   /**
@@ -108,7 +110,7 @@ export class LocalEncryptedStorageService implements IStorageService {
 
     // 5. Encrypt buffer with AES-256-GCM
     const iv = crypto.randomBytes(12); // Standard 96-bit IV for GCM
-    const cipher = crypto.createCipheriv('aes-256-gcm', this.encryptionKey, iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
     const encryptedBody = Buffer.concat([cipher.update(file.buffer), cipher.final()]);
     const authTag = cipher.getAuthTag(); // 16 bytes authentication tag
 

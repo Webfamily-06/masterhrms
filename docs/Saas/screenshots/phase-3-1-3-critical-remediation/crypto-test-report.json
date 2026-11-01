@@ -1,0 +1,225 @@
+{
+  "timestamp": "2026-11-01T09:31:01.526Z",
+  "phase": "3.1.3",
+  "branch": "fix/phase-3-1-3-critical-remediation",
+  "total": 43,
+  "passed": 43,
+  "failed": 0,
+  "results": [
+    {
+      "suite": "TimingSafety",
+      "name": "timingSafeEqualString accepts matching strings",
+      "status": "PASS"
+    },
+    {
+      "suite": "TimingSafety",
+      "name": "timingSafeEqualString rejects different strings of same length",
+      "status": "PASS"
+    },
+    {
+      "suite": "TimingSafety",
+      "name": "timingSafeEqualString safely rejects different lengths without throwing",
+      "status": "PASS"
+    },
+    {
+      "suite": "TimingSafety",
+      "name": "timingSafeEqualHex accepts identical hex strings",
+      "status": "PASS"
+    },
+    {
+      "suite": "TimingSafety",
+      "name": "timingSafeEqualHex safely rejects malformed or different length hex",
+      "status": "PASS"
+    },
+    {
+      "suite": "JwtSecurity",
+      "name": "Generates and verifies authentic user JWT payload using HS256",
+      "status": "PASS"
+    },
+    {
+      "suite": "JwtSecurity",
+      "name": "Generates and verifies temporary MFA pending tokens using HS256",
+      "status": "PASS"
+    },
+    {
+      "suite": "JwtSecurity",
+      "name": "Rejects forged or tampered JWT signatures",
+      "status": "PASS"
+    },
+    {
+      "suite": "JwtSecurity",
+      "name": "Fails closed in production if JWT_SECRET is unset or empty",
+      "status": "PASS"
+    },
+    {
+      "suite": "JwtSecurity",
+      "name": "Fails closed in production if JWT_SECRET is shorter than 32 characters",
+      "status": "PASS"
+    },
+    {
+      "suite": "StorageCrypto",
+      "name": "Storage encryption round-trip with dedicated 256-bit key",
+      "status": "PASS"
+    },
+    {
+      "suite": "StorageCrypto",
+      "name": "Storage legacy decryption transparently recovers historical files",
+      "status": "PASS"
+    },
+    {
+      "suite": "StorageCrypto",
+      "name": "Storage rejects wrong key and tampered ciphertext",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if STORAGE_ENCRYPTION_KEY is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if FILE_SIGNING_SECRET is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if CONNECTOR_ENCRYPTION_KEY is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if EMAIL_CRYPTO_SECRET is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if SETTINGS_ENCRYPTION_KEY is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production if AI_ENCRYPTION_KEY is unset",
+      "status": "PASS"
+    },
+    {
+      "suite": "ProductionEnforcement",
+      "name": "Fails closed in production when dedicated keys are under 32 characters",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "initiateUpload generates valid signed upload authorization",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifyUploadToken accepts valid upload token",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifyUploadToken rejects expired upload token",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifyUploadToken rejects tampered upload token",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifyUploadToken rejects modified storage key (cross-tenant tampering)",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifyUploadToken rejects modified expiration timestamp",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "getSignedDownloadUrl generates verifiable stream URL",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifySignature rejects expired download URL",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifySignature rejects tampered download signature",
+      "status": "PASS"
+    },
+    {
+      "suite": "SignedUrl",
+      "name": "verifySignature rejects cross-type signature (preview sig on download)",
+      "status": "PASS"
+    },
+    {
+      "suite": "ConnectorsCrypto",
+      "name": "encryptToken and decryptToken round-trip",
+      "status": "PASS"
+    },
+    {
+      "suite": "ConnectorsCrypto",
+      "name": "decryptToken falls back gracefully to decrypt legacy tokens",
+      "status": "PASS"
+    },
+    {
+      "suite": "ConnectorsCrypto",
+      "name": "decryptToken throws when ciphertext is tampered across all keys",
+      "status": "PASS"
+    },
+    {
+      "suite": "EmailCrypto",
+      "name": "encryptEmailSecret and decryptEmailSecret round-trip",
+      "status": "PASS"
+    },
+    {
+      "suite": "EmailCrypto",
+      "name": "decryptEmailSecret transparently decrypts legacy credentials",
+      "status": "PASS"
+    },
+    {
+      "suite": "EmailCrypto",
+      "name": "decryptEmailSecret rejects corrupted auth tag",
+      "status": "PASS"
+    },
+    {
+      "suite": "SettingsCrypto",
+      "name": "encryptSecret and decryptSecret round-trip",
+      "status": "PASS"
+    },
+    {
+      "suite": "SettingsCrypto",
+      "name": "decryptSecret supports legacy setting decryption",
+      "status": "PASS"
+    },
+    {
+      "suite": "AiCrypto",
+      "name": "AI credential encryption and legacy decryption",
+      "status": "PASS"
+    },
+    {
+      "suite": "StartupValidation",
+      "name": "validateStartupCryptoConfig passes in development",
+      "status": "PASS"
+    },
+    {
+      "suite": "StartupValidation",
+      "name": "validateStartupCryptoConfig flags missing keys when checkAllServices is requested in production",
+      "status": "PASS"
+    },
+    {
+      "suite": "SecuritySanitization",
+      "name": "Error messages and audit checks never reveal plaintext secrets",
+      "status": "PASS"
+    },
+    {
+      "suite": "ArtifactConsistency",
+      "name": "server/dist/lib/crypto-config.js exists and matches compiled contract",
+      "status": "PASS"
+    }
+  ]
+}

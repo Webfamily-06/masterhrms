@@ -21,17 +21,27 @@ export interface MfaPendingPayload {
 }
 
 export function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload, getJwtSecret(), { expiresIn: getJwtExpiresIn() as any });
+  return jwt.sign(payload, getJwtSecret(), {
+    algorithm: "HS256",
+    expiresIn: getJwtExpiresIn() as any,
+  });
 }
 
 export function verifyToken(token: string): JwtPayload {
-  return jwt.verify(token, getJwtSecret()) as JwtPayload;
+  return jwt.verify(token, getJwtSecret(), {
+    algorithms: ["HS256"],
+  }) as JwtPayload;
 }
 
 export function generateMfaToken(payload: { userId: string; email: string }): string {
-  return jwt.sign({ ...payload, mfaPending: true }, getJwtSecret(), { expiresIn: "5m" });
+  return jwt.sign({ ...payload, mfaPending: true }, getJwtSecret(), {
+    algorithm: "HS256",
+    expiresIn: "5m",
+  });
 }
 
 export function verifyMfaToken(token: string): MfaPendingPayload {
-  return jwt.verify(token, getJwtSecret()) as MfaPendingPayload;
+  return jwt.verify(token, getJwtSecret(), {
+    algorithms: ["HS256"],
+  }) as MfaPendingPayload;
 }

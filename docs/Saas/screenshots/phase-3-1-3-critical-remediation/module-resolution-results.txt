@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-11-01T09:29:45.204Z",
+  "distPath": "/Users/apple/Documents/hrms/server/dist/lib/crypto-config.js",
+  "exports": [
+    "CryptoConfigurationError",
+    "timingSafeEqualString",
+    "timingSafeEqualHex",
+    "getJwtSecret",
+    "getFileSigningSecret",
+    "getLegacyFileSigningSecrets",
+    "getStorageEncryptionKeys",
+    "getStorageDecryptionKeys",
+    "getConnectorEncryptionKeys",
+    "getEmailCryptoKeys",
+    "getSettingsEncryptionKeys",
+    "getAiEncryptionKeys",
+    "validateStartupCryptoConfig"
+  ],
+  "resolvedModules": [
+    {
+      "module": "server/dist/index.js",
+      "exists": true
+    },
+    {
+      "module": "server/dist/lib/crypto-config.js",
+      "exists": true
+    },
+    {
+      "module": "server/dist/lib/jwt.js",
+      "exists": true
+    },
+    {
+      "module": "server/dist/routes/files.routes.js",
+      "exists": true
+    },
+    {
+      "module": "server/dist/services/storage/local-encrypted-storage.service.js",
+      "exists": true
+    },
+    {
+      "module": "server/dist/services/storage/local-storage.provider.js",
+      "exists": true
+    }
+  ]
+}
