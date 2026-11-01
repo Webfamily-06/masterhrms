@@ -221,6 +221,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
     // WEBRTC CALL SIGNALING & LIFECYCLE (Audio, Video, Group Calls)
     // =========================================================================
 
+    const emitCallForbidden = (sock: Socket) => {
+      sock.emit("call:error", {
+        code: "CALL_FORBIDDEN",
+        message: "You are not allowed to modify this call.",
+      });
+    };
+
     const persistMissedCallRecord = async (params: {
       tenantId: string;
       callId: string;
@@ -317,7 +324,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
       // Prevent calling self
       if (targetUserId === socket.data.userId) {
-        socket.emit("call:error", { message: "Cannot initiate call to yourself." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -328,7 +335,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       });
 
       if (!targetUser) {
-        socket.emit("call:error", { message: "Recipient user not found in this organization." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -456,36 +463,36 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const callId = payload?.callId;
       const targetUserId = payload?.targetUserId || payload?.toUserId || payload?.fromUserId;
       if (!callId || !targetUserId) {
-        socket.emit("call:error", { message: "Invalid call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== socket.data.tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== socket.data.tenantId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      // Only the designated callee (targetUserId) can accept the call
-      if (session.targetUserId !== socket.data.userId) {
-        socket.emit("call:error", { message: "Only the call recipient can accept the call." });
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
+      if (targetUserId !== expectedPeerId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      // Target must match original caller
-      if (session.callerId !== targetUserId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
-        return;
-      }
-
-      // Transition only valid from 'ringing'
-      if (session.status !== "ringing") {
-        socket.emit("call:error", { message: "Call is not in ringing state." });
+      // Legal transition: receiver only, only while ringing, target must be caller
+      if (session.targetUserId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.callerId) {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -508,35 +515,36 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const tenantId = socket.data.tenantId;
 
       if (!callId || !targetUserId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      // Only the callee can reject a call
-      if (session.targetUserId !== socket.data.userId) {
-        socket.emit("call:error", { message: "Only the call recipient can reject the call." });
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
+      if (targetUserId !== expectedPeerId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      // Target must match original caller
-      if (session.callerId !== targetUserId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
-        return;
-      }
-
-      if (session.status !== "ringing") {
-        socket.emit("call:error", { message: "Call is not in ringing state." });
+      // Legal transition: receiver only, only while ringing, target must be caller
+      if (session.targetUserId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.callerId) {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -611,34 +619,36 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const tenantId = socket.data.tenantId || payload?.tenantId;
 
       if (!callId || !targetUserId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      // ONLY the caller can cancel a ringing call
-      if (session.callerId !== socket.data.userId) {
-        socket.emit("call:error", { message: "Only the call initiator can cancel the call." });
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
+      if (targetUserId !== expectedPeerId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.targetUserId !== targetUserId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
-        return;
-      }
-
-      if (session.status !== "ringing") {
-        socket.emit("call:error", { message: "Call is not in ringing state." });
+      // Legal transition: caller only, only while ringing, target must be receiver
+      if (session.callerId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.targetUserId) {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -663,59 +673,9 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       });
     });
 
-    // 4.1 TIMEOUT CALL
-    socket.on("call:timeout", async (payload: any) => {
-      const callId = payload?.callId;
-      const tenantId = socket.data.tenantId || payload?.tenantId;
-      if (!callId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid call payload." });
-        return;
-      }
-
-      const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
-        return;
-      }
-
-      if (session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
-        return;
-      }
-
-      if (session.callerId !== socket.data.userId && session.targetUserId !== socket.data.userId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
-        return;
-      }
-
-      if (session.status !== "ringing") {
-        socket.emit("call:error", { message: "Call is not in ringing state." });
-        return;
-      }
-
-      if (session.timeoutTimer) {
-        clearTimeout(session.timeoutTimer);
-        session.timeoutTimer = null;
-      }
-      activeCalls.delete(callId);
-
-      ioInstance?.to(`user:${session.targetUserId}`).emit("call:timeout", {
-        callId,
-        cancelledBy: "system",
-      });
-      ioInstance?.to(`user:${session.callerId}`).emit("call:timeout", {
-        callId,
-        cancelledBy: "system",
-      });
-
-      await persistMissedCallRecord({
-        tenantId,
-        callId,
-        session,
-        callerId: session.callerId,
-        targetUserId: session.targetUserId,
-        isTimeout: true,
-      });
+    // 4.1 TIMEOUT CALL - Never trust client-triggered timeout as authoritative
+    socket.on("call:timeout", () => {
+      emitCallForbidden(socket);
     });
 
     // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates)
@@ -723,37 +683,35 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetUserId = payload?.targetUserId || payload?.toUserId;
       const callId = payload?.callId;
       if (!callId || !targetUserId || !payload?.signal || typeof payload.signal !== "object") {
-        socket.emit("call:error", { message: "Invalid signaling payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== socket.data.tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== socket.data.tenantId) {
-        socket.emit("call:error", { message: "Unauthorized signaling action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      const isCaller = session.callerId === socket.data.userId;
-      const isTarget = session.targetUserId === socket.data.userId;
-      if (!isCaller && !isTarget) {
-        socket.emit("call:error", { message: "Unauthorized signaling action." });
-        return;
-      }
-
-      const expectedPeerId = isCaller ? session.targetUserId : session.callerId;
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
       if (targetUserId !== expectedPeerId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
+        emitCallForbidden(socket);
         return;
       }
 
-      // Signaling is only legal when call is ringing (initial offer/answer) or connected
       if (session.status !== "ringing" && session.status !== "connected") {
-        socket.emit("call:error", { message: "Call session is not active." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -770,31 +728,35 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const callId = payload?.callId;
       const targetUserId = payload?.targetUserId || payload?.toUserId;
       if (!callId) {
-        socket.emit("call:error", { message: "Invalid media state payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== socket.data.tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== socket.data.tenantId) {
-        socket.emit("call:error", { message: "Unauthorized media state action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      const isCaller = session.callerId === socket.data.userId;
-      const isTarget = session.targetUserId === socket.data.userId;
-      if (!isCaller && !isTarget) {
-        socket.emit("call:error", { message: "Unauthorized media state action." });
-        return;
-      }
-
-      const expectedPeerId = isCaller ? session.targetUserId : session.callerId;
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
       if (targetUserId && targetUserId !== expectedPeerId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
+        emitCallForbidden(socket);
+        return;
+      }
+
+      if (session.status !== "connected") {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -813,31 +775,36 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const tenantId = socket.data.tenantId;
 
       if (!callId || !targetUserId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Call session not found." });
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
-      if (session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
+      const isParticipant =
+        session.callerId === socket.data.userId ||
+        session.targetUserId === socket.data.userId;
+      if (!isParticipant) {
+        emitCallForbidden(socket);
         return;
       }
 
-      const isCaller = session.callerId === socket.data.userId;
-      const isTarget = session.targetUserId === socket.data.userId;
-      if (!isCaller && !isTarget) {
-        socket.emit("call:error", { message: "Unauthorized call action." });
-        return;
-      }
-
-      const expectedPeerId = isCaller ? session.targetUserId : session.callerId;
+      const expectedPeerId =
+        session.callerId === socket.data.userId
+          ? session.targetUserId
+          : session.callerId;
       if (targetUserId !== expectedPeerId) {
-        socket.emit("call:error", { message: "Invalid call participant." });
+        emitCallForbidden(socket);
+        return;
+      }
+
+      // Legal lifecycle transition: caller or receiver only, only when call is connected
+      if (session.status !== "connected") {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -847,6 +814,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       }
       activeCalls.delete(callId);
 
+      const isCaller = session.callerId === socket.data.userId;
       const durationSeconds = Math.max(0, Math.round(Number(payload?.durationSeconds) || 0));
       const callType = session.callType || payload?.callType || "audio";
       const threadId = session.threadId || `direct_${[session.callerId, session.targetUserId].sort().join("_")}`;
@@ -935,7 +903,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const { groupId, callId, callType } = payload;
       const tenantId = socket.data.tenantId;
       if (!groupId || !callId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid group call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -946,7 +914,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       });
 
       if (!group || !group.members.some((m) => m.userId === socket.data.userId)) {
-        socket.emit("call:error", { message: "Access denied to group call." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -992,18 +960,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const { callId } = payload;
       const tenantId = socket.data.tenantId;
       if (!callId || !tenantId) {
-        socket.emit("call:error", { message: "Invalid group call payload." });
+        emitCallForbidden(socket);
         return;
       }
 
       const session = activeGroupCalls.get(callId);
-      if (!session) {
-        socket.emit("call:error", { message: "Group call session not found." });
-        return;
-      }
-
-      if (session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Access denied to group call." });
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
         return;
       }
 
@@ -1012,7 +975,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       });
 
       if (!member) {
-        socket.emit("call:error", { message: "Not a member of this group." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -1027,13 +990,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
     socket.on("group-call:signal", async (payload: { callId: string; targetUserId: string; signal: any; groupId?: string }) => {
       if (!payload?.callId || !payload?.targetUserId || !payload?.signal || typeof payload.signal !== "object") {
-        socket.emit("call:error", { message: "Invalid group signaling payload." });
+        emitCallForbidden(socket);
         return;
       }
       const tenantId = socket.data.tenantId;
       const session = activeGroupCalls.get(payload.callId);
       if (!session || session.tenantId !== tenantId) {
-        socket.emit("call:error", { message: "Unauthorized group signaling action." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -1048,7 +1011,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetIsMember = members.some((m) => m.userId === payload.targetUserId);
 
       if (!senderIsMember || !targetIsMember) {
-        socket.emit("call:error", { message: "Participant is not a member of this group call." });
+        emitCallForbidden(socket);
         return;
       }
 
@@ -1061,11 +1024,26 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
     socket.on("group-call:leave", async (payload: { callId: string; groupId?: string; durationSeconds?: number; callType?: string }) => {
       const { callId } = payload;
-      if (!callId) return;
+      if (!callId) {
+        emitCallForbidden(socket);
+        return;
+      }
 
       const session = activeGroupCalls.get(callId);
       const tenantId = socket.data.tenantId;
-      if (session && session.tenantId !== tenantId) return;
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      // Validate group membership
+      const member = await (rawPrisma || prisma).chatGroupMember.findFirst({
+        where: { groupId: session.groupId, userId: socket.data.userId },
+      });
+      if (!member) {
+        emitCallForbidden(socket);
+        return;
+      }
 
       socket.leave(`group_call_${callId}`);
       socket.to(`group_call_${callId}`).emit("group-call:user_left", {
@@ -1078,7 +1056,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         activeGroupCalls.delete(callId);
       }
 
-      const groupId = session?.groupId || payload.groupId;
+      const groupId = session.groupId;
       if (tenantId && groupId && payload.durationSeconds && payload.durationSeconds > 0) {
         try {
           await prisma.callHistoryRecord.create({
@@ -1089,12 +1067,12 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
               callerName: socket.data.name || "Colleague",
               callerPhone: "Group Call",
               callerAvatarUrl: socket.data.avatar || null,
-              callType: payload.callType || session?.callType || "audio",
+              callType: payload.callType || session.callType || "audio",
               status: "completed",
               durationSeconds: Math.round(payload.durationSeconds),
               callTime: new Date(),
               groupId,
-              notes: `Group ${payload.callType || session?.callType || "audio"} call concluded.`,
+              notes: `Group ${payload.callType || session.callType || "audio"} call concluded.`,
             },
           });
         } catch (e: any) {
@@ -1119,15 +1097,27 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const tId = socket.data.tenantId;
       const uId = socket.data.userId;
       if (tId && uId) {
-        // Multi-tab check: Check presence count for this user
-        const tenantMap = tenantPresence.get(tId);
-        const currentPresenceCount = tenantMap ? (tenantMap.get(uId) || 0) : 0;
-        const userRoom = ioInstance?.sockets.adapter.rooms.get(`user:${uId}`);
-        const remainingSockets = userRoom ? userRoom.size : 0;
-        const hasOtherSockets = currentPresenceCount > 1 || remainingSockets > 0;
+        // Step 1: Decrement user socket count first using existing presence map
+        let remainingSocketCount = 0;
+        if (tenantPresence.has(tId)) {
+          const tenantMap = tenantPresence.get(tId)!;
+          const currentCount = tenantMap.get(uId) || 0;
+          if (currentCount <= 1) {
+            tenantMap.delete(uId);
+            remainingSocketCount = 0;
+            ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "offline" });
+          } else {
+            remainingSocketCount = currentCount - 1;
+            tenantMap.set(uId, remainingSocketCount);
+          }
+        }
 
-        // ONLY clean up active calls if the user has NO remaining active sockets
-        if (!hasOtherSockets) {
+        // Also check if any other socket exists in the user room
+        const userRoom = ioInstance?.sockets.adapter.rooms.get(`user:${uId}`);
+        const userRoomSize = userRoom ? userRoom.size : 0;
+
+        // ONLY end active calls if no other authenticated socket remains for this user in this tenant
+        if (remainingSocketCount === 0 && userRoomSize === 0) {
           for (const [callId, session] of activeCalls) {
             if (session.tenantId === tId && (session.callerId === uId || session.targetUserId === uId)) {
               if (session.timeoutTimer) {
@@ -1142,17 +1132,6 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
               });
               activeCalls.delete(callId);
             }
-          }
-        }
-
-        if (tenantPresence.has(tId)) {
-          const tMap = tenantPresence.get(tId)!;
-          const currentCount = tMap.get(uId) || 0;
-          if (currentCount <= 1) {
-            tMap.delete(uId);
-            ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "offline" });
-          } else {
-            tMap.set(uId, currentCount - 1);
           }
         }
       }

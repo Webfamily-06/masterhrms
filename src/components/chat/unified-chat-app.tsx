@@ -8464,10 +8464,10 @@ export function UnifiedChatApp({
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 space-y-1">
               <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-900 dark:text-amber-200">
                 <InfoIcon className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>Multi-participant calls require LiveKit/SFU deployment.</span>
+                <span>Multi-participant calls require LiveKit/mediasoup SFU and TURN deployment. This call will remain one-to-one.</span>
               </div>
               <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300/90">
-                Direct peer-to-peer WebRTC is active for this 1-to-1 session. Adding 3 or more simultaneous audio/video participants requires a Selective Forwarding Unit (LiveKit or mediasoup). For group discussions, please create a group chat.
+                Adding participants to an active 1-to-1 WebRTC call is disabled. Direct peer-to-peer WebRTC cannot bridge 3+ participants without an SFU media server. For group discussions, please create or open a group chat.
               </p>
             </div>
 

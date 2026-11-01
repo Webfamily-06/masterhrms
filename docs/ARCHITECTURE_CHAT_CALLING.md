@@ -100,10 +100,18 @@ video: {
 ### 1. Peer-to-Peer 1-on-1 vs Group Calling (SFU Requirement)
 - Current calling implementation uses **1-on-1 direct RTCPeerConnection**.
 - P2P mesh topology does NOT scale for group calls: N participants require $N \times (N - 1)$ video streams, rapidly overwhelming client uplink bandwidth and mobile CPU.
-- **Roadmap for Group Calling**:
-  - Requires deploying a **Selective Forwarding Unit (SFU)** media server such as **LiveKit** or **mediasoup**.
-  - With an SFU, each client publishes 1 upstream and receives downstream composites, allowing 50+ participant conferences.
-  - Current group call buttons route to direct 1-to-1 dial with group members and explicitly indicate the 1-on-1 architectural boundary.
+- In-call participant invitation is disabled with an explicit requirement disclosure:
+  > *"Multi-participant calls require LiveKit/mediasoup SFU and TURN deployment. This call will remain one-to-one."*
+
+- **Future Architecture Requirements for Production Multi-Party Calling**:
+  1. **LiveKit or mediasoup SFU**: Deploy a dedicated Selective Forwarding Unit cluster for selective track forwarding, simulcast, and dynacast bitrate adaptation.
+  2. **TURN Service**: Dedicated coturn or managed Cloudflare Calls/Twilio TURN relay for strict symmetric NAT and corporate firewall traversal.
+  3. **CallRoom and CallParticipant Persistence**: Schema models to track room states, participant join/leave timestamps, media permissions, and bandwidth stats.
+  4. **Short-Lived Media Tokens**: Cryptographically signed JWT tokens (TTL: 5-15 minutes) authorizing participant connection to a specific SFU room.
+  5. **Server-Authoritative Participant Membership**: Centralized server-side participant admission, mute enforcement, kick, and host controls.
+  6. **Multi-Stream Participant Layouts**: Adaptive grid, active-speaker spotlight mode, and pagination for 10+ concurrent video streams.
+  7. **Active Speaker Detection**: Server-side or client VAD (Voice Activity Detection) and audio level indicators with dynamic speaker switching.
+  8. **Simultaneous Screen-Share Plus Camera Tracks**: Multi-track publishing enabling concurrent presentation and presenter face-cam.
 
 ### 2. NAT Traversal & Production Relay (STUN vs TURN)
 - Current setup configures public Google STUN servers (`stun:stun.l.google.com:19302`) for direct P2P hole punching.
