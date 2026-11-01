@@ -390,3 +390,4 @@ runHardeningEvidenceSuite().catch((err) => {
   console.error("❌ Evidence capture suite failed:", err);
   process.exit(1);
 });
+

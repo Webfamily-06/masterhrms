@@ -115,3 +115,4 @@ Execution command:
 - **Interoperability:** The implementation produces ciphertexts fully decipherable by Chromium, Gecko, and WebKit push engines.
 - **Tamper Evident:** Bit-level flips in the authentication tag or salt are rejected with cryptographic exceptions prior to plaintext emission.
 - **Eavesdropping Resistance:** Decryption using mismatched ECDH recipient keys fails authentication with zero data leakage.
+

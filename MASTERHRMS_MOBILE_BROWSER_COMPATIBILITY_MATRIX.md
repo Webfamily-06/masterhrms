@@ -51,3 +51,4 @@
 1. **Desktop Users:** Chrome 111+, Edge 111+, Safari 16+, Firefox 115+.
 2. **Android Users:** Chrome 110+ or Samsung Internet; allow notification permissions in system settings.
 3. **iOS Users:** iOS 16.4+; install app to Home Screen via Safari "Share $\to$ Add to Home Screen" for background closed-tab delivery.
+

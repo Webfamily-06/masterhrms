@@ -125,3 +125,4 @@ The test suite executed with Chromium under isolated browser contexts. All step 
 
 - **Headless Environment:** Headless Chromium does not connect to proprietary Google Play Services or APNs daemon. Playwright tests verify the PushManager registration, VAPID key handshake, push event receipt in the Service Worker, and UI transition without synthetic mocking.
 - **Physical Production Environments:** On physical Android Chrome, macOS Chrome/Safari, and Windows Edge, the service worker receives pushes wakeups while the browser runs in the background, showing the full-screen calling experience upon interaction.
+

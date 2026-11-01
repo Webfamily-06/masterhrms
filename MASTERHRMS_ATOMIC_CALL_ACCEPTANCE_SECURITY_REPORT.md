@@ -95,3 +95,4 @@ Under no circumstances is in-memory state or signaling emitted prior to database
 3. If `count === 1`, update `activeCalls.set(callId, ...)` and emit `call:accepted` to peer rooms.
 
 This guarantees that memory state can never become desynchronized from persistent storage.
+

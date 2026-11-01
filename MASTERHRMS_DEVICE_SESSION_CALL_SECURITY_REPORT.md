@@ -100,3 +100,4 @@ If an operating system displays a delayed push notification on Device 1 after lo
 ## 6. SECURITY CONCLUSION
 
 MasterHRMS enforces strict per-device session isolation, preventing both collateral logout of active devices and unauthorized call access on decommissioned hardware.
+

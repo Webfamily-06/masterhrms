@@ -3000,63 +3000,6 @@ export function UnifiedChatApp({
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [activeCallModalOpen, isMeetingOpen]);
 
-  // Synchronize active call state with global FloatingMiniCallWidget across route changes
-  useEffect(() => {
-    if (activeCallModalOpen && (callStatus === "connected" || callStatus === "calling" || callStatus === "ringing")) {
-      const callId = activeCallIdRef.current || activeCallId;
-      if (callId) {
-        if (typeof window !== "undefined") {
-          (window as any).__HRMS_REMOTE_STREAM__ = remoteStreamRef.current;
-        }
-        window.dispatchEvent(
-          new CustomEvent("hrms:active-call-update", {
-            detail: {
-              callId,
-              callerName: activeCallTargetName,
-              callerAvatar: activeCallTargetAvatar,
-              callType: activeCallType,
-              status: callStatus,
-              durationSeconds: callDurationSeconds,
-              isMuted,
-              isVideoOff,
-              isMinimized: isCallMinimized,
-            },
-          })
-        );
-      }
-    } else if (!activeCallModalOpen) {
-      window.dispatchEvent(new CustomEvent("hrms:active-call-end"));
-    }
-  }, [activeCallModalOpen, callStatus, callDurationSeconds, isMuted, isVideoOff, isCallMinimized, activeCallTargetName, activeCallTargetAvatar, activeCallType]);
-
-  // Listen to controls from global FloatingMiniCallWidget (mute, maximize, hangup)
-  useEffect(() => {
-    const handleGlobalHangup = () => {
-      handleEndCall();
-    };
-    const handleGlobalToggleMute = (e: any) => {
-      if (typeof e.detail?.isMuted === "boolean") {
-        setIsMuted(e.detail.isMuted);
-      } else {
-        toggleMute();
-      }
-    };
-    const handleGlobalMaximize = () => {
-      setIsCallMinimized(false);
-      setActiveCallModalOpen(true);
-    };
-
-    window.addEventListener("hrms:active-call-hangup", handleGlobalHangup);
-    window.addEventListener("hrms:active-call-toggle-mute", handleGlobalToggleMute);
-    window.addEventListener("hrms:active-call-maximize", handleGlobalMaximize);
-
-    return () => {
-      window.removeEventListener("hrms:active-call-hangup", handleGlobalHangup);
-      window.removeEventListener("hrms:active-call-toggle-mute", handleGlobalToggleMute);
-      window.removeEventListener("hrms:active-call-maximize", handleGlobalMaximize);
-    };
-  }, [handleEndCall, toggleMute]);
-
   // ──────────────────────────────────────────────────────────────────────────
   // 3. MUTATIONS & ACTIONS
   // ──────────────────────────────────────────────────────────────────────────
@@ -3949,6 +3892,63 @@ export function UnifiedChatApp({
       });
     }
   };
+
+  // Synchronize active call state with global FloatingMiniCallWidget across route changes
+  useEffect(() => {
+    if (activeCallModalOpen && (callStatus === "connected" || callStatus === "calling" || callStatus === "ringing")) {
+      const callId = activeCallIdRef.current || activeCallId;
+      if (callId) {
+        if (typeof window !== "undefined") {
+          (window as any).__HRMS_REMOTE_STREAM__ = remoteStreamRef.current;
+        }
+        window.dispatchEvent(
+          new CustomEvent("hrms:active-call-update", {
+            detail: {
+              callId,
+              callerName: activeCallTargetName,
+              callerAvatar: incomingCall?.callerAvatarUrl || null,
+              callType: activeCallType,
+              status: callStatus,
+              durationSeconds: callDurationSeconds,
+              isMuted,
+              isVideoOff,
+              isMinimized: isCallMinimized,
+            },
+          })
+        );
+      }
+    } else if (!activeCallModalOpen) {
+      window.dispatchEvent(new CustomEvent("hrms:active-call-end"));
+    }
+  }, [activeCallModalOpen, callStatus, callDurationSeconds, isMuted, isVideoOff, isCallMinimized, activeCallTargetName, incomingCall?.callerAvatarUrl, activeCallType]);
+
+  // Listen to controls from global FloatingMiniCallWidget (mute, maximize, hangup)
+  useEffect(() => {
+    const handleGlobalHangup = () => {
+      handleEndCall();
+    };
+    const handleGlobalToggleMute = (e: any) => {
+      if (typeof e.detail?.isMuted === "boolean") {
+        setIsMuted(e.detail.isMuted);
+      } else {
+        toggleMute();
+      }
+    };
+    const handleGlobalMaximize = () => {
+      setIsCallMinimized(false);
+      setActiveCallModalOpen(true);
+    };
+
+    window.addEventListener("hrms:active-call-hangup", handleGlobalHangup);
+    window.addEventListener("hrms:active-call-toggle-mute", handleGlobalToggleMute);
+    window.addEventListener("hrms:active-call-maximize", handleGlobalMaximize);
+
+    return () => {
+      window.removeEventListener("hrms:active-call-hangup", handleGlobalHangup);
+      window.removeEventListener("hrms:active-call-toggle-mute", handleGlobalToggleMute);
+      window.removeEventListener("hrms:active-call-maximize", handleGlobalMaximize);
+    };
+  }, [isMuted, isCallMinimized, activeCallTargetId, activeCallId]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // VOICE NOTE RECORDING (MediaRecorder)

@@ -87,3 +87,4 @@ The floating widget provides complete operational control:
 - **Audio Mode:** Avatar with initials, pulse ring indicator, caller name, live timer badge (`m:ss`), mute/unmute mic toggle, maximize button, and hangup button.
 - **Video Mode:** Aspect-video live stream preview, active speaker chip, timer badge, native PiP trigger button, mute mic button, maximize button, and hangup button.
 - **Event Bus Coordination:** Dispatches `hrms:active-call-toggle-mute`, `hrms:active-call-maximize`, and `hrms:active-call-hangup` to coordinate seamlessly with WebRTC audio tracks.
+
