@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
-import { getSocketClient } from "@/lib/socket";
+import { getSocketClient, isSocketDisabled } from "@/lib/socket";
 import { toast } from "sonner";
 
 export interface IncomingCallInfo {
@@ -351,16 +351,24 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return;
 
     let socket: any = null;
-    try {
-      socket = getSocketClient();
-      if (socket) {
-        socket.on("call:incoming", handleIncomingCallEvent);
-        socket.on("call:cancelled", handleCallCancelledEvent);
-        socket.on("call:timeout", handleCallCancelledEvent);
-        socket.on("call:rejected", handleCallCancelledEvent);
+    // Only connect Socket.IO when: a dedicated server is configured AND the user is authenticated.
+    // This prevents unauthenticated visitors and public pages from triggering 404 reconnect loops
+    // on Vercel serverless deployments where no persistent Socket.IO server exists.
+    const authToken = localStorage.getItem("hrms_auth_token");
+    if (!isSocketDisabled() && authToken) {
+      try {
+        socket = getSocketClient();
+        // Connect on demand (autoConnect is false in the updated socket.ts)
+        if (socket && !socket.connected) socket.connect();
+        if (socket) {
+          socket.on("call:incoming", handleIncomingCallEvent);
+          socket.on("call:cancelled", handleCallCancelledEvent);
+          socket.on("call:timeout", handleCallCancelledEvent);
+          socket.on("call:rejected", handleCallCancelledEvent);
+        }
+      } catch (e) {
+        console.warn("[IncomingCallProvider] Socket initialization error:", e);
       }
-    } catch (e) {
-      console.warn("[IncomingCallProvider] Socket initialization error:", e);
     }
 
     const handlePusherEvent = (event: Event) => {

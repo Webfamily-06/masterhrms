@@ -61,6 +61,7 @@ function Super06AuthContent() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileReady, setTurnstileReady] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params
@@ -466,14 +467,14 @@ function Super06AuthContent() {
             <TurnstileWidget
               ref={turnstileRef}
               action="super-login"
-              onSuccess={(t) => setTurnstileToken(t)}
-              onExpire={() => setTurnstileToken('')}
-              onError={() => {}}
+              onSuccess={(t) => { setTurnstileToken(t); setTurnstileReady(true); }}
+              onExpire={() => { setTurnstileToken(''); setTurnstileReady(false); }}
+              onError={() => { setTurnstileReady(false); toast.error('Security verification failed. Please refresh and try again.'); }}
             />
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !turnstileReady}
               className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}

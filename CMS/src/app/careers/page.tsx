@@ -86,6 +86,7 @@ function PublicCareersPage() {
     coverLetter: "",
   });
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileReady, setTurnstileReady] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Query Public Careers data for tenant
@@ -447,15 +448,16 @@ function PublicCareersPage() {
               <TurnstileWidget
                 ref={turnstileRef}
                 action="job_apply"
-                onSuccess={(token) => setTurnstileToken(token)}
-                onExpire={() => setTurnstileToken("")}
+                onSuccess={(token) => { setTurnstileToken(token); setTurnstileReady(true); }}
+                onExpire={() => { setTurnstileToken(""); setTurnstileReady(false); }}
+                onError={() => { setTurnstileReady(false); }}
               />
 
               <DialogFooter className="pt-2 border-t">
                 <Button type="button" size="sm" variant="outline" onClick={() => setIsApplyModalOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" size="sm" disabled={applyMut.isPending} className="text-xs font-bold gap-1.5">
+                <Button type="submit" size="sm" disabled={applyMut.isPending || !turnstileReady} className="text-xs font-bold gap-1.5">
                   <Send className="size-3.5" />
                   <span>Submit Application</span>
                 </Button>
