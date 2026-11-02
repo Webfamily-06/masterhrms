@@ -4,6 +4,8 @@
  * Provides secure per-device session management:
  * - Session creation on login
  * - Refresh token hashing and rotation
+ * - Concurrency-safe atomic token exchange
+ * - Reuse attack detection and session invalidation
  * - Individual device logout
  * - Logout from all devices
  * - Session listing for security UI
@@ -66,15 +68,26 @@ export async function createDeviceSession(options: CreateSessionOptions): Promis
 export async function rotateRefreshToken(
   sessionId: string,
   currentTokenHash: string
-): Promise<{ refreshToken: string } | null> {
-  const session = await prisma.deviceSession.findUnique({ where: { id: sessionId } });
+): Promise<{ refreshToken: string; session: any } | null> {
+  const session = await prisma.deviceSession.findUnique({
+    where: { id: sessionId },
+    include: {
+      user: {
+        include: {
+          profile: true,
+          roles: true,
+          workspaceRoleAssignments: true,
+        },
+      },
+    },
+  });
 
   if (!session || session.revoked || !session.refreshTokenHash) return null;
   if (session.expiresAt && session.expiresAt < new Date()) return null;
 
-  // Reuse attack detection — hash mismatch means token was already rotated
+  // Reuse attack detection — hash mismatch means token was already rotated or compromised
   if (session.refreshTokenHash !== currentTokenHash) {
-    // Revoke session to protect against token theft
+    // Revoke session immediately to protect against token theft
     await prisma.deviceSession.update({
       where: { id: sessionId },
       data: { revoked: true, revokedAt: new Date() },
@@ -85,15 +98,31 @@ export async function rotateRefreshToken(
   const newToken = generateSecureRefreshToken();
   const newHash = hashRefreshToken(newToken);
 
-  await prisma.deviceSession.update({
-    where: { id: sessionId },
+  // Concurrency-safe atomic rotation:
+  // Using updateMany with where matching both id AND refreshTokenHash ensures that
+  // if two concurrent refresh requests arrive with the same hash, exactly ONE succeeds.
+  const updateResult = await prisma.deviceSession.updateMany({
+    where: {
+      id: sessionId,
+      refreshTokenHash: currentTokenHash,
+      revoked: false,
+    },
     data: {
       refreshTokenHash: newHash,
       lastActiveAt: new Date(),
     },
   });
 
-  return { refreshToken: newToken };
+  if (updateResult.count === 0) {
+    // Another concurrent request rotated the token or revoked the session in that microsecond
+    await prisma.deviceSession.update({
+      where: { id: sessionId },
+      data: { revoked: true, revokedAt: new Date() },
+    }).catch(() => {});
+    return null;
+  }
+
+  return { refreshToken: newToken, session };
 }
 
 export async function revokeSession(sessionId: string, userId: string): Promise<boolean> {

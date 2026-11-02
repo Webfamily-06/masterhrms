@@ -9,6 +9,7 @@
  * - Single-use token caching to prevent token replay attacks.
  * - Safe fail-closed handling on timeout or provider error when enforced.
  * - Configurable enforcement modes: "off" | "audit" | "enforce".
+ * - Production hardening: dummy tokens and silent disabling strictly prohibited in production.
  */
 
 export type TurnstileEnforcementMode = "off" | "audit" | "enforce";
@@ -59,9 +60,19 @@ export class TurnstileService {
 
   /**
    * Get the active enforcement mode from environment.
-   * In production, if unset, defaults to 'enforce' when TURNSTILE_SECRET_KEY is present, else 'off'.
+   * In production, Turnstile CANNOT be disabled via TURNSTILE_ENABLED=false.
    */
   public static getEnforcementMode(): TurnstileEnforcementMode {
+    const isProduction = process.env.NODE_ENV === "production";
+
+    // 1. In production, Turnstile CANNOT be silently disabled via TURNSTILE_ENABLED=false
+    if (isProduction) {
+      if (process.env.TURNSTILE_ENABLED === "false") {
+        console.warn("⚠️ [SECURITY] Attempted to disable Turnstile in production via TURNSTILE_ENABLED=false. Ignoring override; enforcement remains mandatory.");
+      }
+      return "enforce";
+    }
+
     if (process.env.TURNSTILE_ENABLED === "true") {
       return "enforce";
     }
@@ -71,9 +82,6 @@ export class TurnstileService {
     const raw = (process.env.TURNSTILE_ENFORCEMENT_MODE || "").toLowerCase().trim();
     if (raw === "enforce" || raw === "audit" || raw === "off") {
       return raw as TurnstileEnforcementMode;
-    }
-    if (process.env.NODE_ENV === "production" && (process.env.TURNSTILE_SECRET_KEY || process.env.TURNSTILE_SECRET)) {
-      return "enforce";
     }
     return "off";
   }
@@ -99,7 +107,7 @@ export class TurnstileService {
     const mode = this.getEnforcementMode();
     const { token, action, clientIp } = options;
 
-    // 1. If mode is "off", verification is skipped
+    // 1. If mode is "off", verification is skipped (strictly non-production)
     if (mode === "off") {
       return {
         success: true,
@@ -109,25 +117,38 @@ export class TurnstileService {
       };
     }
 
-    // 2. Canonical test dummy tokens accepted in test mode or test secret key configuration
+    // 2. Canonical test dummy tokens accepted ONLY in non-production environments
     const isTestToken =
       token === this.DUMMY_TEST_TOKEN ||
       token === "1x00000000000000000000AA" ||
       token === "test-valid-token";
 
-    if (
-      (process.env.NODE_ENV === "test" && isTestToken) ||
-      ((process.env.TURNSTILE_SECRET_KEY === "1x0000000000000000000000000000000AA" ||
-        process.env.TURNSTILE_SECRET === "1x0000000000000000000000000000000AA") &&
-        isTestToken)
-    ) {
-      return {
-        success: true,
-        status: "bypassed",
-        reason: "Valid test dummy token accepted in test environment.",
-        action,
-        hostname: "localhost",
-      };
+    if (process.env.NODE_ENV !== "production") {
+      if (
+        (process.env.NODE_ENV === "test" && isTestToken) ||
+        ((process.env.TURNSTILE_SECRET_KEY === "1x0000000000000000000000000000000AA" ||
+          process.env.TURNSTILE_SECRET === "1x0000000000000000000000000000000AA") &&
+          isTestToken)
+      ) {
+        return {
+          success: true,
+          status: "bypassed",
+          reason: "Valid test dummy token accepted in test environment.",
+          action,
+          hostname: "localhost",
+        };
+      }
+    } else {
+      // In production, reject any dummy token explicitly
+      if (isTestToken) {
+        return {
+          success: false,
+          status: "rejected",
+          code: "TURNSTILE_DUMMY_TOKEN_IN_PRODUCTION",
+          reason: "Test verification tokens are strictly rejected in production.",
+          action,
+        };
+      }
     }
 
     // 3. Reject missing or empty tokens
@@ -328,15 +349,16 @@ export class TurnstileService {
 }
 
 export function getTurnstileConfig() {
+  const isProduction = process.env.NODE_ENV === "production";
   const secretKey =
     process.env.TURNSTILE_SECRET_KEY ||
     process.env.TURNSTILE_SECRET ||
-    "1x0000000000000000000000000000000AA";
+    (isProduction ? undefined : "1x0000000000000000000000000000000AA");
   const siteKey =
     process.env.TURNSTILE_SITE_KEY ||
     process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
     process.env.VITE_TURNSTILE_SITE_KEY ||
-    "1x00000000000000000000AA";
+    (isProduction ? undefined : "1x00000000000000000000AA");
   const mode = TurnstileService.getEnforcementMode();
   return {
     secretKey,
@@ -384,4 +406,3 @@ export async function verifyTurnstileToken(options: {
 
   return res;
 }
-

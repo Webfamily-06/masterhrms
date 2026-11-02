@@ -9,6 +9,7 @@ export interface JwtPayload {
   tenantId?: string | null;
   roles: string[];
   permissions?: string[];
+  sessionId?: string;
   isImpersonating?: boolean;
   impersonatorUserId?: string;
   impersonatorEmail?: string;

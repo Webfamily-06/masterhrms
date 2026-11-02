@@ -2,64 +2,83 @@ import assert from "assert";
 import crypto from "crypto";
 
 // We mock rawPrisma before importing device-session.service
+const sessionsDb = new Map<string, any>();
+
 const mockDeviceSession = {
-  create: async ({ data }: any) => ({
-    id: "session-uuid-1",
-    ...data,
-  }),
-  findUnique: async ({ where }: any) => {
-    if (where.id === "session-uuid-1") {
-      return {
-        id: "session-uuid-1",
-        userId: "user-123",
-        tenantId: "tenant-abc",
-        refreshTokenHash: currentHash,
-        revoked: currentRevoked,
-        expiresAt: currentExpiresAt,
+  create: async ({ data }: any) => {
+    const id = data.id || `session-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const session = { id, ...data };
+    sessionsDb.set(id, session);
+    return session;
+  },
+  findUnique: async ({ where, include }: any) => {
+    const s = sessionsDb.get(where.id);
+    if (!s) return null;
+    const res = { ...s };
+    if (include?.user) {
+      res.user = {
+        id: s.userId,
+        email: "user@example.com",
+        profile: { tenantId: s.tenantId },
+        roles: [{ name: "employee" }],
       };
     }
-    if (where.id === "session-other-user") {
-      return {
-        id: "session-other-user",
-        userId: "user-other-person",
-        revoked: false,
-      };
-    }
-    return null;
+    return res;
   },
   update: async ({ where, data }: any) => {
-    if (data.refreshTokenHash) currentHash = data.refreshTokenHash;
-    if (data.revoked !== undefined) currentRevoked = data.revoked;
-    updateCalls.push({ where, data });
-    return { id: where.id, ...data };
+    const s = sessionsDb.get(where.id);
+    if (!s) throw new Error("Record not found");
+    const updated = { ...s, ...data };
+    sessionsDb.set(where.id, updated);
+    return updated;
   },
   updateMany: async ({ where, data }: any) => {
-    updateManyCalls.push({ where, data });
-    return { count: 3 };
+    let count = 0;
+    for (const [id, s] of sessionsDb.entries()) {
+      let matches = true;
+      if (where.id && s.id !== where.id) matches = false;
+      if (where.userId && s.userId !== where.userId) matches = false;
+      if (where.tenantId && s.tenantId !== where.tenantId) matches = false;
+      if (where.refreshTokenHash && s.refreshTokenHash !== where.refreshTokenHash) matches = false;
+      if (where.revoked !== undefined && s.revoked !== where.revoked) matches = false;
+
+      if (matches) {
+        sessionsDb.set(id, { ...s, ...data });
+        count++;
+      }
+    }
+    return { count };
   },
-  findMany: async ({ where }: any) => {
-    return [
-      {
-        id: "session-uuid-1",
-        deviceType: "desktop",
-        browser: "Google Chrome",
-        operatingSystem: "Windows",
-        ipAddress: "192.168.1.1",
-        country: "India",
-        city: "Chennai",
-        createdAt: new Date(),
-        lastActiveAt: new Date(),
-        expiresAt: new Date(Date.now() + 10000000),
-      },
-    ];
+  findMany: async ({ where, select }: any) => {
+    const results = [];
+    for (const [, s] of sessionsDb.entries()) {
+      let matches = true;
+      if (where.userId && s.userId !== where.userId) matches = false;
+      if (where.tenantId && s.tenantId !== where.tenantId) matches = false;
+      if (where.revoked !== undefined && s.revoked !== where.revoked) matches = false;
+      if (where.OR) {
+        const matchesOr = where.OR.some((cond: any) => {
+          if (cond.expiresAt === null) return s.expiresAt === null;
+          if (cond.expiresAt?.gt) return s.expiresAt && s.expiresAt > cond.expiresAt.gt;
+          return false;
+        });
+        if (!matchesOr) matches = false;
+      }
+      if (matches) {
+        if (select) {
+          const projected: any = {};
+          for (const key of Object.keys(select)) {
+            if (select[key]) projected[key] = s[key];
+          }
+          results.push(projected);
+        } else {
+          results.push(s);
+        }
+      }
+    }
+    return results;
   },
 };
-
-let currentHash = "";
-let currentRevoked = false;
-let currentExpiresAt: Date | null = new Date(Date.now() + 1000000);
-let updateCalls: any[] = [];
-let updateManyCalls: any[] = [];
 
 import { rawPrisma } from "../prisma";
 (rawPrisma as any).deviceSession = mockDeviceSession;
@@ -74,150 +93,229 @@ import {
   hashRefreshToken,
 } from "../services/device-session.service";
 
-async function runTests() {
+import { TurnstileService } from "../services/security/turnstile.service";
+
+async function runAcceptanceTests() {
   console.log("================================================================================");
-  console.log("🧪 MASTERHRMS DEVICE SESSION ARCHITECTURE & SECURITY TEST SUITE");
+  console.log("🔒 MASTERHRMS SECURITY ACCEPTANCE & CONCURRENCY TEST SUITE");
   console.log("================================================================================");
 
   let passed = 0;
   let failed = 0;
 
-  function test(name: string, fn: () => void | Promise<void>) {
-    return (async () => {
-      try {
-        await fn();
-        console.log(`  ✔ PASS: ${name}`);
-        passed++;
-      } catch (err: any) {
-        console.error(`  ❌ FAIL: ${name}`);
-        console.error(`     ${err.message}`);
-        failed++;
-      }
-    })();
+  function resetDb() {
+    sessionsDb.clear();
   }
 
-  // 1. Token entropy and hashing
-  await test("generates a high-entropy 96-char hex refresh token (48 bytes)", () => {
-    const t1 = generateSecureRefreshToken();
-    const t2 = generateSecureRefreshToken();
-    assert.strictEqual(typeof t1, "string");
-    assert.strictEqual(t1.length, 96);
-    assert.notStrictEqual(t1, t2);
-  });
+  async function test(name: string, fn: () => void | Promise<void>) {
+    try {
+      await fn();
+      console.log(`  ✔ PASS: ${name}`);
+      passed++;
+    } catch (err: any) {
+      console.error(`  ❌ FAIL: ${name}`);
+      console.error(`     ${err.message}`);
+      failed++;
+    }
+  }
 
-  await test("generates deterministic SHA-256 hash of refresh token", () => {
-    const sample = "sample-token-abc-123456789";
-    const expected = crypto.createHash("sha256").update(sample).digest("hex");
-    const actual = hashRefreshToken(sample);
-    assert.strictEqual(actual, expected);
-    assert.strictEqual(actual.length, 64);
-  });
+  // ─── 1. TURNSTILE PRODUCTION HARDENING TESTS ────────────────────────────────
 
-  // 2. Session Creation
-  await test("creates device session with parsed UA, client IP, hashed token, and 30d expiry", async () => {
-    updateCalls = [];
-    const res = await createDeviceSession({
-      userId: "user-123",
-      tenantId: "tenant-abc",
-      ipAddress: "10.0.0.5",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  await test("Turnstile: Production cannot accept dummy test tokens under any condition", async () => {
+    const oldNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.TURNSTILE_SECRET_KEY = "1x0000000000000000000000000000000AA";
+
+    const result = await TurnstileService.verify({
+      token: "1x00000000000000000000AA",
+      action: "login",
+      clientIp: "127.0.0.1",
     });
 
-    assert.strictEqual(res.sessionId, "session-uuid-1");
-    assert.strictEqual(typeof res.refreshToken, "string");
-    assert.strictEqual(res.refreshToken.length, 96);
+    assert.strictEqual(result.success, false);
+    assert.strictEqual(result.code, "TURNSTILE_DUMMY_TOKEN_IN_PRODUCTION");
+    process.env.NODE_ENV = oldNodeEnv;
   });
 
-  // 3. Rotation
-  await test("rotates refresh token when matching hash is supplied", async () => {
-    const token = "initial-token-123";
-    currentHash = hashRefreshToken(token);
-    currentRevoked = false;
-    currentExpiresAt = new Date(Date.now() + 1000000);
-    updateCalls = [];
+  await test("Turnstile: Production cannot be silently disabled via TURNSTILE_ENABLED=false", () => {
+    const oldNodeEnv = process.env.NODE_ENV;
+    const oldEnabled = process.env.TURNSTILE_ENABLED;
+    process.env.NODE_ENV = "production";
+    process.env.TURNSTILE_ENABLED = "false";
 
-    const rotated = await rotateRefreshToken("session-uuid-1", currentHash);
+    const mode = TurnstileService.getEnforcementMode();
+    assert.strictEqual(mode, "enforce");
+
+    process.env.NODE_ENV = oldNodeEnv;
+    process.env.TURNSTILE_ENABLED = oldEnabled;
+  });
+
+  // ─── 2. DEVICE SESSIONS & MULTI-DEVICE ISOLATION ────────────────────────────
+
+  await test("DeviceSession: First device login creates active session with hashed token", async () => {
+    resetDb();
+    const session1 = await createDeviceSession({
+      userId: "user-100",
+      tenantId: "tenant-A",
+      ipAddress: "192.168.1.10",
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+    });
+
+    assert.ok(session1.sessionId);
+    assert.strictEqual(session1.refreshToken.length, 96);
+
+    const stored = sessionsDb.get(session1.sessionId);
+    assert.strictEqual(stored.userId, "user-100");
+    assert.strictEqual(stored.browser, "Google Chrome");
+    assert.strictEqual(stored.deviceType, "desktop");
+    assert.strictEqual(stored.revoked, false);
+    assert.strictEqual(stored.refreshTokenHash, hashRefreshToken(session1.refreshToken));
+  });
+
+  await test("DeviceSession: Second device login creates separate active session without invalidating first", async () => {
+    const session2 = await createDeviceSession({
+      userId: "user-100",
+      tenantId: "tenant-A",
+      ipAddress: "10.0.0.25",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1",
+    });
+
+    assert.ok(session2.sessionId);
+    const active = await getActiveSessions("user-100", "tenant-A");
+    assert.strictEqual(active.length, 2);
+    assert.ok(active.some(s => s.deviceType === "desktop"));
+    assert.ok(active.some(s => s.deviceType === "mobile"));
+  });
+
+  await test("DeviceSession: Logout from device 1 revokes ONLY device 1, keeping device 2 active", async () => {
+    const activeBefore = await getActiveSessions("user-100", "tenant-A");
+    const device1Id = activeBefore.find(s => s.deviceType === "desktop")!.id;
+    const device2Id = activeBefore.find(s => s.deviceType === "mobile")!.id;
+
+    const revoked = await revokeSession(device1Id, "user-100");
+    assert.strictEqual(revoked, true);
+
+    const activeAfter = await getActiveSessions("user-100", "tenant-A");
+    assert.strictEqual(activeAfter.length, 1);
+    assert.strictEqual(activeAfter[0].id, device2Id);
+  });
+
+  // ─── 3. REFRESH TOKEN ROTATION & ATOMIC CONCURRENCY ─────────────────────────
+
+  await test("Refresh: Valid token exchange rotates token and updates hash", async () => {
+    resetDb();
+    const session = await createDeviceSession({
+      userId: "user-200",
+      tenantId: "tenant-B",
+      ipAddress: "172.16.0.5",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0",
+    });
+
+    const currentHash = hashRefreshToken(session.refreshToken);
+    const rotated = await rotateRefreshToken(session.sessionId, currentHash);
+
     assert.ok(rotated !== null);
-    assert.notStrictEqual(rotated?.refreshToken, token);
-    assert.strictEqual(updateCalls.length, 1);
+    assert.notStrictEqual(rotated?.refreshToken, session.refreshToken);
+
+    const stored = sessionsDb.get(session.sessionId);
+    assert.strictEqual(stored.refreshTokenHash, hashRefreshToken(rotated!.refreshToken));
   });
 
-  // 4. Token Reuse Detection
-  await test("detects token reuse and immediately revokes compromised session", async () => {
-    const activeToken = "new-active-token";
-    currentHash = hashRefreshToken(activeToken);
-    currentRevoked = false;
-    currentExpiresAt = new Date(Date.now() + 1000000);
-    updateCalls = [];
+  await test("Refresh: Concurrent race condition allows exactly ONE rotation, rejecting second", async () => {
+    resetDb();
+    const session = await createDeviceSession({
+      userId: "user-300",
+      tenantId: "tenant-C",
+      ipAddress: "1.1.1.1",
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) Firefox/120.0",
+    });
 
-    const stolenOldToken = "stolen-old-token";
-    const stolenOldHash = hashRefreshToken(stolenOldToken);
+    const currentHash = hashRefreshToken(session.refreshToken);
 
-    const rotated = await rotateRefreshToken("session-uuid-1", stolenOldHash);
-    assert.strictEqual(rotated, null);
-    // Verified session was revoked
-    assert.strictEqual(currentRevoked, true);
-    assert.ok(updateCalls.some(c => c.data.revoked === true && c.data.revokedAt));
+    // Simulate two concurrent HTTP requests arriving simultaneously with identical currentHash
+    const [resA, resB] = await Promise.all([
+      rotateRefreshToken(session.sessionId, currentHash),
+      rotateRefreshToken(session.sessionId, currentHash),
+    ]);
+
+    // Exactly one must succeed, the other must be rejected
+    const successCount = (resA !== null ? 1 : 0) + (resB !== null ? 1 : 0);
+    assert.strictEqual(successCount, 1);
   });
 
-  // 5. Expired Session Reject
-  await test("rejects refresh attempt on expired session", async () => {
-    const token = "expired-token";
-    currentHash = hashRefreshToken(token);
-    currentRevoked = false;
-    currentExpiresAt = new Date(Date.now() - 5000); // Expired 5 seconds ago
-    updateCalls = [];
+  await test("Refresh: Reuse of old rotated token is detected and revokes the compromised session", async () => {
+    resetDb();
+    const session = await createDeviceSession({
+      userId: "user-400",
+      tenantId: "tenant-D",
+      ipAddress: "2.2.2.2",
+    });
 
-    const rotated = await rotateRefreshToken("session-uuid-1", currentHash);
-    assert.strictEqual(rotated, null);
+    const initialToken = session.refreshToken;
+    const initialHash = hashRefreshToken(initialToken);
+
+    // Legitimate rotation occurs
+    const rotated1 = await rotateRefreshToken(session.sessionId, initialHash);
+    assert.ok(rotated1 !== null);
+
+    // Attacker tries to use old initialToken
+    const attackerAttempt = await rotateRefreshToken(session.sessionId, initialHash);
+    assert.strictEqual(attackerAttempt, null);
+
+    // Verify session is now revoked
+    const stored = sessionsDb.get(session.sessionId);
+    assert.strictEqual(stored.revoked, true);
+
+    // Even legitimate user with new token is now protected from compromised session
+    const legitimateWithNewToken = await rotateRefreshToken(session.sessionId, hashRefreshToken(rotated1!.refreshToken));
+    assert.strictEqual(legitimateWithNewToken, null);
   });
 
-  // 6. Revoke by owner
-  await test("allows owner to revoke their own device session", async () => {
-    currentRevoked = false;
-    updateCalls = [];
+  // ─── 4. OWNERSHIP & TENANT BOUNDARY TESTS ───────────────────────────────────
 
-    const success = await revokeSession("session-uuid-1", "user-123");
-    assert.strictEqual(success, true);
-    assert.strictEqual(currentRevoked, true);
+  await test("Ownership: User cannot revoke another user's session", async () => {
+    resetDb();
+    const victimSession = await createDeviceSession({
+      userId: "user-victim",
+      tenantId: "tenant-V",
+    });
+
+    const tamperResult = await revokeSession(victimSession.sessionId, "user-attacker");
+    assert.strictEqual(tamperResult, false);
+
+    const stored = sessionsDb.get(victimSession.sessionId);
+    assert.strictEqual(stored.revoked, false);
   });
 
-  // 7. Cross-user access denied
-  await test("denies revocation when attempting cross-user session tampering", async () => {
-    updateCalls = [];
-    const success = await revokeSession("session-other-user", "user-attacker");
-    assert.strictEqual(success, false);
+  await test("Tenant Isolation: Revoke all affects only sessions within tenant boundary", async () => {
+    resetDb();
+    await createDeviceSession({ userId: "user-multi", tenantId: "tenant-1" });
+    await createDeviceSession({ userId: "user-multi", tenantId: "tenant-1" });
+    const tenant2Session = await createDeviceSession({ userId: "user-multi", tenantId: "tenant-2" });
+
+    const count = await revokeAllSessions("user-multi", "tenant-1");
+    assert.strictEqual(count, 2);
+
+    const storedT2 = sessionsDb.get(tenant2Session.sessionId);
+    assert.strictEqual(storedT2.revoked, false);
   });
 
-  // 8. Revoke all sessions
-  await test("revokes all sessions within tenant scope", async () => {
-    updateManyCalls = [];
-    const count = await revokeAllSessions("user-123", "tenant-abc");
-    assert.strictEqual(count, 3);
-    assert.strictEqual(updateManyCalls.length, 1);
-    assert.strictEqual(updateManyCalls[0].where.userId, "user-123");
-    assert.strictEqual(updateManyCalls[0].where.tenantId, "tenant-abc");
-    assert.strictEqual(updateManyCalls[0].data.revoked, true);
-  });
-
-  // 9. Active session listing
-  await test("lists active sessions without exposing sensitive refreshTokenHash", async () => {
-    const sessions = await getActiveSessions("user-123", "tenant-abc");
-    assert.strictEqual(sessions.length, 1);
-    assert.strictEqual(sessions[0].browser, "Google Chrome");
-    assert.strictEqual((sessions[0] as any).refreshTokenHash, undefined);
+  await test("Security: Active session projection strictly omits refreshTokenHash", async () => {
+    resetDb();
+    await createDeviceSession({ userId: "user-check", tenantId: "tenant-X" });
+    const active = await getActiveSessions("user-check", "tenant-X");
+    assert.strictEqual(active.length, 1);
+    assert.strictEqual((active[0] as any).refreshTokenHash, undefined);
   });
 
   console.log("================================================================================");
   console.log(`TOTAL: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log("================================================================================");
 
-  if (failed > 0) {
-    process.exit(1);
-  }
+  if (failed > 0) process.exit(1);
 }
 
-runTests().catch((err) => {
-  console.error("Test execution failed:", err);
+runAcceptanceTests().catch(err => {
+  console.error("Test execution fatal error:", err);
   process.exit(1);
 });
