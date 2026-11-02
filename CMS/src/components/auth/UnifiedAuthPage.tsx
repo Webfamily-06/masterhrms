@@ -70,6 +70,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileReady, setTurnstileReady] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params
@@ -232,6 +233,10 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
 
     if (!cleanEmail) return toast.error('Please enter your work email address');
     if (!cleanPassword) return toast.error('Please enter your account password');
+    if (!turnstileToken) {
+      toast.error('Please complete the security verification challenge.');
+      return;
+    }
 
     setLoading(true);
 
@@ -918,15 +923,15 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
             <TurnstileWidget
               ref={turnstileRef}
               action={mode === 'signup' ? 'signup' : 'login'}
-              onSuccess={(t) => setTurnstileToken(t)}
-              onExpire={() => setTurnstileToken('')}
-              onError={() => {}}
+              onSuccess={(t) => { setTurnstileToken(t); setTurnstileReady(true); }}
+              onExpire={() => { setTurnstileToken(''); setTurnstileReady(false); }}
+              onError={() => { setTurnstileReady(false); toast.error('Security verification failed. Please refresh and try again.'); }}
             />
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 cursor-pointer transition-colors flex items-center justify-center gap-2"
+              disabled={loading || !turnstileReady}
+              className="w-full bg-primary text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 cursor-pointer transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading && <Loader2 className="size-4 animate-spin" />}
               {mode === 'signin' ? 'Sign In' : 'Sign Up'}

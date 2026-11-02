@@ -9,31 +9,85 @@ const RAW_API_URL =
   typeof process !== "undefined"
     ? process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || ""
     : "";
-const SOCKET_URL = RAW_API_URL
+
+// Derive the base origin from the API URL (strips /api suffix).
+// Used for Pusher authEndpoint and legacy Socket.IO when an explicit socket URL is set.
+const DERIVED_BASE_URL = RAW_API_URL
   ? RAW_API_URL.replace(/\/api\/?$/, "")
-  : (typeof window !== "undefined" &&
-    window.location.hostname !== "localhost" &&
-    window.location.hostname !== "127.0.0.1" &&
-    !window.location.hostname.endsWith(".localhost")
-      ? window.location.origin
-      : "http://localhost:4000");
+  : "http://localhost:4000";
+
+// SOCKET_URL is only set when a dedicated Socket.IO server is explicitly configured.
+// On Vercel serverless (no NEXT_PUBLIC_SOCKET_URL), this is null and Socket.IO is disabled.
+const EXPLICIT_SOCKET_URL =
+  typeof process !== "undefined"
+    ? process.env.NEXT_PUBLIC_SOCKET_URL || ""
+    : "";
+
+const IS_LOCAL =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.endsWith(".localhost"));
+
+// null = no Socket.IO server available (Vercel serverless without explicit socket URL).
+// When null, getSocketClient() returns a disabled no-op-like socket.
+const SOCKET_URL: string | null = EXPLICIT_SOCKET_URL
+  ? EXPLICIT_SOCKET_URL
+  : IS_LOCAL
+  ? "http://localhost:4000"
+  : null;
+
+// Stable base URL for Pusher auth — always available regardless of Socket.IO status.
+const PUSHER_BASE_URL =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
+    ? process.env.NEXT_PUBLIC_SOCKET_URL.replace(/\/api\/?$/, "")
+    : DERIVED_BASE_URL;
 
 let globalSocket: Socket | null = null;
 
+/** Returns true when Socket.IO is intentionally disabled on this deployment. */
+export function isSocketDisabled(): boolean {
+  return SOCKET_URL === null;
+}
+
 export function getSocketClient(): Socket {
+  // When no Socket.IO server is available (e.g. Vercel serverless), return a disconnected
+  // socket that does NOT auto-connect and does NOT retry, preventing 404 reconnect loops.
+  if (SOCKET_URL === null) {
+    if (!globalSocket) {
+      // Create a socket pointed at a placeholder — it will never connect because autoConnect
+      // is false and we never call .connect() on it.
+      globalSocket = io("http://localhost:4000", {
+        autoConnect: false,
+        reconnection: false,
+      });
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          "⚡ [SOCKET_CLIENT] No NEXT_PUBLIC_SOCKET_URL configured — Socket.IO is disabled on this deployment. " +
+          "Realtime features are handled by Pusher."
+        );
+      }
+    }
+    return globalSocket;
+  }
+
   if (!globalSocket) {
     globalSocket = io(SOCKET_URL, {
       transports: ["websocket", "polling"],
       auth: (callback) => callback({ token: localStorage.getItem("hrms_auth_token") }),
-      autoConnect: true,
+      autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
     });
     globalSocket.on("connect", () => {
       if (process.env.NODE_ENV !== "production") console.log("⚡ [SOCKET_CLIENT] Connected! socketId:", globalSocket?.id);
     });
-    globalSocket.on("connect_error", (err) => console.error("⚡ [SOCKET_CLIENT] Connection error:", err.message));
+    globalSocket.on("connect_error", (err) => {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("⚡ [SOCKET_CLIENT] Connection error:", err.message);
+      }
+    });
     if (typeof window !== "undefined") (window as any).__socket = globalSocket;
     const reconnect = () => {
       globalSocket?.disconnect();
@@ -408,7 +462,7 @@ export function useRealtimeSocket() {
           const token = localStorage.getItem("hrms_auth_token");
           pusherClient = new PusherClient(cfg.key, {
             cluster: cfg.cluster || "ap2",
-            authEndpoint: `${SOCKET_URL}/api/pusher/auth`,
+            authEndpoint: `${PUSHER_BASE_URL}/api/pusher/auth`,
             auth: {
               headers: {
                 Authorization: `Bearer ${token}`,
