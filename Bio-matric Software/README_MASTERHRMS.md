@@ -62,3 +62,4 @@ You can configure the machine directly through its keypad/touchscreen:
   4. Subsequent punches log into `BiometricPunchLog`.
   5. Last punch of the day records **Check-Out** and computes working hours.
   6. Live attendance updates instantly appear on the HR and Employee Dashboards via WebSockets.
+
