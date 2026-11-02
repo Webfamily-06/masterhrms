@@ -36,3 +36,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('terminal:status', handler);
   }
 });
+

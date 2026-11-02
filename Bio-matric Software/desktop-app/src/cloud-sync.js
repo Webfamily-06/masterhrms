@@ -171,3 +171,4 @@ class CloudSync {
 }
 
 module.exports = new CloudSync();
+

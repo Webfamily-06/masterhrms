@@ -109,3 +109,4 @@ npm run build:linux
 5. **Diagnostics & DLLs:**
    - Automated environment health checks (Firewall, Sockets, Gateway latency).
    - Maintenance utilities (Speaker buzzer test, memory integrity, cache purge).
+

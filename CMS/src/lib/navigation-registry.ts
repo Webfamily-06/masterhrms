@@ -224,6 +224,79 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "route": "/hr/attendance/policies",
         "icon": "ShieldCheck",
         "order": 125
+      },
+      {
+        "id": "hr-att-biometric-hub",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Biometric Hardware Hub",
+        "route": "/biometric-sync",
+        "icon": "Fingerprint",
+        "order": 126,
+        "moduleKey": "biometric-sync"
+      }
+    ]
+  },
+  {
+    "id": "hr-biometric-suite",
+    "portal": "hr",
+    "module": "attendance",
+    "label": "Biometric Hardware Hub",
+    "route": "/biometric-sync",
+    "icon": "Fingerprint",
+    "order": 129,
+    "section": "Workforce Management",
+    "moduleKey": "biometric-sync",
+    "children": [
+      {
+        "id": "hr-biometric-overview",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Terminal Overview",
+        "route": "/biometric-sync",
+        "icon": "LayoutDashboard",
+        "order": 129.1,
+        "moduleKey": "biometric-sync"
+      },
+      {
+        "id": "hr-biometric-adms",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Cloud ADMS Setup",
+        "route": "/biometric-sync?tab=adms",
+        "icon": "Cloud",
+        "order": 129.2,
+        "moduleKey": "biometric-sync"
+      },
+      {
+        "id": "hr-biometric-employees",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Employee Mapping",
+        "route": "/biometric-sync?tab=employees",
+        "icon": "Users",
+        "order": 129.3,
+        "moduleKey": "biometric-sync"
+      },
+      {
+        "id": "hr-biometric-logs",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Punch Audit Logs",
+        "route": "/biometric-sync?tab=logs",
+        "icon": "Clock",
+        "order": 129.4,
+        "moduleKey": "biometric-sync"
+      },
+      {
+        "id": "hr-biometric-diagnostics",
+        "portal": "hr",
+        "module": "attendance",
+        "label": "Diagnostics & DLLs",
+        "route": "/biometric-sync?tab=diagnostics",
+        "icon": "Cpu",
+        "order": 129.5,
+        "moduleKey": "biometric-sync"
       }
     ]
   },
@@ -1593,7 +1666,18 @@ export function getNavigationForPortal(
   context: UserNavigationContext = {}
 ): NavigationItem[] {
   if (portal === "tenant") {
-    return TENANT_NAVIGATION_REGISTRY.map((t) => ({
+    const { enabledModules = [], isSuperAdmin = false } = context;
+    return TENANT_NAVIGATION_REGISTRY.filter((t) => {
+      const feat = t.planFeature || t.moduleKey;
+      if (feat && !isSuperAdmin) {
+        const isBiometric = feat === "biometric-sync" || feat === "biometric" || feat === "biometrics";
+        const hasAddon = isBiometric
+          ? enabledModules.some((m) => m === "biometric-sync" || m === "biometric" || m === "biometrics")
+          : enabledModules.includes(feat);
+        if (!hasAddon) return false;
+      }
+      return true;
+    }).map((t) => ({
       id: t.id,
       portal: "tenant" as PortalId,
       module: "tenant",
@@ -1639,6 +1723,7 @@ export function getNavigationForPortal(
         }
         const isEnabled =
           enabledModules.includes(modKey) ||
+          ((modKey === "biometric-sync" || modKey === "biometric") && (enabledModules.includes("biometric-sync") || enabledModules.includes("biometric") || enabledModules.includes("biometrics"))) ||
           (modKey === "crm" && enabledModules.includes("product_crm")) ||
           (modKey === "pos" && (enabledModules.includes("product_pos") || enabledModules.includes("inventory"))) ||
           (modKey === "accounting" && (enabledModules.includes("finance") || enabledModules.includes("product_finance")));
@@ -1683,6 +1768,7 @@ export function getNavigationForPortal(
           }
           const isEnabled =
             enabledModules.includes(childModKey) ||
+            ((childModKey === "biometric-sync" || childModKey === "biometric") && (enabledModules.includes("biometric-sync") || enabledModules.includes("biometric") || enabledModules.includes("biometrics"))) ||
             (childModKey === "crm" && enabledModules.includes("product_crm")) ||
             (childModKey === "pos" && (enabledModules.includes("product_pos") || enabledModules.includes("inventory"))) ||
             (childModKey === "accounting" && (enabledModules.includes("finance") || enabledModules.includes("product_finance")));

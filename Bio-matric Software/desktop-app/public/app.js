@@ -152,7 +152,7 @@ function appendPunchRow(data) {
     <td><span class="card-badge card-badge-green">${data.verifyMode || 'Fingerprint'}</span></td>
     <td class="mono">${data.displayTime || new Date().toLocaleTimeString()}</td>
     <td style="color: #60a5fa; font-weight: 600;">${data.inOutState || 'Check-In'}</td>
-    <td><span class="badge-synced">✓ Synced to DB</span></td>
+    <td><span class="badge-synced">Synced to DB</span></td>
   `;
   tbody.insertBefore(row, tbody.firstChild);
 }
@@ -215,3 +215,4 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+

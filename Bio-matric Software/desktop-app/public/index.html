@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <title>MasterHRMS Biometric Device Manager — macOS Sequoia Glassmorphism</title>
   <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAYAAACOEfKtAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAgAElEQVR4nO2cB3CTZ7rvHwgB3NWLZVuW5SLJveAiWZZc1GzJRe69996xsXG3wcYGAgkYGxNqaAlgwJSEtE05SXaTbPbm3rPZ3VO23HP37Dl7k91NI+DnzvdKNpBkQ87AmeTO8Mz85/uswWL8m//z9ucFeBSP4lE8ikfxKB7Fo3gU9401XxOJtVbdHdTP6wBgPQDYfos2WrXuW373m9/0bf/DjyZ0OoNVOiKD1mAV9a6DZKOJKCk5CRKTTZBoTgF9Sgp5TzKlgMFggqTEFDAlGcGYmARJSUnk58TEHBge3L++qmaCs2PXRcd3f/639V/ewscCQtIgMCwVQiKSIXhTAgQEhUFwcDAEBQVBcHAoBAWGkPegoAAIDvKDeFWMRTFqiFOpQa2OIYqJVRP94KGzgrujbwI0me4FaEg1g8GYAUmmPNDockCvy4WkpFzQ6cwEXJKpAAyGEsjO7dUIhKb/zXM1/5O7V967koCy5wPCKnYr4hqL03IHwuaPvmznG6iGgCAlBAREQ2CQAgICI8HfPxhCQ0PvA9AC8QcPnU4DOn285WkFuOJIjV4DSZTTvi5jJiQmloNGWwdDo6fWK+NqU4I2FYxskhe3pGRu9knQ10OCvhaS0/uyeG7Zt509K5ESz6MceR6lyHbPRaYwY5kjSvnYQ5J+wy84t9OU2hX4+Re4JihYB4GBKggOiiDOjFPHEHBxqjhQqylRzlsBGPND4wMLPCtAjV4HGp0BEvRJkKAzQYIuBfSmbEg0WhxGgTMkmcBoygGdvg5m595+3D+kere7T8mnImkFCqWlt4XSwg91pv5AtaYZUrNGM7iiktsC7xbki5tR4NWGPI8G5IlrUOBTgyxRITKFOch0Tl/muWb8m7s443CEvETb1rbLLjAgnrgyRqUHtUoLalUCxKjjLCLp+yMBaNDdcZ8FngHi9CkQp80HVUIZaJIaQWtoBkNiCxj0VZCUnAWJpkwCUB3fnSiUVC6L/JvRM2QzeoZ0oWdwK0qCa9+5/sp/rEvOGE3neFTeFvh0orN3Fwp8upHn1Y5cz2bkeNYhW1yNbFEFcoTlyHErRq5LHrL5abdc3Uw/j1aWF11/4TcbY2LyIUZpBkV0vAXcPRB/BCls0GmIqLSlXBenT4M4fQGUVuwICA6rngkJb3o+JLzleuimlvGKyid8NEkloDEWgD6pCUIi6ka9g1rRO6wPPcOHUbxpK3pt2ozu/jU3+4YXRalZ2zI5HtW3naWbke/TgzzvzURcr07keDUjy7MB2R61yBLVIEtYjWy3cmS55CPbJRvpnKTbzm7Gn8bGNmiPP/MPj8lVJlAnJIIyNuFHBlBr6SwIQG06xMaXgD6xo9xLVvqlLKgN/cO2EMmCO9EroPpvxqytigRTE2gSmyE0qrZVFtaGkshB9JaPoFfUMErl/SgOavh09tB7nBTzthwXr7plV2kPuvj0ootPHwq8t6Cz12bkeXZanChegVhHIDKF5Uh3taa2ixkd6brbXt6Zhzs2zzIVKjMo1dpVeFR7+IOHQbvSaVAAM2Fg4ATTN6Dij0HhXRgcMYgB4SMYEDmKwdGj6B/Vg0FRzW88/+p/rjMYmyG3aEwsDW74D1n4FvSLHkK/6AGURXUtR2l65r64hWtTzOO5Ll41y26+m9FFstkKsRcF3j0kpVfTmUBsJBDpwnKkCUuQJixAhjAPWYIspLGNyxxnwy9i4spjFOrkVRdSAP/bx4lVNTVW1RHVVFtVU0NUVlplVQWUlDSB0dheGBLWiMGRvRgoH8IAxQT6R1Maw6DoIQyRd98aGrsUlJ3ZDLnZrZBftFMVGdP3RuCmzs8CN7X+Uanpnu/eeoLmG5wFKVlD6Rz3wtsC7yZ0lXWiq7QbnaVdyJd0I1/SiRzPVpLOTA8qnZuQ692MdFEl0kTF6OReRCDSBNlI42cgnZeMdK7mY4WqsODL27jGR+oPUqkPmJNTIDXJBGnGZDCnpkJyskXUGJXSQwRYcwfedwA0mTp2bpK3YlB0P4bGTWJQ3BQGxU5jSOwUhsZOYFj0ViyteDIjN6cZsrPqISA4Gz6/iWuv3/grrbXzuG/QpqIisTRpROSjm0vO6i2taV3wUSf2q0OiWwt8wxt7fEKaTgl96/+d71mLbr4dyPRoJCApgHRRLTI9KYCl6ERcWIKOglwrxCwC0ZER86U0ILH/hRffWect8YNUUyqBR0Gk3k3GFCJjcirRA0dNTdXXdC/IstIKC7yyCigubYKs3K01ETGdGBY/iqGanRiq2W3VToxImMJw9dBXU7tfl6Slt0F6ZhPsnb38eISyWCfxz7jG4MbcpHEUSONEoRM7HMOVOZsjlBkQpUwFuToV5KoMiIjJhXOXfuUYq91S4SWreYsvrvqS71mPPG9LKnM8a5ApqkS6sAZprlWkPaQL8pDBz0UGLwMZvER0oEUuSwMSh766hWuSTRlgSkwm8Fbcl5ycDMYUI9EDR2111apWIJJ0rm6BqqoO4rri0gaiwtIOmJheZCm1vX8Nix/GKMMMhut3EkXodmKUbgoTjBNvfn4L16ZlbIaisq3eHNfIG0x+xBcUNCZPiRRAJl+BDsxQlKuyOqOVelBGq0CpVoJSrQJFjBailWmgUBZBW/vTNsqEHqXYt+bnfHHVMk9UjZQ4HtXIdK1DhmsVMtxKkOFCQSxAhnM2snhmZLC1aE+P/CpKkVN+8yauSUnOBpMxHVKS0/87ANasqqq6AqrrqqGipgmqqgagvGIcbi7j2s+XcU1ReR8UlQ1CXvE4mPMmK5VJQ18qEicwxjiDcv0OVOp3Yqxh+1+KqvYovljGNfLY0ky2QPFHlrMcWc7RyOLHIIuvRiZPRd5p3AhUxeW1qaN1EKdUgTpGSaRSqUAVEw/KGB1EK1PAS6qDwfFFh03RbfUuHmX/znUrR46wEjketch0q0SmaxkyXIqRLihCBj9/NZVpbD06MBR/UyrzdEZjESQmZUByatoqOAoiBfOhAKyrqYWqqhqorK6H6ro2OHbyeZvissliY8rwdU3K4G+0aQNvFlftLN+x+6pjbuEE5JZMQ/Pm5wKNOTvPxaWMf6Qzb//H9Lw9c+NTL4o/v41rI5W5DSxn+U2uaxyyBao7co5FtnM8eTJ4kahQZTSrlRpIiFZBHAVQpSBSqSiQSlCq4sHXXwkSfx2IJSaobVrgiWWV77Bdi8jgmuVuBSgoJQBpzvnoxM9BJ54ZHbkmpHG0SGNG/qaqdoRHzZaMqelgTLG4jzjRZH7w/pmkbFUVVNU1QmVdFzR37HJOSum5HqvtvxWXtA1jU3eiwrgdNWnjtxLNIzc6N59yKyzZC3kFe+Hqjb+sO3zmFw6Hz/7M/tOvcG1WTjco5DnVHp6xX4q89Cj00KObpwHdPHVWGdDdMxldPRLRxSMOVXE5jaoYDahjLA5cBadWgVIVawHoFwbeklDw8YsEH78EyCna4SzyKV9kuhXcpiAyXSqQIShHunOJFWAWOvLNaM8zoQOXuHDZ3VNz8tTZVx+jFjeMyWbSeVDwHhJAynk1UFHXCq+/8y+PmzL6TmhNo6gx7cD4lN2oTt+PKvNejDc/gQkp2zExbeKtM8/99rH8wh2QVzgGGfkdkFnUDFl5jdDYOOoik2n/4hdgQolvGvqFZKM0MM2qFPL0DcpBib8ZffyTMN5Q1KhUWQCS1FWp7oJnASiTBoC/fyDIAv1BGrAJvGVaaO0+6iD0LniJ7Vqw6kAnQRE6CvLRwTkL7flmtONTABPRiR1PtYfLClW+xmAqIVNNCiIB+DBSuK6hEeqbu6G6cRBKqyfM+tSBT3XmKdSm70FN+j7UmGcxIeMAarLnUZM1iwlpM1jbdjimoXUS6hr6oKC0HgrLmmD79IKNXJl5NVyei+HyQtwkLyYKjy6yqoBokyLf+sxFo7m60bJwuvbvymgwra4jUgsVWkMaaA3FkFswLHIT57xFIApLkSYsQgdBPtoLstDWecWBiaQtpLHikeus+ll6ZgvPXewPYi9v8BB5godQ/OAAG5qaoa5xM1Q3jEJmwci03jyBhvQnUJc5i7rMOTRkzKE+cwF1uUdRm3MI9Vn7saRutrWuaQDqG5uguLwKCkpqoKisXR+nKbwVr6vCWF0dqvVWaWusqiJSactRrStDlbYUswtaW/4rAC0Qk8BgNJP1xNyCYX+mi/kThrAAndwK0d61AG1dctDWOQPteSnowDGiIycRHVkJVCqjt0TXKxKHgNhTQgB6i70fBsBGqGvqgtr6ccjKn9huytiJxqxZNGYfwsScw+RpzH0ajQXHMCn/MKbmP42ltXOb65r6Cfzishr48hauycytO5VirkOTuQWN5jZMTLfIlN5+RxmtaDS3oCmjGY3pDVhR19d5P4BJiaY7SkqCRFMi6BMNkJhkJk6MUtWX2PPSviADamER2jvnob0gBx15GejITUEHtoF0Jg50FTI50f+ald3EFXn4g9jDB8Tih+DAuoZ6aGzqJgBLK3eWpmbtvJmaM4/JeYdXRUFLLTqCaYWHML1wARvbjxrrW/qgqbUF8osrYN/sCYeCkvZfFZZsxryifswtHsDskn4i6t2ifswt2YLZRb2YW9KD2cVd2Nw13mvZF/keAK0O1CfpCETKibrETGpcusFZlPMSzTmXtINUGjs4WwBSLnTiG9GBo0EHRjza0+TLmyIzStxFoSASS0EkEj0EBzY0QGNTJ9TVD8Pcwmu0rPyZd9Lz92Nm8SECLC1/gUAzF89jdtk8FlXOffTyG39aT6U9BbCkvB66e7b5VdRs+ay2fhzLqkewvG4CKxq3YWXTdqyov1sTWNEwiqW1A0Rd/dOD3w0QwGDUg8GotT71qyBJOiemg5u7CiLk9Xo7ZupXTvw8As9BkGHtiVPQlmNAe44O7ak0ZsYgi6f49dETL9pQLhSJvR4SwMZWqG/sh5rG7VDfNmfIKJj5c1bpLGaUHsScssOYXbaAuWUHsLh6/+/7h87I65u3Q1NrN7S2d5AZiiGxIEcdn7vc0b0bmzt2YXPXbmzomsHW3iewpftu7cKWzTPY3D2NTV2TODj+1Nh3AlwDoDPpQWfSrkK0bEpZHWlIA5FHJPQNHLcVCLPfYAryyDDmDsA0tOUkoS1Xh3ZsCqAaNzpsWpbH5OmptlAk9nnwYUxrcws0N7VCQ2MXUB3DZ7dxTdfgMUVmycyNrLJ9n2SVzn2eXTL7SWnt3PND284paprGoKF1C9S3UL/TSubH6risbjYvCDW6MhwaO4y9Qwexc2Afbhk7SN6Jhuewd3gW+0YOYO/IPtw8uBcnpue23S+FdUYT6IxJqxApeKRjsUrsIQWxVxRERtdUOrKT0ck5gwxlHHk5aM/NRBuOxYUUQDuWmkpjdHWPPS4Uh4O72PdBAa6F5sZOaGreDLUNm8lQprppO5Q2TMNfEde8/yu0vfaTv9Ff+9lN28++wjW1TdugvqWXwGtsbiYA8wpqQaXOHGRzQ5DFCUV5TAEOThzDiV1ncHznKRzb8QxOTB3HiR1HibZNHyEanTyIu586NnU/gIakFAtEkzWFCcCU1d7Z29sbRJ4B0N41y6ZzDV/S+GbLYJoCyMlGWzYFMAltOFq0YanRlh6NTuzIPx08cs3O3SPQuvf8HTE2PE40OmLR4PAIjIyPwdDIMAyPb4f27m3Q1rULOnv2w9nFDx/bvvsKo2PLCe7Rs7+0aeo+DH2jJ2Fo7DAMDu+F0bEZGBvdDmNjY+Q7Rsa2Q0CQChI0+dU0RiByuFFIZ8nRWZiA1c17cM/s87h39jLu3XcO9zz5HNHefc/i3n1ncM++Z3D/wVO7byMCfoe+fVP+ThvpLvYAgZsEeC5K4LuYfsF0Trd0INxM8qQA2rATcSNLhxuZsWhDj8GNtLDl1MwmhYt7sHVz/78AcGRsAoZHx2FwbBwGx6cJvNHtz9Gb2uaLq5vmblTWHfx9ef3BP9W0HPmgrv3p6ZFtz4qHxg/ByNgTMDo8CeOjEzA+OmaBOLYdfAMUkGauiWNxQr9isaOQzqQWDuLQiaNCWWAG1jdP45P7FvH4yVfx6PGX8dCRF/DQ0as4t7CIx565tP824prvAvjN1eQ77SMlFzdXApAvUADfJekog28mCwoWiOloz0pBO5YRN7IMuJERbwHoFI6+ISnT1MLr/QGOjBKtABwaGYXh0W0wODoJW4d3w9C2E85ltbvPlVXvv1VefwirGo9idctJrGg8Tt5r2w6/NzT+nHxodAFGRvbA2OjUXQAnQOYfAVk5de4cfujHbE4kcnhqZHDUSOOq0YERhQxOBIq8EjArtxf7Bg/jvrlreObcO/js4tt4/tLr++/nwPsBdHMXgotQBlx+JAiEpsnvBqhBG7oabWhRyBYoXj97/ifr/8sAqT+acs7A8A64+vzPN5ZWTb1X1XAAa1qOYVXDcaxpOYN1beewpuVZrG4+jfUdZ7Gl85k/PfHUNbfh4VkYG5km8MbGRsh3+QdFwt6njj/uIox4i+cchSyukjiQAkjnq9CJLaeGDshgK6iVEXSghyGTG4lCsQq1hsLdDwrQVei26kCpf34LnZtK1gWpdtCOY/4GwA1OsbjRSY4bHYP/vbCki/c9AA7fA5BK3+GRSdKmtbbvSq9u2rdc3XwYa5pPEHi1reexuu081nUsEtW0X8C69jPYN3h22yuv/dM6qh0cHx+H8fFRGJ0YB9/ATSCRRYBfoGaEzQ0jAJncWAKQEoMbc49obCUyuHJ04oShb5Bm+mEApBzIc46CoLCyPAeWiTjwGwCZSbiRoUMbWgLaMVS4wSH4i3htkb9lJnRfgMNfA7gDBof2Q2vb3mN1LfNY03IEa9tOY23rcxZw7ZewrvsKUU3XEtZ3ncfOvlO/Wnj6JcHdAKmnf2AoSHxDwZRWJmVzQ/5CuY1aNLUAjCPpTOBxrKlNAFI9YTj6Bummbi8/eAqvODAorCyXAujEzSApbMdJRXu26Q5AugFtaFq0palxvV3YbYUyL/7+AEcH/w7AeWht3f9WQ/sC1nUcx/rO0wRUQ9dlrOu+jI09V7C+9wrWbrmCdb2L2L7l5BfTT5yPsAC0wKPkFxBIXPjlMq4JCk3qpNKTAkjnUS60pDKNcp5VThwl0nhydOQ8HIBCkWgVoI8sdzONk7IKkBpIWwAm3gPQxjEW120Mw+BQc7rlON13AtxKII6Ojt4DcHiQAHytsf0w1neewIaus9jQfQ4bN1/C+p5L2LRlCRv6lrCh/xo29C9ix+DZT3bvu+w/Mr7iwBWA/iALDCSdybGTz6/nu8nfoFzI4sYig7MCUP01gNErALc/DAe6uVlSmO+StJsCSBYS/g7ADU4atHGMx3UbwlHml5R7X4DzB/dbNH8A5ufnYX5+AQ7OPQMHnjoLTY0797dtPoHtvc9hc89ZbOu7gO19V7Ctn9JlbNl6BVsGrmPrwBL2jl145cTZt532HTwBBw5S32ORXBEJUQo5RMljICoqAYymcpHAWfEBiyFHFjMWmdx4pPMoxVpdGYNOXAU6sMPRL1g/cb8UOnvqNNHp0yfh9GnqeZbo5JnTRDKZDLy8gsHTWwN8d9NFJ14qOvKoXtjSBlLpa8M04AaGATfQ9GhL16GtUwKut42klre+B0ACbkXzMHfgEMzNHoX52dNQVrbV3NQ2j+1bTmNH37PYPXQJO7ZSWsL2gUtEnUNL2DV4EYenLjf/5UtccwfgAizMWQASyeUgj6IgaiHZWB7gyov6JdMpAhmkzbN0Hk6saMuTLUdHVhgFcPRBAUokEvCRhJLNL6Yg6Z/IHJifRQbS3wZwnV0c2tLicO2GUAwKTrt/Cq84ZUUHDx6CA7MLBOKtW7i2un7H0x1bTtzu7juLmwcXCURKFLjuoUvYO3wBB0cvvPHCS/+28cD8FTgwf2TVyZQIuLsgKpSxxInTkwcdfLxUu1ic0Jt0NjV0kVPrcWSmwqAG3OwQDArVDd9vGHE/gD4yKfjIwsBobtvkyNEvrwC041hmIXcA6nADXUscaOOkwnUbQ27HqAtj79uJrPyhKwAPzM7DwsLTsLBwBA7MnYCZ3c/Q+oeOPNE/dObPfSPnsW/sAvaOXcSescvU84vxqUvP7Z+9Id331BIcnD8P83NPW928QN7vAAwnipBHQESUAhTyeGhq2rohQp5q5rtE/oTJCvuCxghFSnRmCNJZfhgQGv9gAE+fBW9pMHzxFa7xDsh4itqJs+dnoB2Pcl8G2rBSvwFwg1M82jgpqWHMTUVMVvD3ALjivntBrnw2s/NJOH766mOzC9fFU7sud4/vWrqybe+1n2zf/8LkroOvRJ448/76fbNXYf/sGdg/S8FbgIMHDxLd60AKYBhERYdDlNWNUVFx4OOjhpbmXTbxcSXBgYGJox5ixftMluxTB0ePW2Hh8VvvN5n/LoDPnF4ET+9YyMwbEdC4SX+kCTIt7rMCtGelox0zGW0YSVaACasD6XU2fv83PavB9b4D6bvbv3sBWj7fsWMSdsw8ARNT8zAxdRxGdpyBTxHX9O04AwMz52D33Muw98B1eGr+OXjywDGYnz9O3Et919zcHCgUClBER4EiOgIUyk0gJ4qwfKZQgVSqAKkkFnylavDzjYGXXnx33eHD55hbtkyIh4YnWfdbTvpOgKeWwNPHCF6y4h4nnnmZ7pqPts5ZaMfNRjt21rcCfNxBiRudItGeEfLh9umn7e4P8OBT3+iF7wY4MzMDO6ZmYGrmKZiYnoPhHcdgcPpZWHzlt+vmzv5cNjP/WtuO/S/t2rPwUtfckZd05y++Qz9w4LS1MzrwjRQmDowOt3wujwY/3xDw8w0DX+kmkEnCQOoTDDJpEPj5BYCvL7UeBw8EsKx6h4DtmvZ7hmsu2da05efcBTDtawDjcL1TNG5w3IRime7w91pMuB/A6elpmN6xEyamdsO2mQX4y21cM7n/Jdno3hfPD+y+8Zetu15YHtj5Ao7O3MBtO6/fnN619M97nlys++CD366nOpQoRfQqxKhVya2fR4NM5meBJQske7zUk/rZz88PZDLJ9wZ4lgC0QDx5+jmSvsdOvfiYT0DucRo/Y5nsibgUoC0/zwKQpLAFIDUG3MDU4OOMOFxPV+JjdoGoSihJ4bn43385636xcnQ3Vp8JSl0pxKf1BWyK7/517+SrOLDzTRze8xqO7X0dJ/a8iRO7X8PJJ17B7buv3Dxw+IWRn7z90ePPnl+Cc4sXYPHyBTh3aRHOX7oC5y9dI1q8eAWuXXserl69/neVnZFNlJlpUfqKsjKJqNqQ0KBgCA0KJKJO5geGyME30AAqTauG6ZJxkzpY5OhciA78AnSwArSlemFWOulI1rOS8HEWBVCNj9PkaMsI+2zn3mc57h7B919QvV/Ea3Sgjk+GGE0R5JZNuogCK9/n+dSgJKoPe7a/jWN738OR3W/i2J53cPved3Fq79s4vf8NnNx77faRU681nb3wEly89LwF4qWLcGFxCS4sXrU+l74T3rcBXAWZlQmZmZkQGkQBtECkYAYGRYE0UAthyuoEpkvGv1HwnAQl3wrQhp2OG74O0CkCOS7KV6glfbE44MEBJmj1oNFlQUx8HQRFtIzxvapvCSSt5KSoNGoE24Zfx237/idO7P0Ap/f9Arfv/Slu3/s6Tj31Ku6de+nDa9c/dFk89zJcvHgFLl68CIuLi/eIgLrywl3Qrt6j7IzMb1VOukUrAC3wFCANMIIhpd+H7prxIdXmUVuZfxcgJw1tWHdSeANDjRscI9BLqusUigIezq4cKV3Q5MKnX+AasbT+H529mpE69O0s6UWBdAuKgvoxvfwMbt/3K5w+8BFO7nsfp/f/DGf2v4W79r361cln3qpYPPcaLF64ChcuXLCAu3jeIgLw6reCu3qVcufSdwKknBkcGAWBgUoICIwF38AkiNV1K1kuub8jZ2FcSgi87wWQ6kQYalzvsOnzqroJoYeXP3h6PySAWl0BvPyTL21c3Ov+6uLdaTktLx1AV+kwcry3oqtsEJXGOeyb/AWBODP7Ae6afw/3zL+JR4+98eSFc2/AhQvXYfHSZbhwcZGISulzi+fgypXLsLS0CNeuX1mFZpEFZFZWFknVFWVn50JGehakmzMhPaMQAgI14BdohsPH31sfFt1YxBbmf0ydhXESVqCDayU6OJeio3MxgWfPy0NbThbRSvpuZFqWs9ZTiwh0NYolpmOf38Q11L6wp+dDONpBtYHxCTlw4+W/Ogjcqz8TeHVYSg18BlEgGUFn6QgKZKMEokDWg8n5x3Bm7le459A/4q65t/GZs+89ce7C2/Ds4otw7tLzcP7yDfJ89uJ1eO7CNVi6+gJcWbpG9G1pbAGXDZkZuZCemQ9pGUWQllUB6dnVkJrZBJ/dxLVJ5olwoaxqie5avEwXViJNWINObjXo4Fr9nQCpDmQDLRE3OOrQlq5BO3rsp/rEDn+hKAbE4iByvOOB94XjtRpSvvD5V7jWTVz+L1QKU3UafO9+ApEv2Yoc7z7kSwYJRDdZHwZHb8PiunM4+dTPPn/m3IdZp86/A6cX/wE+W8a1py/8VHzy3Nu6o6dfzz984uWCs6dfi7547k0u3sY115behKtLr8LVKy/e1YlkQnZ6LqRnFIM5vRpSM9ogKb0Htoyct5Mn9GhFfnWHmMLyv9Ld69FJ1IiOwgZ0FDYhzaUJnQT16Mgv/06A9oxktHWiFlHjkMM3LQ4NXVnnITSC2D0UvD0kDw4wQaeFBF0axCZUg1hWesrZs5rUZ/C8ewlEge9W5MkGkCcbIk4U+o2h0Hcruvi0YrCi592ll/8v7eTiR3D++m/5B0+8f2D/0+99sv/pn9+ePfIezh3+GS4svHXr6YXXf3fi+JvTV6/+D8HlpZ/C0tI/wNLSa0Tm9EpITa+HFHM7PDn/um1q3kxoQFTnoIuk/gOaa9VNulsD0oWtyPDoREf3dnQQtqCjsOUugKWr7ZwOo9wAAAoPSURBVN8dgHfaPzuGgSyg2tAUn/sG5SW4C1NBJNSChzAIvDweQhtIOTBea4RYbT7EJbaEuXgV/546FU8KXbx7ifvY3luRJRlCtnQY+b7DpHNxlXTcioobL/YL74QYw0RyjH7qN+X1l/CJud/hoZN/xgPH/oCzh3+NB499hIeO/y88eOJ9nD/69n+eOPN+05dUkU1KIxSVDIklIeVnPALrXxUFNv/a2afpE45X8zIpa/BqR5ZnJzJE3cgQ9SDdfTM6CTvRwbUFHVyb0MGlHu0FVWjvXLQKz46bizZs6jRCGm5gUxtJOrRhxeMGehQKxHHTu5967nHqALtSmQSWk7GxDw5QZ6CGMUkQqzWTYx2ykIo6trDwC74nVZ/RjhwKoqQf2bKtyJL2I1fWizyfjmWfkJ5LbVtecYzSTUc7e3f8mep4XLwH0T/yCTRknMLy5hs4sOND3HPo9zh38v/gobN/wPnT/4oHn/n1x8fP/CbamNwDaRljCRzPmltsSRfyfPuRIxlAhme/VVssEll0D0C3BrR3rUV7l4pvBWjLTrNupmvIzGMDY9N/JGc1uIUrDRCtjienYFUxsQ8JIFUDbEgEjT4VYnW5cPDYO49FqjvS+J5l/+wkKCOlVlTdGgWT59OBPO+G24GK/ic7Bp63Ty2YF/F82n7JlW5FvmwcedIJFPjuQBe/KZLyFHy3wGGURk1iVOIsarOPYnrxGcwsOnLjxmtfrTOYp9Q8n7ZbXN8B4m62dBTpnsNI9xxA+grIbwBs+haARejILUB7Ti7asjItUzhWItqwNLiBpvg8XFWUJk9IhQhlLESrLceHKYCUHjj0ej1oNZQLDaDRmyFeXwJKTS10bj3N8AuvzfHwLd8jklacEftVHfENa9iSkrsj8tNbuEau7gG/8O5eKtV4vqPI992BXOkUciXTRORn2QSyfMaQ57sN+X6TyJWNoUA2TDUPy3HGqRS9eXcc27vzFvX71L9jS7YhXTxqkefAXQCpFO5CJ2G7FWAd2rtWWwDyS+4BSK3AOLBS0J6lpw4TLQs89HuOnHr1schYHUSpY1bPXz80gCvFhHqDlhRUU7XA1LxYpc8FlS4flPE5oIqjlEWkjs+FGFUp3Ljx2TqRV/ObfGkfsmSjyJZtR7Z0GtnSnXdpGjm+90rgO4nOkj70Ce08aMjYF8/22nKLLRlHlvd2IobnBBFxorgP6cLee9LXzqUO7Vxq0FZQibbOZWjLs6QvgcfMREd2KjoyEsmqs6tH4vmWzj0OVCUUVYC4UsyzAu+hAaSUqE8glekJBp2lqNpgkTpBD3EJWkhISLBImwjxCXmwdctFmot73W95ki3IkowgBYEtmUS2zw5k+8wg23sXsiQzBCJTZhH1zpdOk+GRZ1D3S7r0Awks8ZZbLJ8JZHptQ6bXJNLF48SBNPFWpN2Vuo5ubcR9FDw7lyq0dSlHW+eSO6sv1uUrJ1YS2jupqXqU1+ubdjIUCjMoYwzEdTEx0dZCHitAlerhAEzUUAC1dyrTqdJ+vQYSDBpQaxKsAOOI4hISQJ2QCUVle3hct8o/8by7SC/N8RlCjs8IcrwnkOM1hRyvaWR5TyNLMrkqCjDXZxs6+wyjp1/PGzrzgoYl7r9F/Q7bcxsRQzyKDLHFfTSPldS1tH32rvVoK6gm7tvoXIY2fGr5KgfteOmk47BnGtGOHk/tBP6yqHhEyOeHQYzKSCqfKGDkXoWvlVQ8PAfq9NbCaos0hngiClhC/F0ANXEQE5cMfYNnaTz3st9xvVuR7dVjHe4MIttrdBUGJeIuiUWkPfQeI721SNbxoj51zsgS9d5me40jy3OMiO4xiHSPrQSek8jS7hH3uTVYUpdfQVLXhl+MNrxc6/I9dQIhCe2YGupczstZuX3OLq7h4OriZ7lLIYa6mCIOVNHquwBS6ayE//YoKy6HiuJyKCsphdLSYigpL4HCsga48eof17l5Fr/CE9dZhjuencj27Ee2eATZYgsMlucIAcr0tojtPYw87yHkeXajp2/zfq1pdzpd2H6b5TlEXEcTDVi1hcCjBs7UoJmCZxn31aCDcznpOKghCzVoJvB4JmqhYJnvbjh64vQ7NlQ7HacxkUz6QWMtAIF3B2ApAZhfUgP5xYPgH1LdRlVKUmWoXDFVXd6DXPEQgUhBoURBo8T0GbSkuribqrRcViQM6bXJ0zl0YfMyy2sAGWIKXL9FxH0d6ChqtcKrtcDjV6IDrwRp/EKycU6dRrVh6qje9mMv/7TK7q2z62MT8sjVBBQ8vSHhxwewuKwYCkurobCkFzJzxwQcUf67bFEVstwbkOPRgSyPzcj06LX0oB5bLU+izcgUdyBD1ISu0qZn5o//5rH45Ml8B7e6ZZpnLzp6bEF79x60d+9Ge1En2rm3oJ2wjsBzFFRZ4ZWhE6/Acv6Pa8INNNVtnlB/RaWpDKZmUvH6DFLJpDekrN5t84NHGQWvuJzAW3FgYWklFJd0QF7REKTnT/k68jI+oSonOaJGZIuake3ejszVKVgXMtzbCDhycYR7+Tsl9c/QQpUtEGeaKLEXVC2TdBV2o51rB9q5tqGdWxPautWS3tZRUEHmu06U87gF6MgyU/Pb2yxn3buxugYjdXY7XpdHwFH32VDjWb0+EXQaqk03/ND4YBXciigHFpeWQ2FJPRQUd4IkKANU+m4VT1TwLoOfv0xdTcJxq0a2sAlZbo2kMJqqqGQJCr9y8Sw9F6Ppk4TKGyBUUQdKbV+Fg3PpMrVY4OTSgvbOTWThgGrvSGfBK0ZHbh7SeDlI46QvOzFNH7u6Z1wOl1dlNDTvpUl9tWQlSaMz3XW/111XU+k0P1aApVBcWkkgSgMTwMc/CepbDjAilU0tPNeMj+hc8y1HVgbSOVlI56Z+6eqR/Y5G35O1pf/k+ghFEVAKV5RBlKq5nqrvZQlrkS6oRoZLDdIFlUhNIcn8ljqiy0z8ii9M+YVvcOFAduGw5/FTbz0m9dWDtzQWfCRyKzwLLMsVLVaA1vtufvAopoDdpTswLSADg0MhIDgKAoPV4Beog5df+cO6kfHnXAqLt4dUVM0E7X5yiXfzNq5Vx2SCUpkC0dGJEBOTDJGKdJCrKxucWAZLWtLSlpn83E+5Lnkf8YX5S+4+RRMR6kbT5sEj7p/ewrWe/tHgExgBPgEhIPELBpn/JpDKQu9y3jfv9qI++5ECLIbS0kKioGA/CA4OhKCQMHKzWlBQHAQE6MDfXwsBgfEQpUgCuVwDKqUOVNHUQDYWYpRxBGSKuS5a6p/aHR5VmtPde8z/2vN/oH32Ba6V+KaDtzQFPCVakATEgpffJvD2DwRpkC/IgqTgF+gLvv4BRHdulbtzPZVlXm+ZDPx/FmutG9UrFyiut24brlykuPZrFzBS/4Y6Xmb/d2R713fcOVT5KB7Fo3gUj+JRPIpH8SjgfvH/ANBuXzXdYQjQAAAAAElFTkSuQmCC">
   <link rel="stylesheet" href="styles.css">
@@ -90,7 +92,7 @@
         <div class="sidebar-info-card">
           <div class="sidebar-info-title">
             <span>Hardware Status</span>
-            <span style="color: #34d399;">● Online</span>
+            <span style="color: #34d399;">Online</span>
           </div>
           <div class="sidebar-info-row">
             <span>Model</span>
@@ -167,7 +169,7 @@
               </div>
               <div class="meta-row">
                 <span class="meta-label">COM SDK Registration</span>
-                <span class="meta-value" style="color: #34d399;">✓ zkemkeeper.dll Registered</span>
+                <span class="meta-value" style="color: #34d399;">zkemkeeper.dll Registered</span>
               </div>
 
               <div style="display: flex; gap: 8px; margin-top: 4px;">
@@ -206,7 +208,7 @@
 
               <div style="display: flex; gap: 8px; margin-top: 4px;">
                 <button class="btn btn-secondary" style="flex: 1;" onclick="writeAdmsFirmware()">
-                  ✍️ Write ADMS to Machine Firmware
+                  Write ADMS to Machine Firmware
                 </button>
               </div>
             </div>
@@ -280,7 +282,7 @@
                     <td><span class="card-badge card-badge-green">Face Scan</span></td>
                     <td class="mono">Today 09:02:14 AM</td>
                     <td style="color: #60a5fa; font-weight: 600;">Check-In (Present)</td>
-                    <td><span class="badge-synced">✓ Synced to DB</span></td>
+                    <td><span class="badge-synced">Synced to DB</span></td>
                   </tr>
                   <tr>
                     <td class="mono">EMP-0082</td>
@@ -288,7 +290,7 @@
                     <td><span class="card-badge" style="background: rgba(59, 130, 246, 0.12); color: #93c5fd; border-color: rgba(59, 130, 246, 0.2);">Fingerprint</span></td>
                     <td class="mono">Today 09:14:48 AM</td>
                     <td style="color: #60a5fa; font-weight: 600;">Check-In (Present)</td>
-                    <td><span class="badge-synced">✓ Synced to DB</span></td>
+                    <td><span class="badge-synced">Synced to DB</span></td>
                   </tr>
                   <tr>
                     <td class="mono">EMP-0155</td>
@@ -296,7 +298,7 @@
                     <td><span class="card-badge card-badge-amber">RFID Card</span></td>
                     <td class="mono">Today 09:28:02 AM</td>
                     <td style="color: #60a5fa; font-weight: 600;">Check-In (Present)</td>
-                    <td><span class="badge-synced">✓ Synced to DB</span></td>
+                    <td><span class="badge-synced">Synced to DB</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -395,7 +397,7 @@
 
               <div class="meta-row">
                 <span class="meta-label">Tenant Cross-Leakage Protection</span>
-                <span class="meta-value" style="color: #34d399;">✓ Strict SQL Tenant Isolation Active</span>
+                <span class="meta-value" style="color: #34d399;">Strict SQL Tenant Isolation Active</span>
               </div>
             </div>
           </div>
@@ -473,7 +475,7 @@
 
           <!-- Filter & Search Toolbar -->
           <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <input type="text" class="input-field" placeholder="🔍 Search employee name, ID or department..." style="max-width: 380px;">
+            <input type="text" class="input-field" placeholder="Search employee name, ID or department..." style="max-width: 380px;">
             <select class="input-field" style="max-width: 200px;">
               <option selected>All Departments</option>
               <option>Engineering</option>
@@ -523,7 +525,7 @@
                     </div>
                   </td>
                   <td class="mono">94827104</td>
-                  <td><span class="badge-synced">✓ In Sync</span></td>
+                  <td><span class="badge-synced">In Sync</span></td>
                   <td>
                     <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;" onclick="alert('Uploading Sarah Jenkins templates to terminal...')">Push</button>
                   </td>
@@ -547,7 +549,7 @@
                     </div>
                   </td>
                   <td class="mono">77182903</td>
-                  <td><span class="badge-synced">✓ In Sync</span></td>
+                  <td><span class="badge-synced">In Sync</span></td>
                   <td>
                     <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">Push</button>
                   </td>
@@ -571,7 +573,7 @@
                     </div>
                   </td>
                   <td class="mono">66281900</td>
-                  <td><span class="badge-synced">✓ In Sync</span></td>
+                  <td><span class="badge-synced">In Sync</span></td>
                   <td>
                     <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 11px;">Push</button>
                   </td>
@@ -665,7 +667,7 @@
                   <td class="mono">2026-11-02 09:02:14.412</td>
                   <td><span class="card-badge card-badge-green">Face Scan (3D IR)</span></td>
                   <td style="color: #34d399; font-weight: 600;">Check-In</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
                 <tr>
                   <td class="mono">#84022</td>
@@ -674,7 +676,7 @@
                   <td class="mono">2026-11-02 09:14:48.109</td>
                   <td><span class="card-badge" style="background: rgba(59, 130, 246, 0.12); color: #93c5fd;">Fingerprint #1</span></td>
                   <td style="color: #34d399; font-weight: 600;">Check-In</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
                 <tr>
                   <td class="mono">#84023</td>
@@ -683,7 +685,7 @@
                   <td class="mono">2026-11-02 09:28:02.831</td>
                   <td><span class="card-badge card-badge-amber">RFID Card #66281900</span></td>
                   <td style="color: #34d399; font-weight: 600;">Check-In</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
                 <tr>
                   <td class="mono">#84024</td>
@@ -692,7 +694,7 @@
                   <td class="mono">2026-11-02 13:01:45.220</td>
                   <td><span class="card-badge card-badge-green">Face Scan (3D IR)</span></td>
                   <td style="color: #fbbf24; font-weight: 600;">Break-Out</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
                 <tr>
                   <td class="mono">#84025</td>
@@ -701,7 +703,7 @@
                   <td class="mono">2026-11-02 13:42:19.043</td>
                   <td><span class="card-badge card-badge-green">Face Scan (3D IR)</span></td>
                   <td style="color: #38bdf8; font-weight: 600;">Break-In</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
                 <tr>
                   <td class="mono">#84026</td>
@@ -710,7 +712,7 @@
                   <td class="mono">2026-11-02 17:30:11.890</td>
                   <td><span class="card-badge" style="background: rgba(59, 130, 246, 0.12); color: #93c5fd;">Fingerprint #2</span></td>
                   <td style="color: #f87171; font-weight: 600;">Check-Out</td>
-                  <td><span class="badge-synced">✓ DB Written (200 OK)</span></td>
+                  <td><span class="badge-synced">DB Written (200 OK)</span></td>
                 </tr>
               </tbody>
             </table>
@@ -750,15 +752,15 @@
 
               <div class="meta-row">
                 <span class="meta-label">Interop.zkemkeeper.dll</span>
-                <span class="meta-value" style="color: #34d399;">✓ COM Class Registered</span>
+                <span class="meta-value" style="color: #34d399;">COM Class Registered</span>
               </div>
               <div class="meta-row">
                 <span class="meta-label">Network Port 4370 (TCP/UDP)</span>
-                <span class="meta-value" style="color: #34d399;">✓ Firewall Rules Active</span>
+                <span class="meta-value" style="color: #34d399;">Firewall Rules Active</span>
               </div>
               <div class="meta-row">
                 <span class="meta-label">Cloud Gateway Reachability</span>
-                <span class="meta-value" style="color: #34d399;">✓ masterhrms.com:443 (18ms)</span>
+                <span class="meta-value" style="color: #34d399;">masterhrms.com:443 (18ms)</span>
               </div>
               <div class="meta-row">
                 <span class="meta-label">RestSharp & HTTP Stack</span>
@@ -807,13 +809,13 @@
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
               <button class="btn btn-secondary" onclick="alert('Beeping terminal internal buzzer...')">
-                🔊 Test Speaker / Buzzer
+                Test Speaker / Buzzer
               </button>
               <button class="btn btn-secondary" onclick="alert('Triggering terminal flash memory integrity check...')">
-                🔍 Check Memory Block Integrity
+                Check Memory Block Integrity
               </button>
               <button class="btn btn-danger" onclick="if(confirm('Caution: This will clear local logs already synced to MasterHRMS. Continue?')) alert('Terminal attendance log cache cleared successfully!')">
-                🗑️ Clear Device Attendance Cache
+                Clear Device Attendance Cache
               </button>
             </div>
           </div>

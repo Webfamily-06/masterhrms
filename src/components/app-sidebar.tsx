@@ -152,6 +152,15 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
 
   const isOkrUnlocked = isAddonUnlocked("okr-performance") || isAddonUnlocked("okr");
   const isAssetsUnlocked = isAddonUnlocked("asset-management") || isAddonUnlocked("assets");
+  const isBiometricUnlocked = Boolean(
+    profile?.roles?.includes("super_admin") ||
+    isAddonUnlocked("biometric-sync") ||
+    isAddonUnlocked("biometric") ||
+    isAddonUnlocked("biometrics") ||
+    profile?.enabledModules?.includes("biometric-sync") ||
+    profile?.enabledModules?.includes("biometric") ||
+    profile?.enabledModules?.includes("biometrics")
+  );
 
   const isPosUnlocked = Boolean(
     profile?.roles?.includes("super_admin") ||
@@ -182,6 +191,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const paidAddonItems: NavItem[] = [];
   if (isOkrUnlocked) paidAddonItems.push({ title: "OKR & Performance", url: "/okr", icon: Target });
   if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/hr/assets", icon: HardDrive });
+  if (isBiometricUnlocked) paidAddonItems.push({ title: "Biometric Hardware Hub", url: "/biometric-sync", icon: Fingerprint });
 
   const HRM_NAV_GROUPS: NavGroup[] = [
     { category: "Overview", items: [{ title: "HRM Hub", url: "/hr/dashboard", icon: Users }] },
@@ -191,6 +201,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         { title: "Attendance", url: "/hr/attendance", icon: Clock },
         { title: "Leave & PTO", url: "/hr/leave/applications", icon: CalendarCheck },
         { title: "Shift Rostering", url: "/hr/attendance/shifts", icon: Layers },
+        ...(isBiometricUnlocked ? [{ title: "Biometric Device Hub", url: "/biometric-sync", icon: Fingerprint }] : []),
       ],
     },
     { category: "Payroll", items: [{ title: "Payroll Runs", url: "/hr/payroll/runs", icon: Wallet }] },
@@ -214,7 +225,6 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         { title: "People Analytics", url: "/analytics", icon: BarChart3 },
         { title: "Form Builder", url: "/forms", icon: FileSpreadsheet },
         { title: "Automation Rules", url: "/workflows", icon: Workflow },
-        { title: "Biometric Hardware", url: "/biometric", icon: Fingerprint },
         { title: "Integrations & API", url: "/integrations", icon: Sparkles },
         { title: "Announcements", url: "/announcements", icon: MessageSquare },
       ],
