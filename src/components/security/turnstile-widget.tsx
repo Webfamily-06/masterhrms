@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 
+export type TurnstileState = 'idle' | 'loading' | 'ready' | 'verifying' | 'verified' | 'expired' | 'error';
+
 export interface TurnstileWidgetRef {
   reset: () => void;
   getResponse: () => string | undefined;
+  getState: () => TurnstileState;
 }
 
 export interface TurnstileWidgetProps {
@@ -62,17 +65,32 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
   ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const widgetIdRef = useRef<string | null>(null);
-    const [isLoaded, setIsLoaded] = useState(false);
-    const [hasError, setHasError] = useState(false);
+    const [scriptLoaded, setScriptLoaded] = useState(false);
+    const [widgetState, setWidgetState] = useState<TurnstileState>('idle');
+
+    // Stable refs for callbacks — prevents widget teardown/reinit on every parent re-render
+    // (inline arrow functions in JSX are recreated on every render; if used in deps they cause flicker)
+    const onSuccessRef = useRef(onSuccess);
+    const onErrorRef = useRef(onError);
+    const onExpireRef = useRef(onExpire);
+    useEffect(() => { onSuccessRef.current = onSuccess; }, [onSuccess]);
+    useEffect(() => { onErrorRef.current = onError; }, [onError]);
+    useEffect(() => { onExpireRef.current = onExpire; }, [onExpire]);
 
     const siteKey =
-      (import.meta.env.VITE_TURNSTILE_SITE_KEY as string) || DEFAULT_TEST_SITE_KEY;
+      (typeof process !== 'undefined'
+        ? (process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ||
+           process.env.VITE_TURNSTILE_SITE_KEY ||
+           process.env.TURNSTILE_SITE_KEY)
+        : undefined) ||
+      DEFAULT_TEST_SITE_KEY;
 
     useImperativeHandle(ref, () => ({
       reset: () => {
         if (window.turnstile && widgetIdRef.current) {
           try {
             window.turnstile.reset(widgetIdRef.current);
+            setWidgetState('ready');
           } catch (e) {
             console.warn("Turnstile reset error:", e);
           }
@@ -88,64 +106,64 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
         }
         return undefined;
       },
+      getState: () => widgetState,
     }));
 
+    // Phase 1: Load Cloudflare script exactly once (no callback deps)
     useEffect(() => {
       let isMounted = true;
 
-      // 1. Ensure Turnstile explicit script is loaded
-      const loadScript = () => {
-        if (window.turnstile) {
-          if (isMounted) setIsLoaded(true);
-          return;
-        }
+      if (window.turnstile) {
+        setScriptLoaded(true);
+        return;
+      }
 
-        const existingScript = document.querySelector(`script[src^="${SCRIPT_URL}"]`);
-        if (!existingScript) {
-          const script = document.createElement("script");
-          script.src = SCRIPT_URL;
-          script.async = true;
-          script.defer = true;
-          script.onload = () => {
-            if (isMounted) setIsLoaded(true);
-          };
-          script.onerror = (e) => {
-            console.error("Failed to load Cloudflare Turnstile script:", e);
-            if (isMounted) {
-              setHasError(true);
-              onError?.(e);
-            }
-          };
-          document.head.appendChild(script);
-        } else {
-          const checkInterval = setInterval(() => {
-            if (window.turnstile) {
-              clearInterval(checkInterval);
-              if (isMounted) setIsLoaded(true);
-            }
-          }, 50);
+      const existingScript = document.querySelector(`script[src^="${SCRIPT_URL}"]`);
+      if (existingScript) {
+        // Script already injected — poll until API is ready
+        const check = setInterval(() => {
+          if (window.turnstile) {
+            clearInterval(check);
+            if (isMounted) setScriptLoaded(true);
+          }
+        }, 50);
+        const bail = setTimeout(() => clearInterval(check), 10000);
+        return () => {
+          clearInterval(check);
+          clearTimeout(bail);
+          isMounted = false;
+        };
+      }
 
-          setTimeout(() => clearInterval(checkInterval), 5000);
+      setWidgetState('loading');
+      const script = document.createElement("script");
+      script.src = SCRIPT_URL;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        if (isMounted) setScriptLoaded(true);
+      };
+      script.onerror = (e) => {
+        console.error("Failed to load Cloudflare Turnstile script:", e);
+        if (isMounted) {
+          setWidgetState('error');
+          onErrorRef.current?.(e);
         }
       };
-
-      loadScript();
+      document.head.appendChild(script);
 
       return () => {
         isMounted = false;
       };
-    }, [onError]);
+    }, []); // Run once only — no deps
 
+    // Phase 2: Render widget once script is ready
+    // IMPORTANT: Does NOT include onSuccess/onError/onExpire in deps — uses stable refs instead
+    // This prevents the widget from being torn down and re-initialized on every keystroke
     useEffect(() => {
-      if (!isLoaded || !containerRef.current || !window.turnstile) return;
-
-      // Clean up any existing widget before re-rendering
-      if (widgetIdRef.current) {
-        try {
-          window.turnstile.remove(widgetIdRef.current);
-        } catch {}
-        widgetIdRef.current = null;
-      }
+      if (!scriptLoaded || !containerRef.current || !window.turnstile) return;
+      // Prevent duplicate render if widget is already mounted
+      if (widgetIdRef.current) return;
 
       try {
         const id = window.turnstile.render(containerRef.current, {
@@ -155,26 +173,28 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           theme,
           size,
           callback: (token: string) => {
-            setHasError(false);
-            onSuccess(token);
+            setWidgetState('verified');
+            onSuccessRef.current(token);
           },
           "error-callback": (err: any) => {
             console.warn("[Turnstile Widget Error]", err);
-            setHasError(true);
-            onError?.(err);
+            setWidgetState('error');
+            onErrorRef.current?.(err);
           },
           "expired-callback": () => {
-            onExpire?.();
+            setWidgetState('expired');
+            onExpireRef.current?.();
           },
           "refresh-expired": "auto",
           retry: "auto",
         });
 
         widgetIdRef.current = id;
+        setWidgetState('ready');
       } catch (err) {
         console.error("Turnstile render error:", err);
-        setHasError(true);
-        onError?.(err);
+        setWidgetState('error');
+        onErrorRef.current?.(err);
       }
 
       return () => {
@@ -184,8 +204,9 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           } catch {}
           widgetIdRef.current = null;
         }
+        setWidgetState('idle');
       };
-    }, [isLoaded, siteKey, action, cdata, theme, size, onSuccess, onError, onExpire]);
+    }, [scriptLoaded, siteKey, action, cdata, theme, size]); // No callback deps — stable refs used
 
     return (
       <div
@@ -193,15 +214,20 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
         aria-label="Cloudflare Turnstile Bot Verification"
       >
         <div ref={containerRef} className="cf-turnstile-slot" />
-        {!isLoaded && !hasError && (
+        {(widgetState === 'loading' || (widgetState === 'idle' && !scriptLoaded)) && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse py-3">
             <div className="size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             <span>Verifying browser security...</span>
           </div>
         )}
-        {hasError && (
+        {widgetState === 'error' && (
           <div className="text-xs text-amber-600 dark:text-amber-400 py-1 text-center">
             Verification widget unreachable. Please check connection.
+          </div>
+        )}
+        {widgetState === 'expired' && (
+          <div className="text-xs text-amber-600 dark:text-amber-400 py-1 text-center">
+            Security check expired. Refreshing automatically...
           </div>
         )}
       </div>

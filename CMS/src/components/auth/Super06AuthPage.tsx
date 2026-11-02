@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -62,6 +62,7 @@ function Super06AuthContent() {
   const [checking, setChecking] = useState(true);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileReady, setTurnstileReady] = useState(false);
+  const [turnstileError, setTurnstileError] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params
@@ -88,7 +89,7 @@ function Super06AuthContent() {
   const footerText =
     rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
       ? rawFooter
-      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
+      : `Â© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   useEffect(() => {
     const activeColor = branding?.primaryColor || appConfig?.primaryColor || '#2563EB';
@@ -111,6 +112,23 @@ function Super06AuthContent() {
       setChecking(false);
     })();
   }, [router]);
+
+  const handleTurnstileSuccess = useCallback((t: string) => {
+    setTurnstileToken(t);
+    setTurnstileReady(true);
+    setTurnstileError(false);
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken('');
+    setTurnstileReady(false);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileReady(false);
+    setTurnstileError(true);
+    // Do NOT toast here — widget shows its own error UI; toasting creates alarm
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -467,14 +485,32 @@ function Super06AuthContent() {
             <TurnstileWidget
               ref={turnstileRef}
               action="super-login"
-              onSuccess={(t) => { setTurnstileToken(t); setTurnstileReady(true); }}
-              onExpire={() => { setTurnstileToken(''); setTurnstileReady(false); }}
-              onError={() => { setTurnstileReady(false); toast.error('Security verification failed. Please refresh and try again.'); }}
+              onSuccess={handleTurnstileSuccess}
+              onExpire={handleTurnstileExpire}
+              onError={handleTurnstileError}
             />
+
+            {turnstileError && (
+              <div className="flex items-center justify-between text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-lg px-3 py-2">
+                <span className="text-amber-700 dark:text-amber-400">Security check unavailable.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTurnstileError(false);
+                    setTurnstileReady(false);
+                    setTurnstileToken('');
+                    turnstileRef.current?.reset();
+                  }}
+                  className="text-amber-700 dark:text-amber-400 font-semibold hover:underline cursor-pointer ml-2"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
-              disabled={loading || !turnstileReady}
+              disabled={loading || (!turnstileReady && !turnstileError)}
               className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
@@ -485,7 +521,7 @@ function Super06AuthContent() {
 
         <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
           <Link href="/login" className="hover:text-slate-300">
-            ← Tenant Workspace Login
+            â† Tenant Workspace Login
           </Link>
           <span>{footerText}</span>
         </div>

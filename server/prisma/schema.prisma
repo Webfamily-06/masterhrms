@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x", "darwin-arm64", "windows"]
 }
@@ -32,6 +32,7 @@ model User {
   workspaceNotes           WorkspaceNote[]
   workspaceTodos           WorkspaceTodo[]
   emailAccounts            UserEmailAccount[]
+  deviceSessions           DeviceSession[]
 
   @@map("users")
 }
@@ -245,6 +246,7 @@ model Tenant {
   workspaceSlugHistory         WorkspaceSlugHistory[]
   workspaceSlugRedirects       WorkspaceSlugRedirect[]
   workspaceTodos               WorkspaceTodo[]
+  deviceSessions               DeviceSession[]
 
   @@map("tenants")
 }
@@ -1401,7 +1403,7 @@ model AssetCategory {
   name        String   @db.VarChar(100)
   slug        String   @db.VarChar(100)
   description String?
-  icon        String?  @default("💻") @db.VarChar(50)
+  icon        String?  @default("ðŸ’»") @db.VarChar(50)
   prefix      String   @default("AST") @db.VarChar(20)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -4366,6 +4368,35 @@ model LoginHistory {
   @@index([userId])
   @@index([createdBy])
   @@map("login_histories")
+}
+
+model DeviceSession {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  userId           String    @map("user_id") @db.VarChar(36)
+  tenantId         String?   @map("tenant_id") @db.VarChar(36)
+  deviceName       String?   @map("device_name") @db.VarChar(255)
+  deviceType       String    @default("desktop") @map("device_type") @db.VarChar(50)
+  browser          String?   @db.VarChar(100)
+  operatingSystem  String?   @map("operating_system") @db.VarChar(100)
+  ipAddress        String?   @map("ip_address") @db.VarChar(45)
+  country          String?   @db.VarChar(100)
+  city             String?   @db.VarChar(100)
+  userAgent        String?   @map("user_agent") @db.Text
+  refreshTokenHash String?   @map("refresh_token_hash") @db.VarChar(255)
+  lastActiveAt     DateTime? @map("last_active_at")
+  expiresAt        DateTime? @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  revoked          Boolean   @default(false)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, revoked])
+  @@index([tenantId])
+  @@index([refreshTokenHash])
+  @@map("device_sessions")
 }
 
 model Branch {

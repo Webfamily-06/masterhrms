@@ -1,4 +1,4 @@
-import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
+﻿import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
 import { createOrReplaceOtp, verifyOtpCode, checkResendEligibility, maskEmail } from "../lib/otp";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { Router, Response } from "express";
@@ -11,6 +11,7 @@ import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { generateToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { recordLoginHistory } from "../services/login-history.service";
+import { createDeviceSession, getActiveSessions, revokeSession, revokeAllSessions } from "../services/device-session.service";
 import { provisionTenantWithTrial } from "../lib/tenant-provisioning";
 import {
   resolveHostContext,
@@ -530,7 +531,7 @@ const loginHandler = async (req: any, res: Response) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
-    // ── Host-Scoped Authentication Enforcement ────────────────
+    // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const rawHost = getEffectiveRequestHost(req.headers);
     const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
 
@@ -697,8 +698,8 @@ const loginHandler = async (req: any, res: Response) => {
     });
 
     if (!emailResult.success) {
-      console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-      console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+      console.warn(`âš ï¸ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+      console.log(`ðŸ”‘ [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
     }
 
     const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
@@ -796,7 +797,7 @@ authRouter.post("/forgot-password", async (req, res) => {
         expiresAt
       );
     } catch (dbErr: any) {
-      console.error("⚠️ Failed to store reset token in password_reset_tokens table:", dbErr);
+      console.error("âš ï¸ Failed to store reset token in password_reset_tokens table:", dbErr);
     }
 
     // Also generate backup OTP for backward compatibility with 6-digit code UI
@@ -825,9 +826,9 @@ authRouter.post("/forgot-password", async (req, res) => {
       scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
     });
 
-    console.log(`🔗 [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
+    console.log(`ðŸ”— [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
     if (!emailResult.success) {
-      console.log(`🔑 [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
+      console.log(`ðŸ”‘ [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
     }
 
     return res.json({
@@ -1047,7 +1048,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       return res.status(400).json({ error: verificationError });
     }
 
-    // ── Host-Scoped Authentication Enforcement for 2FA Completion ──
+    // â”€â”€ Host-Scoped Authentication Enforcement for 2FA Completion â”€â”€
     const rawHost = getEffectiveRequestHost(req.headers);
     const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
 
@@ -1242,8 +1243,8 @@ authRouter.post("/2fa/resend", async (req, res) => {
     });
 
     if (!emailResult.success) {
-      console.warn(`⚠️ [2FA RESEND] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-      console.log(`🔑 [2FA RESEND CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+      console.warn(`âš ï¸ [2FA RESEND] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+      console.log(`ðŸ”‘ [2FA RESEND CODE] Use this code to sign in for ${user.email}: [${otp}]`);
     }
 
     return res.json({
@@ -1742,7 +1743,50 @@ authRouter.post("/logout", requireAuth, async (req: AuthRequest, res: Response) 
   }
 });
 
-// ─── OAuth 2.0 Configuration & Social Login Handlers ─────────────────────────
+// â”€â”€â”€ OAuth 2.0 Configuration & Social Login Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+// ─── Device Session Management ──────────────────────────────────────────────
+
+// GET /api/auth/sessions — List active device sessions for the authenticated user
+authRouter.get("/sessions", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const tenantId = req.user?.tenantId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized." });
+    const sessions = await getActiveSessions(userId, tenantId || undefined);
+    return res.json({ sessions });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve sessions." });
+  }
+});
+
+// DELETE /api/auth/sessions/:sessionId — Revoke a specific device session (own only)
+authRouter.delete("/sessions/:sessionId", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized." });
+    const { sessionId } = req.params;
+    const success = await revokeSession(sessionId, userId);
+    if (!success) return res.status(404).json({ error: "Session not found or already revoked." });
+    return res.json({ success: true, message: "Session revoked successfully." });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to revoke session." });
+  }
+});
+
+// POST /api/auth/sessions/revoke-all — Revoke all device sessions for the current user
+authRouter.post("/sessions/revoke-all", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const tenantId = req.user?.tenantId;
+    if (!userId) return res.status(401).json({ error: "Unauthorized." });
+    const count = await revokeAllSessions(userId, tenantId || undefined);
+    return res.json({ success: true, revokedCount: count, message: `${count} session(s) revoked.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to revoke all sessions." });
+  }
+});
 
 async function getPlatformOAuthConfig(req?: any) {
   return OAuthFactory.resolveConfig(req);

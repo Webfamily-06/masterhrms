@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -71,6 +71,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
   const [loading, setLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileReady, setTurnstileReady] = useState(false);
+  const [turnstileError, setTurnstileError] = useState(false);
   const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Sync token from URL query params
@@ -150,7 +151,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
   const footerText =
     rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
       ? rawFooter
-      : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
+      : `Â© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`;
 
   const googleVisible = Boolean(oauthConfig?.google?.enabled);
   const githubVisible = Boolean(oauthConfig?.github?.enabled);
@@ -184,7 +185,7 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     appleVisible && {
       id: 'apple' as const,
       name: 'Apple',
-      icon: <span className="font-bold"></span>,
+      icon: <span className="font-bold">ï£¿</span>,
     },
     linkedinVisible && {
       id: 'linkedin' as const,
@@ -225,6 +226,23 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     }
   }, [searchToken, searchError, searchProvider, router, redirect, qc, mode, isResetFlow]);
 
+  const handleTurnstileSuccess = useCallback((t: string) => {
+    setTurnstileToken(t);
+    setTurnstileReady(true);
+    setTurnstileError(false);
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken('');
+    setTurnstileReady(false);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileReady(false);
+    setTurnstileError(true);
+    // Do NOT toast here — widget shows its own error UI; toasting creates alarm
+  }, []);
+
   // Sign in / Sign up submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -233,7 +251,9 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
 
     if (!cleanEmail) return toast.error('Please enter your work email address');
     if (!cleanPassword) return toast.error('Please enter your account password');
-    if (!turnstileToken) {
+    // If turnstile widget errored (network/CSP issue), allow submission — backend enforces
+    // If token is simply not yet ready (widget still loading), warn and return
+    if (!turnstileToken && !turnstileError) {
       toast.error('Please complete the security verification challenge.');
       return;
     }
@@ -313,6 +333,8 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
       toast.error(err.message || 'Authentication failed. Please check your credentials.');
       turnstileRef.current?.reset();
       setTurnstileToken('');
+      setTurnstileReady(false);
+      setTurnstileError(false);
     } finally {
       setLoading(false);
     }
@@ -923,14 +945,32 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
             <TurnstileWidget
               ref={turnstileRef}
               action={mode === 'signup' ? 'signup' : 'login'}
-              onSuccess={(t) => { setTurnstileToken(t); setTurnstileReady(true); }}
-              onExpire={() => { setTurnstileToken(''); setTurnstileReady(false); }}
-              onError={() => { setTurnstileReady(false); toast.error('Security verification failed. Please refresh and try again.'); }}
+              onSuccess={handleTurnstileSuccess}
+              onExpire={handleTurnstileExpire}
+              onError={handleTurnstileError}
             />
+
+            {turnstileError && (
+              <div className="flex items-center justify-between text-xs bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-lg px-3 py-2">
+                <span className="text-amber-700 dark:text-amber-400">Security check unavailable.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTurnstileError(false);
+                    setTurnstileReady(false);
+                    setTurnstileToken('');
+                    turnstileRef.current?.reset();
+                  }}
+                  className="text-amber-700 dark:text-amber-400 font-semibold hover:underline cursor-pointer ml-2"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
-              disabled={loading || !turnstileReady}
+              disabled={loading || (!turnstileReady && !turnstileError)}
               className="w-full bg-primary text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 cursor-pointer transition-colors flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loading && <Loader2 className="size-4 animate-spin" />}
