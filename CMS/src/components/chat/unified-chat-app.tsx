@@ -813,6 +813,7 @@ export function UnifiedChatApp({
     name: string;
     phone?: string;
     email?: string;
+    avatarUrl?: string | null;
   } | null>(null);
   const [preCallPermissionState, setPreCallPermissionState] = useState<"checking" | "granted" | "denied">("checking");
   const [preCallMicMuted, setPreCallMicMuted] = useState(false);
@@ -938,6 +939,7 @@ export function UnifiedChatApp({
   const [activeCallTargetPhone, setActiveCallTargetPhone] = useState("");
   const [activeCallTargetEmail, setActiveCallTargetEmail] = useState("");
   const [activeCallTargetId, setActiveCallTargetId] = useState("");
+  const [activeCallTargetAvatar, setActiveCallTargetAvatar] = useState<string | null>(null);
   const [activeCallId, setActiveCallId] = useState("");
   const [activeCallRole, setActiveCallRole] = useState<"caller" | "callee">("caller");
   const [callStatus, setCallStatus] = useState<"calling" | "ringing" | "connected" | "ended">("calling");
@@ -3277,15 +3279,22 @@ export function UnifiedChatApp({
     targetUserId: string,
     name: string,
     phone = "",
-    email = ""
+    email = "",
+    avatarUrl?: string | null
   ) => {
     let resolvedTargetId = targetUserId;
     if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
       const parts = activeThreadId.slice("direct_".length).split("_");
       resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
     }
+    const resolvedAvatar =
+      avatarUrl ||
+      contacts.find((c) => (c.userId && c.userId === resolvedTargetId) || c.id === resolvedTargetId)?.avatarUrl ||
+      (activeTargetUserId === resolvedTargetId ? (participantProfile as any)?.avatarUrl : null) ||
+      conversations.find((c) => c.otherParticipantId === resolvedTargetId)?.avatarUrl ||
+      null;
     setPreCallType(type);
-    setPreCallTarget({ targetUserId: resolvedTargetId, name, phone, email });
+    setPreCallTarget({ targetUserId: resolvedTargetId, name, phone, email, avatarUrl: resolvedAvatar });
     setPreCallModalOpen(true);
     setPreCallPermissionState("checking");
     setPreCallMicMuted(false);
@@ -3380,14 +3389,21 @@ export function UnifiedChatApp({
     targetUserId: string,
     name: string,
     phone = "",
-    email = ""
+    email = "",
+    avatarUrl?: string | null
   ) => {
     let resolvedTargetId = targetUserId;
     if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
       const parts = activeThreadId.slice("direct_".length).split("_");
       resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
     }
-    openPreCallModal(type, resolvedTargetId, name, phone, email);
+    const resolvedAvatar =
+      avatarUrl ||
+      contacts.find((c) => (c.userId && c.userId === resolvedTargetId) || c.id === resolvedTargetId)?.avatarUrl ||
+      (activeTargetUserId === resolvedTargetId ? (participantProfile as any)?.avatarUrl : null) ||
+      conversations.find((c) => c.otherParticipantId === resolvedTargetId)?.avatarUrl ||
+      null;
+    openPreCallModal(type, resolvedTargetId, name, phone, email, resolvedAvatar);
   };
 
   // Actual Dialing after Pre-Call Confirmation
@@ -3399,7 +3415,8 @@ export function UnifiedChatApp({
     email = "",
     passedStream?: MediaStream | null,
     initialMicMuted = false,
-    initialVideoOff = false
+    initialVideoOff = false,
+    avatarUrl?: string | null
   ) => {
     try {
       let resolvedTargetId = targetUserId;
@@ -3407,6 +3424,13 @@ export function UnifiedChatApp({
         const parts = activeThreadId.slice("direct_".length).split("_");
         resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
       }
+
+      const resolvedAvatar =
+        avatarUrl ||
+        contacts.find((c) => (c.userId && c.userId === resolvedTargetId) || c.id === resolvedTargetId)?.avatarUrl ||
+        (activeTargetUserId === resolvedTargetId ? (participantProfile as any)?.avatarUrl : null) ||
+        conversations.find((c) => c.otherParticipantId === resolvedTargetId)?.avatarUrl ||
+        null;
 
       let stream = passedStream;
       if (!stream || stream.getTracks().length === 0) {
@@ -3419,6 +3443,7 @@ export function UnifiedChatApp({
       setActiveCallTargetPhone(phone);
       setActiveCallTargetEmail(email);
       setActiveCallTargetId(resolvedTargetId);
+      setActiveCallTargetAvatar(resolvedAvatar);
       setActiveCallRole("caller");
       setCallStatus("calling");
       setCallDurationSeconds(0);
@@ -3710,6 +3735,7 @@ export function UnifiedChatApp({
       setActiveCallTargetPhone(incomingCall.callerPhone || "");
       setActiveCallTargetEmail(incomingCall.callerEmail || "");
       setActiveCallTargetId(incomingCall.fromUserId);
+      setActiveCallTargetAvatar(incomingCall.callerAvatarUrl || (incomingCall as any).callerAvatar || null);
       setActiveCallId(incomingCall.callId);
       setActiveCallRole("callee");
       setCallStatus("connected");
@@ -3807,6 +3833,7 @@ export function UnifiedChatApp({
   const handleEndCall = async () => {
     const finalDuration = callDurationSeconds;
     setActiveCallModalOpen(false);
+    setActiveCallTargetAvatar(null);
 
     try {
       const socket = getSocketClient();
@@ -3832,7 +3859,9 @@ export function UnifiedChatApp({
           callerName: activeCallRole === "caller" ? ((currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Colleague") : (activeCallTargetName || "Colleague"),
           callerPhone: activeCallTargetPhone || "Internal Call",
           callerEmail: activeCallRole === "caller" ? currentUser?.email : activeCallTargetEmail,
-          callerAvatarUrl: (currentUser as any)?.avatarUrl,
+          callerAvatarUrl: activeCallRole === "caller"
+            ? ((currentUser as any)?.avatarUrl || (currentUser as any)?.profile?.avatarUrl || null)
+            : (activeCallTargetAvatar || null),
           receiverId: activeCallRole === "caller" ? activeCallTargetId : currentUserId,
           receiverName: activeCallRole === "caller" ? (activeCallTargetName || "Colleague") : ((currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Colleague"),
           direction: activeCallRole === "caller" ? "outgoing" : "incoming",
@@ -3906,7 +3935,7 @@ export function UnifiedChatApp({
             detail: {
               callId,
               callerName: activeCallTargetName,
-              callerAvatar: incomingCall?.callerAvatarUrl || null,
+              callerAvatar: activeCallTargetAvatar,
               callType: activeCallType,
               status: callStatus,
               durationSeconds: callDurationSeconds,
@@ -3920,7 +3949,7 @@ export function UnifiedChatApp({
     } else if (!activeCallModalOpen) {
       window.dispatchEvent(new CustomEvent("hrms:active-call-end"));
     }
-  }, [activeCallModalOpen, callStatus, callDurationSeconds, isMuted, isVideoOff, isCallMinimized, activeCallTargetName, incomingCall?.callerAvatarUrl, activeCallType]);
+  }, [activeCallModalOpen, callStatus, callDurationSeconds, isMuted, isVideoOff, isCallMinimized, activeCallTargetName, activeCallTargetAvatar, activeCallType]);
 
   // Listen to controls from global FloatingMiniCallWidget (mute, maximize, hangup)
   useEffect(() => {
@@ -8731,7 +8760,7 @@ export function UnifiedChatApp({
                   const vidOff = preCallVideoOff;
                   setPreCallModalOpen(false);
                   setPreCallStream(null);
-                  startActualCall(type, target.targetUserId, target.name, target.phone || "", target.email || "", stream, muted, vidOff);
+                  startActualCall(type, target.targetUserId, target.name, target.phone || "", target.email || "", stream, muted, vidOff, target.avatarUrl);
                 }
               }}
             >
@@ -8998,9 +9027,17 @@ export function UnifiedChatApp({
 
                   {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background text-foreground">
-                      <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-success animate-pulse")}>
-                        {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                      </div>
+                      {activeCallTargetAvatar ? (
+                        <img
+                          src={activeCallTargetAvatar}
+                          alt={activeCallTargetName || "Caller"}
+                          className={cn("size-24 rounded-full object-cover shadow-xl", remoteIsSpeaking && "ring-4 ring-success animate-pulse")}
+                        />
+                      ) : (
+                        <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-success animate-pulse")}>
+                          {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <span className="text-sm text-foreground">{activeCallTargetName}&apos;s camera is off</span>
                       {remoteIsSpeaking && (
                         <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-success/20 text-success text-xs font-semibold">
@@ -9048,15 +9085,26 @@ export function UnifiedChatApp({
               <div className="flex flex-col items-center justify-center text-center space-y-3">
                 <audio ref={remoteAudioRef} autoPlay />
                 <div className="relative">
-                  <div
-                    className={cn(
-                      "size-24 rounded-full text-foreground flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
-                      getAvatarColor(activeCallTargetName),
-                      remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
-                    )}
-                  >
-                    {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                  </div>
+                  {activeCallTargetAvatar ? (
+                    <img
+                      src={activeCallTargetAvatar}
+                      alt={activeCallTargetName || "Caller"}
+                      className={cn(
+                        "size-24 rounded-full object-cover shadow-xl transition-all",
+                        remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
+                      )}
+                    />
+                  ) : (
+                    <div
+                      className={cn(
+                        "size-24 rounded-full text-foreground flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
+                        getAvatarColor(activeCallTargetName),
+                        remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
+                      )}
+                    >
+                      {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   {remoteIsSpeaking && (
                     <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-success text-success-foreground text-[9px] font-semibold animate-pulse shadow-md flex items-center gap-1">
                       <Activity className="size-2.5" /> Speaking
@@ -9266,9 +9314,17 @@ export function UnifiedChatApp({
             /* AUDIO PIP CARD */
             <div className="flex items-center gap-3">
               <div className="relative">
-                <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
-                  {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                </div>
+                {activeCallTargetAvatar ? (
+                  <img
+                    src={activeCallTargetAvatar}
+                    alt={activeCallTargetName || "Caller"}
+                    className="size-10 rounded-full object-cover shadow-md"
+                  />
+                ) : (
+                  <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
+                    {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <span className="absolute -bottom-0.5 -right-0.5 size-3 bg-success rounded-full ring-2 ring-ring animate-pulse" />
               </div>
 

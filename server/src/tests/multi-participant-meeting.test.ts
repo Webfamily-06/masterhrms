@@ -1,3 +1,7 @@
+import dotenv from "dotenv";
+import path from "path";
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 import assert from "node:assert";
 import http from "node:http";
 import jwt from "jsonwebtoken";

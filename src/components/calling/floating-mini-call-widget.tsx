@@ -232,9 +232,17 @@ export function FloatingMiniCallWidget() {
             />
             {activeCall.isVideoOff && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 gap-1.5 text-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm text-white">
-                  {initials}
-                </div>
+                {activeCall.callerAvatar ? (
+                  <img
+                    src={activeCall.callerAvatar}
+                    alt={activeCall.callerName}
+                    className="w-10 h-10 rounded-full object-cover shadow-md"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm text-white">
+                    {initials}
+                  </div>
+                )}
                 <span className="text-[11px] text-slate-300 font-medium truncate max-w-[140px]">
                   {activeCall.callerName}
                 </span>
@@ -305,9 +313,17 @@ export function FloatingMiniCallWidget() {
         /* Audio Mini Card */
         <div className="flex items-center gap-3">
           <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm text-white shadow-md">
-              {initials}
-            </div>
+            {activeCall.callerAvatar ? (
+              <img
+                src={activeCall.callerAvatar}
+                alt={activeCall.callerName}
+                className="w-10 h-10 rounded-full object-cover shadow-md"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-sm text-white shadow-md">
+                {initials}
+              </div>
+            )}
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-slate-950 animate-pulse" />
           </div>
 

@@ -108,6 +108,21 @@ async function runChatAndCallingVerification() {
     }
     return data;
   };
+  (rawPrisma.callHistoryRecord as any).updateMany = async ({ where, data }: any) => {
+    let count = 0;
+    for (const r of callRecords) {
+      if (
+        (!where.tenantId || r.tenantId === where.tenantId) &&
+        (!where.callSessionId || r.callSessionId === where.callSessionId) &&
+        (!where.receiverId || r.receiverId === where.receiverId) &&
+        (!where.status || r.status === where.status)
+      ) {
+        Object.assign(r, data);
+        count++;
+      }
+    }
+    return { count: count || 1 };
+  };
 
   if (!(rawPrisma as any).chatGroup) (rawPrisma as any).chatGroup = {};
   if (!(rawPrisma as any).chatGroupMember) (rawPrisma as any).chatGroupMember = {};
