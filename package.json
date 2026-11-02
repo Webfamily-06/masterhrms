@@ -22,6 +22,8 @@
     "cms:dev": "npm --prefix CMS run dev",
     "cms:build": "npm --prefix CMS run build",
     "cms:typecheck": "npm --prefix CMS run typecheck",
+    "desktop:biometric": "npm --prefix \"Bio-matric Software/desktop-app\" start",
+    "test:biometric-cli": "node \"Bio-matric Software/desktop-app/src/test-cli.js\"",
     "build": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
     "build:vite": "VITE_CONFIG_NATIVE_IGNORE_WARNING=true node --max-old-space-size=8192 ./node_modules/vite/bin/vite.js build",
     "postinstall": "npm --prefix server run prisma:generate",
