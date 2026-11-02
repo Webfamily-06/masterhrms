@@ -560,8 +560,11 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
     });
 
     // In-memory fallback for the public CMS home page.
-    // No database row is required — this prevents a 404 on unauthenticated visitors.
-    if (!page && slug === "home") {
+    // No database row is required — this prevents a 404 on unauthenticated visitors when the
+    // database page is missing, unpublished, or has empty draft content.
+    // When an operator creates and publishes a custom home page with content, this fallback is skipped.
+    if ((!page || !page.published || !page.content || Object.keys(page.content).length === 0) && slug === "home") {
+      res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
       return res.json({
         id: "home",
         slug: "home",
