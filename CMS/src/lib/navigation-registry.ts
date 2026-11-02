@@ -226,14 +226,13 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "order": 125
       },
       {
-        "id": "hr-att-biometric-hub",
+        "id": "hr-att-device-sync",
         "portal": "hr",
         "module": "attendance",
-        "label": "Biometric Hardware Hub",
-        "route": "/biometric-sync",
-        "icon": "Fingerprint",
-        "order": 126,
-        "moduleKey": "biometric-sync"
+        "label": "Device Sync",
+        "route": "/hr/attendance/devices",
+        "icon": "Cpu",
+        "order": 126
       }
     ]
   },
@@ -253,7 +252,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "portal": "hr",
         "module": "attendance",
         "label": "Terminal Overview",
-        "route": "/biometric-sync",
+        "route": "/biometric-sync?tab=overview",
         "icon": "LayoutDashboard",
         "order": 129.1,
         "moduleKey": "biometric-sync"
@@ -816,7 +815,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "id": "hr-mt-calendar",
         "portal": "hr",
         "module": "meetings",
-        "label": "Meetings",
+        "label": "Meeting Calendar",
         "route": "/hr/meetings",
         "icon": "Calendar",
         "order": 401
@@ -1495,7 +1494,7 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "id": "me-mt-meetings",
         "portal": "me",
         "module": "meetings",
-        "label": "Meetings",
+        "label": "My Schedule",
         "route": "/me/meetings",
         "icon": "Calendar",
         "order": 401,

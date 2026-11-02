@@ -1957,18 +1957,9 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to={isAdminOrSuper ? "/hr/attendance/shifts" : "/me/attendance/requests"}
+                    to={isAdminOrSuper ? "/hr/attendance/overtime" : "/me/attendance/requests"}
                     onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/attendance/shifts" || currentPath === "/shift-swap-requests") && "active")}
-                  >
-                    Shift Swap Requests
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/requests"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/overtime" && "active")}
+                    className={cn((currentPath === "/hr/attendance/overtime" || currentPath === "/overtime") && "active")}
                   >
                     Overtime Requests
                   </Link>
@@ -1980,15 +1971,6 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/work-from-home" && "active")}
                   >
                     Work From Home (WFH)
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/attendance/records" : "/me/attendance/records"}
-                    onClick={onCloseMobile}
-                    className={cn((currentPath === "/hr/attendance/records" || currentPath === "/attendance-employee") && "active")}
-                  >
-                    Attendance Matrix
                   </Link>
                 </li>
                 <li>
@@ -2071,20 +2053,20 @@ export function DreamsSidebar({
                       </li>
                       <li>
                         <Link
-                          to={isAdminOrSuper ? "/hr/recruitment/candidates" : "/me/recruitment/job-postings"}
+                          to={isAdminOrSuper ? "/hr/recruitment/candidates" : "/me/recruitment/interviews"}
                           onClick={onCloseMobile}
-                          className={cn((currentPath === "/hr/recruitment/candidates" || currentPath === "/campus-hiring") && "active")}
+                          className={cn((currentPath === "/hr/recruitment/candidates" || currentPath === "/me/recruitment/interviews" || currentPath === "/campus-hiring") && "active")}
                         >
-                          Campus Hiring
+                          Candidates & Interviews
                         </Link>
                       </li>
                       <li>
                         <Link
-                          to={isAdminOrSuper ? "/hr/recruitment/referrals" : "/me/recruitment/job-postings"}
+                          to={isAdminOrSuper ? "/hr/recruitment/referrals" : "/me/recruitment/career"}
                           onClick={onCloseMobile}
-                          className={cn((currentPath === "/hr/recruitment/referrals" || currentPath === "/referrals") && "active")}
+                          className={cn((currentPath === "/hr/recruitment/referrals" || currentPath === "/me/recruitment/career" || currentPath === "/referrals") && "active")}
                         >
-                          Employee Referrals
+                          Employee Referrals & Careers
                         </Link>
                       </li>
                     </>
@@ -2194,7 +2176,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to={isAdminOrSuper ? "/hr/recruitment/assessments" : "/me/documents"}
+                    to="/forms"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/forms" && "active")}
                   >
@@ -2203,7 +2185,7 @@ export function DreamsSidebar({
                 </li>
                 <li>
                   <Link
-                    to={isAdminOrSuper ? "/hr/settings" : "/me/dashboard"}
+                    to="/workflows"
                     onClick={onCloseMobile}
                     className={cn(currentPath === "/workflows" && "active")}
                   >
@@ -2234,20 +2216,11 @@ export function DreamsSidebar({
                 )}
                 <li>
                   <Link
-                    to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
+                    to={isAdminOrSuper ? "/hr/lifecycle/exits" : "/me/lifecycle/exit"}
                     onClick={onCloseMobile}
-                    className={cn(currentPath === "/offboarding" && "active")}
+                    className={cn((currentPath === "/hr/lifecycle/exits" || currentPath === "/me/lifecycle/exit" || currentPath === "/offboarding") && "active")}
                   >
                     Exit & Offboarding
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/lifecycle/resignations" : "/me/lifecycle/resignation"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/notice-period-tracker" && "active")}
-                  >
-                    Notice Period Tracker
                   </Link>
                 </li>
                 <li>
@@ -2295,15 +2268,17 @@ export function DreamsSidebar({
                     Promotions & Transfers
                   </Link>
                 </li>
-                <li>
-                  <Link
-                    to={isAdminOrSuper ? "/hr/employees" : "/me/employees"}
-                    onClick={onCloseMobile}
-                    className={cn(currentPath === "/probation" && "active")}
-                  >
-                    Probation Management
-                  </Link>
-                </li>
+                {isAdminOrSuper && (
+                  <li>
+                    <Link
+                      to="/hr/lifecycle/probation"
+                      onClick={onCloseMobile}
+                      className={cn((currentPath === "/hr/lifecycle/probation" || currentPath === "/probation") && "active")}
+                    >
+                      Probation Management
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link
                     to={isAdminOrSuper ? "/hr/payroll/components" : "/me/payroll/salary"}

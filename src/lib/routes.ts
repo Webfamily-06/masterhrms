@@ -67,6 +67,7 @@ export const ROUTES = {
     // 2. Workforce Management
     employees: "/hr/employees",
     organization: {
+      root: "/hr/organization",
       branches: "/hr/organization/branches",
       departments: "/hr/organization/departments",
       designations: "/hr/organization/designations",
@@ -82,6 +83,7 @@ export const ROUTES = {
       regularizations: "/hr/attendance/regularizations",
       shifts: "/hr/attendance/shifts",
       policies: "/hr/attendance/policies",
+      devices: "/hr/attendance/devices",
     },
     leave: {
       root: "/hr/leave",
@@ -93,6 +95,7 @@ export const ROUTES = {
 
     // 3. Talent and Growth
     recruitment: {
+      root: "/hr/recruitment",
       jobPostings: "/hr/recruitment/job-postings",
       candidates: "/hr/recruitment/candidates",
       interviews: "/hr/recruitment/interviews",
@@ -111,6 +114,7 @@ export const ROUTES = {
       offerTemplates: "/hr/recruitment/offer-templates",
     },
     lifecycle: {
+      root: "/hr/lifecycle",
       awards: "/hr/lifecycle/awards",
       promotions: "/hr/lifecycle/promotions",
       transfers: "/hr/lifecycle/transfers",
@@ -121,6 +125,7 @@ export const ROUTES = {
       complaints: "/hr/lifecycle/complaints",
     },
     performance: {
+      root: "/hr/performance",
       reviews: "/hr/performance/reviews",
       goals: "/hr/performance/goals",
       cycles: "/hr/performance/cycles",
@@ -129,6 +134,7 @@ export const ROUTES = {
       indicatorCategories: "/hr/performance/indicator-categories",
     },
     training: {
+      root: "/hr/training",
       employeeTrainings: "/hr/training/employee-trainings",
       sessions: "/hr/training/sessions",
       programs: "/hr/training/programs",
@@ -137,12 +143,14 @@ export const ROUTES = {
 
     // 4. Finance and Assets
     payroll: {
+      root: "/hr/payroll",
       payslips: "/hr/payroll/payslips",
       runs: "/hr/payroll/runs",
       employeeSalaries: "/hr/payroll/employee-salaries",
       components: "/hr/payroll/components",
     },
     assets: {
+      root: "/hr/assets",
       dashboard: "/hr/assets/dashboard",
       list: "/hr/assets",
       depreciation: "/hr/assets/depreciation",
@@ -151,12 +159,14 @@ export const ROUTES = {
 
     // 5. Communication and Content
     meetings: {
+      root: "/hr/meetings",
       list: "/hr/meetings",
       actionItems: "/hr/meetings/action-items",
       types: "/hr/meetings/types",
       rooms: "/hr/meetings/rooms",
     },
     documents: {
+      root: "/hr/documents",
       list: "/hr/documents",
       contracts: "/hr/documents/contracts",
       acknowledgements: "/hr/documents/acknowledgements",
@@ -185,11 +195,13 @@ export const ROUTES = {
     // 2. Workspace Management
     employees: "/me/employees",
     organization: {
+      root: "/me/organization",
       structure: "/me/organization/structure",
       holidays: "/me/organization/holidays",
       announcements: "/me/organization/announcements",
     },
     attendance: {
+      root: "/me/attendance",
       records: "/me/attendance/records",
       timesheet: "/me/attendance/timesheet",
       timesheets: "/me/attendance/timesheet",
@@ -199,6 +211,7 @@ export const ROUTES = {
       requests: "/me/attendance/requests",
     },
     leave: {
+      root: "/me/leave",
       applications: "/me/leave/applications",
       balance: "/me/leave/balance",
       policies: "/me/leave/policies",
@@ -207,6 +220,7 @@ export const ROUTES = {
 
     // 3. Talent and Growth
     recruitment: {
+      root: "/me/recruitment",
       jobPostings: "/me/recruitment/job-postings",
       interviews: "/me/recruitment/interviews",
       onboarding: "/me/recruitment/onboarding",
@@ -214,6 +228,7 @@ export const ROUTES = {
       career: "/me/recruitment/career",
     },
     lifecycle: {
+      root: "/me/lifecycle",
       awards: "/me/lifecycle/awards",
       promotions: "/me/lifecycle/promotions",
       transfers: "/me/lifecycle/transfers",
@@ -224,12 +239,14 @@ export const ROUTES = {
       complaints: "/me/lifecycle/complaints",
     },
     performance: {
+      root: "/me/performance",
       reviews: "/me/performance/reviews",
       goals: "/me/performance/goals",
       cycles: "/me/performance/cycles",
       indicators: "/me/performance/indicators",
     },
     training: {
+      root: "/me/training",
       trainings: "/me/training/trainings",
       sessions: "/me/training/sessions",
       programs: "/me/training/programs",
@@ -237,6 +254,7 @@ export const ROUTES = {
 
     // 4. Finance and Assets
     payroll: {
+      root: "/me/payroll",
       payslips: "/me/payroll/payslips",
       salary: "/me/payroll/salary",
       tax: "/me/payroll/tax",
@@ -244,6 +262,7 @@ export const ROUTES = {
       statutoryForms: "/me/payroll/statutory-forms",
     },
     assets: {
+      root: "/me/assets",
       dashboard: "/me/assets/dashboard",
       list: "/me/assets",
       requests: "/me/assets/requests",
@@ -251,10 +270,12 @@ export const ROUTES = {
 
     // 5. Communication and Content
     meetings: {
+      root: "/me/meetings",
       list: "/me/meetings",
       actionItems: "/me/meetings/action-items",
     },
     documents: {
+      root: "/me/documents",
       list: "/me/documents",
       contracts: "/me/documents/contracts",
       acknowledgements: "/me/documents/acknowledgements",

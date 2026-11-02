@@ -51,7 +51,6 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       { label: "Dashboard", path: "/hr/dashboard", permission: "hrm.dashboard.view" },
       { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
-      { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
       { label: "Notifications", path: "/hr/notifications", permission: "hrm.dashboard.view" },
     ],
@@ -64,8 +63,6 @@ export const hrSidebar: HRMenuItem[] = [
     permission: "hrm.dashboard.view",
     children: [
       HR_CHAT_NAV_GROUP,
-      { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
-      { label: "Email Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
       {
         label: "Scrumboard",
         children: [

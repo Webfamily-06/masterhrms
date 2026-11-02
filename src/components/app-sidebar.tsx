@@ -191,7 +191,6 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
   const paidAddonItems: NavItem[] = [];
   if (isOkrUnlocked) paidAddonItems.push({ title: "OKR & Performance", url: "/okr", icon: Target });
   if (isAssetsUnlocked) paidAddonItems.push({ title: "Asset Management", url: "/hr/assets", icon: HardDrive });
-  if (isBiometricUnlocked) paidAddonItems.push({ title: "Biometric Hardware Hub", url: "/biometric-sync", icon: Fingerprint });
 
   const HRM_NAV_GROUPS: NavGroup[] = [
     { category: "Overview", items: [{ title: "HRM Hub", url: "/hr/dashboard", icon: Users }] },
@@ -201,7 +200,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         { title: "Attendance", url: "/hr/attendance", icon: Clock },
         { title: "Leave & PTO", url: "/hr/leave/applications", icon: CalendarCheck },
         { title: "Shift Rostering", url: "/hr/attendance/shifts", icon: Layers },
-        ...(isBiometricUnlocked ? [{ title: "Biometric Device Hub", url: "/biometric-sync", icon: Fingerprint }] : []),
+        ...(isBiometricUnlocked ? [{ title: "Biometric Hardware Hub", url: "/biometric-sync", icon: Fingerprint }] : []),
       ],
     },
     { category: "Payroll", items: [{ title: "Payroll Runs", url: "/hr/payroll/runs", icon: Wallet }] },
@@ -431,7 +430,6 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
               {isAddonUnlocked("public-api") && <SimpleNavItem item={{ title: "Public API Keys", url: "/public-api", icon: Code }} />}
               {(isAddonUnlocked("outbound-webhooks") || isAddonUnlocked("webhook")) && <SimpleNavItem item={{ title: "Outbound Webhooks", url: "/addons/webhook/endpoints", icon: Webhook }} />}
               {isAddonUnlocked("sms-gateway") && <SimpleNavItem item={{ title: "SMS Gateway", url: "/sms-gateway", icon: MessageSquare }} />}
-              {isAddonUnlocked("biometric-sync") && <SimpleNavItem item={{ title: "Biometric Sync Hub", url: "/biometric-sync", icon: Fingerprint }} />}
               {isAddonUnlocked("ai-ocr") && <SimpleNavItem item={{ title: "AI Invoice OCR", url: "/ai-ocr", icon: ScanLine }} />}
               {(isAddonUnlocked("ai-assistant") || isAddonUnlocked("ai-helper") || isAddonUnlocked("ai")) && (
                 <SimpleNavItem item={{ title: "AI Assistant", url: "/addons/ai-assistant/settings", icon: Bot }} />
