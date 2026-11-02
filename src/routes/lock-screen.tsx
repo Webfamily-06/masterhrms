@@ -10,7 +10,7 @@ export const Route = createFileRoute("/lock-screen")({
   component: LockScreenComponent,
   head: () => ({
     meta: [
-      { title: "Lock Screen | Dreams ERP" },
+      { title: "Lock Screen — MasterHRMS" },
       { name: "description", content: "Session locked for security. Enter your password to resume." },
     ],
   }),

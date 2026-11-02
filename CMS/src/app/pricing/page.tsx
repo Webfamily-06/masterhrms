@@ -5,8 +5,11 @@ import { generateMetadata } from '@/src/utils/generateMetaData';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  ...generateMetadata(),
-  title: 'Pricing — Webfamily Tech Solutions',
+  ...generateMetadata(
+    'Pricing & Enterprise Plans — MasterHRMS',
+    'Flexible, transparent pricing for teams of any size. Explore MasterHRMS plans for automated payroll, shift scheduling, and HR compliance.',
+    'https://www.masterhrms.com/pricing'
+  ),
 };
 
 const PricingPage = () => {

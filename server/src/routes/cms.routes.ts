@@ -568,8 +568,8 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
       return res.json({
         id: "home",
         slug: "home",
-        title: "Home",
-        metaDescription: "Master HRMS & Enterprise ERP — automate your workforce management.",
+        title: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+        metaDescription: "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
         content: {
           hero: {
             title: "Automate your workflows, eliminate manual tasks.",

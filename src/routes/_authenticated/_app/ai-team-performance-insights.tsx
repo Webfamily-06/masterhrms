@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_app/ai-team-performance-i
   component: AITeamPerformanceInsightsPage,
   head: () => ({
     meta: [
-      { title: "AI Team Performance Insights | Dreams ERP" },
+      { title: "AI Team Performance Insights — MasterHRMS" },
       { name: "description", content: "AI-evaluated OKRs, productivity velocities, cross-functional collaboration scores, and quality audits." },
     ],
   }),

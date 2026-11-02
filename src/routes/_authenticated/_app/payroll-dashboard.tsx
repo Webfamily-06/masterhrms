@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/_app/payroll-dashboard")({
   component: PayrollDashboardPage,
   head: () => ({
     meta: [
-      { title: "Payroll Register & Analytics | Dreams ERP" },
+      { title: "Payroll Register & Analytics — MasterHRMS" },
       { name: "description", content: "Comprehensive payroll calculations, payslips, deductions, and salary distribution." },
     ],
   }),

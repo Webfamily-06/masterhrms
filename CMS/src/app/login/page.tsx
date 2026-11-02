@@ -2,8 +2,12 @@ import { UnifiedAuthPage } from '@/src/components/auth/UnifiedAuthPage';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Sign In — Workspace ERP & HRMS',
-  description: 'Sign in to your enterprise ERP & HRMS workspace.',
+  title: 'Sign In — MasterHRMS Enterprise Portal',
+  description: 'Sign in to your enterprise MasterHRMS workforce workspace.',
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function LoginPage() {

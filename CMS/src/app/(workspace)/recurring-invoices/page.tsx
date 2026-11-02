@@ -1437,7 +1437,7 @@ export default function RecurringInvoicesPage() {
               {/* Top Banner: Company & RI ID */}
               <div className="flex justify-between items-start flex-wrap gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Dreams ERP</h2>
+                  <h2 className="text-lg font-bold text-gray-900">MasterHRMS</h2>
                   <p className="text-muted-foreground text-xs">
                     123 Business Ave, Suite 500<br />
                     New York, NY 10001

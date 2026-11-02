@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_app/learning-analytics")(
   component: LearningAnalyticsPage,
   head: () => ({
     meta: [
-      { title: "Learning Analytics | Dreams ERP" },
+      { title: "Learning Analytics — MasterHRMS" },
       { name: "description", content: "Corporate training programs, employee skill progression, and certification telemetry." },
     ],
   }),

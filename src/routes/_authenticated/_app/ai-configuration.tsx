@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_authenticated/_app/ai-configuration")({
   component: AIConfigurationPage,
   head: () => ({
     meta: [
-      { title: "AI Engine Configuration | Dreams ERP" },
+      { title: "AI Engine Configuration — MasterHRMS" },
       { name: "description", content: "Configure enterprise AI models, NLP engines, predictive algorithms, and automated retraining." },
     ],
   }),

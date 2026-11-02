@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_app/ai-payroll-forecast")
   component: AIPayrollForecastPage,
   head: () => ({
     meta: [
-      { title: "AI Payroll Forecast | Dreams ERP" },
+      { title: "AI Payroll Forecast — MasterHRMS" },
       { name: "description", content: "Predictive payroll modelling, compensation projections, budget variance, and department trajectory." },
     ],
   }),

@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/_app/employee-dashboard")(
   component: EmployeeDashboardPage,
   head: () => ({
     meta: [
-      { title: "Employee Dashboard | Dreams ERP" },
+      { title: "Employee Dashboard — MasterHRMS" },
       { name: "description", content: "Personal workplace hub, attendance punch, leaves, performance and tasks." },
     ],
   }),
