@@ -43,6 +43,10 @@ const nextConfig: NextConfig = {
         destination: `${backendOrigin}/api/:path*`,
       },
       {
+        source: '/iclock/:path*',
+        destination: `${backendOrigin}/iclock/:path*`,
+      },
+      {
         source: '/uploads/:path*',
         destination: `${backendOrigin}/uploads/:path*`,
       },
