@@ -1,7 +1,7 @@
-﻿import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
+import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
 import { createOrReplaceOtp, verifyOtpCode, checkResendEligibility, maskEmail } from "../lib/otp";
 import { ERP_MODULES } from "../lib/erp-modules";
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
@@ -635,7 +635,7 @@ const loginHandler = async (req: any, res: Response) => {
         const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
         sessionResult = await createDeviceSession({
           userId: user.id,
-          tenantId: effectiveTenantId || userTenantId || null,
+          tenantId: userTenantId || null,
           ipAddress: clientIp,
           userAgent: req.headers["user-agent"] as string,
         });
