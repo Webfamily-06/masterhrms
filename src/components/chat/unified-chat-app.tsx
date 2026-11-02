@@ -5184,7 +5184,7 @@ export function UnifiedChatApp({
   return (
     <div
       className="flex h-[calc(100dvh-4rem)] min-h-[32rem] w-full overflow-hidden bg-background border-t border-border font-sans"
-      style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+      style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
     >
       {/* ─────────────────────────────────────────────────────────────────── */}
       {/* LEFT COLUMN: LISTS (CHATS / GROUPS / CONTACTS / CALLS)              */}
@@ -8085,7 +8085,7 @@ export function UnifiedChatApp({
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
         <DialogContent
           className="sm:max-w-[420px] font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans">Start New Direct Chat</DialogTitle>
@@ -8148,7 +8148,7 @@ export function UnifiedChatApp({
       <Dialog open={createGroupOpen} onOpenChange={setCreateGroupOpen}>
         <DialogContent
           className="sm:max-w-[460px] font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans">Create Chat Group</DialogTitle>
@@ -8405,7 +8405,7 @@ export function UnifiedChatApp({
       >
         <DialogContent
           className="sm:max-w-[460px] font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center justify-between">
@@ -8599,7 +8599,7 @@ export function UnifiedChatApp({
       <Dialog open={preCallModalOpen} onOpenChange={(open) => !open && closePreCallModal()}>
         <DialogContent
           className="sm:max-w-md font-sans text-center"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center justify-center gap-2">
@@ -8780,14 +8780,14 @@ export function UnifiedChatApp({
               )}
 
               {/* Speaker Output Chooser & Test Sound */}
-              <div className="flex items-center justify-between gap-2 pt-1">
+              <div className="flex items-center justify-between gap-3 pt-1">
                 <div className="min-w-0 flex-1">
-                  <label className="text-muted-foreground block text-[10px] font-medium">Speaker Output</label>
+                  <label className="text-muted-foreground block text-xs font-medium mb-1">Speaker Output</label>
                   {audioOutputDevices.length > 1 ? (
                     <select
                       value={selectedAudioOutputId}
                       onChange={(e) => setAudioOutputDevice(e.target.value)}
-                      className="w-full mt-0.5 bg-background border border-border rounded px-2 py-1 text-xs truncate"
+                      className="w-full bg-background border border-input rounded-lg px-3 py-1.5 text-xs text-foreground font-sans focus:outline-none focus:ring-1 focus:ring-primary truncate"
                     >
                       {audioOutputDevices.map((d) => (
                         <option key={d.deviceId} value={d.deviceId}>
@@ -8796,7 +8796,7 @@ export function UnifiedChatApp({
                       ))}
                     </select>
                   ) : (
-                    <span className="text-xs text-foreground truncate block">System Default Speaker</span>
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate block">System Default Speaker</span>
                   )}
                 </div>
                 <Button
@@ -8804,22 +8804,23 @@ export function UnifiedChatApp({
                   variant="outline"
                   size="sm"
                   onClick={testSpeakerSound}
-                  className="h-7 text-xs shrink-0 flex items-center gap-1 border-primary/30 dark:border-primary/30 text-primary dark:text-primary hover:bg-primary/10 dark:hover:bg-primary/40"
+                  className="h-8 text-xs shrink-0 flex items-center gap-1.5 border border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary dark:text-primary dark:bg-primary/15 dark:border-primary/40 font-medium transition-colors shadow-2xs"
                   title="Play test audio tone"
                 >
-                  <Volume2 className="size-3" />
+                  <Volume2 className="size-3.5 text-primary" />
                   <span>Test Audio</span>
                 </Button>
               </div>
 
               {/* Network Latency Check Badge */}
-              <div className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md bg-primary/70 dark:bg-primary/30 border border-primary/60 dark:border-primary/40 text-[11px] text-primary dark:text-primary">
-                <span className="flex items-center gap-1.5">
-                  <Signal className="size-3.5 text-primary dark:text-primary" />
+              <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-xs transition-colors">
+                <span className="flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                  <Signal className="size-3.5 text-primary shrink-0" />
                   <span>Signaling Quality</span>
                 </span>
-                <span className="font-semibold text-success dark:text-success flex items-center gap-1">
-                  <ShieldCheck className="size-3.5" /> Low Latency (P2P Ready)
+                <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full text-[11px] shadow-2xs">
+                  <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Low Latency (P2P Ready)</span>
                 </span>
               </div>
             </div>
@@ -8862,7 +8863,7 @@ export function UnifiedChatApp({
               ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-background text-foreground flex flex-col justify-between"
               : "sm:max-w-md bg-card text-foreground"
           )}
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           {/* Header Bar */}
           <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
@@ -9469,7 +9470,7 @@ export function UnifiedChatApp({
       <Dialog open={inCallAddParticipantOpen} onOpenChange={setInCallAddParticipantOpen}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
@@ -9563,7 +9564,7 @@ export function UnifiedChatApp({
       <Dialog open={inCallSettingsOpen} onOpenChange={setInCallSettingsOpen}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
@@ -9697,7 +9698,7 @@ export function UnifiedChatApp({
         <Dialog open={!!busyStateData} onOpenChange={() => setBusyStateData(null)}>
           <DialogContent
             className="sm:max-w-sm font-sans text-center"
-            style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+            style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
           >
             <div className="py-4 flex flex-col items-center font-sans space-y-3">
               <div className="size-16 rounded-full bg-warning/15 dark:bg-warning/60 text-warning dark:text-warning flex items-center justify-center shadow-inner">
@@ -9797,7 +9798,7 @@ export function UnifiedChatApp({
           <DialogContent
             data-testid="incoming-call-dialog"
             className="sm:max-w-md font-sans text-center z-[100000] border-2 border-primary/50 shadow-2xl overflow-hidden p-6 [&>button:last-child]:hidden"
-            style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+            style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
           >
             <div className="py-2 flex flex-col items-center font-sans space-y-4">
               {/* Concentric Animated Sonar Rings */}
@@ -9960,7 +9961,7 @@ export function UnifiedChatApp({
       <Dialog open={createPollOpen} onOpenChange={setCreatePollOpen}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center gap-2">
@@ -10054,7 +10055,7 @@ export function UnifiedChatApp({
       <Dialog open={!!editingMessage} onOpenChange={() => setEditingMessage(null)}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans">Edit Message</DialogTitle>
@@ -10092,7 +10093,7 @@ export function UnifiedChatApp({
       >
         <DialogContent
           className="sm:max-w-lg font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="font-sans flex items-center justify-between">
@@ -10369,7 +10370,7 @@ export function UnifiedChatApp({
           >
             <DialogContent
               className="sm:max-w-4xl max-w-[95vw] h-[85vh] max-h-[85vh] p-0 overflow-hidden flex flex-col bg-background border shadow-2xl font-sans"
-              style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+              style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
             >
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/40 flex-shrink-0">
@@ -10548,7 +10549,7 @@ export function UnifiedChatApp({
         <Dialog open={!!viewCallerDetails} onOpenChange={() => setViewCallerDetails(null)}>
           <DialogContent
             className="sm:max-w-md font-sans"
-            style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+            style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
           >
             <DialogHeader>
               <DialogTitle className="text-base font-bold font-sans">Caller Details</DialogTitle>
@@ -10643,7 +10644,7 @@ export function UnifiedChatApp({
       <Dialog open={scheduleMeetingOpen} onOpenChange={setScheduleMeetingOpen}>
         <DialogContent
           className="sm:max-w-lg font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="text-base font-bold font-sans flex items-center gap-2">
@@ -10814,7 +10815,7 @@ export function UnifiedChatApp({
       <Dialog open={transferOwnershipOpen} onOpenChange={setTransferOwnershipOpen}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="text-base font-bold font-sans">Transfer Group Ownership</DialogTitle>
@@ -10873,7 +10874,7 @@ export function UnifiedChatApp({
       <Dialog open={leaveGroupOpen} onOpenChange={setLeaveGroupOpen}>
         <DialogContent
           className="sm:max-w-md font-sans"
-          style={{ fontFamily: "var(--font-sans), 'Public Sans', sans-serif" }}
+          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
           <DialogHeader>
             <DialogTitle className="text-base font-bold font-sans">Leave Group</DialogTitle>
