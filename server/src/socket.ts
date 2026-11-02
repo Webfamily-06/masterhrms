@@ -62,7 +62,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
     cors: {
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
+        if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes("*") || process.env.NODE_ENV === "development") {
           return callback(null, true);
         }
         return callback(new Error("Origin not allowed"));
