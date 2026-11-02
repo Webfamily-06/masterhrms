@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 export const Route = createFileRoute("/_authenticated/_app/recruitment-dashboard")({
   component: RecruitmentDashboardPage,
   head: () => ({
-    meta: [{ title: "Recruitment Analytics | Dreams ERP" }],
+    meta: [{ title: "Recruitment Analytics — MasterHRMS" }],
   }),
 });
 

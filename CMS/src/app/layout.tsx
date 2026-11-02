@@ -12,15 +12,86 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  themeColor: "#0f172a",
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.masterhrms.com"),
   title: {
-    template: "%s — Master HRMS",
-    default: "Master HRMS & Global Enterprise ERP",
+    template: "%s — MasterHRMS",
+    default: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
   },
-  description: "Multi-Tenant Enterprise HRMS, Payroll, Attendance, Project, CRM and ERP SaaS Platform",
+  description:
+    "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+  applicationName: "MasterHRMS",
+  alternates: {
+    canonical: "https://www.masterhrms.com",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "MasterHRMS",
+    url: "https://www.masterhrms.com",
+    title: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+    description:
+      "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+    images: [
+      {
+        url: "https://www.masterhrms.com/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+    description:
+      "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+    images: ["https://www.masterhrms.com/og-image.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+      { url: "/favicon.webp", sizes: "80x80", type: "image/webp" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  manifest: "/manifest.webmanifest",
 };
+
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "MasterHRMS",
+    url: "https://www.masterhrms.com",
+    logo: "https://www.masterhrms.com/logo.webp",
+    description: "Enterprise HRMS, Payroll & Workforce Management Platform",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "MasterHRMS",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    url: "https://www.masterhrms.com",
+    description:
+      "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "MasterHRMS",
+    url: "https://www.masterhrms.com",
+    description:
+      "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+  },
+];
 
 export default function RootLayout({
   children,
@@ -30,7 +101,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/webp" href="/favicon.webp" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700;800&display=swap" />

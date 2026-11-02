@@ -11,8 +11,9 @@ const Route = createFileRoute("/lock-screen")({
   component: LockScreenComponent,
   head: () => ({
     meta: [
-      { title: "Lock Screen | Dreams ERP" },
+      { title: "Session Locked — MasterHRMS" },
       { name: "description", content: "Session locked for security. Enter your password to resume." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
 });

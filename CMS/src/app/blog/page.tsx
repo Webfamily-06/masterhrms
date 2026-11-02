@@ -7,8 +7,11 @@ import getMarkDownData from '@/src/utils/getMarkDownData';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  ...generateMetadata(),
-  title: 'Blog & Workforce Insights || Master HRMS',
+  ...generateMetadata(
+    'Workforce & HR Insights Blog — MasterHRMS',
+    'Expert guidance on statutory payroll compliance, HR automation, employee engagement, and modern workforce operations.',
+    'https://www.masterhrms.com/blog'
+  ),
 };
 
 export const dynamic = 'force-dynamic';

@@ -575,7 +575,7 @@ function SuperShell() {
         fullView && "full-view full-width"
       )}
     >
-      {/* Super Admin Dreams ERP Sidenav */}
+      {/* Super Admin MasterHRMS Sidenav */}
       <SuperSidebar
         profile={profile}
         collapsed={collapsed}

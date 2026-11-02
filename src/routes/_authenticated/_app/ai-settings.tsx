@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_app/ai-settings")({
   component: AISettingsPage,
   head: () => ({
     meta: [
-      { title: "AI API Keys & Settings | Dreams ERP" },
+      { title: "AI API Keys & Settings — MasterHRMS" },
       { name: "description", content: "Manage enterprise AI vendor API credentials, quotas, and model endpoints." },
     ],
   }),

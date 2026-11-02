@@ -63,7 +63,7 @@ const DEFAULT_SLIDES = [
     role: 'VP of Engineering',
     company: 'Nexus Scale',
     content:
-      'Our automation SaaS turned scattered handoffs into one clear pipeline we can monitor end to end. Approvals, status updates, and owner changes now propagate automatically, so delivery stays on track without chasing people in chat.',
+      'MasterHRMS turned scattered handoffs into one clear pipeline we can monitor end to end. Approvals, status updates, and owner changes now propagate automatically, so delivery stays on track without chasing people in chat.',
   },
   {
     id: 'def-3',

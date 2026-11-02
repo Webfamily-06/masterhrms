@@ -2,8 +2,11 @@ import { generateMetadata } from '@/src/utils/generateMetaData';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  ...generateMetadata(),
-  title: 'About — Webfamily Tech Solutions',
+  ...generateMetadata(
+    'About Us — MasterHRMS Enterprise Workforce Platform',
+    'Learn how MasterHRMS streamlines workforce management, payroll compliance, and biometric attendance for modern global enterprises.',
+    'https://www.masterhrms.com/about'
+  ),
 };
 
 import AboutClients from '@/src/components/about/clients';

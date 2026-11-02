@@ -9,7 +9,7 @@ export const Route = createFileRoute("/_authenticated/_app/ai-attendance-insight
   component: AIAttendanceInsightsPage,
   head: () => ({
     meta: [
-      { title: "AI Attendance Insights | Dreams ERP" },
+      { title: "AI Attendance Insights — MasterHRMS" },
       { name: "description", content: "Predictive absenteeism patterns, anomaly detection, geo-tagging alerts, and attendance compliance telemetry." },
     ],
   }),

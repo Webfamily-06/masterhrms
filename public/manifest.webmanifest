@@ -1,37 +1,37 @@
 {
-  "name": "Master HRMS",
+  "name": "MasterHRMS",
   "short_name": "MasterHRMS",
-  "description": "All-in-one Multi-Tenant HRMS, Payroll & Enterprise SaaS Platform",
+  "description": "Enterprise HRMS, Payroll & Workforce Management Platform",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#4f46e5",
+  "theme_color": "#0f172a",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/assets/img/logo-small.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/favicon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/img/apple-icon.png",
+      "src": "/apple-touch-icon.png",
       "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web-app-manifest-192x192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/assets/img/favicon.png",
-      "sizes": "128x128",
+      "src": "/web-app-manifest-512x512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/favicon.webp",
-      "sizes": "80x80",
-      "type": "image/webp",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }

@@ -4,8 +4,11 @@ import { generateMetadata } from '@/src/utils/generateMetaData';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  ...generateMetadata(),
-  title: 'Contact — Webfamily Tech Solutions',
+  ...generateMetadata(
+    'Contact Sales & Enterprise Support — MasterHRMS',
+    'Get in touch with MasterHRMS for enterprise workforce demos, custom deployment consultations, and dedicated support.',
+    'https://www.masterhrms.com/contact'
+  ),
 };
 
 const ContactPage = () => {

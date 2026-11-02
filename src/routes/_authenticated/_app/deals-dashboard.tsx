@@ -23,10 +23,10 @@ export const Route = createFileRoute("/_authenticated/_app/deals-dashboard")({
   component: DealsDashboardPage,
   head: () => ({
     meta: [
-      { title: "Deals & CRM Dashboard | Dreams ERP" },
+      { title: "Deals & CRM Dashboard — MasterHRMS" },
       {
         name: "description",
-        content: "Track sales pipelines, deals progress, win rates, and CRM metrics in Dreams ERP.",
+        content: "Track sales pipelines, deals progress, win rates, and CRM metrics in MasterHRMS.",
       },
     ],
   }),

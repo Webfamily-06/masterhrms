@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/_app/it-admin-dashboard")(
   component: ITAdminDashboardPage,
   head: () => ({
     meta: [
-      { title: "IT Admin Dashboard | Dreams ERP" },
+      { title: "IT Admin Dashboard — MasterHRMS" },
       { name: "description", content: "Infrastructure uptime, active users, storage utilization, and security telemetry." },
     ],
   }),

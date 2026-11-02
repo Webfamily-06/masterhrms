@@ -19,10 +19,10 @@ export const Route = createFileRoute("/_authenticated/_app/help-desk-dashboard")
   component: HelpDeskDashboardPage,
   head: () => ({
     meta: [
-      { title: "Support & Help Desk Dashboard | Dreams ERP" },
+      { title: "Support & Help Desk Dashboard — MasterHRMS" },
       {
         name: "description",
-        content: "Enterprise support ticketing, SLA monitoring, resolution velocity, and customer issue tracking in Dreams ERP.",
+        content: "Enterprise support ticketing, SLA monitoring, resolution velocity, and customer issue tracking in MasterHRMS.",
       },
     ],
   }),

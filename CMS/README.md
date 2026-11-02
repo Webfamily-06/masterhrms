@@ -1,4 +1,4 @@
-# AI KW Generator - Nexsas Template
+# MasterHRMS Marketing & CMS Frontend
 
 A modern, production-ready Next.js 16 marketing template built around AI-powered keyword discovery and growth content. It includes a dedicated **Generate Smart Keyword** experience, blog and team sections, auth and pricing pages, and reusable UI—built with React 19, TypeScript, Tailwind CSS 4, and common animation and content tooling.
 

@@ -3,8 +3,8 @@ import { prisma } from "../src/prisma";
 const canonicalPages = [
   {
     slug: "home",
-    title: "Home — Next-Gen Automation SaaS",
-    metaDescription: "Automate your workflows, eliminate manual tasks, and connect enterprise tools with Nexsas.",
+    title: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+    metaDescription: "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
     published: true,
     content: {
       hero: {
@@ -17,7 +17,7 @@ const canonicalPages = [
         secondary_cta_url: "/contact",
       },
       about: {
-        tag: "About Nexsas",
+        tag: "About MasterHRMS",
         title: "Empowering teams through intelligent automation",
         description: "Webfamily Tech Solutions helps teams automate workflows, connect apps, and ship faster without piling on complexity.",
       },
@@ -28,7 +28,7 @@ const canonicalPages = [
       },
       cta: {
         title: "Ready to automate your operations?",
-        subtitle: "Join over 2,000+ growing teams delivering higher velocity with Master HRMS and Nexsas.",
+        subtitle: "Join over 2,000+ growing teams delivering higher velocity with MasterHRMS.",
         button_text: "Start your free trial",
         button_url: "/pricing",
       },
@@ -37,12 +37,12 @@ const canonicalPages = [
   {
     slug: "about",
     title: "About Us — Story, Culture & Mission",
-    metaDescription: "Learn how Nexsas began and the mission that drives our enterprise software innovation.",
+    metaDescription: "Learn how MasterHRMS began and the mission that drives our enterprise workforce platform.",
     published: true,
     content: {
       hero: {
         eyebrow: "About Our Company",
-        title: "How Nexsas began",
+        title: "How MasterHRMS began",
         subtitle: "From a small group of systems engineers passionate about eliminating friction to a global platform managing enterprise workflows.",
       },
       mission: {
@@ -67,12 +67,12 @@ const canonicalPages = [
   {
     slug: "team",
     title: "Our Team — Leadership & Engineers",
-    metaDescription: "Meet the minds behind Nexsas and Master HRMS.",
+    metaDescription: "Meet the leadership and engineering team behind MasterHRMS.",
     published: true,
     content: {
       hero: {
         eyebrow: "Our Team",
-        title: "The minds behind Nexsas",
+        title: "The minds behind MasterHRMS",
         subtitle: "Meet our diverse group of innovators, designers, and engineers dedicated to simplifying workflow automation.",
       },
       sections: [

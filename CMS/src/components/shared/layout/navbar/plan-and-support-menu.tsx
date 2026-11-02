@@ -136,9 +136,9 @@ export const PlanAndSupportMenu = ({
                   sizes="(max-width: 1024px) 100vw, 320px"
                 />
                 <div className="absolute top-4 left-4 size-full space-y-1 transition-all duration-500 ease-in-out group-hover:top-5 group-hover:left-5">
-                  <p className="text-tagline-1 font-medium text-white">Automation SaaS Changelog</p>
+                  <p className="text-tagline-1 font-medium text-white">MasterHRMS Changelog</p>
                   <p className="text-tagline-3 w-full max-w-[212px] font-normal text-white/60">
-                    Access all your workflows, analytics, and integrations in one smart dashboard.
+                    Access all your workforce operations, analytics, and payroll in one smart dashboard.
                   </p>
                 </div>
               </figure>
