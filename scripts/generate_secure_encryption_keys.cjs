@@ -71,3 +71,4 @@ console.log("   (or push a commit to main) for the new environment variables to 
 console.log("3. Existing database records are 100% backward-compatible and will continue to");
 console.log("   decrypt transparently via the candidate key rings.");
 console.log("================================================================================");
+
