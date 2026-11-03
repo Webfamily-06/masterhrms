@@ -15,6 +15,7 @@ import {
   ArrowRight,
   TrendingUp,
   Building2,
+  ShieldCheck,
 } from "lucide-react";
 
 
@@ -69,6 +70,13 @@ function HrPayrollOverviewPage() {
       href: "/hr/payroll/billing",
       icon: Building2,
       color: "text-indigo-500",
+    },
+    {
+      title: "Statutory Registers (Forms U, V, W, X, S)",
+      description: "Dedicated government compliance registers under Tamil Nadu Shops & Establishments Rules (Rules 16 & 18).",
+      href: "/hr/payroll/statutory-registers",
+      icon: ShieldCheck,
+      color: "text-emerald-600",
     },
   ];
 

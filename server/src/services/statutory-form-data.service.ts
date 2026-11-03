@@ -1,5 +1,9 @@
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
 import { calculateAnnualTDS } from "./payroll-engine.service";
+import { StatutoryFormRegistryService } from "./statutory/statutory-form-registry.service";
+import { SAFE_EMPLOYEE_SELECT } from "./statutory/builders/statutory-builder-common";
+
+const db = rawPrisma || prisma;
 import {
   Form16Model,
   Form12BBModel,
@@ -134,7 +138,7 @@ export async function getStatutoryFormData(
   const { tenantId, employeeId, formType, payrollRunId, financialYear, quarter = "Q1" } = params;
 
   // 1. Validate Tenant
-  const tenant = await prisma.tenant.findUnique({
+  const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
   });
 
@@ -145,18 +149,10 @@ export async function getStatutoryFormData(
   // 2. Fetch Employee Master if requested
   let employee: any = null;
   if (employeeId) {
-    employee = await prisma.employee.findFirst({
+    employee = await db.employee.findFirst({
       where: { id: employeeId, tenantId },
-      include: {
-        department: true,
-        salaryAssignments: {
-          where: { isCurrent: true },
-          include: {
-            structure: { include: { items: { include: { component: true } } } },
-            items: { include: { component: true } },
-          },
-          take: 1,
-        },
+      select: {
+        ...SAFE_EMPLOYEE_SELECT,
         taxDeclarations: {
           where: { financialYear },
           take: 1,
@@ -174,7 +170,7 @@ export async function getStatutoryFormData(
   const startYear = Number(fyYears[0]) || 2026;
   const endYear = Number(fyYears[1]) || (startYear + 1);
 
-  const payslips = await prisma.payslip.findMany({
+  const payslips = await db.payslip.findMany({
     where: {
       tenantId,
       ...(employeeId ? { employeeId } : {}),
@@ -185,13 +181,13 @@ export async function getStatutoryFormData(
       ],
     },
     include: {
-      employee: { include: { department: true } },
+      employee: { select: SAFE_EMPLOYEE_SELECT },
     },
     orderBy: [{ periodYear: "asc" }, { periodMonth: "asc" }],
   });
 
   // Also check snapshots
-  const snapshots = await prisma.payrollSnapshot.findMany({
+  const snapshots = await db.payrollSnapshot.findMany({
     where: {
       tenantId,
       ...(employeeId ? { employeeId } : {}),
@@ -260,9 +256,9 @@ export async function getStatutoryFormData(
   } : undefined);
 
   // 7. Fetch all employees in tenant for multi-employee returns (Wages Register & Form 138)
-  const allTenantEmployees = await prisma.employee.findMany({
+  const allTenantEmployees = await db.employee.findMany({
     where: { tenantId },
-    include: { department: true, salaryAssignments: { where: { isCurrent: true }, take: 1 } },
+    select: SAFE_EMPLOYEE_SELECT,
     orderBy: { employeeCode: "asc" },
   });
 
@@ -645,10 +641,21 @@ export async function getStatutoryFormData(
     case "FORM_V":
     case "FORM_W":
     case "FORM_X":
-    case "FORM_S":
+    case "FORM_S": {
+      const reg = await StatutoryFormRegistryService.generateRegister(formType, {
+        tenantId,
+        payrollRunId,
+        financialYear,
+        year: startYear,
+        month: 4,
+      });
+      formSpecificModel = reg.model;
+      break;
+    }
+
     case "WAGES_REGISTER_FORM_A":
     default: {
-      const formCode = (["FORM_U", "FORM_V", "FORM_W", "FORM_X", "FORM_S"].includes(formType) ? formType : "WAGES_REGISTER_FORM_A") as any;
+      const formCode = "WAGES_REGISTER_FORM_A";
       const payslipByEmp = new Map(payslips.map((p) => [p.employeeId, p]));
       const snapshotByEmp = new Map(snapshots.map((s) => [s.employeeId, s]));
 

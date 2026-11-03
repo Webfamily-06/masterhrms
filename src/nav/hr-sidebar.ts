@@ -227,6 +227,7 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Tax Declarations", path: "/hr/payroll/tax", permission: "hrm.payroll.view" },
           { label: "Reimbursements & Loans", path: "/hr/payroll/reimbursements-loans", permission: "hrm.payroll.view" },
           { label: "Statutory Forms", path: "/hr/payroll/forms", permission: "hrm.payroll.view" },
+          { label: "Statutory Registers", path: "/hr/payroll/statutory-registers", permission: "hrm.payroll.view" },
         ],
       },
       {

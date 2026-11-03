@@ -402,4 +402,229 @@ export type AnyStatutoryFormModel =
   | EPFForm31Model
   | ESIForm1Model
   | GratuityFormIModel
-  | WagesRegisterModel;
+  | WagesRegisterModel
+  | FormUModel
+  | FormVModel
+  | FormWModel
+  | FormXModel
+  | FormSModel;
+
+export interface FormUModel {
+  formCode: "FORM_U";
+  title: "EMPLOYEE REGISTER [Rule 16(1)]";
+  establishment: {
+    name: string;
+    address: string;
+    registrationNumber: string;
+    employerName: string;
+    period: string;
+    totalEmployees: number;
+  };
+  columns: string[];
+  rows: Array<{
+    slNo: number;
+    employeeName: string;
+    employeeCode: string;
+    gender: string;
+    fatherOrSpouseName: string;
+    dateOfBirth: string;
+    dateOfJoining: string;
+    designation: string;
+    department: string;
+    education: string;
+    permanentAddress: string;
+    presentAddress: string;
+    mobileNumber: string;
+    emailId: string;
+    aadhaarNumber: string;
+    panNumber: string;
+    uanNumber: string;
+    epfNumber: string;
+    esiNumber: string;
+    bankAccountNumber: string;
+    bankNameAndBranch: string;
+    ifscCode: string;
+    completion480DaysDate: string;
+    permanentEmploymentDate: string;
+    dateOfExit: string;
+    reasonForExit: string;
+    specimenSignature: string;
+  }>;
+}
+
+export interface FormVModel {
+  formCode: "FORM_V";
+  title: "REGISTER OF EMPLOYMENT / MUSTER ROLL [Rule 16(1)]";
+  establishment: {
+    name: string;
+    address: string;
+    employerName: string;
+    employerAddress: string;
+    managerName: string;
+    registrationNumber: string;
+    period: string;
+    year: number;
+    month: number;
+    daysInMonth: number;
+    totalEmployees: number;
+  };
+  columns: string[];
+  rows: Array<{
+    slNo: number;
+    employeeName: string;
+    employeeCode: string;
+    commencementTime: string;
+    restInterval: string;
+    workEndTime: string;
+    dailyAttendance: string[];
+    totalDaysWorked: number;
+    overtimeHoursWorked: number;
+    totalRestIntervalsAvailed: string;
+    workerClassification: string;
+    weeklyHolidayGranted: string;
+    compensatoryHolidaysDue: number;
+    compensatoryHolidaysAvailed: number;
+    noticeShiftChangeDate: string;
+    employerSignature: string;
+  }>;
+  totals: {
+    totalEmployees: number;
+    totalDaysWorked: number;
+    totalOvertimeHours: number;
+  };
+}
+
+export interface FormWModel {
+  formCode: "FORM_W";
+  title: "REGISTER OF WAGES [Rule 16(1)]";
+  establishment: {
+    name: string;
+    address: string;
+    employerName: string;
+    employerAddress: string;
+    managerName: string;
+    registrationNumber: string;
+    period: string;
+    year: number;
+    month: number;
+    totalEmployees: number;
+  };
+  columns: string[];
+  rows: Array<{
+    slNo: number;
+    employeeName: string;
+    employeeCode: string;
+    daysWorked: number;
+    basicWageEarned: number;
+    daEarned: number;
+    hraEarned: number;
+    specialAllowanceEarned: number;
+    bonusEarned: number;
+    overtimeWages: number;
+    arrearsAmount: number;
+    grossWagesEarned: number;
+    minimumWageBenchmark: number;
+    epfEmployeeDeduction: number;
+    esiEmployeeDeduction: number;
+    ptDeduction: number;
+    lwfEmployeeDeduction: number;
+    tdsDeduction: number;
+    loanDeductions: number;
+    damageLossDeductions: number;
+    totalDeductions: number;
+    netWagesPaid: number;
+    dateOfPayment: string;
+    paymentMode: string;
+    bankUtrRef: string;
+    workerReceiptSignatures: string;
+  }>;
+  totals: {
+    totalEmployees: number;
+    totalDaysWorked: number;
+    totalBasic: number;
+    totalGrossWages: number;
+    totalEpf: number;
+    totalEsi: number;
+    totalPt: number;
+    totalLwf: number;
+    totalTds: number;
+    totalDeductions: number;
+    totalNetWages: number;
+  };
+}
+
+export interface FormXModel {
+  formCode: "FORM_X";
+  title: "REGISTER OF LEAVE AND SOCIAL SECURITY BENEFITS [Rule 16(1)]";
+  establishment: {
+    name: string;
+    address: string;
+    employerName: string;
+    employerAddress: string;
+    managerName: string;
+    registrationNumber: string;
+    period: string;
+    totalEmployees: number;
+  };
+  columns: string[];
+  rows: Array<{
+    slNo: number;
+    employeeName: string;
+    employeeCode: string;
+    earnedLeaveOpening: number;
+    earnedLeaveEarned: number;
+    earnedLeaveAvailed: number;
+    earnedLeaveBalance: number;
+    medicalLeaveOpening: number;
+    medicalLeaveAvailed: number;
+    medicalLeaveBalance: number;
+    otherLeaveOpening: number;
+    otherLeaveAvailed: number;
+    otherLeaveBalance: number;
+    maternityNoticeDate: string;
+    maternityAdvanceAmount: number;
+    maternitySubsequentAmount: number;
+    medicalBonusAmount: number;
+    maternityWagesLeave: number;
+    gratuityNominationReceived: string;
+    gratuityPaidOnExit: number;
+    remarks: string;
+  }>;
+}
+
+export interface FormSModel {
+  formCode: "FORM_S";
+  title: "NOTICE OF DAILY HOURS OF WORK, REST INTERVAL, WEEKLY HOLIDAY [Rule 18(4)]";
+  establishment: {
+    name: string;
+    address: string;
+    employerName: string;
+    employerAddress: string;
+    dateOfPaymentOfWages: string;
+    registrationNumber: string;
+    period: string;
+    totalEmployees: number;
+  };
+  columns: string[];
+  rows: Array<{
+    slNo: number;
+    employeeName: string;
+    gender: string;
+    fatherOrSpouseName: string;
+    designation: string;
+    employeeCode: string;
+    dateOfJoining: string;
+    workerClassification: string;
+    shiftNumber: string;
+    commencementTime: string;
+    restIntervalStart: string;
+    restIntervalDuration: string;
+    workEndTime: string;
+    weeklyHoliday: string;
+    classOfWork: string;
+    rateOfWagesMax: number;
+    rateOfWagesMin: number;
+    dailyShiftSchedule: string[];
+    employerSignature: string;
+  }>;
+}
