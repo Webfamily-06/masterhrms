@@ -727,7 +727,7 @@ recruitmentRouter.post("/candidates/:id/convert-to-employee", requireAuth, resol
           position: candidate.jobPosting?.title || "Team Member",
           employeeCode,
           departmentId: candidate.jobPosting?.departmentId || null,
-          salary: candidate.expectedSalary || candidate.jobPosting?.salaryMin || 35000,
+          salary: candidate.expectedSalary || candidate.jobPosting?.salaryMin || 0,
           status: "active",
           employmentType: (candidate.jobPosting?.employmentType as any) || "full_time",
           joinedAt: new Date(),

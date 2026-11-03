@@ -29,7 +29,7 @@ export default function MeDocumentsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Company Handbooks & Documents"
         description="Access official enterprise policies, code of conduct, health guidelines, and corporate guidelines."

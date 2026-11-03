@@ -202,7 +202,7 @@ export function CustomFieldsPage() {
   };
 
   return (
-    <div className="page-wrapper min-h-screen bg-slate-50/50 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="page-wrapper min-h-screen bg-slate-50/50 sm: lg:p-8 space-y-6">
       {/* ─── Breadcrumb ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

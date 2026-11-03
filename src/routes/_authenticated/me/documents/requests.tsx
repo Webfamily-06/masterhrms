@@ -72,7 +72,7 @@ export default function MeDocumentRequestsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Document & Letter Requests"
         description="Request official experience certificates, bonafide letters, or embassy visa NOCs."

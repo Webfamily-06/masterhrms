@@ -59,7 +59,7 @@ export default function MeJobPostingsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Internal Job Opportunities & Transfers"
         description="Explore open positions across departments and submit internal applications or career transfer requests."

@@ -176,7 +176,7 @@ export default function EditCharterPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-4xl space-y-6">
+      <div className="container mx-auto max-w-4xl space-y-6">
         <PlanningNavHeader active="charters" />
         <Skeleton className="h-8 w-48 mb-4" />
         <Card className="p-8 space-y-4">
@@ -188,7 +188,7 @@ export default function EditCharterPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl space-y-6">
+    <div className="container mx-auto max-w-4xl space-y-6">
       <PlanningNavHeader active="charters" />
 
       <div className="flex items-center gap-3">

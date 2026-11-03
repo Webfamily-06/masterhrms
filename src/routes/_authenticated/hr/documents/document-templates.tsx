@@ -67,7 +67,7 @@ export default function HrDocumentTemplatesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Document & Letter Templates"
         description="Reusable templates with dynamic placeholder token merge (e.g. {{employeeName}}, {{designation}})."

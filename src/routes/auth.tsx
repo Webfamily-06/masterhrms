@@ -473,7 +473,7 @@ function AuthPage() {
   }
 
   return (
-    <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center p-4">
+    <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center">
       {/* Start Signin / Auth Card matching ui/login.html */}
       <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md shadow-sm w-full max-w-md sm:p-8 p-5 relative">
         {/* Floating Theme Switcher */}

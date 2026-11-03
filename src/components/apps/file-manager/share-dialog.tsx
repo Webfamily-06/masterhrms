@@ -49,8 +49,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { FileItem } from "./unified-file-manager";
 
-const SYSTEM_FONT_STACK =
-  "var(--font-sans), 'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+// Clean root font inheritance (GAP-UI-004)
+const SYSTEM_FONT_STACK = undefined;
 
 export interface ShareDialogProps {
   open: boolean;
@@ -242,7 +242,7 @@ export function ShareDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        style={{ fontFamily: SYSTEM_FONT_STACK }}
+        
         className="sm:max-w-xl font-sans p-0 gap-0 overflow-hidden"
       >
         <DialogHeader className="p-4 border-b border-border/80 bg-card/60">
@@ -413,7 +413,7 @@ export function ShareDialog({
                     <SelectTrigger className="w-32 h-8 text-xs bg-background">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="text-xs">
+                    <SelectContent  className="text-xs">
                       <SelectItem value="VIEWER">Viewer</SelectItem>
                       <SelectItem value="EDITOR">Editor</SelectItem>
                       <SelectItem value="MANAGER">Manager</SelectItem>
@@ -605,7 +605,7 @@ export function ShareDialog({
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="text-xs">
+                    <SelectContent  className="text-xs">
                       <SelectItem value="1">Expires in 24 hours</SelectItem>
                       <SelectItem value="7">Expires in 7 days</SelectItem>
                       <SelectItem value="30">Expires in 30 days</SelectItem>

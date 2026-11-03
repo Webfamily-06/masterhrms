@@ -102,7 +102,7 @@ export default function HrMeetingActionItemsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Meeting Action Items"
         description="Track deliverables, assigned owners, and resolution deadlines decided in executive meetings."

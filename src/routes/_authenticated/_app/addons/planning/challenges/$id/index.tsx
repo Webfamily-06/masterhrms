@@ -60,7 +60,7 @@ export default function ChallengeDetailPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-5xl space-y-6">
+      <div className="container mx-auto max-w-5xl space-y-6">
         <PlanningNavHeader active="challenges" />
         <Skeleton className="h-8 w-1/3 mb-4" />
         <Card className="p-8 space-y-4">
@@ -74,7 +74,7 @@ export default function ChallengeDetailPage() {
   const isExpired = challenge ? new Date(challenge.endAt).getTime() < Date.now() : false;
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-6">
+    <div className="container mx-auto max-w-5xl space-y-6">
       <PlanningNavHeader active="challenges" />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

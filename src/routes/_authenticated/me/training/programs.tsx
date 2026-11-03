@@ -21,7 +21,7 @@ export default function MeTrainingProgramsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Training Catalog & Courses"
         description="Explore available professional certifications and learning pathways offered by the enterprise."

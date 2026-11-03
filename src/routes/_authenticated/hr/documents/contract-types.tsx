@@ -76,7 +76,7 @@ export default function HrContractTypesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Contract Types Master"
         description="Configure permanent, fixed-term, consultant, and contractor agreement classifications."

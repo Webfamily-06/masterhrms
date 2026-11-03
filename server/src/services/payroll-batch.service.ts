@@ -367,7 +367,7 @@ export class PayrollBatchService {
         // Base monthly CTC
         const baseMonthlyCtc = assignment?.ctcMonthly
           ? new Decimal(assignment.ctcMonthly.toString())
-          : new Decimal(emp.salary ? emp.salary.toString() : 35000);
+          : new Decimal(emp.salary ? emp.salary.toString() : 0);
 
         // Map component rates from salary structure
         const rateMap: Record<string, Decimal> = {};

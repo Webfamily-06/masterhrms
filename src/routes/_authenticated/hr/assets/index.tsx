@@ -132,7 +132,7 @@ export default function HrAssetsListPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Asset Registry"
         description="Comprehensive list of company assets, serial tracking, ownership, and operational state."

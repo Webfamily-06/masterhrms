@@ -345,6 +345,23 @@ model Employee {
   esiEligible                  Boolean                       @default(true) @map("esi_eligible")
   ptEligible                   Boolean                       @default(true) @map("pt_eligible")
   tdsEligible                  Boolean                       @default(true) @map("tds_eligible")
+  fatherOrSpouseName           String?                       @map("father_or_spouse_name") @db.VarChar(150)
+  presentAddress               String?                       @map("present_address") @db.Text
+  permanentAddress             String?                       @map("permanent_address") @db.Text
+  completion480DaysDate        DateTime?                     @map("completion_480_days_date") @db.Date
+  permanentEmploymentDate      DateTime?                     @map("permanent_employment_date") @db.Date
+  workerAgeClassification      String                        @default("Adult") @map("worker_age_classification") @db.VarChar(20)
+  maternityNominationDate      DateTime?                     @map("maternity_nomination_date") @db.Date
+  maritalStatus                String?                       @map("marital_status") @db.VarChar(20)
+  bloodGroup                   String?                       @map("blood_group") @db.VarChar(10)
+  addressLine1                 String?                       @map("address_line1") @db.VarChar(255)
+  addressLine2                 String?                       @map("address_line2") @db.VarChar(255)
+  city                         String?                       @map("city") @db.VarChar(100)
+  district                     String?                       @map("district") @db.VarChar(100)
+  postalCode                   String?                       @map("postal_code") @db.VarChar(20)
+  emergencyContactName         String?                       @map("emergency_contact_name") @db.VarChar(100)
+  emergencyContactRelationship String?                       @map("emergency_contact_relationship") @db.VarChar(50)
+  emergencyContactPhone        String?                       @map("emergency_contact_phone") @db.VarChar(30)
   createdAt                    DateTime                      @default(now()) @map("created_at")
   updatedAt                    DateTime                      @updatedAt @map("updated_at")
   announcementAcknowledgements AnnouncementAcknowledgement[]
@@ -483,7 +500,7 @@ model LeaveRequest {
   approverId  String?     @map("approver_id") @db.VarChar(36)
   startDate   DateTime    @map("start_date") @db.Date
   endDate     DateTime    @map("end_date") @db.Date
-  days        Int         @default(1)
+  days        Decimal     @default(1.0) @db.Decimal(4, 1)
   status      LeaveStatus @default(pending)
   reason      String?
   approvedAt  DateTime?   @map("approved_at")
@@ -4407,6 +4424,9 @@ model Branch {
   address             String?
   phone               String?              @db.VarChar(50)
   email               String?              @db.VarChar(255)
+  latitude            Float?               @map("latitude")
+  longitude           Float?               @map("longitude")
+  geofenceRadius      Int?                 @default(500) @map("geofence_radius")
   status              String               @default("active") @db.VarChar(20)
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")

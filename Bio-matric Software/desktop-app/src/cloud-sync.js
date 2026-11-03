@@ -19,7 +19,7 @@ class CloudSync {
   // Push punch event to MasterHRMS backend API
   async pushPunch(punchRecord) {
     const config = configManager.getAll();
-    const endpointUrl = `${config.cloudUrl}/api/biometric/push`;
+    const endpointUrl = `${config.cloudUrl}/api/public/biometric/push`;
     const payload = {
       serialNumber: punchRecord.serialNumber || 'BKR02437198',
       userId: punchRecord.userId,

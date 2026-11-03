@@ -148,7 +148,7 @@ export default function AICenterPage() {
   }
 
   return (
-    <div className="w-full min-w-0 flex-1 space-y-6 p-4 lg:p-6 pb-12">
+    <div className="w-full min-w-0 flex-1 space-y-6 lg: pb-12">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>

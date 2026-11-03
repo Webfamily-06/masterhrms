@@ -104,7 +104,7 @@ function LockScreenComponent() {
   }
 
   return (
-    <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center p-4">
+    <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center">
       {/* Start Lock Screen (matching ui/lock-screen.html line 53) */}
       <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md shadow-sm w-full max-w-md sm:p-8 p-5">
         <div className="text-center mb-6">

@@ -188,7 +188,7 @@ export default function CharterDetailPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-5xl space-y-6">
+      <div className="container mx-auto max-w-5xl space-y-6">
         <PlanningNavHeader active="charters" />
         <Skeleton className="h-8 w-48 mb-4" />
         <Card className="p-8 space-y-4">
@@ -200,7 +200,7 @@ export default function CharterDetailPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-6">
+    <div className="container mx-auto max-w-5xl space-y-6">
       <PlanningNavHeader active="charters" />
 
       {/* Header bar */}

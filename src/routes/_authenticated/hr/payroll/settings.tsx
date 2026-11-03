@@ -274,7 +274,7 @@ export default function HrPayrollSettingsPage() {
   }, [rulesData, selectedCategoryFilter]);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
         title="India Statutory & Payroll Configuration Center"

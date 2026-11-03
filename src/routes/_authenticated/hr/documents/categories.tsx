@@ -80,7 +80,7 @@ export default function HrDocumentCategoriesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Document Categories"
         description="Configure folder classifications for HR policies, employee records, and legal vaults."

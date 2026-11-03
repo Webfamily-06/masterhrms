@@ -881,7 +881,7 @@ function HeroSectionEditor({
   };
 
   return (
-    <div className="p-4 rounded-xl border bg-card space-y-4 shadow-xs">
+    <div className="rounded-xl border bg-card space-y-4 shadow-xs">
       <div className="flex items-center gap-2 font-semibold text-sm border-b pb-2">
         <Sparkles className="size-4 text-primary" /> Hero Header Section
       </div>

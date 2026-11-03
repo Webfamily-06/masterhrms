@@ -85,7 +85,7 @@ export default function HrMeetingRoomsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Meeting Rooms & Spaces"
         description="Configure physical conference rooms, seating capacities, and equipment amenities."

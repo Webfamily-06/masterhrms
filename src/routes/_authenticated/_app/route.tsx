@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, useNavigate, Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { DreamsSidebar } from "@/components/dreams-sidebar";
+import { PortalSidebar } from "@/components/navigation/portal-sidebar";
 import { useSession, useCurrentProfile } from "@/lib/session";
 import { RealtimeNotificationDrawer } from "@/components/realtime-notification-drawer";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -593,7 +593,7 @@ export function AppShell() {
 
   if (!profile.tenant_id && !profile.roles?.includes("super_admin")) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background p-6">
+      <div className="min-h-screen grid place-items-center bg-background">
         <div className="flex flex-col items-center gap-3 text-center max-w-sm">
           <div className="size-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
             <Loader2 className="size-6 animate-spin text-primary" />
@@ -729,7 +729,7 @@ export function AppShell() {
       )}
 
       {/* Dreams ERP Sidenav */}
-      <DreamsSidebar
+      <PortalSidebar
         profile={profile}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}

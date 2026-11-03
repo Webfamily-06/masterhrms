@@ -49,7 +49,7 @@ export function PublicQrAssetPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen grid place-items-center bg-background p-4">
+      <div className="min-h-screen grid place-items-center bg-background">
         <div className="text-center space-y-3">
           <div className="size-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs text-muted-foreground font-mono">Scanning asset database for tag: {tag}...</p>

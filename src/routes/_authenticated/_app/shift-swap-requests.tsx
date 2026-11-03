@@ -171,7 +171,7 @@ export function ShiftSwapRequestsPage() {
   const approvedCount = swapRequests.filter((s: any) => s.status === "approved").length;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Shift Swap Requests"

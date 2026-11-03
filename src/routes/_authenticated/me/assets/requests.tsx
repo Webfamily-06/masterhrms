@@ -82,7 +82,7 @@ export default function MeAssetRequestsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Equipment Requests"
         description="Submit requisitions for replacement laptops, external monitors, mice, or developer peripherals."

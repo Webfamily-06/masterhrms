@@ -137,15 +137,20 @@ export async function revokeSession(sessionId: string, userId: string): Promise<
 }
 
 export async function revokeAllSessions(userId: string, tenantId?: string): Promise<number> {
-  const result = await prisma.deviceSession.updateMany({
-    where: {
-      userId,
-      ...(tenantId ? { tenantId } : {}),
-      revoked: false,
-    },
-    data: { revoked: true, revokedAt: new Date() },
-  });
-  return result.count;
+  try {
+    const result = await prisma.deviceSession.updateMany({
+      where: {
+        userId,
+        ...(tenantId ? { tenantId } : {}),
+        revoked: false,
+      },
+      data: { revoked: true, revokedAt: new Date() },
+    });
+    return result.count;
+  } catch (err: any) {
+    console.warn("[DeviceSession] revokeAllSessions fallback:", err?.message);
+    return 0;
+  }
 }
 
 export async function getActiveSessions(userId: string, tenantId?: string) {

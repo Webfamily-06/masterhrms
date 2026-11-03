@@ -46,7 +46,7 @@ export default function MeMeetingsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Meetings & Invitations"
         description="View meetings where you are invited or participating, respond with RSVP, and join virtual calls."

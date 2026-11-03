@@ -37,7 +37,7 @@ export default function HrMeetingTypesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
-    color: "#6366f1",
+    color: "var(--primary)",
     description: "",
   });
 
@@ -58,7 +58,7 @@ export default function HrMeetingTypesPage() {
       toast.success("Meeting type created");
       queryClient.invalidateQueries({ queryKey: ["hr-meeting-types"] });
       setIsModalOpen(false);
-      setFormData({ name: "", color: "#6366f1", description: "" });
+      setFormData({ name: "", color: "var(--primary)", description: "" });
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error || "Failed to create meeting type");
@@ -80,7 +80,7 @@ export default function HrMeetingTypesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Meeting Types Master"
         description="Configure meeting classifications, agendas, and color-coded calendar labels."
@@ -127,11 +127,11 @@ export default function HrMeetingTypesPage() {
                     <TableCell className="font-medium flex items-center gap-2">
                       <div
                         className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: t.color || "#6366f1" }}
+                        style={{ backgroundColor: t.color || "var(--primary)" }}
                       />
                       {t.name}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{t.color || "#6366f1"}</TableCell>
+                    <TableCell className="font-mono text-xs">{t.color || "var(--primary)"}</TableCell>
                     <TableCell className="text-muted-foreground">{t.description || "—"}</TableCell>
                     <TableCell>
                       <Badge variant={t.isActive ? "default" : "secondary"}>

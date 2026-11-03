@@ -186,7 +186,7 @@ export function CronjobPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-5 max-w-[1600px] mx-auto">
+    <div className="sm: space-y-5 max-w-[1600px] mx-auto">
       {/* ─── Breadcrumb & Top Bar ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>

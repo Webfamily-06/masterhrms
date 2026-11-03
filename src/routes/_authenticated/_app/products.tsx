@@ -286,7 +286,7 @@ function ProductStockMovementLedger({ productId }: { productId: string }) {
 
   if (isError) {
     return (
-      <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20 text-center space-y-2">
+      <div className="rounded-lg bg-destructive/10 border border-destructive/20 text-center space-y-2">
         <p className="text-xs text-destructive font-medium">Failed to load movement ledger: {(error as any)?.message}</p>
         <Button size="sm" variant="outline" onClick={() => refetch()} className="h-7 text-xs">
           Retry
@@ -299,7 +299,7 @@ function ProductStockMovementLedger({ productId }: { productId: string }) {
 
   if (movements.length === 0) {
     return (
-      <div className="py-8 text-center text-muted-foreground text-xs space-y-1 bg-secondary/10 rounded-xl border border-dashed p-6">
+      <div className="py-8 text-center text-muted-foreground text-xs space-y-1 bg-secondary/10 rounded-xl border border-dashed">
         <History className="size-8 mx-auto opacity-30 text-primary" />
         <p className="font-semibold text-foreground">No stock movements recorded yet</p>
         <p className="text-[11px] text-muted-foreground">All purchases, sales, transfers, and adjustments will appear here with full audit trail.</p>

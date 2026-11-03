@@ -107,7 +107,7 @@ export default function HrMeetingsCalendarPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Meetings & Scheduling"
         description="Server-authoritative conflict engine preventing double-booked rooms or organizer overlaps."

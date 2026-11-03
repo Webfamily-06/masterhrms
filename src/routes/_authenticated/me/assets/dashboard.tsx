@@ -30,7 +30,7 @@ export default function MeAssetsDashboardPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Assets & Equipment"
         description="View your currently assigned company hardware, peripherals, and submit new requests."

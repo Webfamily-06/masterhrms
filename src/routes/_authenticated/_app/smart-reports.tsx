@@ -95,7 +95,7 @@ export default function SmartReportsParentPage() {
 
   if (!isNavLoading && !hasEntitlement) {
     return (
-      <div className="flex-1 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+      <div className="flex-1 md:p-8 pt-6 max-w-[1600px] mx-auto">
         <AddonNotInstalled
           addonName="Smart Reports"
           addonSlug="smart-reports"
@@ -113,7 +113,7 @@ export default function SmartReportsParentPage() {
 
   // Canonical Catalogue page (/smart-reports)
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+    <div className="flex-1 space-y-6 md:p-8 pt-6 max-w-[1600px] mx-auto">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

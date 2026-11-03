@@ -71,7 +71,7 @@ export default function HrAssetRequestsMaintenancePage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Asset Requests & Maintenance"
         description="Review hardware requisitions from staff, and oversee device repair / servicing logs."

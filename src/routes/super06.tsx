@@ -275,7 +275,7 @@ export function Super06LoginPage() {
 
   if (checking) {
     return (
-      <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center p-4">
+      <div className="bg-light dark:bg-slate-950 min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="size-6 animate-spin text-primary" />
           <p className="text-xs text-muted-foreground font-semibold">Verifying session...</p>

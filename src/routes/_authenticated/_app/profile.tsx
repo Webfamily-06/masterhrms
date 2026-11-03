@@ -172,7 +172,7 @@ export default function EmployeeProfilePage() {
   };
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm: lg:p-8 max-w-7xl mx-auto">
       <BreadcrumbNav className="mb-4" />
       {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/60 pb-6">

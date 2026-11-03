@@ -67,7 +67,7 @@ export default function HrPayrollSetupPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Payroll & Statutory Setup"
         description="Consolidated configuration for statutory policy packs, state professional tax rules, pay cycles, and disbursement banking."

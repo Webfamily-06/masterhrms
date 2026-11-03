@@ -130,15 +130,15 @@ export default function DashboardPage() {
             size: "72%",
             labels: {
               show: true,
-              name: { show: true, fontSize: "10px", color: "#94A3B8", offsetY: 18 },
-              value: { show: true, fontSize: "16px", fontWeight: 700, color: "#1E293B", offsetY: -10 },
+              name: { show: true, fontSize: "10px", color: "var(--muted-foreground)", offsetY: 18 },
+              value: { show: true, fontSize: "16px", fontWeight: 700, color: "var(--foreground)", offsetY: -10 },
               total: {
                 show: true,
                 showAlways: true,
                 label: "Employees",
                 fontSize: "10px",
                 fontWeight: 400,
-                color: "#94A3B8",
+                color: "var(--muted-foreground)",
                 formatter: () => String(totalEmployees),
               },
             },
@@ -163,7 +163,7 @@ export default function DashboardPage() {
       series: [{ name: "Present", data: hrmData?.weeklyTrend?.series || [0, 0, 0, 0, 0, 0, 0] }],
       xaxis: {
         categories: hrmData?.weeklyTrend?.categories || ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
@@ -193,7 +193,7 @@ export default function DashboardPage() {
       series: [{ name: "Payroll", data: hrmData?.payrollTrend?.series || [] }],
       xaxis: {
         categories: hrmData?.payrollTrend?.categories || [],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },

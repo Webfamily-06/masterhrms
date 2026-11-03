@@ -285,7 +285,7 @@ function InvoiceDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 max-w-5xl mx-auto space-y-6 animate-pulse">
+      <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
         <div className="flex items-center justify-between">
           <div className="h-6 w-36 bg-muted rounded"></div>
           <div className="h-9 w-28 bg-muted rounded"></div>
@@ -306,7 +306,7 @@ function InvoiceDetailPage() {
 
   if (error || !invoice) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto">
         <div className="mb-4">
           <Link
             to="/invoices"

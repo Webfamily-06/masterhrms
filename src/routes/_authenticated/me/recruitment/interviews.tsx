@@ -70,7 +70,7 @@ export default function MeInterviewsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Interview Panels & Evaluations"
         description="Candidate interviews where you are assigned as an interviewer. Access meeting links and submit structured evaluations."

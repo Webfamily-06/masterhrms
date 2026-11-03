@@ -213,15 +213,29 @@ export class PayrollExportService {
       const calculated = breakdown.calculatedValues || {};
       const attendance = breakdown.attendance || {};
 
-      const assignment = emp.salaryAssignments[0];
-      const monthlyCtc = assignment?.ctcMonthly ? Number(assignment.ctcMonthly) : Number(emp.salary || 35000);
+      const assignment = emp.salaryAssignments?.[0];
+      const monthlyCtc = assignment?.ctcMonthly ? Number(assignment.ctcMonthly) : Number(emp.salary || 0);
 
-      // Extract fixed rates or defaults
-      const fixBasic = monthlyCtc * 0.5;
-      const fixHra = monthlyCtc * 0.2;
-      const fixConveyance = 1600;
-      const fixMedical = 1250;
-      const fixSpecial = Math.max(0, monthlyCtc - (fixBasic + fixHra + fixConveyance + fixMedical));
+      // Extract earned and fixed rates dynamically without fabricated constants
+      const earningsItems = Array.isArray(breakdown.earnings?.itemized) ? breakdown.earnings.itemized : [];
+      const earnMap = new Map(earningsItems.map((item: any) => [String(item.code || '').toUpperCase(), Number(item.amount || 0)]));
+      
+      const earnBasic = earnMap.get('BASIC') ?? Number(calculated['BASIC_EARNED'] ?? breakdown.earnings?.basicSalary ?? 0);
+      const earnHra = earnMap.get('HRA') ?? Number(calculated['HRA_EARNED'] ?? breakdown.earnings?.hra ?? 0);
+      const earnSpecial = earnMap.get('SPECIAL') ?? earnMap.get('SPECIAL_ALLOWANCE') ?? Number(calculated['SPECIAL_EARNED'] ?? breakdown.earnings?.specialAllowance ?? 0);
+      const earnBonus = earnMap.get('BONUS') ?? earnMap.get('STATUTORY_BONUS') ?? Number(calculated['BONUS_EARNED'] ?? breakdown.earnings?.statutoryBonus ?? 0);
+      const earnConveyance = earnMap.get('CONVEYANCE') ?? Number(calculated['CONVEYANCE_EARNED'] ?? breakdown.earnings?.conveyance ?? 0);
+      const earnMedical = earnMap.get('MEDICAL') ?? Number(calculated['MEDICAL_EARNED'] ?? breakdown.earnings?.medical ?? 0);
+      const earnOther = earnMap.get('OTHER_ALLOW') ?? Number(calculated['OTHER_EARNED'] ?? breakdown.earnings?.otherAllowance ?? 0);
+
+      // Proration divisor for nominal fixed rates
+      const proration = Number(attendance.prorationFactor || 1) > 0 ? Number(attendance.prorationFactor) : 1;
+      const fixBasic = earnBasic > 0 ? Math.round(earnBasic / proration) : (monthlyCtc > 0 ? Math.round(monthlyCtc * 0.5) : 0);
+      const fixHra = earnHra > 0 ? Math.round(earnHra / proration) : 0;
+      const fixSpecial = earnSpecial > 0 ? Math.round(earnSpecial / proration) : Math.max(0, monthlyCtc - fixBasic - fixHra);
+      const fixBonus = earnBonus > 0 ? Math.round(earnBonus / proration) : 0;
+      const fixConveyance = earnConveyance > 0 ? Math.round(earnConveyance / proration) : 0;
+      const fixMedical = earnMedical > 0 ? Math.round(earnMedical / proration) : 0;
 
       const row: Record<string, any> = {
         sno: sno++,
@@ -249,16 +263,18 @@ export class PayrollExportService {
         fixHra,
         fixConveyance,
         fixMedical,
+        fixBonus,
         fixSpecial,
         fixGross: monthlyCtc,
 
         // Earned
-        earnBasic: Number(calculated['BASIC_EARNED'] || 0),
-        earnHra: Number(calculated['HRA_EARNED'] || 0),
-        earnConveyance: Number(calculated['CONVEYANCE_EARNED'] || 0),
-        earnMedical: Number(calculated['MEDICAL_EARNED'] || 0),
-        earnSpecial: Number(calculated['SPECIAL_EARNED'] || 0),
-        earnOther: Number(calculated['OTHER_EARNED'] || 0),
+        earnBasic,
+        earnHra,
+        earnSpecial,
+        earnBonus,
+        earnConveyance,
+        earnMedical,
+        earnOther,
         grossEarned: Number(slip.grossSalary),
 
         // Deductions

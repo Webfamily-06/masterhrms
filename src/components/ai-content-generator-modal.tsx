@@ -326,7 +326,7 @@ export function AIContentGeneratorModal({
             onClick={handleGenerate}
             disabled={isGenerating}
             className="w-full h-9 font-black text-xs gap-2 shadow-sm text-white"
-            style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899)" }}
+            style={{ background: "linear-gradient(135deg, var(--primary), #8b5cf6, #ec4899)" }}
           >
             {isGenerating ? (
               <>

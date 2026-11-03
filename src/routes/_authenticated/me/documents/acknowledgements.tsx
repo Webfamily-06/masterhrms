@@ -48,7 +48,7 @@ export default function MeAcknowledgementsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Policy Sign-Offs & Acknowledgements"
         description="Mandatory corporate compliance policies, employee handbooks, and health safety protocols."

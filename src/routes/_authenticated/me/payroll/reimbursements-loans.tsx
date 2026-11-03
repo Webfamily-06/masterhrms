@@ -78,7 +78,7 @@ export default function MeReimbursementsLoansPage() {
     .reduce((acc: number, l: any) => acc + Number(l.monthlyEmi || 0), 0);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Reimbursements & Loans"
         description="Track your approved expense claim payouts and active loan / advance EMI schedules."

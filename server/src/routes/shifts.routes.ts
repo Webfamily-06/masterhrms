@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantId } from "../lib/tenant";
+import { createShiftSchema, updateShiftSchema } from "../schemas/shift.schema";
 
 export const shiftsRouter = Router();
 
@@ -61,11 +62,16 @@ shiftsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = req.body;
-
-    if (!name || !code) {
-      return res.status(400).json({ error: "Shift name and code are required." });
+    const parsed = createShiftSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "VALIDATION_FAILED",
+        details: parsed.error.format(),
+        message: parsed.error.issues[0]?.message || "Validation failed for shift creation.",
+      });
     }
+
+    const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = parsed.data;
 
     const shift = await prisma.shiftDefinition.create({
       data: {
@@ -98,7 +104,16 @@ shiftsRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) =>
       return res.status(404).json({ error: "Shift definition not found." });
     }
 
-    const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = req.body;
+    const parsed = updateShiftSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "VALIDATION_FAILED",
+        details: parsed.error.format(),
+        message: parsed.error.issues[0]?.message || "Validation failed for shift update.",
+      });
+    }
+
+    const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = parsed.data;
 
     const updated = await prisma.shiftDefinition.update({
       where: { id },

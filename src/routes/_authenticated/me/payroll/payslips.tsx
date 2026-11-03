@@ -47,7 +47,7 @@ export default function MePayslipsPage() {
   const payslips = payslipsData?.payslips || [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Payslips"
         description="Access and download your published monthly salary statements. Secured with standard password encryption."

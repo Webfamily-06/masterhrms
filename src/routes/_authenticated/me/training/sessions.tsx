@@ -46,7 +46,7 @@ export default function MeTrainingSessionsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Training Sessions & Workshops"
         description="Browse scheduled cohort workshops and self-register for upcoming learning events."

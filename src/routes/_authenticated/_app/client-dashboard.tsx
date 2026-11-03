@@ -134,7 +134,7 @@ export default function ClientDashboardPage() {
   const clientName = profile?.full_name || "Enterprise Client";
 
   return (
-    <div className="w-full min-w-0 flex-1 space-y-6 p-4 lg:p-6 pb-12">
+    <div className="w-full min-w-0 flex-1 space-y-6 lg: pb-12">
       {/* Client Portal Header */}
       <div className="bg-gradient-to-r from-blue-500/15 via-blue-500/5 to-background border border-blue-500/20 rounded-xl p-5 lg:p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
         <div className="space-y-1">

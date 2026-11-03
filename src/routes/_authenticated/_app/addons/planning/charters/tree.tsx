@@ -68,7 +68,7 @@ export default function ChartersTreePage() {
   const standaloneCharters = charters.filter((c) => !c.challengeId);
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl space-y-6">
+    <div className="container mx-auto max-w-7xl space-y-6">
       <PlanningNavHeader active="charters" charterView="tree" />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

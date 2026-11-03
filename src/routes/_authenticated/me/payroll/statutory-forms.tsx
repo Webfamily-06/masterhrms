@@ -32,7 +32,7 @@ export default function MeStatutoryFormsPage() {
   const forms = formsData?.availableForms || [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Statutory Certificates & PF/ESI Forms"
         description="Download your annual Form 16 TDS certificate, investment declaration Form 12BB, and pre-filled EPF declarations."

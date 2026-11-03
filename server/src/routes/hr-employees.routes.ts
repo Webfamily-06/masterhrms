@@ -1,8 +1,11 @@
 import { Router, Response } from "express";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
+import { requireWithinLimit } from "../middleware/limits";
 import { getTenantDb } from "../context/tenant-context";
 import { EmployeeService } from "../services/employee.service";
 import { resolveUserSecurityContext } from "../lib/data-scope";
+import { validateBody } from "../middleware/validate.middleware";
+import { createEmployeeSchema, updateEmployeeSchema } from "../schemas/employee.schema";
 
 export const hrEmployeesRouter = Router();
 
@@ -39,8 +42,9 @@ hrEmployeesRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) 
 // =========================================================================
 // 2. ATOMIC EMPLOYEE CREATION (POST /api/v1/hr/employees)
 // 8-Step Wizard Target: Atomic Employee + User + Outbox + Audit
+// Guarded by hrm.employees.create and subscription seat limit quota
 // =========================================================================
-hrEmployeesRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) => {
+hrEmployeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create"), requireWithinLimit("seats"), validateBody(createEmployeeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     const actorId = req.user?.userId;
@@ -236,7 +240,7 @@ hrEmployeesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Respons
 // Comprehensive update with step-by-step persistence, role authorization,
 // and financial field permission enforcement.
 // =========================================================================
-hrEmployeesRouter.put("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+hrEmployeesRouter.put("/:id", requireAuth, requirePermission("hrm.employees.edit"), validateBody(updateEmployeeSchema), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     const actorId = req.user?.userId;

@@ -37,7 +37,7 @@ export default function MeSalaryPage() {
   const revisions = salaryData?.revisionHistory || [];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Compensation & CTC Structure"
         description="View your active compensation components, monthly gross salary, and historical revision timeline."

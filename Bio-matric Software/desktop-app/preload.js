@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncClock: () => ipcRenderer.invoke('terminal:sync-clock'),
   rebootTerminal: () => ipcRenderer.invoke('terminal:reboot'),
   testVoice: () => ipcRenderer.invoke('terminal:test-voice'),
+  getAttendances: () => ipcRenderer.invoke('terminal:get-attendances'),
+  getUsers: () => ipcRenderer.invoke('terminal:get-users'),
   simulatePunch: (emp) => ipcRenderer.invoke('terminal:simulate-punch', emp),
 
   // Cloud Sync & ADMS

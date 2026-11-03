@@ -63,6 +63,13 @@ function HrPayrollOverviewPage() {
       icon: Sliders,
       color: "text-amber-500",
     },
+    {
+      title: "Contract Staffing Billing",
+      description: "Automated billing linking approved payroll runs, MMU margins, statutory liabilities, and GST tax invoices.",
+      href: "/hr/payroll/billing",
+      icon: Building2,
+      color: "text-indigo-500",
+    },
   ];
 
   return (

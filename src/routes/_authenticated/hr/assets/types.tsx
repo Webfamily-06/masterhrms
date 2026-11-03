@@ -65,7 +65,7 @@ export default function HrAssetTypesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Asset Categories & Types"
         description="Configure hardware classifications, prefix serial patterns, and asset depreciation profiles."

@@ -49,7 +49,7 @@ export default function MeTrainingsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Learning & Training"
         description="View your assigned curriculums, complete modules, and download earned certificates."

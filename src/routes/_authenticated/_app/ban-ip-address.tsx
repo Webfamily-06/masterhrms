@@ -111,7 +111,7 @@ export function BanIpAddressPage() {
   const activeCount = records.filter(r => r.isActive).length;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="sm: space-y-6 max-w-7xl mx-auto">
       {/* ─── Header ────────────────────────────────────────────────────────── */}
       <PageHeader
         title="Ban IP Address"

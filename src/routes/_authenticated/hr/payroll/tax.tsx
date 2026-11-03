@@ -83,7 +83,7 @@ export default function HrPayrollTaxPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Tax Declarations & Proof Verification"
         description="Verify employee Section 80C, 80D, HRA rent receipts, and investment proofs under the Income-tax Act."

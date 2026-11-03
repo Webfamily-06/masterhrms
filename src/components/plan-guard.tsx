@@ -176,7 +176,7 @@ export function PlanGuard({
           size="lg"
           asChild
           className="font-bold gap-2 shadow-lg"
-          style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}
+          style={{ background: "linear-gradient(135deg, var(--primary), #8b5cf6)" }}
         >
           <Link to="/subscription">
             Upgrade Workspace Plan <ArrowRight className="size-4" />

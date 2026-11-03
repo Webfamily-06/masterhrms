@@ -189,7 +189,7 @@ export function PipelinePage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="space-y-6 max-w-[1600px] mx-auto">
       {/* ── Breadcrumb & Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

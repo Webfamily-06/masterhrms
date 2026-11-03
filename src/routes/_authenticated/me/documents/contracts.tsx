@@ -28,7 +28,7 @@ export default function MeContractsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Employment Contracts"
         description="View your active employment agreement, terms, effective dates, and contract history."

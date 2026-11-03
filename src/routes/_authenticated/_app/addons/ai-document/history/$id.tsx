@@ -122,7 +122,7 @@ export default function AiDocumentViewPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6 max-w-5xl space-y-6">
+      <div className="container mx-auto max-w-5xl space-y-6">
         <AiDocumentNavHeader active="history" />
         <Skeleton className="h-10 w-48 mb-4" />
         <Card className="p-8 space-y-4">
@@ -135,7 +135,7 @@ export default function AiDocumentViewPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-6">
+    <div className="container mx-auto max-w-5xl space-y-6">
       <AiDocumentNavHeader active="history" />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

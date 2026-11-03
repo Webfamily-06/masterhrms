@@ -93,7 +93,7 @@ export default function HrLettersCenterPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="HR Letters Center"
         description="Automated letter generation (Appointment, Experience, Relieving, Confirmation) with secure token merge."

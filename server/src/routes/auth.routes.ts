@@ -519,7 +519,7 @@ const loginHandler = async (req: any, res: Response) => {
       include: {
         profile: true,
         roles: true,
-        employees: true,
+        employees: { select: { id: true, tenantId: true, status: true } },
         workspaceRoleAssignments: true,
       },
     });
@@ -1039,7 +1039,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
           },
         },
         roles: true,
-        employees: true,
+        employees: { select: { id: true, tenantId: true, status: true } },
         workspaceRoleAssignments: true,
       },
     });

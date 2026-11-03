@@ -100,7 +100,7 @@ export default function HrEmployeeContractsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Employee Employment Contracts"
         description="Legal agreements, appointment terms, compensation schedules, and contract renewals."

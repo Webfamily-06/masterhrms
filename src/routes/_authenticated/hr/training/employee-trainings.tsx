@@ -104,7 +104,7 @@ export default function HrEmployeeTrainingsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Employee Training Assignments"
         description="Track employee curriculum enrollments, completion milestones, and issued certificates."

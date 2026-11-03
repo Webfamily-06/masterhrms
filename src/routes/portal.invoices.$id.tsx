@@ -65,7 +65,7 @@ export default function ClientInvoicePortalPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="size-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-xs text-muted-foreground font-mono">Loading Secure Client Invoice...</p>

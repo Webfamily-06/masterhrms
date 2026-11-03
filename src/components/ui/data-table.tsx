@@ -37,6 +37,7 @@ export interface Column<T = any> {
   header: React.ReactNode;
   align?: "left" | "center" | "right";
   className?: string;
+  sticky?: "left" | "right";
   render?: (value: any, row: T, index: number) => React.ReactNode;
 }
 
@@ -85,6 +86,16 @@ export function DataTable<T extends Record<string, any>>({
     return "text-left";
   };
 
+  const getStickyClass = (sticky?: "left" | "right") => {
+    if (sticky === "left") {
+      return "sticky left-0 z-10 bg-card/95 backdrop-blur-xs border-r border-border/60 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]";
+    }
+    if (sticky === "right") {
+      return "sticky right-0 z-10 bg-card/95 backdrop-blur-xs border-l border-border/60 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]";
+    }
+    return "";
+  };
+
   return (
     <div className={cn("space-y-3", className)}>
       <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs transition-shadow">
@@ -98,6 +109,7 @@ export function DataTable<T extends Record<string, any>>({
                     className={cn(
                       "font-semibold text-[11px] tracking-wider text-muted-foreground uppercase whitespace-nowrap py-3 px-3",
                       getAlignClass(col.align),
+                      getStickyClass(col.sticky),
                       col.className
                     )}
                   >
@@ -148,6 +160,7 @@ export function DataTable<T extends Record<string, any>>({
                           className={cn(
                             "text-xs py-3 px-3",
                             getAlignClass(col.align),
+                            getStickyClass(col.sticky),
                             col.className
                           )}
                         >
@@ -196,7 +209,7 @@ export function DataTable<T extends Record<string, any>>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage(1)}
               disabled={safePage <= 1}
               title="First Page"
@@ -206,7 +219,7 @@ export function DataTable<T extends Record<string, any>>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
               title="Previous Page"
@@ -219,7 +232,7 @@ export function DataTable<T extends Record<string, any>>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
               title="Next Page"
@@ -229,7 +242,7 @@ export function DataTable<T extends Record<string, any>>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage(totalPages)}
               disabled={safePage >= totalPages}
               title="Last Page"

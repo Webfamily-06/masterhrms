@@ -489,7 +489,7 @@ function Leave() {
                           <div className="flex items-center gap-2">
                             <span
                               className="size-3 rounded-full shrink-0"
-                              style={{ backgroundColor: lb.color || "#7367F0" }}
+                              style={{ backgroundColor: lb.color || "var(--primary)" }}
                             />
                             <span className="text-xs font-bold truncate text-foreground">{lb.name}</span>
                           </div>
@@ -506,7 +506,7 @@ function Leave() {
                         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all"
-                            style={{ width: `${pct}%`, backgroundColor: lb.color || "#7367F0" }}
+                            style={{ width: `${pct}%`, backgroundColor: lb.color || "var(--primary)" }}
                           />
                         </div>
                       </CardContent>
@@ -638,7 +638,7 @@ function Leave() {
                             <div className="flex items-center gap-1.5">
                               <span
                                 className="size-2.5 rounded-full shrink-0"
-                                style={{ backgroundColor: r.leave_types?.color || "#7367F0" }}
+                                style={{ backgroundColor: r.leave_types?.color || "var(--primary)" }}
                               />
                               <span className="font-semibold text-foreground">{r.leave_types?.name || "Leave"}</span>
                             </div>

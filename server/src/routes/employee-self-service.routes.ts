@@ -5,6 +5,7 @@ import { prisma, rawPrisma } from "../prisma";
 import { AuditService } from "../services/audit.service";
 import { OutboxService } from "../services/outbox.service";
 import { NotificationService } from "../services/notification.service";
+import { AttendanceService } from "../services/attendance.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { broadcastToTenant } from "../socket";
 
@@ -665,10 +666,10 @@ employeeSelfServiceRouter.get("/leave-balance", async (req: EmployeeAuthRequest,
       const typeUsed = usedLeaves.filter((l) => l.leaveTypeId === type.id);
       const approvedDays = typeUsed
         .filter((l) => l.status === "approved")
-        .reduce((sum, l) => sum + (l.days || 0), 0);
+        .reduce((sum, l) => sum + Number(l.days || 0), 0);
       const pendingDays = typeUsed
         .filter((l) => l.status === "pending")
-        .reduce((sum, l) => sum + (l.days || 0), 0);
+        .reduce((sum, l) => sum + Number(l.days || 0), 0);
       const totalAccrued = type.daysPerYear || 12;
       const available = Math.max(0, totalAccrued - approvedDays - pendingDays);
 
@@ -1537,6 +1538,11 @@ employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: E
       },
     });
 
+    // TASK-P0-05: Enforce Month Lock Verification on manager regularization approvals
+    if (newStatus === "APPROVED") {
+      await AttendanceService.assertMonthUnlocked(reg.tenantId, reg.attendanceDate);
+    }
+
     // If approved, update or insert into attendance table
     if (newStatus === "APPROVED" && (reg.proposedIn || reg.proposedOut)) {
       await db.attendance.upsert({
@@ -1570,7 +1576,10 @@ employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: E
     });
   } catch (err: any) {
     console.error("[POST /me/team/regularizations/:id/action] Error:", err);
-    return res.status(500).json({ error: "Failed to process regularization decision" });
+    if (err.message && err.message.toLowerCase().includes("locked")) {
+      return res.status(409).json({ error: err.message, code: "PAYROLL_MONTH_LOCKED" });
+    }
+    return res.status(500).json({ error: err.message || "Failed to process regularization decision" });
   }
 });
 
@@ -1665,7 +1674,10 @@ employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: E
 
     // If approved, update the employee record dynamically
     if (newStatus === "APPROVED") {
-      const allowedFields = ["pan", "aadhaar", "uan", "esiNumber", "pfNumber", "bankName", "bankAccount", "bankIfsc", "bankBranch"];
+      const allowedFields = [
+        "pan", "aadhaar", "uan", "esiNumber", "pfNumber", "bankName", "bankAccount", "bankIfsc", "bankBranch",
+        "addressLine1", "addressLine2", "city", "district", "state", "postalCode", "permanentAddress", "presentAddress"
+      ];
       if (allowedFields.includes(changeReq.fieldKey)) {
         let parsedVal = changeReq.newValueJson;
         try {

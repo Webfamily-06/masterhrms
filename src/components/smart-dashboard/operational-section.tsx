@@ -333,7 +333,7 @@ export function OperationalSection() {
                   series={[{ name: "Units", data: [45, 12, 88, 34, 19, 62] }]}
                   options={{
                     chart: { toolbar: { show: false } },
-                    colors: ["#6366f1"],
+                    colors: ["var(--primary)"],
                     xaxis: { categories: ["Electronics", "Office Supplies", "Hardware", "Packaging", "Raw Materials", "Accessories"] },
                   }}
                 />

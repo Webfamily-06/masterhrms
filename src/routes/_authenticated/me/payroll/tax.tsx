@@ -68,7 +68,7 @@ export default function MeTaxPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Tax Declarations & Investment Proofs"
         description="Declare Section 80C, 80D Mediclaim, HRA rent, and investment exemptions for TDS optimization."

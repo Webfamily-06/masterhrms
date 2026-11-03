@@ -37,7 +37,7 @@ export default function HrAssetsDepreciationPage() {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Asset Depreciation Engine"
         description="Straight-Line Depreciation schedule tracking useful life, salvage thresholds, and current book value."

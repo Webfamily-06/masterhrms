@@ -2,14 +2,18 @@ import { Router, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../prisma';
-import { requireAuth, AuthRequest } from '../middleware/auth';
+import { requireAuth, requireRole, AuthRequest } from '../middleware/auth';
 import { resolveTenantContext } from '../middleware/tenant-context.middleware';
 import { StatutoryReturnService } from '../services/statutory-return.service';
 
 export const statutoryReturnsRouter = Router();
 
-// Enforce authentication & tenant isolation
-statutoryReturnsRouter.use(requireAuth, resolveTenantContext);
+// Enforce authentication, tenant isolation, and strict role boundaries
+statutoryReturnsRouter.use(
+  requireAuth,
+  resolveTenantContext,
+  requireRole('super_admin', 'tenant_admin', 'hr_admin', 'hr_manager', 'admin')
+);
 
 /**
  * 1. GET /api/payroll/statutory/filings

@@ -43,7 +43,7 @@ export default function MeOnboardingPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="My Onboarding & Buddy Responsibilities"
         description="Assigned pre-boarding checklist actions for incoming new team members."

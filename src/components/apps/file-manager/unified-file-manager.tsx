@@ -92,8 +92,8 @@ import { ShareDialog } from "./share-dialog";
 import { cn } from "@/lib/utils";
 
 // Canonical MasterHRMS system font stack
-const SYSTEM_FONT_STACK =
-  "var(--font-sans), 'Public Sans', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+// Clean root font inheritance (GAP-UI-004)
+const SYSTEM_FONT_STACK = undefined;
 
 // Views supported by Windows 11 File Explorer
 export type FileManagerView = "details" | "grid" | "list";
@@ -1128,7 +1128,7 @@ export function UnifiedFileManager({
     <div
       ref={containerRef}
       onContextMenu={(e) => handleContextMenu(e, null)}
-      style={{ fontFamily: SYSTEM_FONT_STACK }}
+      
       className="flex flex-col h-[calc(100vh-74px)] min-h-[640px] bg-background text-foreground select-none font-sans overflow-hidden border border-border/80 rounded-xl shadow-xs"
     >
       {/* Hidden file inputs */}
@@ -1147,7 +1147,7 @@ export function UnifiedFileManager({
       {/* A. WINDOWS 11 COMMAND / RIBBON BAR                                      */}
       {/* ----------------------------------------------------------------------- */}
       <header
-        style={{ fontFamily: SYSTEM_FONT_STACK }}
+        
         className="flex flex-wrap items-center justify-between gap-1.5 px-3 py-1.5 border-b border-border/80 bg-card/75 backdrop-blur-md shrink-0 font-sans"
       >
         <div className="flex items-center gap-1 overflow-x-auto">
@@ -1168,7 +1168,7 @@ export function UnifiedFileManager({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  style={{ fontFamily: SYSTEM_FONT_STACK }}
+                  
                   className="w-48 text-xs font-sans"
                 >
                   <DropdownMenuItem onClick={() => setIsNewFolderOpen(true)} className="gap-2">
@@ -1359,7 +1359,7 @@ export function UnifiedFileManager({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              style={{ fontFamily: SYSTEM_FONT_STACK }}
+              
               className="w-44 text-xs font-sans"
             >
               <DropdownMenuItem onClick={() => { setSortBy("name"); setSortOrder("asc"); }}>
@@ -1398,7 +1398,7 @@ export function UnifiedFileManager({
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              style={{ fontFamily: SYSTEM_FONT_STACK }}
+              
               className="w-36 text-xs font-sans"
             >
               <DropdownMenuItem onClick={() => setView("details")} className="gap-2">
@@ -1448,7 +1448,7 @@ export function UnifiedFileManager({
       {/* C. WINDOWS 11 BREADCRUMB / ADDRESS BAR & SEARCH                         */}
       {/* ----------------------------------------------------------------------- */}
       <div
-        style={{ fontFamily: SYSTEM_FONT_STACK }}
+        
         className="flex items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans"
       >
         {/* Navigation History Buttons */}
@@ -1549,7 +1549,7 @@ export function UnifiedFileManager({
         {/* B. NAVIGATION SIDEBAR                                                 */}
         {/* --------------------------------------------------------------------- */}
         <aside
-          style={{ fontFamily: SYSTEM_FONT_STACK }}
+          
           className="w-52 border-r border-border/80 bg-card/40 p-2.5 hidden md:flex flex-col justify-between shrink-0 font-sans"
         >
           <div className="space-y-4">
@@ -1835,7 +1835,7 @@ export function UnifiedFileManager({
             setSelectedIds(new Set());
           }}
           onContextMenu={(e) => handleContextMenu(e, null)}
-          style={{ fontFamily: SYSTEM_FONT_STACK }}
+          
           className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 font-sans"
         >
           {isLoading ? (
@@ -2074,7 +2074,7 @@ export function UnifiedFileManager({
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent
                                     align="end"
-                                    style={{ fontFamily: SYSTEM_FONT_STACK }}
+                                    
                                     className="text-xs font-sans"
                                   >
                                     {category === "Trash" || item.deletedAt ? (
@@ -2282,7 +2282,7 @@ export function UnifiedFileManager({
         {/* --------------------------------------------------------------------- */}
         {showInspector && activeInspectorItem && (
           <aside
-            style={{ fontFamily: SYSTEM_FONT_STACK }}
+            
             className="w-80 border-l border-border/80 bg-card/65 backdrop-blur-md p-4 flex flex-col justify-between shrink-0 overflow-y-auto font-sans"
           >
             <div className="space-y-4">
@@ -2458,7 +2458,7 @@ export function UnifiedFileManager({
           style={{
             top: `${contextMenu.y}px`,
             left: `${contextMenu.x}px`,
-            fontFamily: SYSTEM_FONT_STACK,
+            
           }}
           className="fixed z-50 w-56 rounded-xl border border-border/80 bg-popover/95 text-popover-foreground shadow-xl text-xs backdrop-blur-md p-1.5 animate-in fade-in-0 zoom-in-95 select-none font-sans"
           onClick={(e) => e.stopPropagation()}
@@ -2794,7 +2794,7 @@ export function UnifiedFileManager({
       {/* DIALOG: CREATE NEW FOLDER                                              */}
       {/* ----------------------------------------------------------------------- */}
       <Dialog open={isNewFolderOpen} onOpenChange={setIsNewFolderOpen}>
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+        <DialogContent  className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
               <img src="/FILE-MANAGER/Folder.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
@@ -2833,7 +2833,7 @@ export function UnifiedFileManager({
       {/* DIALOG: RENAME ITEM                                                    */}
       {/* ----------------------------------------------------------------------- */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+        <DialogContent  className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
               <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
@@ -2871,7 +2871,7 @@ export function UnifiedFileManager({
       {/* DIALOG: MOVE ITEM(S)                                                   */}
       {/* ----------------------------------------------------------------------- */}
       <Dialog open={isMoveOpen} onOpenChange={setIsMoveOpen}>
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+        <DialogContent  className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
               <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
@@ -2888,7 +2888,7 @@ export function UnifiedFileManager({
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select folder" />
                 </SelectTrigger>
-                <SelectContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="text-xs font-sans">
+                <SelectContent  className="text-xs font-sans">
                   <SelectItem value="root">
                     <span className="flex items-center gap-2">
                       <img src="/FILE-MANAGER/Drives/Hardrive.ico" alt="" className="size-3.5 object-contain inline-block shrink-0" />
@@ -2930,7 +2930,7 @@ export function UnifiedFileManager({
           if (!open) setDeleteTargets([]);
         }}
       >
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+        <DialogContent  className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive text-sm font-semibold">
               <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 object-contain shrink-0" draggable={false} />
@@ -2965,7 +2965,7 @@ export function UnifiedFileManager({
       {/* DIALOG: PERMANENT PURGE DELETE CONFIRMATION                            */}
       {/* ----------------------------------------------------------------------- */}
       <Dialog open={isPermanentDeleteOpen} onOpenChange={setIsPermanentDeleteOpen}>
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-md font-sans">
+        <DialogContent  className="sm:max-w-md font-sans">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive text-sm font-semibold">
               <ShieldAlert className="size-5 shrink-0 text-destructive" />
@@ -3030,7 +3030,7 @@ export function UnifiedFileManager({
           }
         }}
       >
-        <DialogContent style={{ fontFamily: SYSTEM_FONT_STACK }} className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4 font-sans">
+        <DialogContent  className="sm:max-w-3xl max-h-[90vh] flex flex-col p-4 font-sans">
           <DialogHeader className="pb-2 border-b border-border">
             <DialogTitle className="truncate text-sm font-semibold">{previewTarget?.fileName}</DialogTitle>
           </DialogHeader>

@@ -145,7 +145,7 @@ export default function AiDocumentSettingsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl space-y-6">
+    <div className="container mx-auto max-w-4xl space-y-6">
       <AiDocumentNavHeader active="settings" />
 
       <div>

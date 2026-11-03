@@ -110,7 +110,7 @@ export function InvoicePrintPage() {
   const taxMode = invoice.taxMode || invoice.tax_mode || "sgst_cgst";
 
   return (
-    <div className="min-h-screen bg-slate-100/60 dark:bg-slate-950/40 p-4 sm:p-8 print:p-0 print:bg-white print:m-0">
+    <div className="min-h-screen bg-slate-100/60 dark:bg-slate-950/40 sm:p-8 print:p-0 print:bg-white print:m-0">
       {/* ===== ACTION BAR (HIDDEN IN PRINT) ===== */}
       <div className="max-w-4xl mx-auto mb-6 flex flex-wrap items-center justify-between gap-4 print:hidden bg-card border border-border p-4 rounded-xl shadow-sm">
         <div className="flex items-center gap-3">

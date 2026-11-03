@@ -200,7 +200,7 @@ export function PerformanceReviewPage() {
   }
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto space-y-6 animate-in fade-in duration-200 print:p-0 print:space-y-4">
+    <div className="max-w-[1400px] mx-auto space-y-6 animate-in fade-in duration-200 print:p-0 print:space-y-4">
       {/* Top Header & Actions (Hidden on Print) */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
         <div>

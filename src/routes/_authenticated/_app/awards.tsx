@@ -259,7 +259,7 @@ export function AwardsPage() {
   const recentAwardee = awards[0];
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto pb-16">
+    <div className="sm: space-y-6 max-w-[1600px] mx-auto pb-16">
       {/* ─── PageHeader with Breadcrumbs and Actions ───────────────────────── */}
       <PageHeader
         title="Awards & Recognition"

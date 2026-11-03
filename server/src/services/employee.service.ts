@@ -8,6 +8,7 @@ import { sanitizeSensitiveFields } from "../lib/field-security";
 import { attachAllowedActions } from "../lib/allowed-actions";
 import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/data-scope";
 import { EmployeeSystemIdService } from "./employee-system-id.service";
+import { normalizePhoneE164 } from "../schemas/employee.schema";
 
 export interface UpdateEmployeeInput {
   // Step 1: Personal
@@ -81,6 +82,9 @@ export interface CreateEmployeeInput {
   email: string;
   phone?: string | null;
   address?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  postalCode?: string | null;
   city?: string | null;
   district?: string | null;
   state?: string | null;
@@ -216,7 +220,7 @@ export class EmployeeService {
           firstName: input.firstName.trim(),
           lastName: input.lastName.trim(),
           email: input.email.toLowerCase().trim(),
-          phone: input.phone || null,
+          phone: normalizePhoneE164(input.phone) || null,
           position: input.position || null,
           branchId: input.branchId || null,
           departmentId: input.departmentId || null,
@@ -242,6 +246,16 @@ export class EmployeeService {
           bankAccount: input.bankAccount || null,
           bankIfsc: input.bankIfsc || null,
           bankBranch: input.bankBranch || null,
+          maritalStatus: input.maritalStatus || null,
+          bloodGroup: input.bloodGroup || null,
+          addressLine1: input.addressLine1 || input.address || null,
+          addressLine2: input.addressLine2 || null,
+          city: input.city || null,
+          district: input.district || null,
+          postalCode: input.postalCode || input.zipCode || null,
+          emergencyContactName: input.emergencyContactName || null,
+          emergencyContactRelationship: input.emergencyContactRelationship || null,
+          emergencyContactPhone: normalizePhoneE164(input.emergencyContactPhone) || null,
         },
         include: {
           department: { select: { id: true, name: true } },
@@ -1005,7 +1019,7 @@ export class EmployeeService {
       if (input.lastName !== undefined) updateData.lastName = input.lastName.trim();
       if (input.employeeCode !== undefined) updateData.employeeCode = input.employeeCode.trim();
       if (input.email !== undefined) updateData.email = input.email.toLowerCase().trim();
-      if (input.phone !== undefined) updateData.phone = input.phone ? input.phone.trim() : null;
+      if (input.phone !== undefined) updateData.phone = normalizePhoneE164(input.phone);
       if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
       if (input.gender !== undefined) updateData.gender = input.gender || null;
       if (input.branchId !== undefined) updateData.branchId = input.branchId || null;

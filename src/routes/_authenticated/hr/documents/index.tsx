@@ -92,7 +92,7 @@ export default function HrDocumentsVaultPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Corporate Document Vault"
         description="Secure enterprise repository for handbooks, policies, NDAs, and statutory guidelines."

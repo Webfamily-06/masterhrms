@@ -412,7 +412,7 @@ export default function PurchasesPage() {
   };
 
   return (
-    <div className="w-full min-w-0 p-4 lg:p-6 space-y-6">
+    <div className="w-full min-w-0 lg: space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

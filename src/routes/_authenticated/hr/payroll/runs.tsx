@@ -129,7 +129,7 @@ export default function HrPayrollRunsPage() {
   const totalEmployees = runs[0]?.employeeCount || 0;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Monthly Payroll Runs"
         description="Authoritative payroll batches, batch calculations, variance audits, and maker-checker approvals."

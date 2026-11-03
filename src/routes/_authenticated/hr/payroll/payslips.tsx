@@ -95,7 +95,7 @@ export default function HrPayrollPayslipsPage() {
   const totalNet = payslips.reduce((acc: number, p: any) => acc + Number(p.netSalary || 0), 0);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Payslips & Document Distribution"
         description="Review generated employee payslips, verify line items, and execute bulk releases with PDF password protection."

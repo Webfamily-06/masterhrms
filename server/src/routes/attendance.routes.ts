@@ -578,7 +578,16 @@ attendanceRouter.post("/regularize", requireAuth, async (req: AuthRequest, res: 
 
     const { employeeId, date, checkIn, checkOut, reason } = req.body;
     let targetEmployeeId = employeeId;
-    if (!targetEmployeeId) {
+    const isAttAdmin = req.user?.roles?.some((r: string) =>
+      ["super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin", "Workspace Admin"].includes(r)
+    );
+    if (!isAttAdmin) {
+      const ownEmp = await prisma.employee.findFirst({ where: { tenantId, userId: req.user!.userId } });
+      if (!ownEmp || (employeeId && employeeId !== ownEmp.id)) {
+        return res.status(403).json({ error: "Forbidden: You may only request regularization for yourself." });
+      }
+      targetEmployeeId = ownEmp.id;
+    } else if (!targetEmployeeId) {
       const emp = await prisma.employee.findFirst({ where: { tenantId, userId: req.user!.userId } });
       if (!emp) return res.status(400).json({ error: "Employee record not found." });
       targetEmployeeId = emp.id;
@@ -630,6 +639,12 @@ attendanceRouter.post("/regularize", requireAuth, async (req: AuthRequest, res: 
 
 // POST /api/attendance/reconcile (Shift Roster vs Punch Auto-Reconciliation Engine)
 attendanceRouter.post("/reconcile", requireAuth, async (req: AuthRequest, res: Response) => {
+  const isReconcileAdmin = req.user?.roles?.some((r: string) =>
+    ["super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin", "Workspace Admin"].includes(r)
+  );
+  if (!isReconcileAdmin) {
+    return res.status(403).json({ error: "Forbidden: Only HR Administrators can trigger shift reconciliation." });
+  }
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;

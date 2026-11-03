@@ -174,7 +174,7 @@ export class AttendanceService {
         employeeCode: true,
         branchId: true,
         departmentId: true,
-        branch: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true, latitude: true, longitude: true, geofenceRadius: true } },
       },
     });
 
@@ -213,25 +213,26 @@ export class AttendanceService {
     const isOvertimeAllowed = policy?.isOvertimeAllowed ?? true;
     const minOvertimeMinutes = policy?.minOvertimeMinutes ?? 60;
 
-    // 5. Evaluate Geo-Fence if coordinates provided
+    // 5. Evaluate Geo-Fence if coordinates provided (GAP-DB-API-003)
     let geoFenceNote = "";
     let isGeoValid = true;
     if (options.latitude !== undefined && options.longitude !== undefined) {
-      // Default corporate coordinates fallback (e.g., 19.0760, 72.8777)
-      const officeLat = 19.0760;
-      const officeLng = 72.8777;
-      const allowedRadiusMeters = 500;
+      // Dynamic branch geofencing: prefer assigned branch coordinates over static corporate defaults
+      const officeLat = employee.branch?.latitude ?? 19.0760;
+      const officeLng = employee.branch?.longitude ?? 72.8777;
+      const allowedRadiusMeters = employee.branch?.geofenceRadius ?? 500;
       const dist = this.calculateDistanceMeters(options.latitude, options.longitude, officeLat, officeLng);
+      const branchLabel = employee.branch?.name ? ` (${employee.branch.name})` : "";
       if (dist > allowedRadiusMeters) {
         isGeoValid = false;
-        geoFenceNote = `[Geo-Warning: ${Math.round(dist)}m from perimeter]`;
+        geoFenceNote = `[Geo-Warning: ${Math.round(dist)}m from perimeter (${allowedRadiusMeters}m allowed)${branchLabel}]`;
       } else {
-        geoFenceNote = `[Geo-Verified: ${Math.round(dist)}m]`;
+        geoFenceNote = `[Geo-Verified: ${Math.round(dist)}m${branchLabel}]`;
       }
     }
 
     if (options.type === "check_out") {
-      const existing = await rawPrisma.attendance.findUnique({
+      let existing = await rawPrisma.attendance.findUnique({
         where: {
           tenantId_employeeId_date: {
             tenantId,
@@ -240,6 +241,25 @@ export class AttendanceService {
           },
         },
       });
+
+      // Midnight Rollover Support (TASK-P2-05): For overnight shifts crossing midnight,
+      // if no check-in exists for today or today is already checked out, check yesterday for open check-in
+      if (!existing || !existing.checkIn) {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const openYesterday = await rawPrisma.attendance.findUnique({
+          where: {
+            tenantId_employeeId_date: {
+              tenantId,
+              employeeId,
+              date: yesterday,
+            },
+          },
+        });
+        if (openYesterday && openYesterday.checkIn && !openYesterday.checkOut) {
+          existing = openYesterday;
+        }
+      }
 
       if (!existing || !existing.checkIn) {
         throw new Error("No check-in recorded for today to check out from.");

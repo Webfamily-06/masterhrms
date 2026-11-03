@@ -85,6 +85,14 @@ function setupIpcHandlers() {
     return await zklib.testVoice();
   });
 
+  ipcMain.handle('terminal:get-attendances', async () => {
+    return await zklib.getAttendances();
+  });
+
+  ipcMain.handle('terminal:get-users', async () => {
+    return await zklib.getUsers();
+  });
+
   ipcMain.handle('terminal:simulate-punch', (event, emp) => {
     return zklib.simulatePunch(emp);
   });

@@ -78,7 +78,7 @@ export default function HrDocumentAcknowledgementsPage() {
   const pendingCount = acks.filter((a: any) => a.status === "pending").length;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Policy Sign-Off Campaigns"
         description="Controlled acknowledgment workflows for mandatory employee policies and compliance guidelines."

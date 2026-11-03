@@ -96,10 +96,10 @@ leaveRouter.get("/balances", requireAuth, async (req: AuthRequest, res: Response
       const typeRequests = requests.filter((r) => r.leaveTypeId === t.id);
       const approvedDays = typeRequests
         .filter((r) => r.status === "approved")
-        .reduce((sum, r) => sum + r.days, 0);
+        .reduce((sum, r) => sum + Number(r.days), 0);
       const pendingDays = typeRequests
         .filter((r) => r.status === "pending")
-        .reduce((sum, r) => sum + r.days, 0);
+        .reduce((sum, r) => sum + Number(r.days), 0);
       const totalAllocated = t.daysPerYear;
       const remainingDays = Math.max(0, totalAllocated - (approvedDays + pendingDays));
 
@@ -202,8 +202,19 @@ const handleCreateLeaveRequest = async (req: AuthRequest, res: Response) => {
 
     const { employeeId, leaveTypeId, startDate, endDate, reason } = req.body;
     let targetEmployeeId = employeeId;
+    const isLeaveAdmin = req.user?.roles?.some((r: string) =>
+      ["super_admin", "admin", "hr_admin", "hr_manager", "tenant_admin", "Workspace Admin"].includes(r)
+    );
 
-    if (!targetEmployeeId) {
+    if (!isLeaveAdmin) {
+      const ownEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user!.userId },
+      });
+      if (!ownEmp || (employeeId && employeeId !== ownEmp.id)) {
+        return res.status(403).json({ error: "Forbidden: You may only apply for leave for yourself." });
+      }
+      targetEmployeeId = ownEmp.id;
+    } else if (!targetEmployeeId) {
       const emp = await prisma.employee.findFirst({
         where: { tenantId, userId: req.user!.userId },
       });
@@ -252,7 +263,7 @@ const handleCreateLeaveRequest = async (req: AuthRequest, res: Response) => {
         },
       });
 
-      const alreadyUsed = existingRequests.reduce((sum, r) => sum + r.days, 0);
+      const alreadyUsed = existingRequests.reduce((sum, r) => sum + Number(r.days), 0);
       const remainingQuota = Math.max(0, leaveType.daysPerYear - alreadyUsed);
 
       if (diffDays > remainingQuota) {
@@ -319,12 +330,24 @@ async function handleLeaveStatusUpdate(req: AuthRequest, res: Response) {
     }
 
     const userRoles = req.user?.roles || [];
-    const isManagerOrAdmin = userRoles.some((r: string) =>
-      ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r)
+    const isAdmin = userRoles.some((r: string) =>
+      ["super_admin", "admin", "hr_admin", "hr_manager", "tenant_admin", "Workspace Admin"].includes(r)
     );
+    const isManagerOrAdmin = isAdmin || userRoles.includes("manager");
 
-    if (["approved", "rejected"].includes(status) && !isManagerOrAdmin) {
-      return res.status(403).json({ error: "Forbidden: Only managers and administrators can approve or reject leave requests." });
+    if (["approved", "rejected"].includes(status)) {
+      if (!isManagerOrAdmin) {
+        return res.status(403).json({ error: "Forbidden: Only managers and administrators can approve or reject leave requests." });
+      }
+      if (!isAdmin && userRoles.includes("manager")) {
+        const managerEmp = await prisma.employee.findFirst({
+          where: { tenantId, userId: req.user?.userId },
+          select: { id: true },
+        });
+        if (!managerEmp || existing.employee.managerId !== managerEmp.id) {
+          return res.status(403).json({ error: "Forbidden: You may only approve or reject leave requests for your direct subordinates." });
+        }
+      }
     }
 
     if (status === "cancelled") {

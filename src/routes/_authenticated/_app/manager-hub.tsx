@@ -197,7 +197,7 @@ export function ManagerHubPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm: lg:p-8 max-w-7xl mx-auto">
       <BreadcrumbNav className="mb-4" />
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">

@@ -103,7 +103,7 @@ export default function HrReimbursementsLoansPage() {
   const pendingClaimsTotal = claims.reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Reimbursements & Employee Loans"
         description="Manage expense claim payroll credits and employee loan repayment EMI schedules with automated payroll recovery."

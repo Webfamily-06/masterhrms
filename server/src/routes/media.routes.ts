@@ -26,9 +26,18 @@ mediaRouter.post(
         return res.status(400).json({ error: "No file uploaded in 'file' field" });
       }
 
-      const folder = req.body.folder || "system/branding";
-      const tags = req.body.tags ? (typeof req.body.tags === "string" ? req.body.tags.split(",") : req.body.tags) : ["branding"];
+      const folder = req.body.folder || "tenant/documents";
+      const tags = req.body.tags ? (typeof req.body.tags === "string" ? req.body.tags.split(",") : req.body.tags) : ["document"];
       const isSuper = req.user?.roles?.includes("super_admin");
+
+      // TASK-P1-04 (GAP-VAL-015, GAP-DB-API-011): Restrict system branding folder uploads to super_admin only
+      if ((folder.startsWith("system/branding") || folder.startsWith("branding") || folder.startsWith("platform/branding")) && !isSuper) {
+        return res.status(403).json({
+          error: "Forbidden: Public branding directory uploads are restricted to Super Administrators.",
+          code: "PUBLIC_FOLDER_UPLOAD_RESTRICTED",
+        });
+      }
+
       let tenantId: string | null = null;
 
       if (isSuper) {

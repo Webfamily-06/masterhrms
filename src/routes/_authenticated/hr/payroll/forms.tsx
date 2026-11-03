@@ -40,7 +40,7 @@ export default function HrPayrollFormsPage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Statutory Forms & Returns Center"
         description="One-click generation and batch export of statutory compliance returns, EPF/ESIC schedules, and annual tax certificates."

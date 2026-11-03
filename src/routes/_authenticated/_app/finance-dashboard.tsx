@@ -87,13 +87,13 @@ export default function FinanceDashboardPage() {
       ],
       xaxis: {
         categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
       yaxis: {
         labels: {
-          style: { colors: "#94A3B8", fontSize: "11px" },
+          style: { colors: "var(--muted-foreground)", fontSize: "11px" },
           formatter: (v: any) => "$" + v + "K",
         },
       },
@@ -124,14 +124,14 @@ export default function FinanceDashboardPage() {
             labels: {
               show: true,
               name: { show: false },
-              value: { show: true, fontSize: "22px", fontWeight: 700, color: "#1E293B", offsetY: 8 },
+              value: { show: true, fontSize: "22px", fontWeight: 700, color: "var(--foreground)", offsetY: 8 },
               total: {
                 show: true,
                 showAlways: true,
                 label: "Sales",
                 fontSize: "10px",
                 fontWeight: 400,
-                color: "#94A3B8",
+                color: "var(--muted-foreground)",
                 formatter: () => "90%",
               },
             },
@@ -154,13 +154,13 @@ export default function FinanceDashboardPage() {
       ],
       xaxis: {
         categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "10px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
       yaxis: {
         labels: {
-          style: { colors: "#94A3B8", fontSize: "11px" },
+          style: { colors: "var(--muted-foreground)", fontSize: "11px" },
           formatter: (v: any) => "$" + v + "K",
         },
       },
@@ -190,13 +190,13 @@ export default function FinanceDashboardPage() {
             size: "70%",
             labels: {
               show: true,
-              value: { show: true, fontSize: "20px", fontWeight: 700, color: "#1E293B", offsetY: 6 },
+              value: { show: true, fontSize: "20px", fontWeight: 700, color: "var(--foreground)", offsetY: 6 },
               total: {
                 show: true,
                 showAlways: true,
                 label: "Salaries",
                 fontSize: "10px",
-                color: "#94A3B8",
+                color: "var(--muted-foreground)",
                 formatter: () => "50%",
               },
             },

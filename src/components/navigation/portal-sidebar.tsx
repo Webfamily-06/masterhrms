@@ -35,19 +35,50 @@ import { PortalSwitcher } from "@/components/portal-switcher";
 
 import { useTenantBranding } from "@/lib/useTenantBranding";
 
-interface PortalSidebarProps {
-  portal: PortalId;
+export interface PortalSidebarProps {
+  portal?: PortalId;
+  profile?: any;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  fullView?: boolean;
+  onToggleFullView?: () => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export function PortalSidebar({ portal }: PortalSidebarProps) {
+export function PortalSidebar({
+  portal,
+  profile,
+  collapsed = false,
+  onToggleCollapse,
+  fullView = false,
+  onToggleFullView,
+  mobileOpen = false,
+  onCloseMobile,
+}: PortalSidebarProps) {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
   const auth = getClientAuthState();
   const { branding } = useTenantBranding();
 
+  if (fullView) {
+    return null;
+  }
+
+  // Auto-detect portal if not explicitly provided
+  let activePortal = portal;
+  if (!activePortal) {
+    if (currentPath.startsWith("/hr")) activePortal = "hr";
+    else if (currentPath.startsWith("/super")) activePortal = "sa";
+    else if (currentPath.startsWith("/tenant")) activePortal = "tenant";
+    else if (currentPath.startsWith("/me")) activePortal = "me";
+    else if (auth.isTenantAdmin || auth.roles?.some((r) => r.includes("admin") || r.includes("hr"))) activePortal = "hr";
+    else activePortal = "me";
+  }
+
   // Navigation items for this portal
-  const navItems = getNavigationForPortal(portal, {
+  const navItems = getNavigationForPortal(activePortal, {
     roles: auth.roles,
     permissions: auth.permissions,
     enabledModules: auth.enabledModules,
@@ -111,7 +142,21 @@ export function PortalSidebar({ portal }: PortalSidebarProps) {
   };
 
   return (
-    <Sidebar className="border-r border-border/80 bg-card">
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-xs transition-opacity"
+          onClick={onCloseMobile}
+          aria-hidden="true"
+        />
+      )}
+      <Sidebar
+        className={cn(
+          "border-r border-border/80 bg-card transition-all duration-200 z-50",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          collapsed ? "w-16" : "w-64"
+        )}
+      >
       <SidebarHeader className="p-4 border-b border-border/60 flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <Link to={portal === "tenant" ? "/tenant/dashboard" : portal === "hr" ? "/hr" : "/me"} className="flex items-center gap-2.5">
@@ -269,6 +314,7 @@ export function PortalSidebar({ portal }: PortalSidebarProps) {
         </Button>
       </SidebarFooter>
     </Sidebar>
+    </>
   );
 }
 

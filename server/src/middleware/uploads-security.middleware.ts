@@ -13,6 +13,23 @@ const PUBLIC_UPLOAD_PREFIXES = [
   "media/screens/",
 ];
 
+// Folders / categories that contain confidential PII or employee documents
+const SENSITIVE_DOCUMENT_FOLDERS = [
+  "documents",
+  "employee",
+  "employees",
+  "contracts",
+  "medical",
+  "disciplinary",
+  "salary_slip",
+  "payslips",
+  "passport",
+  "national_id",
+  "statutory",
+  "private",
+  "identity",
+];
+
 /**
  * Checks whether a requested relative upload path falls into the allowed public asset categories
  * (system & tenant branding logos, favicons, marketplace icons, screenshots).
@@ -26,6 +43,7 @@ export function isPublicUploadPath(relativePath: string): boolean {
  * Security triage middleware guarding `/uploads` static file mounts.
  * Rejects unauthenticated access to non-public / sensitive directories (e.g., documents, private, contracts, payroll).
  * Enforces cross-tenant authorization checks via database metadata.
+ * TASK-P1-03: Enforces employee-level authorization (BOLA protection) on confidential documents.
  */
 export async function uploadsSecurityMiddleware(req: Request, res: Response, next: NextFunction) {
   const rawPath = req.path;
@@ -89,6 +107,9 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
     }
 
     const isSuper = user.roles.some((r) => r.role === "super_admin");
+    const isHrOrAdmin = user.roles.some((r) =>
+      ["admin", "super_admin", "hr_admin", "hr_manager", "Workspace Admin"].includes(r.role)
+    );
     const userTenantId = user.profile?.tenantId || (decoded as any).tenantId || null;
 
     // Query database for media file ownership
@@ -103,15 +124,46 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
     });
 
     if (mediaFile) {
+      // 1. Cross-Tenant Isolation Guard
       if (!isSuper && mediaFile.tenantId && mediaFile.tenantId !== userTenantId) {
         return res.status(403).json({
           error: "Forbidden: Access denied to private asset belonging to another workspace.",
           code: "FORBIDDEN_WORKSPACE_ASSET",
         });
       }
+
+      // 2. TASK-P1-03: Object-Level Authorization (BOLA Guard) for Confidential Documents
+      const folderLower = (mediaFile.folder || "").toLowerCase();
+      const pathLower = subPath.toLowerCase();
+      const isConfidential = SENSITIVE_DOCUMENT_FOLDERS.some(
+        (f) => folderLower.includes(f) || pathLower.includes(f)
+      );
+
+      if (isConfidential && !isSuper && !isHrOrAdmin) {
+        // Find employee ID for caller if exists
+        const employee = await db.employee.findFirst({
+          where: { userId: user.id },
+          select: { id: true },
+        }).catch(() => null);
+
+        const isOwner =
+          mediaFile.uploadedBy === user.id ||
+          (employee && mediaFile.uploadedBy === employee.id) ||
+          (employee && (pathLower.includes(employee.id.toLowerCase()) || folderLower.includes(employee.id.toLowerCase())));
+
+        const userPermissions: string[] = (decoded as any).permissions || [];
+        const hasDocPermission = userPermissions.includes("hrm.documents.view_all") || userPermissions.includes("hrm.employees.view");
+
+        if (!isOwner && !hasDocPermission) {
+          return res.status(403).json({
+            error: "Forbidden: You are not authorized to view this confidential document.",
+            code: "UNAUTHORIZED_DOCUMENT_ACCESS",
+          });
+        }
+      }
     } else {
-      // If file exists on disk but has no MediaFile record, only Super Admin can access
-      if (!isSuper) {
+      // If file exists on disk but has no MediaFile record, only Super Admin or HR can access
+      if (!isSuper && !isHrOrAdmin) {
         return res.status(404).json({ error: "Requested asset not found or access denied." });
       }
     }

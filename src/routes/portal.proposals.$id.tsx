@@ -79,7 +79,7 @@ export default function ClientProposalPortalPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-muted/20 flex flex-col items-center justify-center text-center">
         <Loader2 className="size-8 animate-spin text-primary mb-3" />
         <p className="text-sm font-medium text-muted-foreground">Loading quotation proposal...</p>
       </div>

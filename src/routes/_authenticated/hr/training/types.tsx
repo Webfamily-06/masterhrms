@@ -76,7 +76,7 @@ export default function HrTrainingTypesPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Training Types Master"
         description="Configure standardized training categories, classifications, and learning tracks."

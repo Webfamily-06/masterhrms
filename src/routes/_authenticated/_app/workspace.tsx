@@ -60,7 +60,7 @@ function WorkspacePage() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in-50 duration-300">
+    <div className="md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in-50 duration-300">
       {/* Header Banner */}
       <div className="relative overflow-hidden rounded-3xl p-8 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white border border-slate-700/50 shadow-2xl">
         <div className="absolute top-0 right-0 -mt-12 -mr-12 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />

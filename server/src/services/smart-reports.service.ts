@@ -420,7 +420,7 @@ export class SmartReportsService {
     const pendingCount = statusGroups.find((g) => g.status === "pending")?._count || 0;
     const approvedCount = statusGroups.find((g) => g.status === "approved")?._count || 0;
     const rejectedCount = statusGroups.find((g) => g.status === "rejected")?._count || 0;
-    const approvedDays = leaves.filter((l) => l.status === "approved").reduce((s, l) => s + (l.days || 0), 0);
+    const approvedDays = leaves.filter((l) => l.status === "approved").reduce((s, l) => s + Number(l.days || 0), 0);
 
     return {
       metrics: {

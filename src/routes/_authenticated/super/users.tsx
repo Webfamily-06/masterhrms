@@ -241,7 +241,7 @@ export function SuperUsersPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+    <div className="space-y-6 sm: lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
       <BreadcrumbNav className="mb-4" />
       {/* ── Top Header Bar ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">

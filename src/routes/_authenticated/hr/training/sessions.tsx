@@ -94,7 +94,7 @@ export default function HrTrainingSessionsPage() {
   });
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       <PageHeader
         title="Training Sessions"
         description="Schedule live webinars, in-person workshops, and manage cohort capacities."

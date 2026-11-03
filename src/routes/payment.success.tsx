@@ -48,7 +48,7 @@ export function PaymentSuccessPage() {
   });
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col justify-center items-center p-4 relative">
+    <div className="min-h-screen bg-muted/20 flex flex-col justify-center items-center relative">
       <div className="absolute top-4 right-4 flex items-center gap-2">
         <ThemeToggle />
       </div>

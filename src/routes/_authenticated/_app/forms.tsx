@@ -528,7 +528,7 @@ export function FormsPage() {
   const isTanValid = (tan?: string) => !tan || /^[A-Z]{4}[0-9]{5}[A-Z]{1}$/.test(tan);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>

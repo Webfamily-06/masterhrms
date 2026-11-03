@@ -340,13 +340,13 @@ export function AssetDashboardView() {
       ],
       xaxis: {
         categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "11px" } },
         axisBorder: { show: false },
         axisTicks: { show: false },
       },
       yaxis: {
         labels: {
-          style: { colors: "#94A3B8", fontSize: "11px" },
+          style: { colors: "var(--muted-foreground)", fontSize: "11px" },
           formatter: (v: any) => "$" + v,
         },
       },
@@ -372,10 +372,10 @@ export function AssetDashboardView() {
       ],
       xaxis: {
         categories: ["Engineering", "Sales & Marketing", "Finance & Admin", "Operations", "HR & Talent", "Executive"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "11px" } },
       },
       yaxis: {
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
+        labels: { style: { colors: "var(--muted-foreground)", fontSize: "11px" } },
       },
       grid: { borderColor: "var(--color-border-color, #E2E8F0)", strokeDashArray: 4 },
       dataLabels: { enabled: false },
