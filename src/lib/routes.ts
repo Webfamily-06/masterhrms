@@ -43,6 +43,8 @@ export const ROUTES = {
     data: "/tenant/data",
     auditLogs: "/tenant/audit-logs",
     support: "/tenant/support",
+    files: "/apps/file-manager/list-view",
+    reports: "/hr/reports/custom",
     calendar: "/tenant/calendar",
     todo: "/tenant/todo",
     todoGantt: "/tenant/todo/gantt",
@@ -176,6 +178,11 @@ export const ROUTES = {
       categories: "/hr/documents/categories",
     },
     media: "/hr/media",
+    files: "/apps/file-manager/list-view",
+    reports: {
+      root: "/hr/reports",
+      custom: "/hr/reports/custom",
+    },
     profile: "/hr/profile",
   },
 
@@ -282,6 +289,7 @@ export const ROUTES = {
       requests: "/me/documents/requests",
     },
     media: "/me/media",
+    files: "/apps/file-manager/list-view",
 
     // 6. My Account
     profile: "/me/profile",

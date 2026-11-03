@@ -184,6 +184,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         { title: "Expense Claims", url: "/expenses", icon: Receipt },
         { title: "Helpdesk", url: "/hr/lifecycle/complaints", icon: HelpCircle },
         { title: "Document Vault", url: "/hr/documents", icon: FolderLock },
+        { title: "File Manager", url: "/apps/file-manager/list-view", icon: FolderLock },
       ],
     },
     { category: "Lifecycle", items: [{ title: "Offboarding / Exit", url: "/hr/lifecycle/resignations", icon: LogOut }] },
@@ -191,6 +192,7 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
     {
       category: "Analytics & Automation", items: [
         { title: "People Analytics", url: "/analytics", icon: BarChart3 },
+        { title: "Custom Reports", url: "/smart-reports", icon: BarChart3 },
         { title: "Form Builder", url: "/forms", icon: FileSpreadsheet },
         { title: "Automation Rules", url: "/workflows", icon: Workflow },
         { title: "Biometric Hardware", url: "/biometric", icon: Fingerprint },

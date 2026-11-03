@@ -49,10 +49,10 @@ export const hrSidebar: HRMenuItem[] = [
     icon: "layout-dashboard",
     permission: "hrm.dashboard.view",
     children: [
-      { label: "Dashboard", path: "/hr/dashboard", permission: "hrm.dashboard.view" },
-      { label: "Calendar", path: "/hr/calendar", permission: "hrm.dashboard.view" },
-      { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
-      { label: "Notifications", path: "/hr/notifications", permission: "hrm.dashboard.view" },
+      { label: "Dashboard", path: "/hr/dashboard", icon: "ph-squares-four", permission: "hrm.dashboard.view" },
+      { label: "Calendar", path: "/hr/calendar", icon: "ph-calendar", permission: "hrm.dashboard.view" },
+      { label: "Approvals", path: "/hr/approvals", icon: "ph-check-circle", permission: "hrm.manage" },
+      { label: "Notifications", path: "/hr/notifications", icon: "ph-bell", permission: "hrm.dashboard.view" },
     ],
   },
 
@@ -65,15 +65,23 @@ export const hrSidebar: HRMenuItem[] = [
       HR_CHAT_NAV_GROUP,
       {
         label: "Scrumboard",
+        icon: "ph-kanban",
         children: [
           { label: "Projects Board", path: "/apps/taskboard/projects-board", permission: "hrm.dashboard.view" },
           { label: "Kanban Board", path: "/apps/taskboard/kanban-board", permission: "hrm.dashboard.view" },
           { label: "Pipeline", path: "/apps/taskboard/pipeline", permission: "hrm.dashboard.view" },
         ],
       },
-      { label: "File Manager", path: "/hr/files", permission: "hrm.dashboard.view" },
+      {
+        label: "File Manager",
+        icon: "ph-folder-open",
+        children: [
+          { label: "List View", path: "/apps/file-manager/list-view", permission: "hrm.dashboard.view" },
+          { label: "Grid View", path: "/apps/file-manager/grid-view", permission: "hrm.dashboard.view" },
+        ],
+      },
       HR_TODO_NAV_GROUP,
-      { label: "All Apps Catalog", path: "/apps/integrations/all-apps", permission: "hrm.dashboard.view" },
+      { label: "All Apps Catalog", path: "/apps/integrations/all-apps", icon: "ph-storefront", permission: "hrm.dashboard.view" },
     ],
   },
 
@@ -85,10 +93,12 @@ export const hrSidebar: HRMenuItem[] = [
       {
         label: "Employees",
         path: "/hr/employees",
+        icon: "ph-users",
         permission: "hrm.employees.view",
       },
       {
         label: "Organization",
+        icon: "ph-tree-structure",
         permission: "hrm.employees.view",
         children: [
           { label: "Departments", path: "/hr/organization/departments", permission: "hrm.employees.view" },
@@ -103,6 +113,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Attendance",
+        icon: "ph-clock",
         permission: "hrm.attendance.view",
         children: [
           { label: "Records", path: "/hr/attendance/records", permission: "hrm.attendance.view" },
@@ -117,6 +128,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Leave Management",
+        icon: "ph-calendar-blank",
         permission: "hrm.leave.view",
         children: [
           { label: "Applications", path: "/hr/leave/applications", permission: "hrm.leave.view" },
@@ -137,6 +149,7 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       {
         label: "Recruitment",
+        icon: "ph-user-plus",
         permission: "hrm.recruitment.view",
         children: [
           { label: "Job Postings", path: "/hr/recruitment/job-postings", permission: "hrm.recruitment.view" },
@@ -154,6 +167,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Employee Lifecycle",
+        icon: "ph-arrows-clockwise",
         permission: "hrm.employees.view",
         children: [
           { label: "Awards", path: "/hr/lifecycle/awards", permission: "hrm.employees.view" },
@@ -170,6 +184,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Performance",
+        icon: "ph-trend-up",
         permission: "hrm.performance.view",
         children: [
           { label: "Reviews", path: "/hr/performance/reviews", permission: "hrm.performance.view" },
@@ -183,6 +198,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Training",
+        icon: "ph-graduation-cap",
         permission: "hrm.training.view",
         children: [
           { label: "Employee Training", path: "/hr/training/employee-trainings", permission: "hrm.training.view" },
@@ -202,6 +218,7 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       {
         label: "Payroll",
+        icon: "ph-receipt",
         permission: "hrm.payroll.view",
         children: [
           { label: "Payroll Runs", path: "/hr/payroll/runs", permission: "hrm.payroll.view" },
@@ -216,6 +233,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Assets",
+        icon: "ph-hard-drive",
         permission: "assets.dashboard.view",
         children: [
           { label: "Dashboard", path: "/hr/assets/dashboard", permission: "assets.dashboard.view" },
@@ -235,6 +253,7 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       {
         label: "Meetings",
+        icon: "ph-video-camera",
         permission: "hrm.dashboard.view",
         children: [
           { label: "Meetings", path: "/hr/meetings", permission: "hrm.dashboard.view" },
@@ -245,6 +264,7 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Company Documents",
+        icon: "ph-file-text",
         permission: "hrm.dashboard.view",
         children: [
           { label: "Document Repository", path: "/hr/documents", permission: "hrm.dashboard.view" },
@@ -258,13 +278,15 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "Email",
+        icon: "ph-envelope-simple",
         permission: "hrm.dashboard.view",
         children: [
           { label: "Mailbox", path: "/apps/email", permission: "hrm.dashboard.view" },
           { label: "Email Accounts", path: "/settings/email-accounts", permission: "hrm.dashboard.view" },
         ],
       },
-      { label: "My Profile", path: "/hr/profile", permission: "hrm.dashboard.view" },
+      { label: "Media Library", path: "/hr/media", icon: "ph-image", permission: "hrm.dashboard.view" },
+      { label: "My Profile", path: "/hr/profile", icon: "ph-user", permission: "hrm.dashboard.view" },
     ],
   },
 
@@ -274,15 +296,15 @@ export const hrSidebar: HRMenuItem[] = [
     icon: "chart-no-axes-combined",
     permission: "analytics.dashboard.view",
     children: [
-      { label: "Headcount", path: "/hr/reports/headcount", permission: "analytics.reports.view" },
-      { label: "Attrition", path: "/hr/reports/attrition", permission: "analytics.reports.view" },
-      { label: "Attendance", path: "/hr/reports/attendance", permission: "analytics.reports.view" },
-      { label: "Payroll", path: "/hr/reports/payroll", permission: "analytics.reports.view" },
-      { label: "Recruitment", path: "/hr/reports/recruitment", permission: "analytics.reports.view" },
-      { label: "Performance", path: "/hr/reports/performance", permission: "analytics.reports.view" },
-      { label: "Training", path: "/hr/reports/training", permission: "analytics.reports.view" },
-      { label: "Statutory", path: "/hr/reports/statutory", permission: "analytics.reports.view" },
-      { label: "Custom Reports", path: "/hr/reports/custom", permission: "analytics.reports.view" },
+      { label: "Headcount", path: "/hr/reports/headcount", icon: "ph-chart-bar", permission: "analytics.reports.view" },
+      { label: "Attrition", path: "/hr/reports/attrition", icon: "ph-user-minus", permission: "analytics.reports.view" },
+      { label: "Attendance", path: "/hr/reports/attendance", icon: "ph-clock", permission: "analytics.reports.view" },
+      { label: "Payroll", path: "/hr/reports/payroll", icon: "ph-receipt", permission: "analytics.reports.view" },
+      { label: "Recruitment", path: "/hr/reports/recruitment", icon: "ph-user-plus", permission: "analytics.reports.view" },
+      { label: "Performance", path: "/hr/reports/performance", icon: "ph-trend-up", permission: "analytics.reports.view" },
+      { label: "Training", path: "/hr/reports/training", icon: "ph-graduation-cap", permission: "analytics.reports.view" },
+      { label: "Statutory", path: "/hr/reports/statutory", icon: "ph-shield-check", permission: "analytics.reports.view" },
+      { label: "Custom Reports", path: "/hr/reports/custom", icon: "ph-file-magnifying-glass", permission: "analytics.reports.view" },
     ],
   },
 
@@ -294,78 +316,91 @@ export const hrSidebar: HRMenuItem[] = [
       {
         label: "Strategic Planning",
         path: "/addons/planning/dashboard",
+        icon: "ph-target",
         addonSlug: "planning",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Challenges",
         path: "/addons/planning/challenges",
+        icon: "ph-lightning",
         addonSlug: "planning",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Initiative Charters",
         path: "/addons/planning/charters",
+        icon: "ph-scroll",
         addonSlug: "planning",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Planning Kanban",
         path: "/addons/planning/charters/kanban",
+        icon: "ph-kanban",
         addonSlug: "planning",
         permission: "hrm.dashboard.view",
       },
       {
         label: "OKRs",
         path: "/okr",
+        icon: "ph-compass",
         addonSlug: "okr-performance",
         permission: "hrm.performance.view",
       },
       {
         label: "Learning Analytics",
         path: "/learning-analytics",
+        icon: "ph-chart-pie-slice",
         addonSlug: "learning-lms",
         permission: "hrm.training.view",
       },
       {
         label: "Biometric Sync",
         path: "/biometric-sync",
+        icon: "ph-fingerprint",
         addonSlug: "biometric-sync",
         permission: "hrm.attendance.view",
       },
       {
         label: "Notice Board",
         path: "/notice-board",
+        icon: "ph-megaphone",
         addonSlug: "notice-board",
         permission: "hrm.dashboard.view",
       },
       {
         label: "AI Assistant Usage",
         path: "/addons/ai-assistant/usage",
+        icon: "ph-robot",
         addonSlug: "ai-assistant",
         permission: "hrm.dashboard.view",
       },
       {
         label: "AI Document Generator",
         path: "/addons/ai-document/generate",
+        icon: "ph-file-arrow-up",
         addonSlug: "ai-document",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Webhook Endpoints",
         path: "/addons/webhook/endpoints",
+        icon: "ph-webhooks-logo",
         addonSlug: "webhook",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Suggestion Box",
         path: "/suggestion-box",
+        icon: "ph-lightbulb",
         addonSlug: "suggestion-box",
         permission: "hrm.dashboard.view",
       },
       {
         label: "Call History",
         path: "/call-history",
+        icon: "ph-phone-call",
         addonSlug: "twilio-sms",
         permission: "hrm.dashboard.view",
       },

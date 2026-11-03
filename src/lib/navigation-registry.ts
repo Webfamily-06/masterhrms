@@ -925,6 +925,26 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     ]
   },
   {
+    "id": "hr-files",
+    "portal": "hr",
+    "module": "files",
+    "label": "File Manager",
+    "route": "/hr/files",
+    "icon": "FolderLock",
+    "order": 418,
+    "section": "Communication & Content"
+  },
+  {
+    "id": "hr-reports-custom",
+    "portal": "hr",
+    "module": "reports",
+    "label": "Custom Reports",
+    "route": "/hr/reports/custom",
+    "icon": "FileBarChart",
+    "order": 419,
+    "section": "Communication & Content"
+  },
+  {
     "id": "hr-media",
     "portal": "hr",
     "module": "media",
@@ -1559,6 +1579,16 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "order": 414
       }
     ]
+  },
+  {
+    "id": "me-files",
+    "portal": "me",
+    "module": "files",
+    "label": "File Manager",
+    "route": "/me/files",
+    "icon": "FolderLock",
+    "order": 418,
+    "section": "Communication & Content"
   },
   {
     "id": "me-media",

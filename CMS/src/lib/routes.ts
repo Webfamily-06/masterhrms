@@ -43,6 +43,8 @@ export const ROUTES = {
     data: "/tenant/data",
     auditLogs: "/tenant/audit-logs",
     support: "/tenant/support",
+    files: "/apps/file-manager/list-view",
+    reports: "/hr/reports/custom",
     calendar: "/tenant/calendar",
     todo: "/tenant/todo",
     todoGantt: "/tenant/todo/gantt",
@@ -50,7 +52,6 @@ export const ROUTES = {
     chatGroups: "/tenant/chat/groups",
     chatContacts: "/tenant/chat/contacts",
     chatCalls: "/tenant/chat/calls",
-    files: "/tenant/files",
   },
 
   // ── HR Operations Portal (/hr/*) ──
@@ -176,8 +177,12 @@ export const ROUTES = {
       contractTypes: "/hr/documents/contract-types",
       categories: "/hr/documents/categories",
     },
-    files: "/hr/files",
-    media: "/hr/files",
+    media: "/hr/media",
+    files: "/apps/file-manager/list-view",
+    reports: {
+      root: "/hr/reports",
+      custom: "/hr/reports/custom",
+    },
     profile: "/hr/profile",
   },
 
@@ -283,8 +288,8 @@ export const ROUTES = {
       acknowledgements: "/me/documents/acknowledgements",
       requests: "/me/documents/requests",
     },
-    files: "/me/files",
-    media: "/me/files",
+    media: "/me/media",
+    files: "/apps/file-manager/list-view",
 
     // 6. My Account
     profile: "/me/profile",
@@ -307,8 +312,6 @@ export const ROUTES = {
     settings: "/super/settings",
     developer: "/super/developer",
     docs: "/super/docs",
-    files: "/super/files",
-    media: "/super/files",
   },
 } as const;
 
@@ -317,13 +320,6 @@ export const ROUTES = {
  * Maps old /pages/*, root ERP HRM paths, or old shortcuts to canonical portal URLs.
  */
 export const LEGACY_REDIRECTS: Record<string, string> = {
-  "/super/media": "/super/files",
-  "/hr/media": "/hr/files",
-  "/me/media": "/me/files",
-  "/media": "/tenant/files",
-  "/apps/file-manager": "/hr/files",
-  "/apps/file-manager/list-view": "/hr/files",
-  "/apps/file-manager/grid-view": "/hr/files",
   "/hrm-dashboard": ROUTES.hr.dashboard,
   "/employee-dashboard": ROUTES.me.dashboard,
   "/dashboard": ROUTES.hr.dashboard,

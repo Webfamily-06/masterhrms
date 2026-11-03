@@ -62,7 +62,8 @@ const HR_ICON_MAP: Record<string, string> = {
   Applications: "ph-grid-four",
   Chat: "ph-chat-circle-dots",
   Scrumboard: "ph-kanban",
-  "File Manager": "ph-folder-notch-open",
+  "File Manager": "ph-folder-open",
+  Files: "ph-folder-open",
   "Todo & Tasks": "ph-check-square-offset",
   Todo: "ph-check-square",
   Gantt: "ph-chart-bar-horizontal",
@@ -101,10 +102,14 @@ const HR_ICON_MAP: Record<string, string> = {
   "My Profile": "ph-user",
 
   // 06. Reports & Analytics
+  Reports: "ph-chart-bar",
+  "Reports & Analytics": "ph-chart-bar",
   Headcount: "ph-chart-bar",
   Attrition: "ph-user-minus",
   Statutory: "ph-shield-check",
-  "Custom Reports": "ph-file-search",
+  "Custom Reports": "ph-file-magnifying-glass",
+  "Custom Report": "ph-file-magnifying-glass",
+  "Smart Reports": "ph-presentation-chart",
 
   // 07. Add-ons & Integrations
   "Strategic Planning": "ph-target",
@@ -114,12 +119,15 @@ const HR_ICON_MAP: Record<string, string> = {
   OKRs: "ph-compass",
   "Learning Analytics": "ph-chart-pie-slice",
   "Biometric Sync": "ph-fingerprint",
+  "Biometric Hardware Hub": "ph-fingerprint",
   "Notice Board": "ph-megaphone",
   "AI Assistant Usage": "ph-robot",
   "AI Document Generator": "ph-file-arrow-up",
   "Webhook Endpoints": "ph-webhooks-logo",
   "Suggestion Box": "ph-lightbulb",
   "Call History": "ph-phone-call",
+  "System States": "ph-stack",
+  "System States Directory": "ph-stack",
 };
 
 interface DreamsSidebarProps {
@@ -514,7 +522,7 @@ export function DreamsSidebar({
                   onClick={onCloseMobile}
                   className={cn(currentPath === "/system-states" && "active")}
                 >
-                  <i className="ph-duotone ph-layers"></i>
+                  <i className="ph-duotone ph-stack"></i>
                   <span>System States Directory</span>
                 </Link>
               </li>
@@ -744,7 +752,7 @@ export function DreamsSidebar({
                               c.path !== "/hr/dashboard" &&
                               currentPath.startsWith(c.path + "/")))
                       );
-                      const iconClass = HR_ICON_MAP[item.label] || "ph-folder";
+                      const iconClass = item.icon || HR_ICON_MAP[item.label] || "ph-folder";
 
                       return (
                         <li key={item.label} className="submenu">
@@ -803,7 +811,7 @@ export function DreamsSidebar({
                         (item.path !== "/hr" &&
                           item.path !== "/hr/dashboard" &&
                           currentPath.startsWith(item.path + "/")));
-                    const iconClass = HR_ICON_MAP[item.label] || "ph-circle";
+                    const iconClass = item.icon || HR_ICON_MAP[item.label] || "ph-circle";
 
                     return (
                       <li key={item.path || item.label}>
@@ -1529,6 +1537,24 @@ export function DreamsSidebar({
                     className={cn(currentPath === "/ai-writer" && "active")}
                   >
                     AI Copywriter
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/apps/file-manager/list-view"
+                    onClick={onCloseMobile}
+                    className={cn((currentPath.startsWith("/apps/file-manager") || currentPath === "/tenant/files") && "active")}
+                  >
+                    File Manager
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/hr/reports/custom"
+                    onClick={onCloseMobile}
+                    className={cn((currentPath === "/smart-reports" || currentPath === "/hr/reports/custom") && "active")}
+                  >
+                    Custom Reports
                   </Link>
                 </li>
               </ul>
@@ -2289,6 +2315,30 @@ export function DreamsSidebar({
                   </Link>
                 </li>
               </ul>
+            </li>
+
+            {/* File Manager */}
+            <li>
+              <Link
+                to={isAdminOrSuper ? "/apps/file-manager/list-view" : "/me/files"}
+                onClick={onCloseMobile}
+                className={cn((currentPath.startsWith("/apps/file-manager") || currentPath === "/me/files" || currentPath === "/tenant/files") && "active")}
+              >
+                <i className="ph-duotone ph-folder-open"></i>
+                <span>File Manager</span>
+              </Link>
+            </li>
+
+            {/* Custom Reports */}
+            <li>
+              <Link
+                to={isAdminOrSuper ? "/hr/reports/custom" : "/smart-reports"}
+                onClick={onCloseMobile}
+                className={cn((currentPath.startsWith("/hr/reports") || currentPath === "/smart-reports") && "active")}
+              >
+                <i className="ph-duotone ph-file-magnifying-glass"></i>
+                <span>Custom Reports</span>
+              </Link>
             </li>
           </>
         )}
