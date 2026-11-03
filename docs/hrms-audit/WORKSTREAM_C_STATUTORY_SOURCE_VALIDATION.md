@@ -57,3 +57,4 @@ Under Rule 16(4) of the Tamil Nadu Shops and Establishments Rules:
 - Registers must be preserved in the establishment for a minimum of **three years** from the date of the last entry.
 - Registers must be produced for inspection by Labor Inspectors appointed under Section 42 upon request.
 - MasterHRMS digital registers provide an immutable audit trail fulfilling electronic maintenance of records under the Information Technology Act, 2000.
+

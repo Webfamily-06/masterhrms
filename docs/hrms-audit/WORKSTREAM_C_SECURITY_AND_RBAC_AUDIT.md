@@ -64,3 +64,4 @@ Every generated statutory register incorporates a deterministic digital authoriz
 - Form W: `VOUCH-{Code}-{YYYYMM}-{NetPay}`
 - Form S: `AUTH-SIG-{Slug}-{YYYYMM}`
 These tokens provide traceable non-repudiation and prevent tampering across electronic file exchanges.
+

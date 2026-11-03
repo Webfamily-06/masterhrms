@@ -52,3 +52,4 @@ In addition, Form X governs compliance with:
 ### 3. Ledger Integrity Rules
 1. **Non-Negative Balances**: The builder asserts that closing leave balances cannot drop below zero. An automated diagnostic error is triggered if any employee's leave balance becomes negative.
 2. **Gender Sensitivity**: Maternity benefit columns are evaluated sensitively; male employees default to `N/A`, while female employees report `"On File"` or specific notice dates.
+

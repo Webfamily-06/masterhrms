@@ -66,3 +66,4 @@ Every generated Form W model includes an automated reconciliation diagnostic com
 - **Deductions Variance**: Must be $\le ₹1.00$.
 - **Net Variance**: Must be $\le ₹1.00$.
 - **Reconciliation Status**: Register is marked `isReconciled: true` only when all three variance checks pass.
+

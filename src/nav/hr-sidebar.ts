@@ -219,6 +219,7 @@ export const hrSidebar: HRMenuItem[] = [
         icon: "ph-receipt",
         permission: "hrm.payroll.view",
         children: [
+          { label: "Command Hub", path: "/hr/payroll/command-hub", permission: "hrm.payroll.view" },
           { label: "Payroll Runs", path: "/hr/payroll/runs", permission: "hrm.payroll.view" },
           { label: "Payslips", path: "/hr/payroll/payslips", permission: "hrm.payroll.view" },
           { label: "Salary Structures", path: "/hr/payroll/salaries", permission: "hrm.payroll.view" },

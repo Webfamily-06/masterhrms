@@ -37,6 +37,13 @@ function HrPayrollOverviewPage() {
 
   const modules = [
     {
+      title: "Command Hub",
+      description: "End-to-end 16-stage automated lifecycle, dual approval gates, variance analysis, and ledger posting.",
+      href: "/hr/payroll/command-hub",
+      icon: ShieldCheck,
+      color: "text-primary",
+    },
+    {
       title: "Employee Payslips",
       description: "Generate, view, and bulk distribute monthly PDF payslips to employees.",
       href: "/hr/payroll/payslips",

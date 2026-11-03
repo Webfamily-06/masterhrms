@@ -218,7 +218,7 @@ export class FormXRegisterBuilder {
     const estName = establishment?.name || companyProfile.legalName || "Establishment";
     const estAddr = establishment?.address || companyProfile.registeredAddress || "Address on Record";
     const regNo = establishment?.code || companyProfile.cin || "US74900TN2015PTC100900";
-    const managerName = companyProfile.signatoryName || "David Siddharth.T";
+    const managerName = (companyProfile as any).signatoryName || "David Siddharth.T";
 
     const model: FormXModel = {
       formCode: "FORM_X",

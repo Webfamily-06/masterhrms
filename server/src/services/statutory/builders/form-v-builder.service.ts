@@ -131,7 +131,7 @@ export class FormVRegisterBuilder {
       orderBy: { createdAt: "asc" },
     });
 
-    const snapshotMap = new Map((payrollRun?.snapshots || []).map((s: any) => [s.employeeId, s]));
+    const snapshotMap = new Map<string, any>((payrollRun?.snapshots || []).map((s: any) => [s.employeeId, s]));
 
     const issues: ValidationIssue[] = [];
     let grandTotalWorked = 0;
@@ -246,7 +246,7 @@ export class FormVRegisterBuilder {
         });
       }
 
-      const sigToken = `DIGI-SEAL-${companyProfile.slug || "EST"}-${year}${String(month).padStart(2, "0")}`;
+      const sigToken = `DIGI-SEAL-${(companyProfile as any).slug || "EST"}-${year}${String(month).padStart(2, "0")}`;
 
       return {
         slNo: index + 1,
@@ -274,7 +274,7 @@ export class FormVRegisterBuilder {
     const estName = establishment?.name || companyProfile.legalName || "Establishment";
     const estAddr = establishment?.address || companyProfile.registeredAddress || "Address on Record";
     const regNo = establishment?.code || companyProfile.cin || "US74900TN2015PTC100900";
-    const managerName = companyProfile.signatoryName || "David Siddharth.T";
+    const managerName = (companyProfile as any).signatoryName || "David Siddharth.T";
 
     const model: FormVModel = {
       formCode: "FORM_V",

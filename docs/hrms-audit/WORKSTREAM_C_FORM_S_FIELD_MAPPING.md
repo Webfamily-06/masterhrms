@@ -52,3 +52,4 @@ An audit of the client reference workbook (`Paysheet_ENABL_OCT_2026 -Final.xlsx`
 - **Maximum Daily Hours**: 8 hours of work per day.
 - **Maximum Spreadover**: Work hours plus rest intervals do not exceed 10.5 hours on any day (Section 9 compliance).
 - **Weekly Rest**: Every employee receives at least one whole day holiday each week (Section 11 compliance).
+

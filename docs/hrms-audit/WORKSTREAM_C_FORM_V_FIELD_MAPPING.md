@@ -54,3 +54,4 @@ The automated `FormVRegisterBuilder` retrieves daily biometric attendance logs, 
 | **OD** | On Duty / Client Deputation | 1.0 | Full day payable. |
 | **LOP** | Approved Leave Without Pay | 0.0 | Loss of Pay. |
 | **N/A** | Calendar day does not exist | 0.0 | Non-existent calendar day (e.g. Day 31 in Feb, Apr, Jun, Sep, Nov). |
+

@@ -150,8 +150,8 @@ export class FormWRegisterBuilder {
       orderBy: [{ employeeCode: "asc" }, { lastName: "asc" }],
     })) as unknown as SafeEmployee[];
 
-    const snapshotByEmp = new Map((payrollRun?.snapshots || []).map((s: any) => [s.employeeId, s]));
-    const payslipByEmp = new Map((payrollRun?.payslips || []).map((p: any) => [p.employeeId, p]));
+    const snapshotByEmp = new Map<string, any>((payrollRun?.snapshots || []).map((s: any) => [s.employeeId, s]));
+    const payslipByEmp = new Map<string, any>((payrollRun?.payslips || []).map((p: any) => [p.employeeId, p]));
 
     const issues: ValidationIssue[] = [];
 
@@ -338,7 +338,7 @@ export class FormWRegisterBuilder {
     const estName = establishment?.name || companyProfile.legalName || "Establishment";
     const estAddr = establishment?.address || companyProfile.registeredAddress || "Address on Record";
     const regNo = establishment?.code || companyProfile.cin || "US74900TN2015PTC100900";
-    const managerName = companyProfile.signatoryName || "David Siddahrth.T";
+    const managerName = (companyProfile as any).signatoryName || "David Siddahrth.T";
 
     const grossVariance = Math.abs(totalGross - snapshotGrossSum);
     const deductionsVariance = Math.abs(totalDed - snapshotDedSum);

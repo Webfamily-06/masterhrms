@@ -58,3 +58,4 @@ During test execution on tenant `tenant-default-001` (Cycle: October 2026), the 
 
 ### 4. Immutability & Audit Trail
 Once a `PayrollRun` enters `paid` or `finalized` status, the statutory register builder reads directly from the frozen `PayrollSnapshot` table. Any modification to employee salary master records after payroll finalization has **ZERO effect** on previously generated statutory registers for that period, preserving complete audit defensibility before labor authorities.
+

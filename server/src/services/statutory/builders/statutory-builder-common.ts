@@ -147,3 +147,4 @@ export type SafeEmployee = {
   maternityNominationDate?: Date | null;
   dateOfJoining?: Date | null;
 };
+

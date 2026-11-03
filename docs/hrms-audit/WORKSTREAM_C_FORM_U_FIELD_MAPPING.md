@@ -53,3 +53,4 @@ Furthermore, under the Tamil Nadu Industrial Establishments (Conferment of Perma
 ### 3. PII & Privacy Guardrails
 1. **Aadhaar Masking**: Aadhaar numbers are cleaned of non-digits and strictly masked into `XXXXXXXX####` format. In no situation does the API, JSON model, XLSX, or PDF output render unmasked Aadhaar numbers.
 2. **Data Minimization**: The projection query explicitly uses `SAFE_EMPLOYEE_SELECT` to ensure unmigrated columns in the remote database do not trigger query failures.
+
