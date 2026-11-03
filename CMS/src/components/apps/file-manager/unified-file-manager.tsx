@@ -1381,6 +1381,10 @@ export function UnifiedFileManager({
               alt="Chat Attachments"
               className="size-4 object-contain shrink-0"
               draggable={false}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/FILE-MANAGER/Folder%20Contacts.ico";
+              }}
             />
             <span>Chat Attachments</span>
           </button>

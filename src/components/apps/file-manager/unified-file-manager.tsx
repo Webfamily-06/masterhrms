@@ -109,7 +109,8 @@ export type FileCategory =
   | "Trash"
   | "Recent"
   | "Shared"
-  | "Teams";
+  | "Teams"
+  | "Chat";
 
 export interface FileItem {
   id: string;
@@ -287,6 +288,8 @@ export function UnifiedFileManager({
           params.append("category", "Shared");
         } else if (category === "Teams") {
           params.append("category", "Teams");
+        } else if (category === "Chat") {
+          params.append("category", "Chat");
         } else {
           if (category !== "All") {
             params.append("category", category);
@@ -1704,6 +1707,35 @@ export function UnifiedFileManager({
                   draggable={false}
                 />
                 <span>Team Folders</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCategory("Chat");
+                  setCurrentFolder(null);
+                  setFolderHistory([{ id: null, name: "Chat Attachments" }]);
+                  setHistoryIndex(0);
+                  setSelectedIds(new Set());
+                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors text-left",
+                  category === "Chat"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+                )}
+              >
+                <img
+                  src="/FILE-MANAGER/Folder%20Shared.ico"
+                  alt="Chat Attachments"
+                  className="size-4 object-contain shrink-0"
+                  draggable={false}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/FILE-MANAGER/Folder%20Contacts.ico";
+                  }}
+                />
+                <span>Chat Attachments</span>
               </button>
 
               <button

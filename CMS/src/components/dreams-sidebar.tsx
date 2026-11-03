@@ -53,7 +53,6 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   Applications: "hrApps",
   Chat: "hrAppsChat",
   Scrumboard: "hrAppsScrum",
-  "File Manager": "hrAppsFiles",
   "Todo & Tasks": "hrAppsTodo",
 };
 
@@ -810,7 +809,12 @@ export function DreamsSidebar({
                       (currentPath === item.path ||
                         (item.path !== "/hr" &&
                           item.path !== "/hr/dashboard" &&
-                          currentPath.startsWith(item.path + "/")));
+                          currentPath.startsWith(item.path + "/")) ||
+                        (item.label === "File Manager" &&
+                          (currentPath.startsWith("/apps/file-manager") ||
+                            currentPath === "/tenant/files" ||
+                            currentPath === "/me/files" ||
+                            currentPath === "/hr/files")));
                     const iconClass = item.icon || HR_ICON_MAP[item.label] || "ph-circle";
 
                     return (

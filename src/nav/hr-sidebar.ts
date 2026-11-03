@@ -74,11 +74,9 @@ export const hrSidebar: HRMenuItem[] = [
       },
       {
         label: "File Manager",
+        path: "/apps/file-manager/list-view",
         icon: "ph-folder-open",
-        children: [
-          { label: "List View", path: "/apps/file-manager/list-view", permission: "hrm.dashboard.view" },
-          { label: "Grid View", path: "/apps/file-manager/grid-view", permission: "hrm.dashboard.view" },
-        ],
+        permission: "hrm.dashboard.view",
       },
       HR_TODO_NAV_GROUP,
       { label: "All Apps Catalog", path: "/apps/integrations/all-apps", icon: "ph-storefront", permission: "hrm.dashboard.view" },
