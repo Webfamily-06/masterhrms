@@ -50,8 +50,10 @@ class VapidService {
             const seedHash = crypto_1.default.createHash("sha256").update(`VAPID_SEED_${seedSource}`).digest();
             const ecdh = crypto_1.default.createECDH("prime256v1");
             ecdh.setPrivateKey(seedHash);
-            pub = toBase64Url(ecdh.getPublicKey());
-            priv = toBase64Url(seedHash);
+            if (!pub)
+                pub = toBase64Url(ecdh.getPublicKey());
+            if (!priv)
+                priv = toBase64Url(seedHash);
         }
         this.cachedKeys = {
             publicKey: pub,

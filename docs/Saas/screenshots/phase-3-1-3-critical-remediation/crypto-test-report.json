@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-11-02T11:01:44.719Z",
+  "timestamp": "2026-11-03T02:51:08.093Z",
   "phase": "3.1.3",
   "branch": "fix/phase-3-1-3-critical-remediation",
-  "total": 43,
-  "passed": 43,
+  "total": 57,
+  "passed": 57,
   "failed": 0,
   "results": [
     {
@@ -214,6 +214,76 @@
     {
       "suite": "SecuritySanitization",
       "name": "Error messages and audit checks never reveal plaintext secrets",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 1: Valid encryption key initialization in production yields 0 warnings and 0 errors",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 2: Missing key handling fails closed in production for all 5 subsystems",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 3: Invalid key length handling rejects keys under 32 characters in production",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 4: Independent key validation ensures keys from system A cannot decrypt system B",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 5: Successful round-trip encryption & decryption across all 5 systems",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 6: Incorrect key rejection across AES-GCM and AES-CBC",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 7: Tampered ciphertext rejection fails closed",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 8: Invalid IV rejection fails closed",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 9: Existing encrypted data compatibility with initial seed template key",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 10: Tenant-specific credential isolation prevents cross-tenant access",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 11: Production environment initialization cleanly passes when keys configured",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 12: Serverless cold-start compatibility leaves public endpoints unblocked",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 13: No plaintext credential fallback when writing in production",
+      "status": "PASS"
+    },
+    {
+      "suite": "PhaseFAudit",
+      "name": "Mandate 14: No secrets exposed in logs or exception messages",
       "status": "PASS"
     },
     {

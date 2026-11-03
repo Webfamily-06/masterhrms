@@ -13,27 +13,34 @@ function getEndpointHash(endpoint) {
 }
 class PushSubscriptionStore {
     /**
-     * Saves or updates a Web Push subscription for a user within a verified tenant.
+     * Saves or updates a device-level Web Push subscription for a user within a verified tenant.
+     * Explicitly associates deviceId, platform, and session ownership.
      */
     static async saveSubscription(params) {
-        const { tenantId, userId, subscription, userAgent } = params;
+        const { tenantId, userId, subscription, userAgent, deviceId, platform, sessionTokenId } = params;
         const endpointHash = getEndpointHash(subscription.endpoint);
+        const resolvedDeviceId = deviceId || `dev_${endpointHash.slice(0, 16)}`;
         const subId = `sub_${endpointHash}`;
         const record = {
             id: subId,
             tenantId,
             userId,
+            deviceId: resolvedDeviceId,
             endpoint: subscription.endpoint,
             p256dh: subscription.keys.p256dh,
             auth: subscription.keys.auth,
             userAgent: userAgent || "Unknown Browser",
+            platform: platform || "web",
+            sessionTokenId,
             createdAt: new Date().toISOString(),
+            lastSeenAt: new Date().toISOString(),
             lastUsedAt: new Date().toISOString(),
+            revokedAt: null,
             status: "active",
         };
-        // 1. Update in-memory map
+        // 1. Update in-memory map: match by endpoint or (userId + deviceId)
         const userSubs = inMemorySubscriptions.get(userId) || [];
-        const filtered = userSubs.filter((s) => s.endpoint !== subscription.endpoint);
+        const filtered = userSubs.filter((s) => s.endpoint !== subscription.endpoint && s.deviceId !== resolvedDeviceId);
         filtered.push(record);
         inMemorySubscriptions.set(userId, filtered);
         // 2. Persist to Setting table (USER scope) if database is accessible
@@ -64,13 +71,12 @@ class PushSubscriptionStore {
             });
         }
         catch (err) {
-            // Non-fatal: in-memory record ensures delivery even during database connection outages
             console.warn(`[PushSubscriptionStore] DB persistence skipped (${err.message}). Cached in-memory.`);
         }
         return record;
     }
     /**
-     * Retrieves all active subscriptions for a user, verifying tenant isolation.
+     * Retrieves all currently active and non-revoked subscriptions for a user, verifying tenant isolation.
      */
     static async getActiveSubscriptions(tenantId, userId) {
         // 1. Check in-memory store first
@@ -102,15 +108,54 @@ class PushSubscriptionStore {
                 userSubs = inMemorySubscriptions.get(userId) || [];
             }
         }
-        // 3. Strict tenant matching
-        return (userSubs || []).filter((s) => s.tenantId === tenantId && s.status === "active");
+        // 3. Strict tenant matching & status filter: only 'active' devices eligible for push
+        return (userSubs || []).filter((s) => s.tenantId === tenantId && s.status === "active" && !s.revokedAt);
     }
     /**
-     * Marks a subscription as expired or removes it.
+     * Device-Specific Revocation (Called on device logout).
+     * Revokes ONLY the specified device/endpoint for this user.
+     * Other active devices of the user remain authenticated and eligible for incoming calls.
+     */
+    static async revokeDeviceSubscription(tenantId, userId, deviceIdOrEndpoint) {
+        const userSubs = inMemorySubscriptions.get(userId) || [];
+        let modified = false;
+        const updated = userSubs.map((s) => {
+            if (s.tenantId === tenantId &&
+                (s.endpoint === deviceIdOrEndpoint || s.deviceId === deviceIdOrEndpoint)) {
+                modified = true;
+                return {
+                    ...s,
+                    status: "revoked",
+                    revokedAt: new Date().toISOString(),
+                };
+            }
+            return s;
+        });
+        inMemorySubscriptions.set(userId, updated);
+        try {
+            const db = prisma_1.rawPrisma || prisma_1.prisma;
+            const endpointHash = getEndpointHash(deviceIdOrEndpoint);
+            const key = `push_sub_${endpointHash}`;
+            // Update in DB setting or delete record
+            await db.setting.deleteMany({
+                where: {
+                    scope: "USER",
+                    scopeId: userId,
+                    key,
+                },
+            });
+        }
+        catch { }
+        return modified;
+    }
+    /**
+     * Marks a subscription as expired after gateway HTTP 404/410.
      */
     static async markExpired(userId, endpoint) {
         const userSubs = inMemorySubscriptions.get(userId) || [];
-        const updated = userSubs.map((s) => (s.endpoint === endpoint ? { ...s, status: "expired" } : s));
+        const updated = userSubs.map((s) => s.endpoint === endpoint
+            ? { ...s, status: "expired", revokedAt: new Date().toISOString() }
+            : s);
         inMemorySubscriptions.set(userId, updated);
         try {
             const db = prisma_1.rawPrisma || prisma_1.prisma;
@@ -124,15 +169,13 @@ class PushSubscriptionStore {
                 },
             });
         }
-        catch (err) {
-            // In-memory update took effect
-        }
+        catch { }
     }
     /**
      * Removes all subscriptions for a specific user and endpoint.
      */
     static async removeSubscription(tenantId, userId, endpoint) {
-        return this.unsubscribe(userId, endpoint);
+        return this.revokeDeviceSubscription(tenantId, userId, endpoint);
     }
     static async unsubscribe(userId, endpoint) {
         const userSubs = inMemorySubscriptions.get(userId) || [];

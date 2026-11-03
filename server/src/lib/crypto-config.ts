@@ -21,6 +21,12 @@ const isTest = () => process.env.NODE_ENV === "test";
 let devJwtWarningShown = false;
 
 /**
+ * Initial historical seed template secret from earlier deployment cycles.
+ * Retained strictly as candidate fallback for decrypting historical records.
+ */
+export const LEGACY_DEFAULT_SEED_JWT = "master-hrms-jwt-super-secret-key-change-this-in-production";
+
+/**
  * Constant-time string / buffer equality comparison helper.
  * Prevents timing attacks while safely handling unequal lengths without throwing.
  */
@@ -218,6 +224,12 @@ export function getStorageEncryptionKeys(): { active: Buffer; legacy: Buffer[] }
     }
   }
 
+  // Include initial default seed template key
+  const templateDerived = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, "master-hrms-storage-salt-v1", 32);
+  if (!active.equals(templateDerived) && !legacy.some((k) => k.equals(templateDerived))) {
+    legacy.push(templateDerived);
+  }
+
   // Include static fallback key for non-production compatibility
   const staticFallback = crypto.scryptSync("master-hrms-default-storage-encryption-key-salt", "master-hrms-storage-salt-v1", 32);
   if (!active.equals(staticFallback) && !legacy.some((k) => k.equals(staticFallback))) {
@@ -241,6 +253,7 @@ export function getStorageDecryptionKeys(): Buffer[] {
     if (jwt) {
       fallbackList.push(crypto.scryptSync(jwt, "master-hrms-storage-salt-v1", 32));
     }
+    fallbackList.push(crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, "master-hrms-storage-salt-v1", 32));
     fallbackList.push(crypto.scryptSync("master-hrms-default-storage-encryption-key-salt", "master-hrms-storage-salt-v1", 32));
     return fallbackList;
   }
@@ -298,6 +311,16 @@ export function getConnectorEncryptionKeys(): { active: Buffer; legacy: Buffer[]
     }
   }
 
+  // Include initial default seed template key with salt "salt" and connector salt
+  const templateDerived = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, "salt", 32);
+  if (!active.equals(templateDerived) && !legacy.some((k) => k.equals(templateDerived))) {
+    legacy.push(templateDerived);
+  }
+  const templateConnectorSalt = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, "master-hrms-connector-salt-v1", 32);
+  if (!active.equals(templateConnectorSalt) && !legacy.some((k) => k.equals(templateConnectorSalt))) {
+    legacy.push(templateConnectorSalt);
+  }
+
   // Legacy fallback string key with salt "salt"
   const staticFallback = crypto.scryptSync("masterhrms-token-key-salt", "salt", 32);
   if (!active.equals(staticFallback) && !legacy.some((k) => k.equals(staticFallback))) {
@@ -351,6 +374,12 @@ export function getEmailCryptoKeys(): { active: Buffer; legacy: Buffer[] } {
     if (!active.equals(legacyJwtKey)) {
       legacy.push(legacyJwtKey);
     }
+  }
+
+  // Include initial default seed template key
+  const templateDerived = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, salt, 32);
+  if (!active.equals(templateDerived) && !legacy.some((k) => k.equals(templateDerived))) {
+    legacy.push(templateDerived);
   }
 
   const staticFallback = crypto.scryptSync("master-hrms-32-char-encryption-key-phrase!", salt, 32);
@@ -407,6 +436,12 @@ export function getSettingsEncryptionKeys(): { active: Buffer; legacy: Buffer[] 
     }
   }
 
+  // Include initial default seed template key
+  const templateDerived = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, salt, 32);
+  if (!active.equals(templateDerived) && !legacy.some((k) => k.equals(templateDerived))) {
+    legacy.push(templateDerived);
+  }
+
   const staticFallback = crypto.scryptSync("master-hrms-32-char-encryption-key-phrase!", salt, 32);
   if (!active.equals(staticFallback) && !legacy.some((k) => k.equals(staticFallback))) {
     legacy.push(staticFallback);
@@ -445,7 +480,10 @@ export function getAiEncryptionKeys(): { active: string; legacy: string[] } {
     active = dedicated || process.env.JWT_SECRET || "hrms-enterprise-master-sec-key-32";
   }
 
-  const legacy: string[] = ["hrms-enterprise-master-sec-key-32"];
+  const legacy: string[] = [
+    "hrms-enterprise-master-sec-key-32",
+    LEGACY_DEFAULT_SEED_JWT,
+  ];
   const jwt = process.env.JWT_SECRET?.trim();
   if (jwt && jwt !== active && !legacy.includes(jwt)) {
     legacy.push(jwt);

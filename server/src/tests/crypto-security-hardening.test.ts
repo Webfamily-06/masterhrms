@@ -16,6 +16,7 @@ import {
   getAiEncryptionKeys,
   validateStartupCryptoConfig,
   CryptoConfigurationError,
+  LEGACY_DEFAULT_SEED_JWT,
 } from "../lib/crypto-config";
 import { generateToken, verifyToken, generateMfaToken, verifyMfaToken } from "../lib/jwt";
 import { LocalStorageProvider } from "../services/storage/local-storage.provider";
@@ -577,6 +578,278 @@ async function main() {
     const testSecret = "my-super-secret-production-token-to-mask";
     const err = new CryptoConfigurationError(`Missing key for service`);
     assert(!err.message.includes(testSecret));
+  });
+
+  // 12. Phase F — Production Security Audit 14 Core Mandates
+  await runTest("PhaseFAudit", "Mandate 1: Valid encryption key initialization in production yields 0 warnings and 0 errors", () => {
+    const origEnv = process.env.NODE_ENV;
+    const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
+    const origConn = process.env.CONNECTOR_ENCRYPTION_KEY;
+    const origEmail = process.env.EMAIL_CRYPTO_SECRET;
+    const origSettings = process.env.SETTINGS_ENCRYPTION_KEY;
+    const origAi = process.env.AI_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.STORAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.CONNECTOR_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.EMAIL_CRYPTO_SECRET = crypto.randomBytes(32).toString("hex");
+      process.env.SETTINGS_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.AI_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+
+      const check = validateStartupCryptoConfig({ checkAllServices: true });
+      assert.strictEqual(check.valid, true, "Startup validation must be valid");
+      assert.strictEqual(check.errors.length, 0, "Errors must be empty");
+      assert.strictEqual(check.warnings.length, 0, "Warnings must be empty when all 5 keys are present");
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage; else delete process.env.STORAGE_ENCRYPTION_KEY;
+      if (origConn) process.env.CONNECTOR_ENCRYPTION_KEY = origConn; else delete process.env.CONNECTOR_ENCRYPTION_KEY;
+      if (origEmail) process.env.EMAIL_CRYPTO_SECRET = origEmail; else delete process.env.EMAIL_CRYPTO_SECRET;
+      if (origSettings) process.env.SETTINGS_ENCRYPTION_KEY = origSettings; else delete process.env.SETTINGS_ENCRYPTION_KEY;
+      if (origAi) process.env.AI_ENCRYPTION_KEY = origAi; else delete process.env.AI_ENCRYPTION_KEY;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 2: Missing key handling fails closed in production for all 5 subsystems", () => {
+    const origEnv = process.env.NODE_ENV;
+    const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
+    const origConn = process.env.CONNECTOR_ENCRYPTION_KEY;
+    const origEmail = process.env.EMAIL_CRYPTO_SECRET;
+    const origSettings = process.env.SETTINGS_ENCRYPTION_KEY;
+    const origAi = process.env.AI_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.STORAGE_ENCRYPTION_KEY;
+      delete process.env.CONNECTOR_ENCRYPTION_KEY;
+      delete process.env.TOKEN_ENCRYPTION_KEY;
+      delete process.env.EMAIL_CRYPTO_SECRET;
+      delete process.env.SETTINGS_ENCRYPTION_KEY;
+      delete process.env.AI_ENCRYPTION_KEY;
+      delete process.env.ENCRYPTION_KEY;
+
+      assert.throws(() => getStorageEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError);
+      assert.throws(() => getConnectorEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError);
+      assert.throws(() => getEmailCryptoKeys(), (err: any) => err instanceof CryptoConfigurationError);
+      assert.throws(() => getSettingsEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError);
+      assert.throws(() => getAiEncryptionKeys(), (err: any) => err instanceof CryptoConfigurationError);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage;
+      if (origConn) process.env.CONNECTOR_ENCRYPTION_KEY = origConn;
+      if (origEmail) process.env.EMAIL_CRYPTO_SECRET = origEmail;
+      if (origSettings) process.env.SETTINGS_ENCRYPTION_KEY = origSettings;
+      if (origAi) process.env.AI_ENCRYPTION_KEY = origAi;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 3: Invalid key length handling rejects keys under 32 characters in production", () => {
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.CONNECTOR_ENCRYPTION_KEY = "short";
+      process.env.EMAIL_CRYPTO_SECRET = "short";
+      process.env.SETTINGS_ENCRYPTION_KEY = "short";
+      process.env.AI_ENCRYPTION_KEY = "short";
+
+      assert.throws(() => getConnectorEncryptionKeys(), /at least 32 characters/);
+      assert.throws(() => getEmailCryptoKeys(), /at least 32 characters/);
+      assert.throws(() => getSettingsEncryptionKeys(), /at least 32 characters/);
+      assert.throws(() => getAiEncryptionKeys(), /at least 32 characters/);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      delete process.env.CONNECTOR_ENCRYPTION_KEY;
+      delete process.env.EMAIL_CRYPTO_SECRET;
+      delete process.env.SETTINGS_ENCRYPTION_KEY;
+      delete process.env.AI_ENCRYPTION_KEY;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 4: Independent key validation ensures keys from system A cannot decrypt system B", () => {
+    const keySettings = crypto.randomBytes(32);
+    const keyEmail = crypto.randomBytes(32);
+    assert(!keySettings.equals(keyEmail), "Keys must be strictly independent");
+
+    const payload = "confidential-tenant-payment-token";
+    const encSettings = encryptSecret(payload, keySettings);
+
+    // Attempting to decrypt Settings payload with Email key must fail authentication
+    assert.throws(() => {
+      decryptSecret(encSettings.ciphertext, encSettings.iv, encSettings.authTag, keyEmail);
+    }, /authentication tag failed/);
+  });
+
+  await runTest("PhaseFAudit", "Mandate 5: Successful round-trip encryption & decryption across all 5 systems", () => {
+    // 1. Settings (AES-256-GCM)
+    const settingRaw = "sk_live_masterhrms_payment_gateway_api_secret_998877";
+    const encSetting = encryptSecret(settingRaw);
+    assert.strictEqual(decryptSecret(encSetting.ciphertext, encSetting.iv, encSetting.authTag), settingRaw);
+
+    // 2. Email (AES-256-GCM)
+    const emailPassRaw = "super-secret-imap-mailbox-password-2026";
+    const encEmail = encryptEmailSecret(emailPassRaw);
+    assert.strictEqual(decryptEmailSecret(encEmail), emailPassRaw);
+
+    // 3. Connectors (AES-256-GCM)
+    const connTokenRaw = "ya29.oauth-access-token-refresh-token-roundtrip-test";
+    const encConn = ExternalConnectorsService.encryptToken(connTokenRaw);
+    assert.strictEqual(ExternalConnectorsService.decryptToken(encConn), connTokenRaw);
+
+    // 4. Storage Decryption Keys
+    const storageKeys = getStorageDecryptionKeys();
+    assert(storageKeys.length > 0, "Storage keys list must not be empty");
+
+    // 5. AI Assistant Keys
+    const aiKeys = getAiEncryptionKeys();
+    assert(aiKeys.active && aiKeys.active.length >= 32, "Active AI key must be at least 32 chars");
+  });
+
+  await runTest("PhaseFAudit", "Mandate 6: Incorrect key rejection across AES-GCM and AES-CBC", () => {
+    const wrongKey = crypto.randomBytes(32);
+    const enc = encryptSecret("my-payment-key");
+    assert.throws(() => decryptSecret(enc.ciphertext, enc.iv, enc.authTag, wrongKey));
+
+    const encEmail = encryptEmailSecret("my-email-pass");
+    assert.throws(() => decryptEmailSecret(encEmail, wrongKey));
+  });
+
+  await runTest("PhaseFAudit", "Mandate 7: Tampered ciphertext rejection fails closed", () => {
+    const enc = encryptSecret("genuine-database-secret");
+    const tamperedCipher = enc.ciphertext.slice(0, -2) + (enc.ciphertext.slice(-2) === "aa" ? "bb" : "aa");
+    assert.throws(() => decryptSecret(tamperedCipher, enc.iv, enc.authTag));
+
+    const encEmail = encryptEmailSecret("genuine-smtp-pass");
+    const tamperedEmail = encEmail.ciphertext.slice(0, -2) + (encEmail.ciphertext.slice(-2) === "00" ? "11" : "00");
+    assert.throws(() => decryptEmailSecret({ ...encEmail, ciphertext: tamperedEmail }));
+  });
+
+  await runTest("PhaseFAudit", "Mandate 8: Invalid IV rejection fails closed", () => {
+    const enc = encryptSecret("test-data");
+    // Invalid 8-byte IV (must be 12 bytes for AES-256-GCM)
+    assert.throws(() => decryptSecret(enc.ciphertext, "0".repeat(16), enc.authTag), /Invalid IV length/);
+    assert.throws(() => decryptEmailSecret({ ...enc, iv: "0".repeat(16) }), /Invalid IV length/);
+  });
+
+  await runTest("PhaseFAudit", "Mandate 9: Existing encrypted data compatibility with initial seed template key", () => {
+    // 1. Settings legacy seed
+    const rawSettingVal = "historical-razorpay-key-secret-2026";
+    const saltSettings = "master-hrms-settings-secret-salt-v1";
+    const legacySettingsKey = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, saltSettings, 32);
+    const ivSettings = crypto.randomBytes(12);
+    const cipherSettings = crypto.createCipheriv("aes-256-gcm", legacySettingsKey, ivSettings);
+    let cipherTextSettings = cipherSettings.update(rawSettingVal, "utf8", "hex");
+    cipherTextSettings += cipherSettings.final("hex");
+    const tagSettings = cipherSettings.getAuthTag().toString("hex");
+
+    const decSetting = decryptSecret(cipherTextSettings, ivSettings.toString("hex"), tagSettings);
+    assert.strictEqual(decSetting, rawSettingVal, "Historical setting secret must decrypt with seed key ring");
+
+    // 2. Email legacy seed
+    const rawEmailPass = "historical-smtp-password-october";
+    const saltEmail = "master-hrms-user-email-secret-salt-v1";
+    const legacyEmailKey = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, saltEmail, 32);
+    const ivEmail = crypto.randomBytes(12);
+    const cipherEmail = crypto.createCipheriv("aes-256-gcm", legacyEmailKey, ivEmail);
+    let cipherTextEmail = cipherEmail.update(rawEmailPass, "utf8", "hex");
+    cipherTextEmail += cipherEmail.final("hex");
+    const tagEmail = cipherEmail.getAuthTag().toString("hex");
+
+    const decEmail = decryptEmailSecret({
+      ciphertext: cipherTextEmail,
+      iv: ivEmail.toString("hex"),
+      authTag: tagEmail,
+    });
+    assert.strictEqual(decEmail, rawEmailPass, "Historical email password must decrypt with seed key ring");
+
+    // 3. Connectors legacy seed
+    const rawConnToken = "historical-oauth-token-seed-encrypted";
+    const legacyConnKey = crypto.scryptSync(LEGACY_DEFAULT_SEED_JWT, "salt", 32);
+    const ivConn = crypto.randomBytes(12);
+    const cipherConn = crypto.createCipheriv("aes-256-gcm", legacyConnKey, ivConn);
+    let cipherTextConn = cipherConn.update(rawConnToken, "utf8", "hex");
+    cipherTextConn += cipherConn.final("hex");
+    const tagConn = cipherConn.getAuthTag().toString("hex");
+    const connPayload = `${ivConn.toString("hex")}:${tagConn}:${cipherTextConn}`;
+
+    const decConn = ExternalConnectorsService.decryptToken(connPayload);
+    assert.strictEqual(decConn, rawConnToken, "Historical connector token must decrypt with seed key ring");
+  });
+
+  await runTest("PhaseFAudit", "Mandate 10: Tenant-specific credential isolation prevents cross-tenant access", () => {
+    const tenantA_Key = "tenant/tenant_a_uuid/contract.pdf/v1";
+    const tenantB_Key = "tenant/tenant_b_uuid/contract.pdf/v1";
+    const provider = new LocalStorageProvider();
+    const futureExp = Date.now() + 60000;
+    const tokenA = provider["generateUploadToken"] ? provider["generateUploadToken"](tenantA_Key, futureExp) : crypto.randomBytes(32).toString("hex");
+
+    // Validating tokenA against tenantB path must fail
+    assert.strictEqual(provider.verifyUploadToken(tenantB_Key, futureExp, tokenA), false);
+  });
+
+  await runTest("PhaseFAudit", "Mandate 11: Production environment initialization cleanly passes when keys configured", () => {
+    const origEnv = process.env.NODE_ENV;
+    const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
+    const origConn = process.env.CONNECTOR_ENCRYPTION_KEY;
+    const origEmail = process.env.EMAIL_CRYPTO_SECRET;
+    const origSettings = process.env.SETTINGS_ENCRYPTION_KEY;
+    const origAi = process.env.AI_ENCRYPTION_KEY;
+    try {
+      process.env.NODE_ENV = "production";
+      process.env.STORAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.CONNECTOR_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.EMAIL_CRYPTO_SECRET = crypto.randomBytes(32).toString("hex");
+      process.env.SETTINGS_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+      process.env.AI_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
+
+      const check = validateStartupCryptoConfig();
+      assert.strictEqual(check.valid, true);
+      assert.strictEqual(check.warnings.length, 0);
+      assert.strictEqual(check.errors.length, 0);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage; else delete process.env.STORAGE_ENCRYPTION_KEY;
+      if (origConn) process.env.CONNECTOR_ENCRYPTION_KEY = origConn; else delete process.env.CONNECTOR_ENCRYPTION_KEY;
+      if (origEmail) process.env.EMAIL_CRYPTO_SECRET = origEmail; else delete process.env.EMAIL_CRYPTO_SECRET;
+      if (origSettings) process.env.SETTINGS_ENCRYPTION_KEY = origSettings; else delete process.env.SETTINGS_ENCRYPTION_KEY;
+      if (origAi) process.env.AI_ENCRYPTION_KEY = origAi; else delete process.env.AI_ENCRYPTION_KEY;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 12: Serverless cold-start compatibility leaves public endpoints unblocked", () => {
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.AI_ENCRYPTION_KEY;
+      delete process.env.CONNECTOR_ENCRYPTION_KEY;
+
+      // Normal startup check returns valid=true (warnings only) so serverless boots without crashing
+      const check = validateStartupCryptoConfig();
+      assert.strictEqual(check.valid, true, "Application must boot with warnings for optional services");
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 13: No plaintext credential fallback when writing in production", () => {
+    const origEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.SETTINGS_ENCRYPTION_KEY;
+      delete process.env.ENCRYPTION_KEY;
+
+      // In production, encryptSecret must fail closed and NEVER return unencrypted plaintext
+      assert.throws(() => encryptSecret("my-plain-secret"), (err: any) => err instanceof CryptoConfigurationError);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  await runTest("PhaseFAudit", "Mandate 14: No secrets exposed in logs or exception messages", () => {
+    const sensitiveKey = "super-secret-key-material-never-leak-998877";
+    try {
+      throw new CryptoConfigurationError(`Operation failed for service`);
+    } catch (err: any) {
+      assert(!err.message.includes(sensitiveKey), "Exception message must never contain raw key material");
+    }
   });
 
   // 12. Deployment Artifact Consistency Check

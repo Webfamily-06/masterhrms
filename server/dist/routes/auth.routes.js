@@ -16,6 +16,7 @@ const prisma_1 = require("../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const jwt_1 = require("../lib/jwt");
 const login_history_service_1 = require("../services/login-history.service");
+const device_session_service_1 = require("../services/device-session.service");
 const tenant_provisioning_1 = require("../lib/tenant-provisioning");
 const workspace_host_1 = require("../lib/workspace-host");
 const auth_1 = require("../middleware/auth");
@@ -24,6 +25,7 @@ const oauth_factory_1 = require("../services/factories/oauth.factory");
 Object.defineProperty(exports, "OAuthFactory", { enumerable: true, get: function () { return oauth_factory_1.OAuthFactory; } });
 const two_factor_service_1 = require("../modules/two-factor-auth/two-factor.service");
 const turnstile_middleware_1 = require("../middleware/turnstile.middleware");
+const push_subscription_store_1 = require("../services/push-subscription.store");
 exports.authRouter = (0, express_1.Router)();
 function generateBackupCodes(count = 8) {
     const codes = [];
@@ -481,7 +483,7 @@ const loginHandler = async (req, res) => {
         if (!isValid) {
             return res.status(400).json({ error: "Invalid email or password." });
         }
-        // ── Host-Scoped Authentication Enforcement ────────────────
+        // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
         const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
         // 1. Super Admin Host/Portal isolation:
@@ -566,13 +568,38 @@ const loginHandler = async (req, res) => {
         if (is2faDisabled) {
             const userTenantId = user.profile?.tenantId || user.roles.find((r) => r.tenantId)?.tenantId;
             const roles = await resolveEffectiveUserRoles(user, userTenantId);
+            // Generate device session and refresh token
+            let sessionResult = null;
+            try {
+                const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+                const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+                sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                    userId: user.id,
+                    tenantId: userTenantId || null,
+                    ipAddress: clientIp,
+                    userAgent: req.headers["user-agent"],
+                });
+            }
+            catch (err) {
+                console.warn("[DeviceSession] Non-fatal session create failure:", err.message);
+            }
             const token = (0, jwt_1.generateToken)({
                 userId: user.id,
                 email: user.email,
                 tenantId: user.profile?.tenantId,
                 roles,
+                sessionId: sessionResult?.sessionId,
             });
             await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
+            if (sessionResult?.refreshToken) {
+                res.cookie("hrms_refresh_token", sessionResult.refreshToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                    path: "/api/auth",
+                    maxAge: 30 * 24 * 60 * 60 * 1000,
+                });
+            }
             // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
             // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
             let workspaceUrl;
@@ -612,6 +639,8 @@ const loginHandler = async (req, res) => {
             }
             return res.json({
                 token,
+                refreshToken: sessionResult?.refreshToken,
+                sessionId: sessionResult?.sessionId,
                 user: {
                     id: user.id,
                     email: user.email,
@@ -634,8 +663,8 @@ const loginHandler = async (req, res) => {
             isSetup,
         });
         if (!emailResult.success) {
-            console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-            console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+            console.warn(`âš ï¸ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+            console.log(`ðŸ”‘ [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
         }
         const mfaToken = (0, jwt_1.generateMfaToken)({ userId: user.id, email: user.email });
         // Return temporary 2FA state - NO full session token issued before OTP verification
@@ -706,7 +735,7 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             await prisma.$executeRawUnsafe(`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`, tokenId, user.id, tokenHash, expiresAt);
         }
         catch (dbErr) {
-            console.error("⚠️ Failed to store reset token in password_reset_tokens table:", dbErr);
+            console.error("âš ï¸ Failed to store reset token in password_reset_tokens table:", dbErr);
         }
         // Also generate backup OTP for backward compatibility with 6-digit code UI
         const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
@@ -728,9 +757,9 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             companyName: tenantName,
             scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
         });
-        console.log(`🔗 [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
+        console.log(`ðŸ”— [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
         if (!emailResult.success) {
-            console.log(`🔑 [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
+            console.log(`ðŸ”‘ [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
         }
         return res.json({
             success: true,
@@ -921,7 +950,7 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
         if (!isCodeValid) {
             return res.status(400).json({ error: verificationError });
         }
-        // ── Host-Scoped Authentication Enforcement for 2FA Completion ──
+        // â”€â”€ Host-Scoped Authentication Enforcement for 2FA Completion â”€â”€
         const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
         const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
         if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
@@ -991,16 +1020,40 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
                 },
             });
         }
-        // Create full authenticated session token
+        // Create full authenticated session token & device session
         const userTenantId = user.profile?.tenantId || user.roles.find((r) => r.tenantId)?.tenantId;
         const roles = await resolveEffectiveUserRoles(user, userTenantId);
+        let sessionResult = null;
+        try {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                userId: user.id,
+                tenantId: userTenantId || null,
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+        }
+        catch (err) {
+            console.warn("[DeviceSession] 2FA session creation fallback:", err.message);
+        }
         const token = (0, jwt_1.generateToken)({
             userId: user.id,
             email: user.email,
             tenantId: user.profile?.tenantId,
             roles,
+            sessionId: sessionResult?.sessionId,
         });
         await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
+        if (sessionResult?.refreshToken) {
+            res.cookie("hrms_refresh_token", sessionResult.refreshToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "lax",
+                path: "/api/auth",
+                maxAge: 30 * 24 * 60 * 60 * 1000,
+            });
+        }
         // Resolve user's tenant for post-login workspace redirection (Flow 1 & Flow 2)
         // Super admin users MUST stay on root platform domain and never be redirected to tenant subdomains
         let workspaceUrl;
@@ -1047,6 +1100,8 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
             },
             roles,
             token,
+            refreshToken: sessionResult?.refreshToken,
+            sessionId: sessionResult?.sessionId,
             tenantSlug,
             workspaceUrl,
             message: wasSetup
@@ -1100,8 +1155,8 @@ exports.authRouter.post("/2fa/resend", async (req, res) => {
             isSetup: !user.twoFactorEnabled,
         });
         if (!emailResult.success) {
-            console.warn(`⚠️ [2FA RESEND] Email dispatch to ${user.email} failed: ${emailResult.error}`);
-            console.log(`🔑 [2FA RESEND CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+            console.warn(`âš ï¸ [2FA RESEND] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+            console.log(`ðŸ”‘ [2FA RESEND CODE] Use this code to sign in for ${user.email}: [${otp}]`);
         }
         return res.json({
             success: true,
@@ -1543,22 +1598,123 @@ exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
         return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Internal server error" });
     }
 });
-// POST /api/auth/logout - Immediately clear server-side authorization cache
+// POST /api/auth/logout - Immediately clear server-side authorization cache & revoke device push subscription
 exports.authRouter.post("/logout", auth_1.requireAuth, async (req, res) => {
     try {
         const userId = req.user?.userId || req.user?.id;
         const tenantId = req.user?.tenantId || req.tenantId;
+        const { deviceId, endpoint } = req.body || {};
         if (userId) {
             (0, auth_1.invalidateAuthCache)(userId, tenantId || undefined);
             (0, chat_routes_1.invalidateChatProfileCache)(userId, tenantId || undefined);
+            // If deviceId or endpoint supplied, revoke this specific device's push subscription
+            if (tenantId && (deviceId || endpoint)) {
+                await push_subscription_store_1.PushSubscriptionStore.revokeDeviceSubscription(tenantId, userId, deviceId || endpoint);
+            }
+            // Revoke the specific device session if available in token or body
+            const sessionId = req.user?.sessionId || req.body?.sessionId;
+            if (sessionId) {
+                await (0, device_session_service_1.revokeSession)(sessionId, userId).catch(() => { });
+            }
         }
+        res.clearCookie("hrms_refresh_token", { path: "/api/auth" });
         return res.json({ success: true, message: "Logged out and authorization cache cleared." });
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Logout failed" });
     }
 });
-// ─── OAuth 2.0 Configuration & Social Login Handlers ─────────────────────────
+// â”€â”€â”€ OAuth 2.0 Configuration & Social Login Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Device Session Management ──────────────────────────────────────────────
+// POST /api/auth/refresh — Rotate refresh token and issue new access token atomically
+exports.authRouter.post("/refresh", async (req, res) => {
+    try {
+        const rawRefreshToken = req.body?.refreshToken || req.cookies?.["hrms_refresh_token"];
+        const sessionId = req.body?.sessionId;
+        if (!rawRefreshToken || !sessionId) {
+            return res.status(401).json({ error: "Refresh token and sessionId are required." });
+        }
+        const tokenHash = (0, device_session_service_1.hashRefreshToken)(rawRefreshToken);
+        const rotationResult = await (0, device_session_service_1.rotateRefreshToken)(sessionId, tokenHash);
+        if (!rotationResult) {
+            res.clearCookie("hrms_refresh_token", { path: "/api/auth" });
+            return res.status(401).json({ error: "Session invalid, expired, or reuse detected. Please sign in again." });
+        }
+        const { refreshToken: newRefreshToken, session } = rotationResult;
+        const user = session.user;
+        if (!user) {
+            return res.status(401).json({ error: "Associated user not found." });
+        }
+        const userTenantId = session.tenantId || user.profile?.tenantId;
+        const roles = await resolveEffectiveUserRoles(user, userTenantId);
+        const newAccessToken = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId: userTenantId,
+            roles,
+            sessionId: session.id,
+        });
+        res.cookie("hrms_refresh_token", newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/api/auth",
+            maxAge: 30 * 24 * 60 * 60 * 1000,
+        });
+        return res.json({
+            token: newAccessToken,
+            refreshToken: newRefreshToken,
+            sessionId: session.id,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: "Session refresh failed." });
+    }
+});
+// GET /api/auth/sessions — List active device sessions for the authenticated user
+exports.authRouter.get("/sessions", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id;
+        const tenantId = req.user?.tenantId;
+        if (!userId)
+            return res.status(401).json({ error: "Unauthorized." });
+        const sessions = await (0, device_session_service_1.getActiveSessions)(userId, tenantId || undefined);
+        return res.json({ sessions });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to retrieve sessions." });
+    }
+});
+// DELETE /api/auth/sessions/:sessionId — Revoke a specific device session (own only)
+exports.authRouter.delete("/sessions/:sessionId", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id;
+        if (!userId)
+            return res.status(401).json({ error: "Unauthorized." });
+        const { sessionId } = req.params;
+        const success = await (0, device_session_service_1.revokeSession)(sessionId, userId);
+        if (!success)
+            return res.status(404).json({ error: "Session not found or already revoked." });
+        return res.json({ success: true, message: "Session revoked successfully." });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to revoke session." });
+    }
+});
+// POST /api/auth/sessions/revoke-all — Revoke all device sessions for the current user
+exports.authRouter.post("/sessions/revoke-all", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user?.userId || req.user?.id;
+        const tenantId = req.user?.tenantId;
+        if (!userId)
+            return res.status(401).json({ error: "Unauthorized." });
+        const count = await (0, device_session_service_1.revokeAllSessions)(userId, tenantId || undefined);
+        return res.json({ success: true, revokedCount: count, message: `${count} session(s) revoked.` });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to revoke all sessions." });
+    }
+});
 async function getPlatformOAuthConfig(req) {
     return oauth_factory_1.OAuthFactory.resolveConfig(req);
 }

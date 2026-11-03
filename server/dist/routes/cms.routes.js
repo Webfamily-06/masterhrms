@@ -584,6 +584,33 @@ exports.cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
                 ],
             },
         });
+        // In-memory fallback for the public CMS home page.
+        // No database row is required — this prevents a 404 on unauthenticated visitors when the
+        // database page is missing, unpublished, or has empty draft content.
+        // When an operator creates and publishes a custom home page with content, this fallback is skipped.
+        if ((!page || !page.published || !page.content || Object.keys(page.content).length === 0) && slug === "home") {
+            res.set("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+            return res.json({
+                id: "home",
+                slug: "home",
+                title: "MasterHRMS — Enterprise HRMS, Payroll & Workforce Management",
+                metaDescription: "Manage your workforce with MasterHRMS. Simplify employee management, payroll, attendance, leave, recruitment and HR operations with a secure enterprise HRMS platform.",
+                content: {
+                    hero: {
+                        title: "Automate your workflows, eliminate manual tasks.",
+                        subtitle: "Connect your tools, design smart workflows, and automate repetitive work — so your business runs on autopilot.",
+                        primary_cta_text: "Start free trial",
+                        primary_cta_url: "/pricing",
+                        secondary_cta_text: "Book demo",
+                        secondary_cta_url: "/contact",
+                    },
+                },
+                published: true,
+                updatedBy: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+        }
         if (slug === "system-email-templates") {
             if (!page) {
                 const defaults = (0, email_templates_registry_1.getAuthoritativeTemplates)();

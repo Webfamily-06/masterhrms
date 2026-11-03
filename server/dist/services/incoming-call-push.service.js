@@ -20,7 +20,7 @@ class IncomingCallPushService {
         // 2. Build structured, privacy-safe call push payload (zero private keys or credentials)
         const issuedAt = new Date().toISOString();
         const expiresAt = new Date(Date.now() + 45000).toISOString(); // 45 seconds ringing TTL
-        const actionRoute = `/apps/chat/chats?callId=${encodeURIComponent(callId)}&action=accept`;
+        const actionRoute = `/chat?callId=${encodeURIComponent(callId)}`;
         const payload = {
             type: "CALL_INCOMING",
             eventType: "CALL_INCOMING",

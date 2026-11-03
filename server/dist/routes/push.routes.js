@@ -27,10 +27,10 @@ exports.pushRouter.get("/status", auth_1.requireAuth, async (req, res) => {
         return res.status(500).json({ success: false, error: error.message || "Failed to check push status" });
     }
 });
-// POST /api/notifications/push/subscribe - Register a Web Push subscription
+// POST /api/notifications/push/subscribe - Register a Web Push subscription with device-level association
 exports.pushRouter.post("/subscribe", auth_1.requireAuth, async (req, res) => {
     try {
-        const { endpoint, keys } = req.body || {};
+        const { endpoint, keys, deviceId, platform, sessionTokenId } = req.body || {};
         const userId = req.user.userId || req.user.id;
         const tenantId = req.user.tenantId;
         if (!endpoint || !keys?.p256dh || !keys?.auth) {
@@ -45,13 +45,17 @@ exports.pushRouter.post("/subscribe", auth_1.requireAuth, async (req, res) => {
             userId,
             subscription: { endpoint, keys },
             userAgent,
+            deviceId,
+            platform,
+            sessionTokenId,
         });
-        console.log(`[PushRoutes] Successfully registered push subscription for user ${userId} in tenant ${tenantId}`);
+        console.log(`[PushRoutes] Successfully registered push subscription for user ${userId} on device ${stored.deviceId} in tenant ${tenantId}`);
         return res.status(201).json({
             success: true,
             message: "Push subscription registered successfully",
             data: {
                 subscriptionId: stored.id,
+                deviceId: stored.deviceId,
                 createdAt: stored.createdAt,
             },
         });
@@ -61,25 +65,29 @@ exports.pushRouter.post("/subscribe", auth_1.requireAuth, async (req, res) => {
         return res.status(500).json({ success: false, error: error.message || "Failed to register push subscription" });
     }
 });
-// DELETE /api/notifications/push/unsubscribe - De-register a push subscription
-exports.pushRouter.delete("/unsubscribe", auth_1.requireAuth, async (req, res) => {
+// POST & DELETE /api/notifications/push/unsubscribe - Device-specific de-registration
+const handleUnsubscribe = async (req, res) => {
     try {
-        const { endpoint } = req.body || {};
+        const { endpoint, deviceId } = req.body || {};
         const userId = req.user.userId || req.user.id;
-        if (!endpoint) {
-            return res.status(400).json({ success: false, error: "Missing required endpoint in request body" });
+        const tenantId = req.user.tenantId;
+        if (!endpoint && !deviceId) {
+            return res.status(400).json({ success: false, error: "Missing required endpoint or deviceId in request body" });
         }
-        await push_subscription_store_1.PushSubscriptionStore.unsubscribe(userId, endpoint);
+        const revoked = await push_subscription_store_1.PushSubscriptionStore.revokeDeviceSubscription(tenantId, userId, deviceId || endpoint);
         return res.json({
             success: true,
-            message: "Push subscription removed successfully",
+            revoked,
+            message: "Device push subscription revoked successfully",
         });
     }
     catch (error) {
         console.error("[PushRoutes] Unsubscribe error:", error);
         return res.status(500).json({ success: false, error: error.message || "Failed to remove push subscription" });
     }
-});
+};
+exports.pushRouter.delete("/unsubscribe", auth_1.requireAuth, handleUnsubscribe);
+exports.pushRouter.post("/unsubscribe", auth_1.requireAuth, handleUnsubscribe);
 // POST /api/notifications/push/test - Dispatch test push to verify browser delivery
 exports.pushRouter.post("/test", auth_1.requireAuth, async (req, res) => {
     try {

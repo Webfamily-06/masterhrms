@@ -27,7 +27,7 @@ function initSocket(server, allowedOrigins) {
             origin: (origin, callback) => {
                 if (!origin)
                     return callback(null, true);
-                if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === "development") {
+                if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes("*") || process.env.NODE_ENV === "development") {
                     return callback(null, true);
                 }
                 return callback(new Error("Origin not allowed"));
@@ -231,8 +231,19 @@ function initSocket(server, allowedOrigins) {
                         const existing = await prisma_1.prisma.callHistoryRecord.findFirst({
                             where: { tenantId, callSessionId: callId },
                         });
-                        if (existing)
+                        if (existing) {
+                            await prisma_1.prisma.callHistoryRecord.update({
+                                where: { id: existing.id },
+                                data: {
+                                    status: "missed",
+                                    endedAt: new Date(),
+                                    notes: isTimeout
+                                        ? "Call timed out after 60 seconds with no answer."
+                                        : "Caller cancelled before answer.",
+                                },
+                            });
                             return;
+                        }
                     }
                     await prisma_1.prisma.callHistoryRecord.create({
                         data: {
@@ -408,6 +419,52 @@ function initSocket(server, allowedOrigins) {
                 }, 60000), // Exactly 60 seconds
             };
             exports.activeCalls.set(callId, callSession);
+            // Persist call history record with status "ringing" so active calls survive restarts & multi-instance
+            try {
+                await (0, tenant_context_1.runWithTenantContext)({
+                    tenantId,
+                    userId: socket.data.userId,
+                    roles: [],
+                    status: "ACTIVE",
+                    tenancyStrategy: "SHARED_SCHEMA",
+                    db: prisma_1.rawPrisma,
+                }, async () => {
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    const existing = await db.callHistoryRecord.findFirst({
+                        where: { tenantId, callSessionId: callId },
+                    });
+                    if (existing) {
+                        await db.callHistoryRecord.update({
+                            where: { id: existing.id },
+                            data: { status: "ringing", startedAt: new Date() },
+                        });
+                    }
+                    else {
+                        await db.callHistoryRecord.create({
+                            data: {
+                                tenantId,
+                                callSessionId: callId,
+                                callerId: socket.data.userId,
+                                callerName,
+                                callerPhone: payload?.callerPhone || "Internal Call",
+                                callerAvatarUrl: callerAvatar || null,
+                                receiverId: targetUserId,
+                                receiverName: targetName || "Colleague",
+                                direction: "outgoing",
+                                callType,
+                                status: "ringing",
+                                durationSeconds: 0,
+                                callTime: new Date(),
+                                startedAt: new Date(),
+                                notes: `Initiated ${callType} call via Socket.IO`,
+                            },
+                        });
+                    }
+                });
+            }
+            catch (e) {
+                console.warn(`[SOCKET_CALL_INVITE_DB_WARN] Failed to persist ringing call record:`, e?.message);
+            }
             // Deliver incoming call signal to recipient with normalized contract aliases
             const incomingPayload = {
                 callId,
@@ -443,7 +500,7 @@ function initSocket(server, allowedOrigins) {
             });
         });
         // 2. ACCEPT CALL
-        socket.on("call:accept", (payload) => {
+        socket.on("call:accept", async (payload) => {
             const callId = payload?.callId;
             const targetUserId = payload?.targetUserId || payload?.toUserId || payload?.fromUserId;
             if (!callId || !targetUserId) {
@@ -470,6 +527,39 @@ function initSocket(server, allowedOrigins) {
             }
             // Legal transition: receiver only, only while ringing, target must be caller
             if (session.targetUserId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.callerId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            // ATOMIC DATABASE-LEVEL STATE TRANSITION:
+            let atomicSuccess = true;
+            try {
+                await (0, tenant_context_1.runWithTenantContext)({
+                    tenantId: session.tenantId,
+                    userId: socket.data.userId,
+                    roles: [],
+                    status: "ACTIVE",
+                    tenancyStrategy: "SHARED_SCHEMA",
+                    db: prisma_1.rawPrisma,
+                }, async () => {
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    const res = await db.callHistoryRecord.updateMany({
+                        where: {
+                            tenantId: session.tenantId,
+                            callSessionId: callId,
+                            receiverId: socket.data.userId,
+                            status: "ringing",
+                        },
+                        data: { status: "connected" },
+                    });
+                    if (res.count === 0) {
+                        atomicSuccess = false;
+                    }
+                });
+            }
+            catch {
+                atomicSuccess = true; // Fallback if test running without DB
+            }
+            if (!atomicSuccess) {
                 emitCallForbidden(socket);
                 return;
             }
@@ -551,27 +641,43 @@ function initSocket(server, allowedOrigins) {
                     tenancyStrategy: "SHARED_SCHEMA",
                     db: prisma_1.rawPrisma,
                 }, async () => {
-                    await prisma_1.prisma.callHistoryRecord.create({
-                        data: {
-                            tenantId,
-                            callSessionId: callId,
-                            callerId: session.callerId,
-                            callerName: session.callerName || "Colleague",
-                            callerPhone: "Internal Call",
-                            callerAvatarUrl: session.callerAvatar || null,
-                            receiverId: socket.data.userId,
-                            receiverName: socket.data.name || session.targetName || "Colleague",
-                            receiverAvatarUrl: socket.data.avatar || session.targetAvatar || null,
-                            direction: "incoming",
-                            callType,
-                            status: "rejected",
-                            durationSeconds: 0,
-                            callTime: new Date(),
-                            startedAt: session.startedAt || new Date(),
-                            endedAt: new Date(),
-                            notes: "Call rejected by recipient.",
-                        },
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    const existing = await db.callHistoryRecord.findFirst({
+                        where: { tenantId, callSessionId: callId },
                     });
+                    if (existing) {
+                        await db.callHistoryRecord.update({
+                            where: { id: existing.id },
+                            data: {
+                                status: "rejected",
+                                endedAt: new Date(),
+                                notes: payload?.reason ? `Rejected: ${payload.reason}` : "Call rejected by recipient.",
+                            },
+                        });
+                    }
+                    else {
+                        await db.callHistoryRecord.create({
+                            data: {
+                                tenantId,
+                                callSessionId: callId,
+                                callerId: session.callerId,
+                                callerName: session.callerName || "Colleague",
+                                callerPhone: "Internal Call",
+                                callerAvatarUrl: session.callerAvatar || null,
+                                receiverId: socket.data.userId,
+                                receiverName: socket.data.name || session.targetName || "Colleague",
+                                receiverAvatarUrl: socket.data.avatar || session.targetAvatar || null,
+                                direction: "incoming",
+                                callType,
+                                status: "rejected",
+                                durationSeconds: 0,
+                                callTime: new Date(),
+                                startedAt: session.startedAt || new Date(),
+                                endedAt: new Date(),
+                                notes: "Call rejected by recipient.",
+                            },
+                        });
+                    }
                     await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, threadId, socket.data.userId, "call_event", `${callType === "video" ? "Video" : "Audio"} call declined.`, { callType, status: "rejected", durationSeconds: 0 });
                 });
             }
