@@ -12,8 +12,8 @@ const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const statutory_return_service_1 = require("../services/statutory-return.service");
 exports.statutoryReturnsRouter = (0, express_1.Router)();
-// Enforce authentication & tenant isolation
-exports.statutoryReturnsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+// Enforce authentication, tenant isolation, and strict role boundaries
+exports.statutoryReturnsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, (0, auth_1.requireRole)('super_admin', 'tenant_admin', 'hr_admin', 'hr_manager', 'admin'));
 /**
  * 1. GET /api/payroll/statutory/filings
  * List generated statutory return filings

@@ -4,6 +4,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.employeesRouter = void 0;
+const employee_schema_1 = require("../schemas/employee.schema");
+const validate_middleware_1 = require("../middleware/validate.middleware");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
 const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -268,7 +270,7 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
     }
 });
 // PUT /api/employees/:id
-exports.employeesRouter.put("/:id", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermission)("hrm.employees.edit"), (0, validate_middleware_1.validateBody)(employee_schema_1.updateEmployeeSchema), async (req, res) => {
     try {
         const { id } = req.params;
         const { firstName, lastName, email, phone, position, employeeCode, departmentId, managerId, employmentType, status, salary, joinedAt, avatarUrl, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
@@ -281,6 +283,27 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, async (req, res) => {
         if (!existingEmp || (!isSuperAdmin && tenantId && existingEmp.tenantId !== tenantId)) {
             return res.status(404).json({ error: "Employee not found." });
         }
+        const isHrOrAdmin = req.user?.roles?.some((r) => ["admin", "super_admin", "hr_manager", "hr_admin"].includes(r));
+        if (salary !== undefined && !isHrOrAdmin) {
+            return res.status(403).json({
+                error: "FORBIDDEN: Insufficient permissions to modify employee compensation",
+                code: "INSUFFICIENT_COMPENSATION_PRIVILEGE",
+            });
+        }
+        if (status !== undefined && !isHrOrAdmin) {
+            return res.status(403).json({
+                error: "FORBIDDEN: Insufficient permissions to modify employee lifecycle status",
+                code: "INSUFFICIENT_STATUS_PRIVILEGE",
+            });
+        }
+        await audit_service_1.AuditService.logMutation({
+            tenantId: tenantId || "unknown",
+            actorId: req.user?.userId || "system",
+            action: "UPDATE_EMPLOYEE",
+            entityType: "Employee",
+            entityId: id,
+            metadata: { employeeId: id, updatedFields: Object.keys(req.body) },
+        });
         // Resolve the new status being applied
         const newStatus = status ? parseEmployeeStatus(status) : existingEmp.status;
         const isReactivation = existingEmp.status === "terminated" && newStatus === "active";
@@ -440,96 +463,43 @@ exports.employeesRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
             return res.status(404).json({ error: "Employee not found" });
         }
         await prisma_1.prisma.$transaction(async (tx) => {
-            // 1. Attendance records
-            await tx.attendance.deleteMany({ where: { employeeId: id } });
-            // 2. Leave requests
-            await tx.leaveRequest.deleteMany({ where: { employeeId: id } });
-            // 3. Expense claims
-            await tx.expenseClaim.deleteMany({ where: { employeeId: id } });
-            // 4. Course enrollments
-            await tx.courseEnrollment.deleteMany({ where: { employeeId: id } });
-            // 5. OKR checkins, reviews, key results, objectives
-            await tx.okrCheckin.deleteMany({ where: { employeeId: id } });
-            await tx.okrReview.deleteMany({ where: { employeeId: id } });
-            await tx.okrReview.deleteMany({ where: { reviewerId: id } });
-            await tx.okrKeyResult.deleteMany({ where: { objective: { ownerId: id } } });
-            await tx.okrObjective.deleteMany({ where: { ownerId: id } });
-            // 6. Shift swaps & rosters
-            await tx.shiftSwapRequest.deleteMany({ where: { requesterEmployeeId: id } });
-            await tx.shiftSwapRequest.deleteMany({ where: { targetEmployeeId: id } });
-            await tx.shiftRoster.deleteMany({ where: { employeeId: id } });
-            // 7. Payslips
-            await tx.payslip.deleteMany({ where: { employeeId: id } });
-            // 8. Assets
-            await tx.assetRequest.deleteMany({ where: { employeeId: id } });
-            await tx.assetAssignment.deleteMany({ where: { employeeId: id } });
+            // 1. Release assigned company assets
+            await tx.assetRequest.updateMany({
+                where: { employeeId: id, status: "pending" },
+                data: { status: "cancelled" },
+            });
             await tx.asset.updateMany({
                 where: { assignedEmployeeId: id },
                 data: { assignedEmployeeId: null, status: "available" },
             });
-            // 9. Interviews conducted
-            await tx.jobCandidateInterview.deleteMany({ where: { interviewerId: id } });
-            // 10. Employee exits & checklist items
-            const exits = await tx.employeeExit.findMany({ where: { employeeId: id }, select: { id: true } });
-            if (exits.length > 0) {
-                await tx.exitChecklistItem.deleteMany({
-                    where: { exitId: { in: exits.map((x) => x.id) } },
-                });
-                await tx.employeeExit.deleteMany({ where: { employeeId: id } });
-            }
-            // 11. Biometric punch logs
-            await tx.biometricPunchLog.updateMany({
-                where: { employeeId: id },
-                data: { employeeId: null },
-            });
-            // 12. Announcement acknowledgements & authored announcements
-            await tx.announcementAcknowledgement.deleteMany({ where: { employeeId: id } });
-            await tx.announcement.updateMany({
-                where: { authorId: id },
-                data: { authorId: null },
-            });
-            // 13. Helpdesk tickets & comments
-            const tickets = await tx.helpdeskTicket.findMany({
-                where: { employeeId: id },
-                select: { id: true },
-            });
-            if (tickets.length > 0) {
-                await tx.helpdeskComment.deleteMany({
-                    where: { ticketId: { in: tickets.map((t) => t.id) } },
-                });
-                await tx.helpdeskTicket.deleteMany({ where: { employeeId: id } });
-            }
-            // 14. Company documents & custom forms
-            await tx.companyDocument.updateMany({
-                where: { employeeId: id },
-                data: { employeeId: null },
-            });
-            await tx.customForm.updateMany({
-                where: { authorId: id },
-                data: { authorId: null },
-            });
-            await tx.formSubmission.updateMany({
-                where: { employeeId: id },
-                data: { employeeId: null },
-            });
-            // 15. Subordinates managerId reference
+            // 2. Unlink manager references for subordinate employees
             await tx.employee.updateMany({
                 where: { managerId: id },
                 data: { managerId: null },
             });
-            // 16. Finally delete the employee record from the DB
-            await tx.employee.delete({ where: { id } });
-            // 17. Clean up associated user account if applicable
+            // Cancel pending leave requests
+            await tx.leaveRequest.updateMany({
+                where: { employeeId: id, status: "pending" },
+                data: { status: "cancelled" },
+            });
+            // 3. Statutory Soft Delete: Mark employee status as "archived"
+            // Preserves historical attendance, leaveRequests, payslips, employeeExit, and tax audit records
+            await tx.employee.update({
+                where: { id },
+                data: {
+                    status: "archived",
+                    userId: null,
+                },
+                select: { id: true },
+            });
+            // 4. Revoke user authentication and access roles
             if (employee.userId) {
                 const otherLinked = await tx.employee.count({
                     where: { userId: employee.userId, id: { not: id } },
                 });
                 if (otherLinked === 0) {
-                    await tx.profile.deleteMany({ where: { userId: employee.userId } });
-                    await tx.twoFactorOtp.deleteMany({ where: { userId: employee.userId } });
                     await tx.userRole.deleteMany({ where: { userId: employee.userId } });
                     await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
-                    await tx.user.delete({ where: { id: employee.userId } });
                     (0, auth_1.invalidateAuthCache)(employee.userId, employee.tenantId);
                 }
             }
@@ -537,7 +507,7 @@ exports.employeesRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
         console.log("[DELETE /employees/" + id + "] Employee " + employee.firstName + " " + employee.lastName + " successfully deleted from database.");
         return res.json({
             success: true,
-            message: "Employee " + employee.firstName + " " + employee.lastName + " and all related records deleted permanently from database.",
+            message: "Employee " + employee.firstName + " " + employee.lastName + " has been archived. Statutory attendance, payslip, and tax audit records are preserved.",
         });
     }
     catch (err) {

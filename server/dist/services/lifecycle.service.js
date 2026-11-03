@@ -5,6 +5,23 @@ const tenant_context_1 = require("../context/tenant-context");
 const audit_service_1 = require("./audit.service");
 const outbox_service_1 = require("./outbox.service");
 const notification_service_1 = require("./notification.service");
+const EMPLOYEE_CORE_SELECT = {
+    id: true,
+    tenantId: true,
+    firstName: true,
+    lastName: true,
+    salary: true,
+    branchId: true,
+    departmentId: true,
+    managerId: true,
+    position: true,
+    status: true,
+    designationId: true,
+    userId: true,
+    joinedAt: true,
+    department: { select: { id: true, name: true } },
+    designation: { select: { id: true, name: true } },
+};
 class LifecycleService {
     /**
      * 1. APPEND-ONLY IMMUTABLE EVENT STORE (P6-BR-019)
@@ -78,7 +95,7 @@ class LifecycleService {
         }
         const probation = await db.probationRecord.findFirst({
             where: { id: probationId, tenantId },
-            include: { employee: true },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
         });
         if (!probation) {
             throw new Error("Probation record not found.");
@@ -99,7 +116,7 @@ class LifecycleService {
                 extendedUntil: newEndDate,
                 probationPeriodDays: totalDays,
                 status: "extended",
-                remarks: remarks ? `${probation.remarks || ""}\n[Extended ${extensionDays}d]: ${remarks}`.trim() : probation.remarks,
+                remarks: remarks ? `${probation.remarks || ""}\r\n[Extended ${extensionDays}d]: ${remarks}`.trim() : probation.remarks,
             },
         });
         await this.recordEvent({
@@ -121,7 +138,7 @@ class LifecycleService {
         const db = (0, tenant_context_1.getTenantDb)();
         const probation = await db.probationRecord.findFirst({
             where: { id: probationId, tenantId },
-            include: { employee: true },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
         });
         if (!probation) {
             throw new Error("Probation record not found.");
@@ -171,7 +188,7 @@ class LifecycleService {
         const effectiveDate = new Date(params.effectiveDate);
         const employee = await db.employee.findFirst({
             where: { id: params.employeeId, tenantId },
-            include: { designation: true, department: true },
+            select: EMPLOYEE_CORE_SELECT,
         });
         if (!employee) {
             throw new Error("Employee not found.");
@@ -195,7 +212,64 @@ class LifecycleService {
                 remarks: params.remarks || null,
             },
         });
-        // 2. Update Employee Profile
+        const isEffectiveNow = effectiveDate <= new Date();
+        // Versioned EmployeeSalaryAssignment (TASK-P2-02, GAP-VAL-020, GAP-DB-API-005)
+        if (params.newSalary && params.newSalary > 0) {
+            if (isEffectiveNow) {
+                try {
+                    const prior = await db.employeeSalaryAssignment.findFirst({
+                        where: { tenantId, employeeId: employee.id, isCurrent: true },
+                        orderBy: { effectiveFrom: "desc" },
+                    });
+                    if (prior) {
+                        const dayBefore = new Date(effectiveDate);
+                        dayBefore.setDate(dayBefore.getDate() - 1);
+                        await db.employeeSalaryAssignment.update({
+                            where: { id: prior.id },
+                            data: { isCurrent: false, effectiveTo: dayBefore },
+                        });
+                    }
+                }
+                catch (e) {
+                    console.warn("[Lifecycle] prior salary assignment non-fatal lookup:", e?.message);
+                }
+                try {
+                    await db.employeeSalaryAssignment.create({
+                        data: {
+                            tenantId,
+                            employeeId: employee.id,
+                            ctcAnnual: params.newSalary * 12,
+                            ctcMonthly: params.newSalary,
+                            effectiveFrom: effectiveDate,
+                            isCurrent: true,
+                            remarks: `Promotion: ${params.newDesignation} (${params.remarks || ""})`,
+                        },
+                    });
+                }
+                catch (e) {
+                    console.warn("[Lifecycle] salary assignment create non-fatal:", e?.message);
+                }
+            }
+            else {
+                try {
+                    await db.employeeSalaryAssignment.create({
+                        data: {
+                            tenantId,
+                            employeeId: employee.id,
+                            ctcAnnual: params.newSalary * 12,
+                            ctcMonthly: params.newSalary,
+                            effectiveFrom: effectiveDate,
+                            isCurrent: false,
+                            remarks: `Scheduled Promotion: ${params.newDesignation} (${params.remarks || ""})`,
+                        },
+                    });
+                }
+                catch (e) {
+                    console.warn("[Lifecycle] future salary assignment create non-fatal:", e?.message);
+                }
+            }
+        }
+        // 2. Update Employee Profile (only mutate Employee.salary if isEffectiveNow)
         const updateData = {
             position: params.newDesignation,
         };
@@ -203,11 +277,13 @@ class LifecycleService {
             updateData.designationId = params.newDesignationId;
         if (params.newDepartmentId)
             updateData.departmentId = params.newDepartmentId;
-        if (params.newSalary && params.newSalary > 0)
+        if (isEffectiveNow && params.newSalary && params.newSalary > 0) {
             updateData.salary = params.newSalary;
+        }
         await db.employee.update({
             where: { id: employee.id },
             data: updateData,
+            select: { id: true },
         });
         // 3. Record Event
         await this.recordEvent({
@@ -236,11 +312,58 @@ class LifecycleService {
     /**
      * 5. TRANSFERS (P6-BR-006)
      */
-    static async executeTransfer(tenantId, actorId, params) {
+    /**
+     * Applies any approved future-dated salary assignments that have reached their effective date.
+     */
+    static async applyDueSalaryAssignments(tenantId) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const now = new Date();
+        try {
+            const dueAssignments = await db.employeeSalaryAssignment.findMany({
+                where: {
+                    tenantId,
+                    isCurrent: false,
+                    effectiveFrom: { lte: now },
+                    OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+                },
+                orderBy: { effectiveFrom: "asc" },
+            });
+            for (const assignment of dueAssignments) {
+                await db.employeeSalaryAssignment.updateMany({
+                    where: {
+                        tenantId,
+                        employeeId: assignment.employeeId,
+                        isCurrent: true,
+                        id: { not: assignment.id },
+                    },
+                    data: { isCurrent: false },
+                });
+                await db.employeeSalaryAssignment.update({
+                    where: { id: assignment.id },
+                    data: { isCurrent: true },
+                });
+                await db.employee.update({
+                    where: { id: assignment.employeeId },
+                    data: { salary: assignment.ctcMonthly },
+                    select: { id: true },
+                });
+            }
+            return dueAssignments.length;
+        }
+        catch (err) {
+            console.warn("[Lifecycle] applyDueSalaryAssignments fallback:", err?.message);
+            return 0;
+        }
+    }
+    /**
+     * 5. TRANSFERS (TASK-P2-01, GAP-VAL-018, WF-GAP-003)
+     */
+    static async requestTransfer(tenantId, actorId, params) {
         const db = (0, tenant_context_1.getTenantDb)();
         const effectiveDate = new Date(params.effectiveDate);
         const employee = await db.employee.findFirst({
             where: { id: params.employeeId, tenantId },
+            select: EMPLOYEE_CORE_SELECT,
         });
         if (!employee)
             throw new Error("Employee not found.");
@@ -256,45 +379,105 @@ class LifecycleService {
                 newManagerId: params.newManagerId || null,
                 effectiveDate,
                 reason: params.reason || null,
-                status: "COMPLETED",
+                status: "PENDING",
             },
         });
-        // Update Employee
-        const updateData = {};
-        if (params.toBranchId)
-            updateData.branchId = params.toBranchId;
-        if (params.toDeptId)
-            updateData.departmentId = params.toDeptId;
-        if (params.newManagerId)
-            updateData.managerId = params.newManagerId;
-        if (Object.keys(updateData).length > 0) {
-            await db.employee.update({
-                where: { id: employee.id },
-                data: updateData,
+        return transfer;
+    }
+    static async approveTransfer(tenantId, actorId, transferId) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const transfer = await db.employeeTransfer.findFirst({
+            where: { id: transferId, tenantId },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
+        });
+        if (!transfer)
+            throw new Error("Transfer record not found.");
+        if (transfer.status !== "PENDING") {
+            throw new Error(`Cannot approve transfer in status ${transfer.status}`);
+        }
+        const now = new Date();
+        const isDue = transfer.effectiveDate <= now;
+        if (isDue) {
+            return await this.applyTransferMutation(tenantId, actorId, transfer);
+        }
+        else {
+            return await db.employeeTransfer.update({
+                where: { id: transferId },
+                data: { status: "APPROVED" },
             });
         }
+    }
+    static async applyDueTransfers(tenantId) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const now = new Date();
+        const dueTransfers = await db.employeeTransfer.findMany({
+            where: {
+                tenantId,
+                status: "APPROVED",
+                effectiveDate: { lte: now },
+            },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
+        });
+        const applied = [];
+        for (const transfer of dueTransfers) {
+            const res = await this.applyTransferMutation(tenantId, "scheduler", transfer);
+            applied.push(res);
+        }
+        return applied;
+    }
+    static async applyTransferMutation(tenantId, actorId, transfer) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const updateData = {};
+        if (transfer.toBranchId)
+            updateData.branchId = transfer.toBranchId;
+        if (transfer.toDeptId)
+            updateData.departmentId = transfer.toDeptId;
+        if (transfer.newManagerId)
+            updateData.managerId = transfer.newManagerId;
+        if (Object.keys(updateData).length > 0) {
+            await db.employee.update({
+                where: { id: transfer.employeeId },
+                data: updateData,
+                select: { id: true },
+            });
+        }
+        const completed = await db.employeeTransfer.update({
+            where: { id: transfer.id },
+            data: { status: "COMPLETED" },
+        });
         await this.recordEvent({
             tenantId,
-            employeeId: employee.id,
+            employeeId: transfer.employeeId,
             eventType: "TRANSFERRED",
-            effectiveDate,
+            effectiveDate: transfer.effectiveDate,
             previousState: {
-                branchId: employee.branchId,
-                departmentId: employee.departmentId,
-                managerId: employee.managerId,
+                branchId: transfer.fromBranchId,
+                departmentId: transfer.fromDeptId,
+                managerId: transfer.oldManagerId,
             },
             newState: {
-                branchId: params.toBranchId || employee.branchId,
-                departmentId: params.toDeptId || employee.departmentId,
-                managerId: params.newManagerId || employee.managerId,
+                branchId: transfer.toBranchId || transfer.fromBranchId,
+                departmentId: transfer.toDeptId || transfer.fromDeptId,
+                managerId: transfer.newManagerId || transfer.oldManagerId,
             },
             changedFields: Object.keys(updateData),
             actorId,
             source: "hr_admin",
-            reason: params.reason,
+            reason: transfer.reason,
             referenceId: transfer.id,
         });
-        return transfer;
+        return completed;
+    }
+    static async executeTransfer(tenantId, actorId, params) {
+        const effectiveDate = new Date(params.effectiveDate);
+        const now = new Date();
+        const transfer = await this.requestTransfer(tenantId, actorId, params);
+        if (effectiveDate <= now) {
+            return await this.approveTransfer(tenantId, actorId, transfer.id);
+        }
+        else {
+            return await this.approveTransfer(tenantId, actorId, transfer.id);
+        }
     }
     /**
      * 6. WARNINGS & ACKNOWLEDGEMENT (P6-BR-007)
@@ -362,6 +545,61 @@ class LifecycleService {
                 status: "appealed",
             },
         });
+    }
+    /**
+     * Reviews and finalizes a disciplinary warning appeal (TASK-P2-06, GAP-VAL-022, WF-GAP-010).
+     */
+    static async reviewWarningAppeal(tenantId, actorId, warningId, params) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const warning = await db.disciplinaryWarning.findFirst({
+            where: { id: warningId, tenantId },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
+        });
+        if (!warning)
+            throw new Error("Warning record not found.");
+        if (warning.status !== "appealed") {
+            throw new Error(`Cannot review appeal for warning in status '${warning.status}'. Must be 'appealed'.`);
+        }
+        const decision = params.decision.toUpperCase();
+        let newStatus = "active";
+        let newSeverity = warning.severity;
+        if (decision === "REVOKED") {
+            newStatus = "revoked";
+        }
+        else if (decision === "MODIFIED") {
+            newStatus = "modified";
+            if (params.modifiedSeverity) {
+                newSeverity = params.modifiedSeverity;
+            }
+        }
+        else if (decision === "UPHELD") {
+            newStatus = "upheld";
+        }
+        const updated = await db.disciplinaryWarning.update({
+            where: { id: warningId },
+            data: {
+                status: newStatus,
+                severity: newSeverity,
+                resolvedAt: new Date(),
+                description: params.hearingNotes
+                    ? `${warning.description}\n[Appeal Decision: ${decision} by ${actorId} - ${params.hearingNotes}]`
+                    : `${warning.description}\n[Appeal Decision: ${decision} by ${actorId}]`,
+            },
+        });
+        await this.recordEvent({
+            tenantId,
+            employeeId: warning.employeeId,
+            eventType: "WARNING_APPEAL_REVIEWED",
+            effectiveDate: new Date(),
+            previousState: { status: warning.status, severity: warning.severity },
+            newState: { status: newStatus, severity: newSeverity, decision },
+            changedFields: ["status", "severity", "resolvedAt"],
+            actorId,
+            source: "hr_admin",
+            reason: params.hearingNotes || `Appeal ${decision}`,
+            referenceId: warning.id,
+        });
+        return updated;
     }
     /**
      * 7. RESIGNATIONS & EXITS (P6-BR-008, P6-BR-009, P6-BR-010, P6-BR-011, P6-BR-012)
@@ -452,11 +690,91 @@ class LifecycleService {
         });
         return updated;
     }
+    /**
+     * Calculates Full and Final Settlement (F&F) according to statutory and company policies (TASK-P2-03).
+     * Prorated Salary + Leave Encashment + Gratuity - Notice Shortfall - Outstanding Loans.
+     */
+    static async calculateFnFSettlement(tenantId, employeeId, lastWorkingDay, options) {
+        const db = (0, tenant_context_1.getTenantDb)();
+        const lwd = new Date(lastWorkingDay);
+        const employee = await db.employee.findFirst({
+            where: { id: employeeId, tenantId },
+            select: EMPLOYEE_CORE_SELECT,
+        });
+        if (!employee)
+            throw new Error("Employee not found for F&F calculation.");
+        const monthlySalary = Number(employee.salary || 0);
+        const basicSalary = Math.round(monthlySalary * 0.5); // statutory basic pay baseline
+        // 1. Prorated Monthly Salary for last working month
+        const year = lwd.getFullYear();
+        const month = lwd.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysWorkedInExitMonth = lwd.getDate();
+        const proratedSalary = Math.round(((monthlySalary / daysInMonth) * daysWorkedInExitMonth) * 100) / 100;
+        // 2. Leave Encashment Calculation
+        let earnedLeaveBalance = 0;
+        try {
+            const leaveBalances = await db.leaveBalance.findMany({
+                where: { tenantId, employeeId },
+                include: { leaveType: true },
+            });
+            const el = leaveBalances.find((b) => b.leaveType?.code?.toUpperCase().includes("EL") || b.leaveType?.name?.toUpperCase().includes("EARNED"));
+            if (el) {
+                earnedLeaveBalance = Math.max(0, Number(el.balance || el.remaining || 0));
+            }
+        }
+        catch { }
+        // Statutory Encashment = EL Balance * (Basic / 30)
+        const leaveEncashment = Math.round((earnedLeaveBalance * (basicSalary / 30)) * 100) / 100;
+        // 3. Gratuity (Payment of Gratuity Act, 1972)
+        // Formula: (15 * Last Drawn Basic * Years of Service) / 26; Eligible only if tenure >= 5 years (1825 days)
+        let gratuity = 0;
+        const rawJoining = employee.joinedAt || employee.joiningDate || employee.dateOfJoining;
+        const joiningDate = rawJoining ? new Date(rawJoining) : lwd;
+        const serviceDays = Math.max(0, (lwd.getTime() - joiningDate.getTime()) / (1000 * 60 * 60 * 24));
+        const serviceYears = serviceDays / 365.25;
+        if (serviceYears >= 5.0) {
+            const roundedTenureYears = Math.round(serviceYears);
+            const statutoryGratuity = Math.floor((15 * basicSalary * roundedTenureYears) / 26);
+            gratuity = Math.min(statutoryGratuity, 2000000); // statutory ceiling ₹20,00,000
+        }
+        // 4. Notice Period Shortfall Recovery
+        const noticeShortfallDays = options?.noticeShortfallDays || 0;
+        const noticeShortfallDeduction = Math.round((noticeShortfallDays * (monthlySalary / 30)) * 100) / 100;
+        // 5. Outstanding Loans / Advances Recovery
+        const loanDeductions = Math.round((options?.outstandingLoans || 0) * 100) / 100;
+        // Net F&F Calculation
+        const grossAdditions = Math.round((proratedSalary + leaveEncashment + gratuity) * 100) / 100;
+        const totalDeductions = Math.round((noticeShortfallDeduction + loanDeductions) * 100) / 100;
+        const netSettlementAmount = Math.max(0, Math.round((grossAdditions - totalDeductions) * 100) / 100);
+        return {
+            employeeId,
+            lastWorkingDay: lwd,
+            serviceYears: Math.round(serviceYears * 10) / 10,
+            monthlySalary,
+            basicSalary,
+            breakdown: {
+                proratedSalary,
+                daysWorkedInExitMonth,
+                daysInMonth,
+                leaveEncashment,
+                earnedLeaveDays: earnedLeaveBalance,
+                gratuity,
+                isGratuityEligible: serviceYears >= 5.0,
+                noticeShortfallDeduction,
+                noticeShortfallDays,
+                loanDeductions,
+                grossAdditions,
+                totalDeductions,
+                netSettlementAmount,
+            },
+        };
+    }
     static async finalizeExit(tenantId, actorId, exitId) {
         const db = (0, tenant_context_1.getTenantDb)();
         const exit = await db.employeeExit.findFirst({
             where: { id: exitId, tenantId },
-            include: { employee: true },
+            include: { employee: { select: EMPLOYEE_CORE_SELECT } },
         });
         if (!exit)
             throw new Error("Exit record not found.");
@@ -473,6 +791,7 @@ class LifecycleService {
         await db.employee.update({
             where: { id: exit.employeeId },
             data: { status: "terminated" },
+            select: { id: true },
         });
         // 3. Deactivate User Account if exists
         if (exit.employee.userId) {
@@ -524,6 +843,7 @@ class LifecycleService {
         await db.employee.update({
             where: { id: employee.id },
             data: { status: "terminated" },
+            select: { id: true },
         });
         if (employee.userId) {
             await db.userRole.deleteMany({

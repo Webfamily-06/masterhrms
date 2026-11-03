@@ -1151,41 +1151,26 @@ async function handleAdmsPush(req, res) {
     try {
         const sn = (req.query.SN || req.headers["x-serial-number"] || req.body?.SN || "").toString().trim();
         const table = (req.query.table || "").toString();
+        if (!sn) {
+            res.setHeader("Content-Type", "text/plain");
+            return res.status(400).send("ERROR: MISSING SERIAL NUMBER\n");
+        }
+        // TASK-P0-04: Eliminate cross-tenant punch contamination.
+        // Device MUST be pre-registered within its tenant. Unmapped devices fail closed.
+        const device = await prisma_1.rawPrisma.biometricDevice.findFirst({
+            where: { serialNumber: sn },
+        });
+        if (!device) {
+            console.warn(`[BIOMETRIC SECURITY] Rejected ADMS push from unregistered hardware SN: "${sn}"`);
+            res.setHeader("Content-Type", "text/plain");
+            return res.status(401).send("ERROR: UNREGISTERED DEVICE\n");
+        }
         // If device handshake / heartbeat ping
         if (req.method === "GET") {
-            if (sn) {
-                // Auto-register device if not existing in default tenant
-                const defaultTenant = await prisma_1.prisma.tenant.findFirst();
-                if (defaultTenant) {
-                    const existing = await prisma_1.prisma.biometricDevice.findFirst({
-                        where: { serialNumber: sn },
-                    });
-                    if (!existing) {
-                        await prisma_1.prisma.biometricDevice.create({
-                            data: {
-                                tenantId: defaultTenant.id,
-                                deviceName: `Biometric Terminal [${sn}]`,
-                                deviceModel: "Auto-Discovered ADMS Machine",
-                                deviceType: "hybrid",
-                                ipAddress: req.ip || null,
-                                serialNumber: sn,
-                                location: "Auto-Discovered Location",
-                                syncProtocol: "push_api_webhook",
-                                apiKey: `bio_key_${crypto_1.default.randomBytes(16).toString("hex")}`,
-                                status: "online",
-                                lastSyncAt: new Date(),
-                            },
-                        });
-                    }
-                    else {
-                        await prisma_1.prisma.biometricDevice.update({
-                            where: { id: existing.id },
-                            data: { status: "online", lastSyncAt: new Date() },
-                        });
-                    }
-                }
-            }
-            // Standard ZKTeco/eSSL ADMS handshake response
+            await prisma_1.prisma.biometricDevice.update({
+                where: { id: device.id },
+                data: { status: "online", lastSyncAt: new Date(), ipAddress: req.ip || device.ipAddress },
+            });
             res.setHeader("Content-Type", "text/plain");
             return res.send("OK\n");
         }
@@ -1193,30 +1178,6 @@ async function handleAdmsPush(req, res) {
         if (req.method === "POST") {
             const rawBody = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
             const lines = rawBody.split("\n");
-            const defaultTenant = await prisma_1.prisma.tenant.findFirst();
-            if (!defaultTenant)
-                return res.send("OK\n");
-            // Auto resolve device
-            let device = await prisma_1.prisma.biometricDevice.findFirst({
-                where: { serialNumber: sn || "DEFAULT-DEVICE" },
-            });
-            if (!device && sn) {
-                device = await prisma_1.prisma.biometricDevice.create({
-                    data: {
-                        tenantId: defaultTenant.id,
-                        deviceName: `Biometric Terminal [${sn}]`,
-                        deviceModel: "Auto-Discovered ADMS Machine",
-                        deviceType: "hybrid",
-                        ipAddress: req.ip || null,
-                        serialNumber: sn,
-                        location: "Auto-Discovered Location",
-                        syncProtocol: "push_api_webhook",
-                        apiKey: `bio_key_${crypto_1.default.randomBytes(16).toString("hex")}`,
-                        status: "online",
-                        lastSyncAt: new Date(),
-                    },
-                });
-            }
             let processedCount = 0;
             // Parse standard ADMS tab/space delimited punch log lines:
             // Format: <PIN/Card/EmployeeCode>\t<YYYY-MM-DD HH:mm:ss>\t<Status>\t<VerifyType>
@@ -1280,8 +1241,8 @@ async function handleAdmsPush(req, res) {
                     }
                     if (empCode && !isNaN(punchDate.getTime())) {
                         await processBiometricPunch({
-                            tenantId: device?.tenantId || defaultTenant.id,
-                            deviceId: device?.id,
+                            tenantId: device.tenantId,
+                            deviceId: device.id,
                             employeeCode: empCode,
                             punchTime: punchDate,
                             punchType: mapZkStatusToPunchType(statusByte),

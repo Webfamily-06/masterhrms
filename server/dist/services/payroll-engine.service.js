@@ -10,6 +10,9 @@ exports.calculateLabourWelfareFund = calculateLabourWelfareFund;
 exports.calculateGratuityAccrual = calculateGratuityAccrual;
 exports.calculateAnnualTDS = calculateAnnualTDS;
 exports.computeEmployeePayrollBreakdown = computeEmployeePayrollBreakdown;
+exports.resolveEffectiveSalaryAssignment = resolveEffectiveSalaryAssignment;
+exports.queryAndApplyLeaveEncashments = queryAndApplyLeaveEncashments;
+exports.markLeaveEncashmentsPaid = markLeaveEncashmentsPaid;
 const decimal_js_1 = __importDefault(require("decimal.js"));
 function calculateProfessionalTax(monthlyEarnedGross, state = "MH", periodMonth = 1, customRules) {
     const normState = (state || "MH").trim().toUpperCase();
@@ -58,18 +61,29 @@ function calculateProfessionalTax(monthlyEarnedGross, state = "MH", periodMonth 
                 return 150;
             return 200;
         case "TAMIL NADU":
-        case "TN":
-            if (monthlyEarnedGross <= 21000)
+        case "TN": {
+            // Tamil Nadu Professional Tax is statutory levied on a half-yearly basis
+            // under Tamil Nadu Municipal Laws / Rules, 1998 (amended by G.O. Ms. No. 45).
+            // Half-yearly assessment slabs:
+            // Up to ₹21,000: Nil
+            // ₹21,001 to ₹30,000: ₹100 half-yearly (₹16.67/month)
+            // ₹30,001 to ₹45,000: ₹235 half-yearly (₹39.17/month)
+            // ₹45,001 to ₹60,000: ₹510 half-yearly (₹85.00/month)
+            // ₹60,001 to ₹75,000: ₹760 half-yearly (₹126.67/month)
+            // Above ₹75,000: ₹1,250 half-yearly (₹208.33/month; Article 276(2) Constitution ceiling ₹2,500/yr)
+            const halfYearlyGross = monthlyEarnedGross * 6;
+            if (halfYearlyGross <= 21000)
                 return 0;
-            if (monthlyEarnedGross <= 30000)
-                return 100;
-            if (monthlyEarnedGross <= 45000)
-                return 235;
-            if (monthlyEarnedGross <= 60000)
-                return 510;
-            if (monthlyEarnedGross <= 75000)
-                return 760;
-            return 1095 / 6; // Half yearly averaged to ~182/mo
+            if (halfYearlyGross <= 30000)
+                return Math.round((100 / 6) * 100) / 100; // 16.67/mo
+            if (halfYearlyGross <= 45000)
+                return Math.round((235 / 6) * 100) / 100; // 39.17/mo
+            if (halfYearlyGross <= 60000)
+                return Math.round((510 / 6) * 100) / 100; // 85.00/mo
+            if (halfYearlyGross <= 75000)
+                return Math.round((760 / 6) * 100) / 100; // 126.67/mo
+            return Math.round((1250 / 6) * 100) / 100; // 208.33/mo
+        }
         case "WEST BENGAL":
         case "WB":
             if (monthlyEarnedGross <= 10000)
@@ -97,14 +111,14 @@ function calculateProfessionalTax(monthlyEarnedGross, state = "MH", periodMonth 
             // No professional tax levied
             return 0;
         default:
-            // Default standard cap
-            return monthlyEarnedGross > 10000 ? 200 : 0;
+            // No professional tax levied in unmapped or non-PT states
+            return 0;
     }
 }
 // -------------------------------------------------------------
 // 2. STATUTORY EPF, ESI, LWF & GRATUITY CALCULATIONS
 // -------------------------------------------------------------
-function calculateStatutoryEPF(basicSalary, capAtCeiling = false, ruleRecord) {
+function calculateStatutoryEPF(basicSalary, capAtCeiling = true, ruleRecord, options) {
     const config = ruleRecord?.configJson || ruleRecord;
     const statutoryCeiling = Number(config?.statutoryCeiling ?? 15000);
     const employeeRate = Number(config?.employeeRate ?? 0.12);
@@ -113,14 +127,32 @@ function calculateStatutoryEPF(basicSalary, capAtCeiling = false, ruleRecord) {
     const edliRate = Number(config?.edliRate ?? 0.005);
     const pfAdminRate = Number(config?.pfAdminRate ?? 0.005);
     const epsMaxMonthly = Number(config?.epsMaxMonthly ?? 1250);
-    // Statutory wage ceiling
-    const pfWage = capAtCeiling ? Math.min(statutoryCeiling, basicSalary) : basicSalary;
-    const employeePf = Math.round(pfWage * employeeRate * 100) / 100;
-    // Employer portion: EPF + EPS (capped at epsMaxMonthly) + EDLI + Admin
-    const eps = Math.min(epsMaxMonthly, Math.round(pfWage * employerEpsRate));
-    const epfEmployer = Math.max(0, employeePf - eps);
-    const edli = Math.round(pfWage * edliRate * 100) / 100;
-    const adminCharges = Math.round(pfWage * pfAdminRate * 100) / 100;
+    // Contract Gross Mode requires explicit authorization & eligibility
+    const isContractGross = options?.pfWageBasis === "CONTRACT_GROSS" && options?.allowContractGross === true;
+    let pfWage;
+    let employeePf;
+    let eps;
+    let epfEmployer;
+    let edli;
+    let adminCharges;
+    if (isContractGross && options?.grossWages !== undefined) {
+        // 12% on Gross Wages (Requires Joint Declaration under Para 26(6))
+        pfWage = options.grossWages;
+        employeePf = Math.round(pfWage * employeeRate);
+        eps = Math.min(epsMaxMonthly, Math.round(pfWage * employerEpsRate));
+        epfEmployer = Math.max(0, employeePf - eps);
+        edli = Math.round(pfWage * edliRate);
+        adminCharges = Math.round(pfWage * pfAdminRate);
+    }
+    else {
+        // Statutory Standard Mode (Default): Capped at statutory wage ceiling (₹15,000)
+        pfWage = capAtCeiling ? Math.min(statutoryCeiling, basicSalary) : basicSalary;
+        employeePf = Math.round(pfWage * employeeRate);
+        eps = Math.min(epsMaxMonthly, Math.round(pfWage * employerEpsRate));
+        epfEmployer = Math.max(0, employeePf - eps);
+        edli = Math.min(75, Math.round(pfWage * edliRate));
+        adminCharges = Math.round(pfWage * pfAdminRate);
+    }
     return {
         employeePf,
         epfEmployer,
@@ -132,6 +164,8 @@ function calculateStatutoryEPF(basicSalary, capAtCeiling = false, ruleRecord) {
         ruleId: ruleRecord?.id,
         statutoryCeiling,
         employeeRate,
+        isContractGross,
+        pfWage,
     };
 }
 function calculateStatutoryESI(monthlyEarnedGross, isPwd = false, ruleRecord) {
@@ -154,8 +188,9 @@ function calculateStatutoryESI(monthlyEarnedGross, isPwd = false, ruleRecord) {
             employerRate,
         };
     }
-    const employeeEsi = Math.round(monthlyEarnedGross * employeeRate * 100) / 100;
-    const employerEsi = Math.round(monthlyEarnedGross * employerRate * 100) / 100;
+    // ESI Regulation 52 mandates rounding employee contribution up to NEXT HIGHER RUPEE
+    const employeeEsi = Math.ceil(monthlyEarnedGross * employeeRate);
+    const employerEsi = Math.round(monthlyEarnedGross * employerRate);
     return {
         isEligible: true,
         employeeEsi,
@@ -207,7 +242,8 @@ function calculateLabourWelfareFund(monthlyEarnedGross, state = "TN", periodMont
     // Statutory state defaults (TN, KA, MH) if month is December (or June for MH)
     if (normState === "TN" || normState === "TAMIL NADU") {
         if (periodMonth === 12) {
-            return { isApplicable: true, employeeLwf: 10, employerLwf: 20, totalLwf: 30, isDeductionMonth: true, ruleVersion: 1 };
+            // Tamil Nadu Labour Welfare Fund (Amendment) Act: ₹20 employee / ₹40 employer
+            return { isApplicable: true, employeeLwf: 20, employerLwf: 40, totalLwf: 60, isDeductionMonth: true, ruleVersion: 1 };
         }
     }
     else if (normState === "KA" || normState === "KARNATAKA") {
@@ -554,36 +590,148 @@ function calculateAnnualTDS(projectedAnnualGross, regime = "new", declarations, 
 // -------------------------------------------------------------
 function computeEmployeePayrollBreakdown(employee, attendance, options) {
     const proration = attendance.prorationFactor;
-    const baseMonthlyCtc = Number(employee.baseMonthlyCtc) || 35000;
+    // Dynamic base monthly compensation resolution - never silently fabricate ₹35,000!
+    const baseMonthlyCtc = Number(employee.baseMonthlyCtc ?? employee.salary ?? 0);
+    const validationErrors = [];
+    if (baseMonthlyCtc < 0) {
+        console.warn(`[PayrollEngine] Warning: Negative baseMonthlyCtc (${baseMonthlyCtc}) for employee ${employee.id || employee.employeeCode}`);
+        validationErrors.push("Negative base monthly CTC");
+    }
+    else if (baseMonthlyCtc === 0 && (!options?.structureComponents || options.structureComponents.length === 0)) {
+        console.warn(`[PayrollEngine] Warning: Zero baseMonthlyCtc for employee ${employee.id || employee.employeeCode}`);
+        validationErrors.push("Zero or missing base monthly CTC");
+    }
     const reimbursements = Number(options?.reimbursements || 0);
+    const leaveEncashment = Number(options?.leaveEncashment || 0);
+    const overtime = Number(options?.overtimeAmount || 0);
+    const arrears = Number(options?.arrears || 0);
     const periodMonth = options?.periodMonth || new Date().getMonth() + 1;
     const currency = options?.currency || "INR";
     const currencySymbol = options?.currencySymbol || "₹";
-    // Standard or Structure Component Breakdown
     const salaryGrossProrated = Math.round(baseMonthlyCtc * proration * 100) / 100;
-    const totalEarnedGross = Math.round((salaryGrossProrated + reimbursements) * 100) / 100;
-    // Earnings standard default allocation (50-20-15-5-5-5)
-    const basicSalary = Math.round(salaryGrossProrated * 0.50 * 100) / 100;
-    const hra = Math.round(salaryGrossProrated * 0.20 * 100) / 100;
-    const specialAllowance = Math.round(salaryGrossProrated * 0.15 * 100) / 100;
-    const conveyance = Math.round(salaryGrossProrated * 0.05 * 100) / 100;
-    const medical = Math.round(salaryGrossProrated * 0.05 * 100) / 100;
-    const otherAllowance = Math.max(0, Math.round((salaryGrossProrated - (basicSalary + hra + specialAllowance + conveyance + medical)) * 100) / 100);
-    const earningsItemized = [
-        { code: "BASIC", name: "Basic Salary", amount: basicSalary, isTaxable: true },
-        { code: "HRA", name: "House Rent Allowance", amount: hra, isTaxable: true },
-        { code: "SPECIAL", name: "Special Allowance", amount: specialAllowance, isTaxable: true },
-        { code: "CONVEYANCE", name: "Conveyance Allowance", amount: conveyance, isTaxable: false },
-        { code: "MEDICAL", name: "Medical Allowance", amount: medical, isTaxable: false },
-        { code: "OTHER_ALLOW", name: "Supplementary Perks", amount: otherAllowance, isTaxable: true },
-        ...(reimbursements > 0 ? [{ code: "REIMBURSEMENT", name: "Approved Expense Reimbursements", amount: reimbursements, isTaxable: false }] : []),
-    ];
-    // Statutory Calculations with dynamic rule resolution
+    // Earnings component allocation
+    let basicSalary = 0;
+    let hra = 0;
+    let specialAllowance = 0;
+    let statutoryBonus = 0;
+    let conveyance = 0;
+    let medical = 0;
+    let otherAllowance = 0;
+    const earningsItemized = [];
+    if (options?.structureComponents && options.structureComponents.length > 0) {
+        // 1. Dynamic structure components evaluation
+        const earningComponents = options.structureComponents.filter((c) => !c.type || c.type.toLowerCase() === "earning");
+        // Pass 1: fixed amounts and percentage_of_ctc
+        for (const comp of earningComponents) {
+            const code = (comp.code || "").toUpperCase();
+            const val = Number(comp.value || 0);
+            let nominal = 0;
+            if (comp.calculationType === "percentage_of_ctc") {
+                nominal = Math.round(baseMonthlyCtc * (val / 100) * 100) / 100;
+            }
+            else if (comp.calculationType === "fixed" || !comp.calculationType) {
+                nominal = val;
+            }
+            if (comp.calculationType !== "percentage_of_basic") {
+                const earned = Math.round(nominal * proration * 100) / 100;
+                if (code === "BASIC")
+                    basicSalary = earned;
+                else if (code === "HRA")
+                    hra = earned;
+                else if (code === "SPECIAL" || code === "SPECIAL_ALLOWANCE")
+                    specialAllowance = earned;
+                else if (code === "BONUS" || code === "STATUTORY_BONUS")
+                    statutoryBonus = earned;
+                else if (code === "CONVEYANCE")
+                    conveyance = earned;
+                else if (code === "MEDICAL")
+                    medical = earned;
+                else
+                    otherAllowance += earned;
+                earningsItemized.push({
+                    code,
+                    name: comp.name || code,
+                    amount: earned,
+                    isTaxable: comp.isTaxable !== false,
+                });
+            }
+        }
+        // Pass 2: percentage_of_basic
+        for (const comp of earningComponents) {
+            if (comp.calculationType === "percentage_of_basic") {
+                const code = (comp.code || "").toUpperCase();
+                const val = Number(comp.value || 0);
+                const earned = Math.round(basicSalary * (val / 100) * 100) / 100;
+                if (code === "HRA")
+                    hra = earned;
+                else if (code === "BONUS" || code === "STATUTORY_BONUS")
+                    statutoryBonus = earned;
+                else
+                    otherAllowance += earned;
+                earningsItemized.push({
+                    code,
+                    name: comp.name || code,
+                    amount: earned,
+                    isTaxable: comp.isTaxable !== false,
+                });
+            }
+        }
+    }
+    else if (options?.customAllowances) {
+        // Explicit custom component assignment
+        if (options.customAllowances.basic !== undefined)
+            basicSalary = Math.round(options.customAllowances.basic * proration * 100) / 100;
+        if (options.customAllowances.hra !== undefined)
+            hra = Math.round(options.customAllowances.hra * proration * 100) / 100;
+        if (options.customAllowances.special !== undefined)
+            specialAllowance = Math.round(options.customAllowances.special * proration * 100) / 100;
+        if (options.customAllowances.bonus !== undefined)
+            statutoryBonus = Math.round(options.customAllowances.bonus * proration * 100) / 100;
+        if (options.customAllowances.conveyance !== undefined)
+            conveyance = Math.round(options.customAllowances.conveyance * proration * 100) / 100;
+        if (options.customAllowances.medical !== undefined)
+            medical = Math.round(options.customAllowances.medical * proration * 100) / 100;
+        if (options.customAllowances.other !== undefined)
+            otherAllowance = Math.round(options.customAllowances.other * proration * 100) / 100;
+        earningsItemized.push({ code: "BASIC", name: "Basic Salary", amount: basicSalary, isTaxable: true }, { code: "HRA", name: "House Rent Allowance", amount: hra, isTaxable: true }, { code: "SPECIAL", name: "Special Allowance", amount: specialAllowance, isTaxable: true });
+        if (statutoryBonus > 0)
+            earningsItemized.push({ code: "BONUS", name: "Statutory Bonus", amount: statutoryBonus, isTaxable: true });
+        if (conveyance > 0)
+            earningsItemized.push({ code: "CONVEYANCE", name: "Conveyance Allowance", amount: conveyance, isTaxable: false });
+        if (medical > 0)
+            earningsItemized.push({ code: "MEDICAL", name: "Medical Allowance", amount: medical, isTaxable: false });
+        if (otherAllowance > 0)
+            earningsItemized.push({ code: "OTHER_ALLOW", name: "Supplementary Perks", amount: otherAllowance, isTaxable: true });
+    }
+    else {
+        // Default standard allocation (50-20-15-5-5-5) when total CTC is provided without custom template
+        basicSalary = Math.round(salaryGrossProrated * 0.50 * 100) / 100;
+        hra = Math.round(salaryGrossProrated * 0.20 * 100) / 100;
+        specialAllowance = Math.round(salaryGrossProrated * 0.15 * 100) / 100;
+        conveyance = Math.round(salaryGrossProrated * 0.05 * 100) / 100;
+        medical = Math.round(salaryGrossProrated * 0.05 * 100) / 100;
+        otherAllowance = Math.max(0, Math.round((salaryGrossProrated - (basicSalary + hra + specialAllowance + conveyance + medical)) * 100) / 100);
+        earningsItemized.push({ code: "BASIC", name: "Basic Salary", amount: basicSalary, isTaxable: true }, { code: "HRA", name: "House Rent Allowance", amount: hra, isTaxable: true }, { code: "SPECIAL", name: "Special Allowance", amount: specialAllowance, isTaxable: true }, { code: "CONVEYANCE", name: "Conveyance Allowance", amount: conveyance, isTaxable: false }, { code: "MEDICAL", name: "Medical Allowance", amount: medical, isTaxable: false }, { code: "OTHER_ALLOW", name: "Supplementary Perks", amount: otherAllowance, isTaxable: true });
+    }
+    if (overtime > 0)
+        earningsItemized.push({ code: "OVERTIME", name: "Overtime Wages", amount: overtime, isTaxable: true });
+    if (arrears > 0)
+        earningsItemized.push({ code: "ARREARS", name: "Salary Arrears", amount: arrears, isTaxable: true });
+    if (reimbursements > 0)
+        earningsItemized.push({ code: "REIMBURSEMENT", name: "Approved Expense Reimbursements", amount: reimbursements, isTaxable: false });
+    if (leaveEncashment > 0)
+        earningsItemized.push({ code: "LEAVE_ENCASH", name: "Approved Leave Encashment", amount: leaveEncashment, isTaxable: true });
+    const totalEarnedGross = Math.round((basicSalary + hra + specialAllowance + statutoryBonus + conveyance + medical + otherAllowance + overtime + arrears + reimbursements + leaveEncashment) * 100) / 100;
+    // Statutory Calculations with dynamic rule resolution with dynamic rule resolution
     const epfRule = options?.statutoryRules?.find((r) => r.ruleType === "EPF" && (r.isActive !== false));
     const esiRule = options?.statutoryRules?.find((r) => r.ruleType === "ESI" && (r.isActive !== false));
     const gratuityRule = options?.statutoryRules?.find((r) => r.ruleType === "GRATUITY" && (r.isActive !== false));
     const pfCalc = employee.pfEligible !== false
-        ? calculateStatutoryEPF(basicSalary, false, epfRule)
+        ? calculateStatutoryEPF(basicSalary, true, epfRule, {
+            pfWageBasis: options?.pfWageBasis ?? employee.pfWageBasis,
+            grossWages: totalEarnedGross,
+            allowContractGross: options?.allowContractGrossPf ?? employee.allowContractGrossPf,
+        })
         : { employeePf: 0, epfEmployer: 0, eps: 0, edli: 0, adminCharges: 0, totalEmployerCost: 0, ruleVersion: 1, ruleId: undefined, statutoryCeiling: 15000, employeeRate: 0.12 };
     const esiCalc = employee.esiEligible !== false
         ? calculateStatutoryESI(totalEarnedGross, Boolean(employee.isDisability), esiRule)
@@ -663,6 +811,7 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
             basicSalary,
             hra,
             specialAllowance,
+            statutoryBonus,
             conveyance,
             medical,
             otherAllowance,
@@ -695,6 +844,31 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
         taxation: taxResult,
         statutoryManifest: {
             epf: { ruleId: pfCalc.ruleId, version: pfCalc.ruleVersion, ruleType: "EPF", statutoryCeiling: pfCalc.statutoryCeiling, employeeRate: pfCalc.employeeRate },
+            calculatedValues: {
+                BASIC_EARNED: basicSalary,
+                HRA_EARNED: hra,
+                SPECIAL_EARNED: specialAllowance,
+                BONUS_EARNED: statutoryBonus,
+                CONVEYANCE_EARNED: conveyance,
+                MEDICAL_EARNED: medical,
+                OTHER_EARNED: otherAllowance,
+                OVERTIME_EARNED: overtime,
+                ARREARS_EARNED: arrears,
+                GROSS_EARNED: totalEarnedGross,
+                EPF_EE: pfCalc.employeePf,
+                ESIC_EE: esiCalc.employeeEsi,
+                PT: ptAmount,
+                LWF_EE: lwfCalc.employeeLwf,
+                TDS: monthlyTds,
+                TOTAL_DEDUCTIONS: totalDeductions,
+                NET_PAY: netPay,
+                EPF_ER: pfCalc.epfEmployer,
+                EPS_ER: pfCalc.eps,
+                EDLI: pfCalc.edli,
+                PF_ADMIN: pfCalc.adminCharges,
+                ESIC_ER: esiCalc.employerEsi,
+                LWF_ER: lwfCalc.employerLwf,
+            },
             esi: { ruleId: esiCalc.ruleId, version: esiCalc.ruleVersion, ruleType: "ESI", wageCeiling: esiCalc.wageCeiling, employeeRate: esiCalc.employeeRate, isEligible: esiCalc.isEligible },
             pt: { stateCode: employee.state || "MH", amount: ptAmount },
             lwf: { ruleId: lwfCalc.ruleId, version: lwfCalc.ruleVersion, ruleType: "LWF", stateCode: employee.state || "MH", employeeContribution: lwfCalc.employeeLwf, employerContribution: lwfCalc.employerLwf, isDeductionMonth: Boolean(lwfCalc.isDeductionMonth) },
@@ -704,5 +878,99 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
         netPay,
         currency,
         currencySymbol,
+        validationErrors: validationErrors.length > 0 ? validationErrors : undefined,
     };
+}
+// -------------------------------------------------------------
+// 5. SALARY VERSIONING & LEAVE ENCASHMENT HELPERS (P2)
+// -------------------------------------------------------------
+const prisma_1 = require("../prisma");
+async function resolveEffectiveSalaryAssignment(tenantId, employeeId, targetDate = new Date()) {
+    const target = new Date(targetDate);
+    try {
+        const assignment = await prisma_1.rawPrisma.employeeSalaryAssignment.findFirst({
+            where: {
+                tenantId,
+                employeeId,
+                effectiveFrom: { lte: target },
+                OR: [{ effectiveTo: null }, { effectiveTo: { gte: target } }],
+            },
+            orderBy: { effectiveFrom: "desc" },
+        });
+        if (assignment) {
+            return {
+                baseMonthlyCtc: Number(assignment.ctcMonthly),
+                annualCtc: Number(assignment.ctcAnnual),
+                isVersioned: true,
+                assignmentId: assignment.id,
+            };
+        }
+    }
+    catch (err) {
+        console.warn("[PayrollEngine] employeeSalaryAssignment resolution non-fatal:", err?.message);
+    }
+    // Fallback to static Employee.salary
+    try {
+        const emp = await prisma_1.rawPrisma.employee.findFirst({
+            where: { id: employeeId, tenantId },
+            select: { salary: true },
+        });
+        const monthly = Number(emp?.salary ?? 0);
+        return {
+            baseMonthlyCtc: monthly,
+            annualCtc: monthly * 12,
+            isVersioned: false,
+        };
+    }
+    catch {
+        return { baseMonthlyCtc: 0, annualCtc: 0, isVersioned: false };
+    }
+}
+async function queryAndApplyLeaveEncashments(tenantId, employeeId, basicSalary) {
+    try {
+        const pendingRequests = await prisma_1.rawPrisma.leaveEncashmentRequest.findMany({
+            where: {
+                tenantId,
+                employeeId,
+                status: "APPROVED",
+                payrollRef: null,
+            },
+        });
+        if (!pendingRequests || pendingRequests.length === 0) {
+            return { totalEncashmentAmount: 0, totalEncashmentDays: 0, encashmentIds: [] };
+        }
+        let totalDays = 0;
+        const encashmentIds = [];
+        for (const req of pendingRequests) {
+            totalDays += Number(req.days);
+            encashmentIds.push(req.id);
+        }
+        // Encashment formula = Days * (Basic / 30)
+        const dailyWage = basicSalary / 30;
+        const totalAmount = Math.round(totalDays * dailyWage * 100) / 100;
+        return {
+            totalEncashmentAmount: totalAmount,
+            totalEncashmentDays: totalDays,
+            encashmentIds,
+        };
+    }
+    catch (err) {
+        console.warn("[PayrollEngine] leaveEncashment lookup non-fatal:", err?.message);
+        return { totalEncashmentAmount: 0, totalEncashmentDays: 0, encashmentIds: [] };
+    }
+}
+async function markLeaveEncashmentsPaid(encashmentIds, payrollRef) {
+    if (!encashmentIds || encashmentIds.length === 0)
+        return 0;
+    try {
+        const res = await prisma_1.rawPrisma.leaveEncashmentRequest.updateMany({
+            where: { id: { in: encashmentIds } },
+            data: { payrollRef },
+        });
+        return res.count;
+    }
+    catch (err) {
+        console.warn("[PayrollEngine] markLeaveEncashmentsPaid non-fatal:", err?.message);
+        return 0;
+    }
 }

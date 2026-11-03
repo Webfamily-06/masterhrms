@@ -164,7 +164,7 @@ class FbpService {
             return 0;
         const monthlySalary = emp.salaryAssignments[0]?.ctcMonthly
             ? Number(emp.salaryAssignments[0].ctcMonthly)
-            : Number(emp.salary || 35000);
+            : Number(emp.salary ?? 0);
         // Standard policy: Special Allowance pool is up to 30% of CTC
         const annualPool = Math.round(monthlySalary * 12 * 0.30);
         return Math.max(60000, annualPool); // Floor at ₹60,000 per annum

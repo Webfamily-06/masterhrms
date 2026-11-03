@@ -1,3 +1,27 @@
+// Safe runtime numeric converter handling number, Prisma Decimal, string, null/undefined
+function toSafeNumeric(val: unknown, fallback: number = 0): number {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "number") return isNaN(val) ? fallback : val;
+  if (typeof val === "string") {
+    const parsed = parseFloat(val);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+  if (typeof val === "object") {
+    if ("toNumber" in (val as any) && typeof (val as any).toNumber === "function") {
+      try {
+        const num = (val as any).toNumber();
+        return isNaN(num) ? fallback : num;
+      } catch {
+        return fallback;
+      }
+    }
+    if ("toString" in (val as any) && typeof (val as any).toString === "function") {
+      const parsed = parseFloat((val as any).toString());
+      return isNaN(parsed) ? fallback : parsed;
+    }
+  }
+  return fallback;
+}
 import { PrismaClient } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
@@ -218,15 +242,15 @@ export class PayrollExportService {
 
       // Extract earned and fixed rates dynamically without fabricated constants
       const earningsItems = Array.isArray(breakdown.earnings?.itemized) ? breakdown.earnings.itemized : [];
-      const earnMap = new Map(earningsItems.map((item: any) => [String(item.code || '').toUpperCase(), Number(item.amount || 0)]));
+      const earnMap = new Map<string, number>(earningsItems.map((item: any) => [String(item.code || '').toUpperCase(), toSafeNumeric(item.amount, 0)]));
       
-      const earnBasic = earnMap.get('BASIC') ?? Number(calculated['BASIC_EARNED'] ?? breakdown.earnings?.basicSalary ?? 0);
-      const earnHra = earnMap.get('HRA') ?? Number(calculated['HRA_EARNED'] ?? breakdown.earnings?.hra ?? 0);
-      const earnSpecial = earnMap.get('SPECIAL') ?? earnMap.get('SPECIAL_ALLOWANCE') ?? Number(calculated['SPECIAL_EARNED'] ?? breakdown.earnings?.specialAllowance ?? 0);
-      const earnBonus = earnMap.get('BONUS') ?? earnMap.get('STATUTORY_BONUS') ?? Number(calculated['BONUS_EARNED'] ?? breakdown.earnings?.statutoryBonus ?? 0);
-      const earnConveyance = earnMap.get('CONVEYANCE') ?? Number(calculated['CONVEYANCE_EARNED'] ?? breakdown.earnings?.conveyance ?? 0);
-      const earnMedical = earnMap.get('MEDICAL') ?? Number(calculated['MEDICAL_EARNED'] ?? breakdown.earnings?.medical ?? 0);
-      const earnOther = earnMap.get('OTHER_ALLOW') ?? Number(calculated['OTHER_EARNED'] ?? breakdown.earnings?.otherAllowance ?? 0);
+      const earnBasic: number = toSafeNumeric(earnMap.get('BASIC'), toSafeNumeric(calculated['BASIC_EARNED'] ?? breakdown.earnings?.basicSalary, 0));
+      const earnHra: number = toSafeNumeric(earnMap.get('HRA'), toSafeNumeric(calculated['HRA_EARNED'] ?? breakdown.earnings?.hra, 0));
+      const earnSpecial: number = toSafeNumeric(earnMap.get('SPECIAL') ?? earnMap.get('SPECIAL_ALLOWANCE'), toSafeNumeric(calculated['SPECIAL_EARNED'] ?? breakdown.earnings?.specialAllowance, 0));
+      const earnBonus: number = toSafeNumeric(earnMap.get('BONUS') ?? earnMap.get('STATUTORY_BONUS'), toSafeNumeric(calculated['BONUS_EARNED'] ?? breakdown.earnings?.statutoryBonus, 0));
+      const earnConveyance: number = toSafeNumeric(earnMap.get('CONVEYANCE'), toSafeNumeric(calculated['CONVEYANCE_EARNED'] ?? breakdown.earnings?.conveyance, 0));
+      const earnMedical: number = toSafeNumeric(earnMap.get('MEDICAL'), toSafeNumeric(calculated['MEDICAL_EARNED'] ?? breakdown.earnings?.medical, 0));
+      const earnOther: number = toSafeNumeric(earnMap.get('OTHER_ALLOW'), toSafeNumeric(calculated['OTHER_EARNED'] ?? breakdown.earnings?.otherAllowance, 0));
 
       // Proration divisor for nominal fixed rates
       const proration = Number(attendance.prorationFactor || 1) > 0 ? Number(attendance.prorationFactor) : 1;

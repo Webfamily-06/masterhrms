@@ -75,12 +75,12 @@ exports.OFFICIAL_STATUTORY_RULE_PACKS = [
         configJson: {
             frequency: "monthly_accrual_half_yearly_settlement",
             slabs: [
-                { min: 0, max: 21000, tax: 0 },
-                { min: 21001, max: 30000, tax: 100 },
-                { min: 30001, max: 45000, tax: 235 },
-                { min: 45001, max: 60000, tax: 510 },
-                { min: 60001, max: 75000, tax: 760 },
-                { min: 75001, max: null, tax: 182.5 } // half-yearly 1095 / 6
+                { min: 0, max: 3500, tax: 0 }, // Up to 21,000 half-yearly
+                { min: 3501, max: 5000, tax: 16.67 }, // 100 / 6
+                { min: 5001, max: 7500, tax: 39.17 }, // 235 / 6
+                { min: 7501, max: 10000, tax: 85.00 }, // 510 / 6
+                { min: 10001, max: 12500, tax: 126.67 }, // 760 / 6
+                { min: 12501, max: null, tax: 208.33 } // 1250 / 6 (Amended rate under G.O. Ms. No. 45; max cap 2,500/yr)
             ]
         }
     },
@@ -205,22 +205,22 @@ exports.OFFICIAL_STATUTORY_RULE_PACKS = [
     // ───────────────────────────────────────────────────────────────────────────
     // LABOUR WELFARE FUND (LWF) — State Specific Packs
     // ───────────────────────────────────────────────────────────────────────────
-    // Tamil Nadu
+    // Tamil Nadu (Amended: Act No. 44 of 2023 / G.O. Ms. No. 138)
     {
         ruleType: "LWF",
         stateCode: "TN",
-        version: 1,
-        effectiveFrom: new Date("2022-01-01"),
+        version: 2,
+        effectiveFrom: new Date("2024-01-01"),
         effectiveTo: null,
         sourceAuthority: "Tamil Nadu Labour Welfare Board",
-        notificationRef: "Tamil Nadu Labour Welfare Fund Act 1972 / G.O. (D) No. 493",
+        notificationRef: "Tamil Nadu Labour Welfare Fund (Amendment) Act, 2023 (Act No. 44 of 2023)",
         isVerified: true,
         status: "active",
         configJson: {
             frequency: "annual",
             deductionMonth: 12, // December
-            employeeContribution: 10,
-            employerContribution: 20
+            employeeContribution: 20,
+            employerContribution: 40
         }
     },
     // Karnataka

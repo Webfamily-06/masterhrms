@@ -360,7 +360,8 @@ export class ContractBillingService {
       let sumMmu = 0;
 
       for (const snap of group.snapshots) {
-        const grossEarned = Number(snap.grossEarned || 0);
+        const earnedGross = Number(snap.grossEarned || 0);
+        const grossEarned = earnedGross;
 
         // Extract employer statutory components defensively from statutoryManifest or snapshotData
         const manifest = (snap.statutoryManifest as any) || {};

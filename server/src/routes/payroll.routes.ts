@@ -642,6 +642,9 @@ payrollRouter.post("/salary-structures/preview", requireAuth, async (req: AuthRe
       {
         id: "preview-emp",
         employeeCode: "PREVIEW",
+        firstName: "Structure",
+        lastName: "Simulation",
+        email: "simulation@masterhrms.local",
         state: state || "TN",
         baseMonthlyCtc: monthlyCtc,
         annualCtc: monthlyCtc * 12,
@@ -1716,8 +1719,8 @@ payrollRouter.post("/runs/:id/validation/approve-exception", requireRole("super_
       return res.status(400).json({ error: "Cannot approve exceptions on finalized immutable payroll runs." });
     }
 
-    const currentAudit = (run.auditLog as any) || {};
-    const existingExceptions = currentAudit.approvedExceptions || [];
+    const manifest = (run.statutoryManifest as any) || {};
+    const existingExceptions = manifest.approvedExceptions || [];
 
     const newException = {
       code,
@@ -1730,11 +1733,21 @@ payrollRouter.post("/runs/:id/validation/approve-exception", requireRole("super_
     const updated = await prisma.payrollRun.update({
       where: { id },
       data: {
-        auditLog: {
-          ...currentAudit,
+        statutoryManifest: {
+          ...manifest,
           approvedExceptions: [...existingExceptions, newException],
         },
       },
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: req.user?.id || (req.user as any)?.userId,
+      actorEmail: req.user?.email,
+      action: "payroll.exception.approved",
+      entityType: "PayrollRun",
+      entityId: id,
+      newState: newException,
     });
 
     return res.json({
@@ -1825,8 +1838,8 @@ payrollRouter.patch("/runs/:id/status", requireRole("super_admin", "tenant_admin
       }
 
       // 2. Execute Pre-Flight Validation Gate immediately prior to finalization
-      const currentAudit = (run.auditLog as any) || {};
-      const approvedExceptions = currentAudit.approvedExceptions || [];
+      const manifest = (run.statutoryManifest as any) || {};
+      const approvedExceptions = manifest.approvedExceptions || [];
       const validation = await PayrollValidationService.validatePayrollRun(tenantId, run.id, { approvedExceptions });
       if (validation.blockerCount > 0) {
         return res.status(422).json({

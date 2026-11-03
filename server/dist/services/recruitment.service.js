@@ -394,6 +394,20 @@ class RecruitmentService {
         if (candidate.isConvertedToEmployee && candidate.convertedEmployeeId) {
             throw new Error(`Candidate '${candidate.fullName}' has already been converted to employee.`);
         }
+        const latestOffer = candidate.offers?.[0];
+        const latestOnboarding = candidate.onboarding;
+        // GAP-VAL-007 & GAP-VAL-013: Enforce Onboarding Checklist & BGV Gate
+        if (latestOnboarding && !overrides?.forceConversion) {
+            const validBgvStatuses = ["passed", "completed", "verified", "waived"];
+            if (latestOnboarding.bgvStatus && !validBgvStatuses.includes(latestOnboarding.bgvStatus.toLowerCase())) {
+                throw new Error(`ONBOARDING_INCOMPLETE: Background verification pending or unverified (status: '${latestOnboarding.bgvStatus}'). Pass forceConversion override with admin justification to bypass.`);
+            }
+            const incompleteMandatoryTasks = (latestOnboarding.tasks || []).filter((t) => t.isMandatory && t.status !== "completed" && t.status !== "verified");
+            if (incompleteMandatoryTasks.length > 0) {
+                const taskTitles = incompleteMandatoryTasks.map((t) => t.title).join(", ");
+                throw new Error(`ONBOARDING_INCOMPLETE: Mandatory onboarding tasks are incomplete: [${taskTitles}]. Complete all mandatory tasks or provide forceConversion override with admin justification.`);
+            }
+        }
         // Split name safely
         const nameParts = candidate.fullName.trim().split(" ");
         const firstName = nameParts[0] || "Candidate";
@@ -404,13 +418,68 @@ class RecruitmentService {
             const empCount = await db.employee.count({ where: { tenantId } });
             employeeCode = `EMP-${String(empCount + 1).padStart(4, "0")}`;
         }
-        const latestOffer = candidate.offers?.[0];
-        const latestOnboarding = candidate.onboarding;
         const targetDepartmentId = overrides?.departmentId || candidate.jobPosting?.departmentId || null;
         const targetDesignationId = overrides?.designationId || candidate.jobPosting?.designationId || null;
         const targetBranchId = overrides?.branchId || candidate.jobPosting?.branchId || null;
         const targetSalary = overrides?.salary ?? (latestOffer?.annualCtc ? Number(latestOffer.annualCtc) : (candidate.expectedSalary ? Number(candidate.expectedSalary) : 500000));
         const targetJoinedAt = overrides?.joinedAt || latestOnboarding?.joiningDate || latestOffer?.joiningDate || new Date();
+        // GAP-VAL-012: Extract and map statutory identifiers from candidate onboarding tasks/documents
+        let pan = overrides?.pan || null;
+        let aadhaar = overrides?.aadhaar || null;
+        let uan = overrides?.uan || null;
+        let bankAccount = overrides?.bankAccount || null;
+        let bankIfsc = overrides?.bankIfsc || null;
+        let bankName = overrides?.bankName || null;
+        let bankBranch = overrides?.bankBranch || null;
+        const taskDocuments = [];
+        if (latestOnboarding?.tasks) {
+            for (const task of latestOnboarding.tasks) {
+                const titleLower = (task.title || "").toLowerCase();
+                const desc = (task.description || task.notes || "").trim();
+                if (task.documentUrl) {
+                    taskDocuments.push({
+                        title: task.title,
+                        mediaUrl: task.documentUrl,
+                        documentType: task.category || "onboarding_document",
+                    });
+                }
+                if (!pan && (titleLower.includes("pan") || task.category === "pan")) {
+                    const panMatch = desc.match(/[A-Z]{5}[0-9]{4}[A-Z]{1}/i);
+                    if (panMatch)
+                        pan = panMatch[0].toUpperCase();
+                }
+                if (!aadhaar && (titleLower.includes("aadhaar") || task.category === "aadhaar")) {
+                    const aadhaarMatch = desc.match(/\b\d{12}\b/);
+                    if (aadhaarMatch)
+                        aadhaar = aadhaarMatch[0];
+                }
+                if (!uan && (titleLower.includes("uan") || task.category === "uan")) {
+                    const uanMatch = desc.match(/\b\d{12}\b/);
+                    if (uanMatch)
+                        uan = uanMatch[0];
+                }
+                if (!bankAccount && (titleLower.includes("bank") || task.category === "bank")) {
+                    const accMatch = desc.match(/\b\d{9,18}\b/);
+                    if (accMatch)
+                        bankAccount = accMatch[0];
+                    const ifscMatch = desc.match(/[A-Z]{4}0[A-Z0-9]{6}/i);
+                    if (ifscMatch)
+                        bankIfsc = ifscMatch[0].toUpperCase();
+                }
+            }
+        }
+        const allDocuments = [
+            ...(candidate.resumeUrl
+                ? [
+                    {
+                        title: "Candidate Resume",
+                        mediaUrl: candidate.resumeUrl,
+                        documentType: "resume",
+                    },
+                ]
+                : []),
+            ...taskDocuments,
+        ];
         const createInput = {
             firstName,
             lastName,
@@ -425,15 +494,14 @@ class RecruitmentService {
             joinedAt: targetJoinedAt,
             taxRegime: overrides?.taxRegime || "new",
             createLoginAccount: overrides?.createLoginAccount !== false,
-            documents: candidate.resumeUrl
-                ? [
-                    {
-                        title: "Candidate Resume",
-                        mediaUrl: candidate.resumeUrl,
-                        documentType: "resume",
-                    },
-                ]
-                : [],
+            pan,
+            aadhaar,
+            uan,
+            bankAccount,
+            bankIfsc,
+            bankName,
+            bankBranch,
+            documents: allDocuments,
         };
         // 1. Call authoritative P2 Employee Service
         const createdEmployee = await employee_service_1.EmployeeService.createEmployeeAtomic(tenantId, actorId, createInput);

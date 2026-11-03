@@ -153,7 +153,7 @@ class LeaveService {
                     approverId: employee?.managerId || null,
                     startDate: start,
                     endDate: end,
-                    days: Math.max(1, Math.round(dryRun.totalDays)),
+                    days: dryRun.totalDays,
                     status: "pending",
                     reason: data.reason,
                 },
@@ -226,6 +226,19 @@ class LeaveService {
             await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, curr);
             curr.setUTCDate(curr.getUTCDate() + 1);
         }
+        // 1b. Fetch sandwich rule and holidays for accurate attendance sync (GAP-VAL-008)
+        const leavePolicy = await prisma_1.rawPrisma.leavePolicy.findFirst({
+            where: { tenantId, isDefault: true },
+        });
+        const sandwichRule = request.leaveType?.sandwichRule ?? leavePolicy?.sandwichRule ?? false;
+        const holidays = await prisma_1.rawPrisma.holiday.findMany({
+            where: {
+                tenantId,
+                date: { gte: request.startDate, lte: request.endDate },
+            },
+            select: { date: true },
+        });
+        const holidayDates = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
         // 2. Perform atomic approval inside $transaction
         const approved = await prisma_1.rawPrisma.$transaction(async (tx) => {
             // Mark request approved
@@ -254,9 +267,18 @@ class LeaveService {
                 });
             }
             // Update Attendance records for the approved days to 'on_leave'
+            // GAP-VAL-008: When sandwichRule is false, skip weekends and holidays to prevent overwriting weekly_off
             const attCurr = new Date(request.startDate);
             while (attCurr <= end) {
                 const dayDate = new Date(Date.UTC(attCurr.getUTCFullYear(), attCurr.getUTCMonth(), attCurr.getUTCDate()));
+                const dateStr = dayDate.toISOString().slice(0, 10);
+                const dayOfWeek = dayDate.getUTCDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isHoliday = holidayDates.has(dateStr);
+                if (!sandwichRule && (isWeekend || isHoliday)) {
+                    attCurr.setUTCDate(attCurr.getUTCDate() + 1);
+                    continue;
+                }
                 await tx.attendance.upsert({
                     where: {
                         tenantId_employeeId_date: {

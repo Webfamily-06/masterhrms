@@ -445,7 +445,7 @@ contractBillingRouter.get(
             subtotal: Number(d.subtotal),
             taxRate: Number(d.taxRate || 0),
             taxAmount: Number(d.taxAmount || 0),
-            total: Number(d.total || d.subtotal),
+            total: Number(d.subtotal) + Number(d.taxAmount || 0),
           })),
           createdAt: sale.createdAt,
         },

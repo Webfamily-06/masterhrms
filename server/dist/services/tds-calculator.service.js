@@ -375,7 +375,7 @@ class TdsCalculatorService {
         });
         const monthlySalary = emp?.salaryAssignments[0]?.ctcMonthly
             ? Number(emp.salaryAssignments[0].ctcMonthly)
-            : Number(emp?.salary || 35000);
+            : Number(emp?.salary ?? 0);
         const annualGross = monthlySalary * 12;
         const basicAnnual = annualGross * 0.50; // standard 50%
         const hraAnnual = annualGross * 0.20; // standard 20%

@@ -1522,6 +1522,22 @@ exports.invoicesRouter.get("/public/:id", async (req, res) => {
         if (!sale) {
             return res.status(404).json({ error: "Invoice not found or expired" });
         }
+        // HC-09 Remediation: Dynamically resolve company legal establishment details
+        let dynamicProfile = null;
+        try {
+            if (sale.tenantId) {
+                dynamicProfile = await company_profile_service_1.CompanyProfileService.getProfile(sale.tenantId);
+            }
+        }
+        catch (_err) {
+            // Graceful fallback to tenant entity
+        }
+        const resolvedAddress = [
+            dynamicProfile?.registeredAddress,
+            dynamicProfile?.registeredCity,
+            dynamicProfile?.registeredState,
+            dynamicProfile?.registeredPostalCode
+        ].filter(Boolean).join(", ") || sale.warehouse?.location || sale.tenant?.address || "Registered Corporate Office";
         const formatted = {
             id: sale.id,
             invoiceNo: sale.invoiceNo,
@@ -1531,18 +1547,20 @@ exports.invoicesRouter.get("/public/:id", async (req, res) => {
             client: {
                 name: sale.customer?.name || "Valued Client",
                 email: sale.customer?.email || "billing@client.com",
-                phone: sale.customer?.phone || "—",
+                phone: sale.customer?.phone || "",
                 address: sale.customer?.address || "Corporate Client Address",
-                city: sale.customer?.city || "—",
-                taxNumber: sale.customer?.taxNumber || sale.customerGstin || "—",
+                city: sale.customer?.city || "",
+                taxNumber: sale.customer?.taxNumber || sale.customerGstin || "",
             },
             company: {
-                name: sale.tenant?.name || "TSV Global Solutions Pvt Ltd",
-                email: "billing@tsvsolutions.com",
-                phone: "+91 98765 43210",
-                address: sale.warehouse?.location || "Headquarters Building, Chennai",
-                currency: "INR",
+                name: dynamicProfile?.legalName || dynamicProfile?.tradeName || sale.tenant?.name || "Establishment Legal Entity",
+                email: dynamicProfile?.email || sale.tenant?.email || "billing@domain.local",
+                phone: dynamicProfile?.phone || sale.tenant?.phone || "",
+                address: resolvedAddress,
+                currency: sale.tenant?.currency || "INR",
                 currencySymbol: "₹",
+                gstin: dynamicProfile?.gstRegistrations?.find((g) => g.isPrimary)?.gstin || "",
+                pan: dynamicProfile?.pan || "",
             },
             items: sale.details.map((d) => ({
                 id: d.id,

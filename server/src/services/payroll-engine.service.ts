@@ -140,6 +140,7 @@ export interface SalaryBreakdownResult {
   currency: string;
   currencySymbol: string;
   calculatedValues?: Record<string, any>;
+  validationErrors?: string[];
 }
 
 // -------------------------------------------------------------

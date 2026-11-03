@@ -3,9 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.hrEmployeesRouter = void 0;
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
+const limits_1 = require("../middleware/limits");
 const tenant_context_1 = require("../context/tenant-context");
 const employee_service_1 = require("../services/employee.service");
 const data_scope_1 = require("../lib/data-scope");
+const validate_middleware_1 = require("../middleware/validate.middleware");
+const employee_schema_1 = require("../schemas/employee.schema");
 exports.hrEmployeesRouter = (0, express_1.Router)();
 // =========================================================================
 // 1. LIST EMPLOYEES (GET /api/v1/hr/employees)
@@ -28,8 +31,9 @@ exports.hrEmployeesRouter.get("/", auth_1.requireAuth, async (req, res) => {
 // =========================================================================
 // 2. ATOMIC EMPLOYEE CREATION (POST /api/v1/hr/employees)
 // 8-Step Wizard Target: Atomic Employee + User + Outbox + Audit
+// Guarded by hrm.employees.create and subscription seat limit quota
 // =========================================================================
-exports.hrEmployeesRouter.post("/", auth_1.requireAuth, async (req, res) => {
+exports.hrEmployeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermission)("hrm.employees.create"), (0, limits_1.requireWithinLimit)("seats"), (0, validate_middleware_1.validateBody)(employee_schema_1.createEmployeeSchema), async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         const actorId = req.user?.userId;
@@ -190,7 +194,7 @@ exports.hrEmployeesRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
 // Comprehensive update with step-by-step persistence, role authorization,
 // and financial field permission enforcement.
 // =========================================================================
-exports.hrEmployeesRouter.put("/:id", auth_1.requireAuth, async (req, res) => {
+exports.hrEmployeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermission)("hrm.employees.edit"), (0, validate_middleware_1.validateBody)(employee_schema_1.updateEmployeeSchema), async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         const actorId = req.user?.userId;

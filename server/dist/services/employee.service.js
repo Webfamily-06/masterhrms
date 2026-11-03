@@ -14,6 +14,7 @@ const field_security_1 = require("../lib/field-security");
 const allowed_actions_1 = require("../lib/allowed-actions");
 const data_scope_1 = require("../lib/data-scope");
 const employee_system_id_service_1 = require("./employee-system-id.service");
+const employee_schema_1 = require("../schemas/employee.schema");
 class EmployeeService {
     /**
      * ATOMIC EMPLOYEE CREATION (8-Step Wizard Target)
@@ -70,7 +71,7 @@ class EmployeeService {
                     firstName: input.firstName.trim(),
                     lastName: input.lastName.trim(),
                     email: input.email.toLowerCase().trim(),
-                    phone: input.phone || null,
+                    phone: (0, employee_schema_1.normalizePhoneE164)(input.phone) || null,
                     position: input.position || null,
                     branchId: input.branchId || null,
                     departmentId: input.departmentId || null,
@@ -96,6 +97,16 @@ class EmployeeService {
                     bankAccount: input.bankAccount || null,
                     bankIfsc: input.bankIfsc || null,
                     bankBranch: input.bankBranch || null,
+                    maritalStatus: input.maritalStatus || null,
+                    bloodGroup: input.bloodGroup || null,
+                    addressLine1: input.addressLine1 || input.address || null,
+                    addressLine2: input.addressLine2 || null,
+                    city: input.city || null,
+                    district: input.district || null,
+                    postalCode: input.postalCode || input.zipCode || null,
+                    emergencyContactName: input.emergencyContactName || null,
+                    emergencyContactRelationship: input.emergencyContactRelationship || null,
+                    emergencyContactPhone: (0, employee_schema_1.normalizePhoneE164)(input.emergencyContactPhone) || null,
                 },
                 include: {
                     department: { select: { id: true, name: true } },
@@ -773,7 +784,7 @@ class EmployeeService {
             if (input.email !== undefined)
                 updateData.email = input.email.toLowerCase().trim();
             if (input.phone !== undefined)
-                updateData.phone = input.phone ? input.phone.trim() : null;
+                updateData.phone = (0, employee_schema_1.normalizePhoneE164)(input.phone);
             if (input.dateOfBirth !== undefined)
                 updateData.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
             if (input.gender !== undefined)

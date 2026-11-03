@@ -121,15 +121,21 @@ async function revokeSession(sessionId, userId) {
     return true;
 }
 async function revokeAllSessions(userId, tenantId) {
-    const result = await prisma_1.rawPrisma.deviceSession.updateMany({
-        where: {
-            userId,
-            ...(tenantId ? { tenantId } : {}),
-            revoked: false,
-        },
-        data: { revoked: true, revokedAt: new Date() },
-    });
-    return result.count;
+    try {
+        const result = await prisma_1.rawPrisma.deviceSession.updateMany({
+            where: {
+                userId,
+                ...(tenantId ? { tenantId } : {}),
+                revoked: false,
+            },
+            data: { revoked: true, revokedAt: new Date() },
+        });
+        return result.count;
+    }
+    catch (err) {
+        console.warn("[DeviceSession] revokeAllSessions fallback:", err?.message);
+        return 0;
+    }
 }
 async function getActiveSessions(userId, tenantId) {
     return prisma_1.rawPrisma.deviceSession.findMany({

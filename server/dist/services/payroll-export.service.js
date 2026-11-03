@@ -4,6 +4,33 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PayrollExportService = exports.PHASE1_DEFAULT_EXPORT_TEMPLATE = void 0;
+// Safe runtime numeric converter handling number, Prisma Decimal, string, null/undefined
+function toSafeNumeric(val, fallback = 0) {
+    if (val === null || val === undefined)
+        return fallback;
+    if (typeof val === "number")
+        return isNaN(val) ? fallback : val;
+    if (typeof val === "string") {
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? fallback : parsed;
+    }
+    if (typeof val === "object") {
+        if ("toNumber" in val && typeof val.toNumber === "function") {
+            try {
+                const num = val.toNumber();
+                return isNaN(num) ? fallback : num;
+            }
+            catch {
+                return fallback;
+            }
+        }
+        if ("toString" in val && typeof val.toString === "function") {
+            const parsed = parseFloat(val.toString());
+            return isNaN(parsed) ? fallback : parsed;
+        }
+    }
+    return fallback;
+}
 const exceljs_1 = __importDefault(require("exceljs"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
 const company_profile_service_1 = require("./company-profile/company-profile.service");
@@ -182,14 +209,26 @@ class PayrollExportService {
             const breakdown = slip.breakdown || {};
             const calculated = breakdown.calculatedValues || {};
             const attendance = breakdown.attendance || {};
-            const assignment = emp.salaryAssignments[0];
-            const monthlyCtc = assignment?.ctcMonthly ? Number(assignment.ctcMonthly) : Number(emp.salary || 35000);
-            // Extract fixed rates or defaults
-            const fixBasic = monthlyCtc * 0.5;
-            const fixHra = monthlyCtc * 0.2;
-            const fixConveyance = 1600;
-            const fixMedical = 1250;
-            const fixSpecial = Math.max(0, monthlyCtc - (fixBasic + fixHra + fixConveyance + fixMedical));
+            const assignment = emp.salaryAssignments?.[0];
+            const monthlyCtc = assignment?.ctcMonthly ? Number(assignment.ctcMonthly) : Number(emp.salary || 0);
+            // Extract earned and fixed rates dynamically without fabricated constants
+            const earningsItems = Array.isArray(breakdown.earnings?.itemized) ? breakdown.earnings.itemized : [];
+            const earnMap = new Map(earningsItems.map((item) => [String(item.code || '').toUpperCase(), toSafeNumeric(item.amount, 0)]));
+            const earnBasic = toSafeNumeric(earnMap.get('BASIC'), toSafeNumeric(calculated['BASIC_EARNED'] ?? breakdown.earnings?.basicSalary, 0));
+            const earnHra = toSafeNumeric(earnMap.get('HRA'), toSafeNumeric(calculated['HRA_EARNED'] ?? breakdown.earnings?.hra, 0));
+            const earnSpecial = toSafeNumeric(earnMap.get('SPECIAL') ?? earnMap.get('SPECIAL_ALLOWANCE'), toSafeNumeric(calculated['SPECIAL_EARNED'] ?? breakdown.earnings?.specialAllowance, 0));
+            const earnBonus = toSafeNumeric(earnMap.get('BONUS') ?? earnMap.get('STATUTORY_BONUS'), toSafeNumeric(calculated['BONUS_EARNED'] ?? breakdown.earnings?.statutoryBonus, 0));
+            const earnConveyance = toSafeNumeric(earnMap.get('CONVEYANCE'), toSafeNumeric(calculated['CONVEYANCE_EARNED'] ?? breakdown.earnings?.conveyance, 0));
+            const earnMedical = toSafeNumeric(earnMap.get('MEDICAL'), toSafeNumeric(calculated['MEDICAL_EARNED'] ?? breakdown.earnings?.medical, 0));
+            const earnOther = toSafeNumeric(earnMap.get('OTHER_ALLOW'), toSafeNumeric(calculated['OTHER_EARNED'] ?? breakdown.earnings?.otherAllowance, 0));
+            // Proration divisor for nominal fixed rates
+            const proration = Number(attendance.prorationFactor || 1) > 0 ? Number(attendance.prorationFactor) : 1;
+            const fixBasic = earnBasic > 0 ? Math.round(earnBasic / proration) : (monthlyCtc > 0 ? Math.round(monthlyCtc * 0.5) : 0);
+            const fixHra = earnHra > 0 ? Math.round(earnHra / proration) : 0;
+            const fixSpecial = earnSpecial > 0 ? Math.round(earnSpecial / proration) : Math.max(0, monthlyCtc - fixBasic - fixHra);
+            const fixBonus = earnBonus > 0 ? Math.round(earnBonus / proration) : 0;
+            const fixConveyance = earnConveyance > 0 ? Math.round(earnConveyance / proration) : 0;
+            const fixMedical = earnMedical > 0 ? Math.round(earnMedical / proration) : 0;
             const row = {
                 sno: sno++,
                 empCode: emp.employeeCode,
@@ -214,15 +253,17 @@ class PayrollExportService {
                 fixHra,
                 fixConveyance,
                 fixMedical,
+                fixBonus,
                 fixSpecial,
                 fixGross: monthlyCtc,
                 // Earned
-                earnBasic: Number(calculated['BASIC_EARNED'] || 0),
-                earnHra: Number(calculated['HRA_EARNED'] || 0),
-                earnConveyance: Number(calculated['CONVEYANCE_EARNED'] || 0),
-                earnMedical: Number(calculated['MEDICAL_EARNED'] || 0),
-                earnSpecial: Number(calculated['SPECIAL_EARNED'] || 0),
-                earnOther: Number(calculated['OTHER_EARNED'] || 0),
+                earnBasic,
+                earnHra,
+                earnSpecial,
+                earnBonus,
+                earnConveyance,
+                earnMedical,
+                earnOther,
                 grossEarned: Number(slip.grossSalary),
                 // Deductions
                 dedEpf: Number(calculated['EPF_EE'] || 0),

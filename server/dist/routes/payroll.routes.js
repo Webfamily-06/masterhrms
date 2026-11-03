@@ -2,6 +2,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.payrollRouter = void 0;
 const express_1 = require("express");
+const payroll_validation_service_1 = require("../services/payroll-validation.service");
+const contract_billing_service_1 = require("../services/contract-billing.service");
+const contract_invoice_service_1 = require("../services/contract-invoice.service");
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
@@ -545,6 +548,55 @@ exports.payrollRouter.delete("/salary-structures/:id", auth_1.requireAuth, async
 // 3. EMPLOYEE SALARY PASSPORT & CTC SIMULATION
 // ==========================================
 // GET /api/payroll/employees (Auto-bound Employee Master with Statutory & Salary Assignment)
+// POST /api/payroll/salary-structures/preview (Real-time Template Simulation)
+exports.payrollRouter.post("/salary-structures/preview", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { ctcMonthly, ctcAnnual, items, state } = req.body;
+        const monthlyCtc = Number(ctcMonthly || (ctcAnnual ? Number(ctcAnnual) / 12 : 50000));
+        if (monthlyCtc <= 0 || isNaN(monthlyCtc)) {
+            return res.status(400).json({ error: "Valid monthly CTC is required for simulation." });
+        }
+        // Convert items into structureComponents format for calculation engine
+        const structureComponents = Array.isArray(items)
+            ? items.map((item) => ({
+                code: item.code || item.componentCode || "CUSTOM",
+                name: item.name || item.componentName || "Component",
+                type: item.type || "earning",
+                calculationType: item.calculationType || "percentage_of_ctc",
+                value: Number(item.value || 0),
+                formula: item.formula || null,
+            }))
+            : [];
+        const breakdown = (0, payroll_engine_service_1.computeEmployeePayrollBreakdown)({
+            id: "preview-emp",
+            employeeCode: "PREVIEW",
+            firstName: "Structure",
+            lastName: "Simulation",
+            email: "simulation@masterhrms.local",
+            state: state || "TN",
+            baseMonthlyCtc: monthlyCtc,
+            annualCtc: monthlyCtc * 12,
+        }, {
+            totalWorkingDays: 30,
+            payableDays: 30,
+            presentDays: 30,
+            halfDays: 0,
+            approvedLeaveDays: 0,
+            lossOfPayDays: 0,
+            prorationFactor: 1.0,
+        }, {
+            structureComponents,
+        });
+        return res.json({
+            monthlyCtc,
+            annualCtc: monthlyCtc * 12,
+            breakdown,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to preview salary structure." });
+    }
+});
 exports.payrollRouter.get("/employees", auth_1.requireAuth, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
@@ -578,7 +630,7 @@ exports.payrollRouter.get("/employees", auth_1.requireAuth, async (req, res) => 
             const latestDeclaration = emp.taxDeclarations[0] || null;
             const baseMonthlySalary = currentAssignment
                 ? Number(currentAssignment.ctcMonthly)
-                : Number(emp.salary || 35000);
+                : Number(emp.salary ?? 0);
             return {
                 id: emp.id,
                 employeeCode: emp.employeeCode,
@@ -604,7 +656,7 @@ exports.payrollRouter.get("/employees", auth_1.requireAuth, async (req, res) => 
                 dateOfBirth: emp.dateOfBirth,
                 gender: emp.gender,
                 taxRegime: emp.taxRegime || "new",
-                state: emp.state || "MH",
+                state: emp.state || "TN",
                 pfEligible: emp.pfEligible,
                 esiEligible: emp.esiEligible,
                 ptEligible: emp.ptEligible,
@@ -718,7 +770,13 @@ exports.payrollRouter.post("/salary-assignments", auth_1.requireAuth, async (req
 exports.payrollRouter.post("/simulate-ctc", auth_1.requireAuth, async (req, res) => {
     try {
         const { ctcMonthly, ctcAnnual, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible } = req.body;
-        const monthly = Number(ctcMonthly || (ctcAnnual ? Number(ctcAnnual) / 12 : 35000));
+        if (!ctcMonthly && !ctcAnnual) {
+            return res.status(400).json({ error: "Valid ctcMonthly or ctcAnnual is required for CTC simulation. No default salary fallback is permitted." });
+        }
+        const monthly = Number(ctcMonthly || (ctcAnnual ? Number(ctcAnnual) / 12 : 0));
+        if (monthly <= 0 || isNaN(monthly)) {
+            return res.status(400).json({ error: "Calculated monthly CTC must be a positive number." });
+        }
         const regime = taxRegime === "old" ? "old" : "new";
         const simulatedEmployee = {
             id: "sim-emp",
@@ -1057,7 +1115,7 @@ exports.payrollRouter.patch("/tax-declarations/:id/status", auth_1.requireAuth, 
 // 5. PERIOD PAYROLL PROCESSING & LIFECYCLE
 // ==========================================
 // GET /api/payroll/runs
-exports.payrollRouter.get("/runs", auth_1.requireAuth, async (req, res) => {
+exports.payrollRouter.get("/runs", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin"), async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         if (!tenantId)
@@ -1204,7 +1262,7 @@ exports.payrollRouter.post(["/generate", "/calculate"], auth_1.requireAuth, asyn
             const assignment = emp.salaryAssignments[0];
             const baseMonthlyCtc = assignment
                 ? Number(assignment.ctcMonthly)
-                : Number(emp.salary || 35000);
+                : Number(emp.salary ?? 0);
             const annualCtc = assignment?.ctcAnnual
                 ? Number(assignment.ctcAnnual)
                 : (emp.salary ? Number(emp.salary) * 12 : undefined);
@@ -1413,8 +1471,133 @@ exports.payrollRouter.post(["/generate", "/calculate"], auth_1.requireAuth, asyn
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
 });
+// GET /api/payroll/runs/:id/validation (Pre-flight Validation Report)
+exports.payrollRouter.get("/runs/:id/validation", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin"), async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const { id } = req.params;
+        const validationResult = await payroll_validation_service_1.PayrollValidationService.validatePayrollRun(tenantId, id);
+        return res.json(validationResult);
+    }
+    catch (err) {
+        return res.status(err.message === "Payroll run not found for the specified tenant." ? 404 : 500).json({
+            error: err.message || "Failed to run pre-flight validation.",
+        });
+    }
+});
+// POST /api/payroll/runs/:id/validation/approve-exception (Audited Exception Approval)
+exports.payrollRouter.post("/runs/:id/validation/approve-exception", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "finance_admin"), async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const { id } = req.params;
+        const { code, employeeId, justification } = req.body;
+        if (!code || !justification || typeof justification !== "string" || justification.trim().length < 5) {
+            return res.status(400).json({ error: "Exception code and detailed justification (min 5 chars) are required." });
+        }
+        // Critical Rule: BLOCKERS cannot be bypassed or approved
+        const nonBypassableBlockers = [
+            "COMP_OVERLAPPING_ASSIGNMENT",
+            "COMP_MISSING_ASSIGNMENT",
+            "COMP_NEGATIVE_CTC",
+            "COMP_MISSING_STRUCTURE",
+            "COMP_FUTURE_EFFECTIVE_DATE",
+            "COMP_EXPIRED_ASSIGNMENT",
+            "DATA_MISSING_EMP_CODE",
+            "DATA_INACTIVE_EMPLOYEE",
+            "DATA_MISSING_BANK_ACCOUNT",
+            "DATA_INVALID_IFSC",
+            "CALC_NEGATIVE_NET_PAY",
+            "CALC_DEDUCTIONS_EXCEED_GROSS",
+            "CALC_ZERO_DAYS_WITH_GROSS",
+        ];
+        if (nonBypassableBlockers.includes(code)) {
+            return res.status(403).json({
+                error: `Security Restriction: ${code} is classified as a strict BLOCKER and cannot be bypassed. Remediation in data/calculation is mandatory.`,
+            });
+        }
+        const run = await prisma_1.prisma.payrollRun.findUnique({
+            where: { id },
+        });
+        if (!run || run.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Payroll run not found." });
+        }
+        if (run.approvalStatus === "finalized" || run.status === "paid") {
+            return res.status(400).json({ error: "Cannot approve exceptions on finalized immutable payroll runs." });
+        }
+        const manifest = run.statutoryManifest || {};
+        const existingExceptions = manifest.approvedExceptions || [];
+        const newException = {
+            code,
+            employeeId: employeeId || null,
+            approvedBy: req.user?.email || "Authorized Admin",
+            approvedAt: new Date().toISOString(),
+            justification: justification.trim(),
+        };
+        const updated = await prisma_1.prisma.payrollRun.update({
+            where: { id },
+            data: {
+                statutoryManifest: {
+                    ...manifest,
+                    approvedExceptions: [...existingExceptions, newException],
+                },
+            },
+        });
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: req.user?.id || req.user?.userId,
+            actorEmail: req.user?.email,
+            action: "payroll.exception.approved",
+            entityType: "PayrollRun",
+            entityId: id,
+            newState: newException,
+        });
+        return res.json({
+            success: true,
+            message: "Exception approved and recorded in audit log.",
+            exception: newException,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to approve exception." });
+    }
+});
+// GET /api/payroll/runs/:id/staffing-summary (Preview commercial billing by client)
+exports.payrollRouter.get("/runs/:id/staffing-summary", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin", "finance_manager"), async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        const { clientId } = req.query;
+        const manifest = await contract_billing_service_1.ContractBillingService.generateRunBillingManifest(id, tenantId, { targetClientId: clientId });
+        return res.json({ success: true, data: manifest });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to generate staffing billing summary" });
+    }
+});
+// POST /api/payroll/runs/:id/generate-invoices (Trigger client invoices from approved payroll run)
+exports.payrollRouter.post("/runs/:id/generate-invoices", (0, auth_1.requireRole)("super_admin", "tenant_admin", "admin", "finance_manager", "hr_admin"), async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.id || "system";
+        const { id } = req.params;
+        const { clientId, status = "DRAFT", forceRegenerate = false } = req.body;
+        const result = await contract_invoice_service_1.ContractInvoiceService.generateInvoicesForPayrollRun(id, tenantId, actorId, {
+            targetClientId: clientId,
+            initialStatus: status,
+            forceRegenerate,
+        });
+        return res.status(201).json({ success: true, data: result });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to generate client invoices" });
+    }
+});
 // PATCH /api/payroll/runs/:id/status (State Machine: calculated -> under_review -> approved -> finalized -> paid)
-exports.payrollRouter.patch("/runs/:id/status", auth_1.requireAuth, async (req, res) => {
+exports.payrollRouter.patch("/runs/:id/status", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin"), async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         if (!tenantId)
@@ -1433,6 +1616,29 @@ exports.payrollRouter.patch("/runs/:id/status", auth_1.requireAuth, async (req, 
             return res.status(404).json({ error: "Payroll run not found." });
         }
         const nextApprovalStatus = approvalStatus || (status === "paid" ? "paid" : "approved");
+        // Pre-Flight Validation Gate before transitioning to finalized or paid
+        if (nextApprovalStatus === "finalized" || nextApprovalStatus === "paid") {
+            // 1. Reject if already finalized or paid (Immutability protection)
+            if (run.approvalStatus === "finalized" || run.status === "paid") {
+                return res.status(400).json({
+                    error: "Cannot recalculate or modify a finalized or paid payroll run. Historical records are immutable.",
+                });
+            }
+            // 2. Execute Pre-Flight Validation Gate immediately prior to finalization
+            const manifest = run.statutoryManifest || {};
+            const approvedExceptions = manifest.approvedExceptions || [];
+            const validation = await payroll_validation_service_1.PayrollValidationService.validatePayrollRun(tenantId, run.id, { approvedExceptions });
+            if (validation.blockerCount > 0) {
+                return res.status(422).json({
+                    error: `Payroll run finalization blocked. ${validation.blockerCount} blocking validation errors detected.`,
+                    canFinalize: false,
+                    blockerCount: validation.blockerCount,
+                    warningCount: validation.warningCount,
+                    blockers: validation.batchSummary.blockers,
+                    validationResult: validation,
+                });
+            }
+        }
         // If finalizing, create immutable audit snapshots for every employee
         if (nextApprovalStatus === "finalized" || nextApprovalStatus === "paid") {
             const existingSnapshots = await prisma_1.prisma.payrollSnapshot.count({
@@ -1496,7 +1702,7 @@ exports.payrollRouter.patch("/runs/:id/status", auth_1.requireAuth, async (req, 
     }
 });
 // GET /api/payroll/runs/:id/snapshots (Immutable Frozen Snapshot)
-exports.payrollRouter.get("/runs/:id/snapshots", auth_1.requireAuth, async (req, res) => {
+exports.payrollRouter.get("/runs/:id/snapshots", (0, auth_1.requireRole)("super_admin", "tenant_admin", "hr_admin", "hr_manager", "admin"), async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         if (!tenantId)

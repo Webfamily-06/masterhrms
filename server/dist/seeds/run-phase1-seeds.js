@@ -146,7 +146,7 @@ async function main() {
                 }
                 // Create assignment if none currently exists
                 if (emp.salaryAssignments.length === 0) {
-                    const monthlyCtc = Number(emp.salary || 35000);
+                    const monthlyCtc = Number(emp.salary ?? 0);
                     await prisma.employeeSalaryAssignment.create({
                         data: {
                             tenantId,

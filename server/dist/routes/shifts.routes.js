@@ -5,6 +5,7 @@ const express_1 = require("express");
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_1 = require("../lib/tenant");
+const shift_schema_1 = require("../schemas/shift.schema");
 exports.shiftsRouter = (0, express_1.Router)();
 // Default standard seed shifts for new workspaces
 const DEFAULT_SEED_SHIFTS = [
@@ -59,10 +60,15 @@ exports.shiftsRouter.post("/", auth_1.requireAuth, async (req, res) => {
         const tenantId = req.user?.tenantId;
         if (!tenantId)
             return res.status(400).json({ error: "Tenant context is required." });
-        const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = req.body;
-        if (!name || !code) {
-            return res.status(400).json({ error: "Shift name and code are required." });
+        const parsed = shift_schema_1.createShiftSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: "VALIDATION_FAILED",
+                details: parsed.error.format(),
+                message: parsed.error.issues[0]?.message || "Validation failed for shift creation.",
+            });
         }
+        const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = parsed.data;
         const shift = await prisma_1.prisma.shiftDefinition.create({
             data: {
                 tenantId,
@@ -91,7 +97,15 @@ exports.shiftsRouter.put("/:id", auth_1.requireAuth, async (req, res) => {
         if (!existing || (tenantId && existing.tenantId !== tenantId)) {
             return res.status(404).json({ error: "Shift definition not found." });
         }
-        const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = req.body;
+        const parsed = shift_schema_1.updateShiftSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: "VALIDATION_FAILED",
+                details: parsed.error.format(),
+                message: parsed.error.issues[0]?.message || "Validation failed for shift update.",
+            });
+        }
+        const { name, code, startTime, endTime, breakMinutes, allowance, isOvertimeEligible, color } = parsed.data;
         const updated = await prisma_1.prisma.shiftDefinition.update({
             where: { id },
             data: {

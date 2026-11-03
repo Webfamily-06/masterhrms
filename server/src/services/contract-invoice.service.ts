@@ -67,7 +67,7 @@ export class ContractInvoiceService {
         tenantId,
         OR: [
           { name: client.name },
-          ...(client.gstin ? [{ taxNumber: client.gstin }] : []),
+          ...(client.gstin ? [{ gstin: client.gstin }] : []),
         ],
       },
     });
@@ -78,7 +78,7 @@ export class ContractInvoiceService {
           tenantId,
           name: client.name,
           address: client.address || undefined,
-          taxNumber: client.gstin || undefined,
+          gstin: client.gstin || undefined,
         },
       });
     }
@@ -251,9 +251,6 @@ export class ContractInvoiceService {
                 taxAmount: ContractBillingService.round(
                   clientSummary.totalBillableCtc * (clientSummary.gstRate / 100)
                 ),
-                total: ContractBillingService.round(
-                  clientSummary.totalBillableCtc * (1 + clientSummary.gstRate / 100)
-                ),
               },
               {
                 productId: "SERVICE-MMU-MARKUP",
@@ -266,9 +263,6 @@ export class ContractInvoiceService {
                 taxRate: clientSummary.gstRate,
                 taxAmount: ContractBillingService.round(
                   clientSummary.totalMmu * (clientSummary.gstRate / 100)
-                ),
-                total: ContractBillingService.round(
-                  clientSummary.totalMmu * (1 + clientSummary.gstRate / 100)
                 ),
               },
             ],
