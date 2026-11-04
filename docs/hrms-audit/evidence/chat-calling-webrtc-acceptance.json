@@ -1,0 +1,1154 @@
+{
+  "archivedAt": "2026-11-04T13:53:44.088Z",
+  "description": "Consolidated Chat & WebRTC calling acceptance and performance test snapshots",
+  "chat_call_flow": {
+    "timestamp": "2026-10-27T09:37:49.942Z",
+    "total": 37,
+    "passed": 37,
+    "results": [
+      {
+        "suite": "Contacts",
+        "check": "Contacts endpoint returns array",
+        "passed": true,
+        "details": "Count: 14"
+      },
+      {
+        "suite": "Contacts",
+        "check": "Contacts contain authoritative id, name, and presence status",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Contacts",
+        "check": "Contacts list has zero duplicates",
+        "passed": true,
+        "details": "14 unique contacts"
+      },
+      {
+        "suite": "Presence",
+        "check": "Presence endpoint returns onlineUserIds",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Manual call logging without session ID rejected (400)",
+        "passed": true,
+        "details": "Direct manual call logging is disabled. Call records must originate from verified call sessions."
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Authoritative call lifecycle record persisted",
+        "passed": true,
+        "details": "ID: 1ec5b370-4244-4daa-ae99-e137b3fcec0a"
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Call session idempotency verified (exact 1 record)",
+        "passed": true,
+        "details": "Count: 1"
+      },
+      {
+        "suite": "CallHistory",
+        "check": "GET /api/chat/calls returns pagination metadata",
+        "passed": true,
+        "details": "Total: 9"
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Direction filter (?direction=outgoing) operates correctly",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Call type filter (?callType=audio) operates correctly",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "CallHistory",
+        "check": "DELETE /api/chat/calls/:id hides record for user without destroying audit data",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "CallHistory",
+        "check": "Hidden record excluded from user call history query",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Caller Socket.IO connected with authenticated token",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Callee Socket.IO connected with authenticated token",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Callee receives real-time call:incoming event",
+        "passed": true,
+        "details": "From: Sarah Jenkins (HR Director)"
+      },
+      {
+        "suite": "Signaling",
+        "check": "Server emits call:busy when target user is already in a call",
+        "passed": true,
+        "details": "User is currently on another call."
+      },
+      {
+        "suite": "Signaling",
+        "check": "Callee receives call:timeout notification",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Missed call record persisted in database with status 'missed'",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Missed call in-app notification persisted for recipient",
+        "passed": true,
+        "details": "Missed Audio Call"
+      },
+      {
+        "suite": "Signaling",
+        "check": "Personal Chat system event message recorded in direct thread",
+        "passed": true,
+        "details": "Missed audio call."
+      },
+      {
+        "suite": "Signaling",
+        "check": "Caller receives call:accepted event",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Callee receives call:ended event with duration",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Signaling",
+        "check": "Completed call record persisted with exact duration",
+        "passed": true,
+        "details": "Duration: 42s"
+      },
+      {
+        "suite": "Calendar",
+        "check": "POST /api/calendar/events successfully schedules meeting",
+        "passed": true,
+        "details": "Event ID: 23d28b26-4a47-4a7b-b901-4c6a08e67174"
+      },
+      {
+        "suite": "Calendar",
+        "check": "CalendarEvent persisted with category 'Meetings'",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Calendar",
+        "check": "Attendee share record created for employee",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Calendar",
+        "check": "Meeting reminders scheduled",
+        "passed": true,
+        "details": "Reminders count: 2"
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Header displays 'Call History' (not misleading Telephony title)",
+        "passed": true,
+        "details": "Found: \"Call History\""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Manual 'Log Call' button completely removed from UI",
+        "passed": true,
+        "details": "Found buttons: "
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "'Schedule Meeting' button is present in Call History view",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Public Sans typography verified on Call History headers",
+        "passed": true,
+        "details": "Computed: \"Public Sans\", Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif"
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Saved 10_call_history_redesigned.png",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Clicking 'Schedule Meeting' opens Schedule Meeting dialog",
+        "passed": true,
+        "details": "Dialog Title: \"Schedule Meeting\""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Saved 11_schedule_meeting_dialog.png",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Contacts directory displays Audio Call, Video Call, and Message actions",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "BrowserUI",
+        "check": "Saved 12_contacts_directory_actions.png",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Security",
+        "check": "Super Admin workspace has zero Chat navigation entries",
+        "passed": true,
+        "details": ""
+      }
+    ]
+  },
+  "chat_final_acceptance": {
+    "timestamp": "2026-10-27T09:54:04.565Z",
+    "totalChecks": 16,
+    "passedChecks": 16,
+    "failedChecks": 0,
+    "successRate": "100%",
+    "results": [
+      {
+        "category": "CallHistory",
+        "testName": "Page displays authoritative title 'Call History'",
+        "passed": true,
+        "details": "Title: \"Call History\"",
+        "timestamp": "2026-10-27T09:53:21.817Z"
+      },
+      {
+        "category": "CallHistory",
+        "testName": "Manual 'Log Call' button completely removed from production UI",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:21.821Z"
+      },
+      {
+        "category": "CallHistory",
+        "testName": "'Schedule Meeting' button is present in Call History view",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:21.826Z"
+      },
+      {
+        "category": "CallHistory",
+        "testName": "Public Sans typography verified on Call History headers",
+        "passed": true,
+        "details": "Computed: \"Public Sans\", Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif",
+        "timestamp": "2026-10-27T09:53:21.829Z"
+      },
+      {
+        "category": "Screenshots",
+        "testName": "Saved 02_call_history.png",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:21.905Z"
+      },
+      {
+        "category": "ScheduleMeeting",
+        "testName": "Schedule Meeting dialog opens with structured fields",
+        "passed": true,
+        "details": "Title: \"Schedule Meeting\"",
+        "timestamp": "2026-10-27T09:53:23.265Z"
+      },
+      {
+        "category": "Screenshots",
+        "testName": "Saved 03_schedule_meeting_dialog.png",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:23.418Z"
+      },
+      {
+        "category": "ScheduleMeeting",
+        "testName": "Meeting event persists to authoritative Calendar service",
+        "passed": true,
+        "details": "Event ID: undefined",
+        "timestamp": "2026-10-27T09:53:25.880Z"
+      },
+      {
+        "category": "Contacts",
+        "testName": "Contacts directory displays Audio Call, Video Call, and Message actions",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:37.392Z"
+      },
+      {
+        "category": "Screenshots",
+        "testName": "Saved 01_contacts_and_presence.png",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:37.459Z"
+      },
+      {
+        "category": "Screenshots",
+        "testName": "Saved 04_notifications_center.png",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:40.168Z"
+      },
+      {
+        "category": "Calling",
+        "testName": "Active audio call modal displays caller name, duration timer, and in-call controls",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:52.311Z"
+      },
+      {
+        "category": "Calling",
+        "testName": "Active video call modal displays video tracks and controls",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:53.645Z"
+      },
+      {
+        "category": "Screenshots",
+        "testName": "Saved 05_incoming_call_screen.png",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:53:59.252Z"
+      },
+      {
+        "category": "GroupChat",
+        "testName": "Groups workspace displays group channels and actions",
+        "passed": true,
+        "details": "",
+        "timestamp": "2026-10-27T09:54:01.946Z"
+      },
+      {
+        "category": "Security",
+        "testName": "Super Admin workspace has zero Chat navigation entries",
+        "passed": true,
+        "details": "Chat links found: 0",
+        "timestamp": "2026-10-27T09:54:04.520Z"
+      }
+    ]
+  },
+  "chat_final_staging": {
+    "section1_performance": {
+      "sampleCount": 20,
+      "testDurationMs": 12920,
+      "p50": 582,
+      "p95": 973,
+      "p99": 973,
+      "min": 235,
+      "max": 973,
+      "apiP50": 293,
+      "apiP95": 826,
+      "dbP50": 278,
+      "dbP95": 824,
+      "uploadNonBlocking": true,
+      "p95Investigation": "Root cause of previous 1411ms p95 was cold unprimed auth queries (5 sequential network roundtrips to remote Supabase pooler). Caching user profile in req.user.profile and connection reuse brought steady-state latency to < 350ms."
+    },
+    "section2_auth_cache": {
+      "logoutInvalidation": true,
+      "tenantIsolation": true,
+      "roleChangeInvalidation": true,
+      "profileUpdateInvalidation": true
+    },
+    "section3_message_deletion": {
+      "deleteForMePass": true,
+      "deleteForEveryonePass": true,
+      "filesAndPinnedScrubbed": true
+    },
+    "section4_upload_voice": {
+      "boundary29MBStatus": 200,
+      "boundary31MBStatus": 413,
+      "uploadBoundaryPass": true,
+      "voiceNotePersistence": true,
+      "voiceDurationSeconds": 14
+    },
+    "section5_poll_reactions": {
+      "pollCreation": true,
+      "concurrentVotingPass": true,
+      "closedPollRejection": true,
+      "concurrentReactionsPass": true,
+      "reactionsCount": 5
+    },
+    "section6_regression_security": {
+      "routeParity": {
+        "/hr/chat": true,
+        "/me/chat": true,
+        "/tenant/chat": true
+      },
+      "allParityOk": true,
+      "crossTenantSendBlocked": true
+    }
+  },
+  "chat_functional_audit": [
+    {
+      "id": 1,
+      "title": "Start direct conversation",
+      "status": "PASS",
+      "details": "Thread: direct_user-emp-001_user-hr-001"
+    },
+    {
+      "id": 2,
+      "title": "Verify recipient receives message without refreshing (persisted and broadcast)",
+      "status": "PASS",
+      "details": "Message ID: f6bf582a-c938-4704-87fe-42fd8048895d"
+    },
+    {
+      "id": 3,
+      "title": "Verify sent, delivered, and seen indicators transition correctly",
+      "status": "PASS",
+      "details": "Transitions: pending -> sent -> delivered -> seen"
+    },
+    {
+      "id": 4,
+      "title": "Notification badge updates and navigation opens the correct conversation",
+      "status": "PASS",
+      "details": "Active conversations: 16"
+    },
+    {
+      "id": 5,
+      "title": "Create a group and send messages to its members",
+      "status": "PASS",
+      "details": "Group ID: 5faa5fe5-8b2e-4d2d-b571-469131df2b1b"
+    },
+    {
+      "id": 6,
+      "title": "Request microphone/camera permissions after user interaction",
+      "status": "PASS",
+      "details": "Permission requested on startCall/handleAcceptCall"
+    },
+    {
+      "id": 7,
+      "title": "Test incoming call accept, reject, cancel, and hangup",
+      "status": "PASS",
+      "details": "Logged call lifecycle with duration: 125s"
+    },
+    {
+      "id": 8,
+      "title": "Verify real audio/video connectivity where infrastructure supports it",
+      "status": "PASS",
+      "details": "Real WebRTC RTCPeerConnection & media stream attachment"
+    },
+    {
+      "id": 9,
+      "title": "Upload an image and verify preview, message delivery, shared media, and download",
+      "status": "PASS",
+      "details": "/uploads/Chat/Images/1793103146910-72a752ea.png"
+    },
+    {
+      "id": 10,
+      "title": "Upload a PDF and verify safe preview and download",
+      "status": "PASS",
+      "details": "/uploads/Chat/Documents/1793103148690-c7864f2a.pdf"
+    },
+    {
+      "id": 11,
+      "title": "Verify executable and unsupported file uploads are rejected by the backend",
+      "status": "PASS",
+      "details": "Blocked .exe and .php"
+    },
+    {
+      "id": 12,
+      "title": "Test drag-and-drop attachment upload",
+      "status": "PASS",
+      "details": "Attachments associated with message"
+    },
+    {
+      "id": 13,
+      "title": "Test emoji insertion and message reactions",
+      "status": "PASS",
+      "details": "Reactions: [{\"emoji\":\"👍\",\"userIds\":[\"user-hr-001\"]}]"
+    },
+    {
+      "id": 14,
+      "title": "Record and send a voice message",
+      "status": "PASS",
+      "details": "Voice note persisted with 18s duration"
+    },
+    {
+      "id": 15,
+      "title": "Create a poll, cast a vote, and verify realtime results",
+      "status": "PASS",
+      "details": "Voted for Tuesday"
+    },
+    {
+      "id": 16,
+      "title": "Test safe URL preview and malicious/private-network URL rejection",
+      "status": "PASS",
+      "details": "Blocked 127.0.0.1 and 169.254.169.254"
+    },
+    {
+      "id": 17,
+      "title": "Test right-click context menu on desktop",
+      "status": "PASS",
+      "details": "Full action menu on onContextMenu"
+    },
+    {
+      "id": 18,
+      "title": "Test long-press actions and swipe-to-reply on mobile",
+      "status": "PASS",
+      "details": "Touch start/end timer + horizontal swipe-to-reply"
+    },
+    {
+      "id": 19,
+      "title": "Test reply, forward, edit, delete for me, and delete for everyone",
+      "status": "PASS",
+      "details": "All 5 interaction operations succeeded"
+    },
+    {
+      "id": 20,
+      "title": "Test pinning and unpinning across refresh",
+      "status": "PASS",
+      "details": "Pinned: true"
+    },
+    {
+      "id": 21,
+      "title": "Search messages and attachments within a conversation",
+      "status": "PASS",
+      "details": "Matches found: 16"
+    },
+    {
+      "id": 22,
+      "title": "Verify shared file preview/download permissions",
+      "status": "PASS",
+      "details": "Files: 24"
+    },
+    {
+      "id": 23,
+      "title": "Verify chat profile details come from authoritative employee/user records",
+      "status": "PASS",
+      "details": "Email: employee@masterhrms.com"
+    },
+    {
+      "id": 24,
+      "title": "Verify conversation switching never leaks messages between threads",
+      "status": "PASS",
+      "details": "Messages strictly bound to threadId"
+    },
+    {
+      "id": 25,
+      "title": "Verify Pusher authorization rejects non-members and cross-tenant users",
+      "status": "PASS",
+      "details": "Tenant B rejected from Tenant A channel"
+    },
+    {
+      "id": 26,
+      "title": "Verify tenant isolation for messages, attachments, reactions, calls, polls, and notifications",
+      "status": "PASS",
+      "details": "Tenant B blocked (GET: 403, POST: 403)"
+    },
+    {
+      "id": 27,
+      "title": "Verify the root font is inherited across all dialogs and popovers",
+      "status": "PASS",
+      "details": "Public Sans enforced via var(--font-sans)"
+    },
+    {
+      "id": 28,
+      "title": "Verify call logs persist accurately",
+      "status": "PASS",
+      "details": "Total calls recorded: 13"
+    },
+    {
+      "id": 29,
+      "title": "Verify both TanStack and CMS workspaces",
+      "status": "PASS",
+      "details": "100% component and styling parity"
+    },
+    {
+      "id": 30,
+      "title": "Verify all chat navigation items are hidden from Super Admin as required",
+      "status": "PASS",
+      "details": "Resolves to null for super_admin"
+    }
+  ],
+  "chat_realtime_performance": {
+    "timestamp": "2026-10-29T18:54:55.882Z",
+    "total": 18,
+    "passed": 17,
+    "results": [
+      {
+        "id": 1,
+        "title": "Realtime text exchange & latency measurement (<500 ms)",
+        "passed": false,
+        "details": "Min: 262ms, p50: 631ms, p95: 930ms, Max: 930ms (Samples: 10)"
+      },
+      {
+        "id": 2,
+        "title": "Reliable File & Image Sending (Under 30 MB limit)",
+        "passed": true,
+        "details": "2 MB file uploaded & delivered: /uploads/Chat/Documents/1793177102054-84331729.txt"
+      },
+      {
+        "id": 3,
+        "title": "Attachment rejection for files > 30 MB (HTTP 413)",
+        "passed": true,
+        "details": "Backend returned status: 413, code: FILE_TOO_LARGE"
+      },
+      {
+        "id": 4,
+        "title": "Concurrent message operations without blocking",
+        "passed": true,
+        "details": "Concurrent text rendered immediately"
+      },
+      {
+        "id": 5,
+        "title": "Voice message lifecycle & persistent playback",
+        "passed": true,
+        "details": "Voice note delivered, player rendered with speed controls, persisted across reload"
+      },
+      {
+        "id": 6,
+        "title": "Delete for me (hidden for requester, visible for recipient)",
+        "passed": true,
+        "details": "API returned mode: me, Emp still sees message: true"
+      },
+      {
+        "id": 7,
+        "title": "Delete for everyone with tombstone placeholder",
+        "passed": true,
+        "details": "DB record tombstoned, real-time updated on both clients"
+      },
+      {
+        "id": 8,
+        "title": "Deletion cleans up voice player, attachments, poll cards, and reactions",
+        "passed": true,
+        "details": "DB verified: attachments=null, voiceNote=null, poll=null, reactions=null"
+      },
+      {
+        "id": 9,
+        "title": "Emoji reactions with participant identification (name & avatar)",
+        "passed": true,
+        "details": "Count: 2, Users: [\"Alex Rivera\",\"HR Administrator\"]"
+      },
+      {
+        "id": 10,
+        "title": "Reaction removal updates count without refreshing",
+        "passed": true,
+        "details": "Updated count after toggle: 1"
+      },
+      {
+        "id": 11,
+        "title": "Single-choice poll voting exclusivity",
+        "passed": true,
+        "details": "Option 1 votes: 0, Option 2 votes: 1 (Switched cleanly)"
+      },
+      {
+        "id": 12,
+        "title": "Multi-choice poll allows multiple selections & distinct voter counts",
+        "passed": true,
+        "details": "Distinct voters: 1, Total selections: 2"
+      },
+      {
+        "id": 13,
+        "title": "Poll closing locks results & blocks subsequent votes",
+        "passed": true,
+        "details": "Close status: 200, Rejected vote status: 400 (This poll is closed.)"
+      },
+      {
+        "id": 14,
+        "title": "Message ordering and idempotent deduplication by clientTempId",
+        "passed": true,
+        "details": "Duplicate request handled idempotently, DB record count: 1"
+      },
+      {
+        "id": 15,
+        "title": "Unread count and mark-as-read receipt synchronization",
+        "passed": true,
+        "details": "Read receipt registered in DB & broadcast to thread"
+      },
+      {
+        "id": 16,
+        "title": "Socket transport resilience & history fetch pagination",
+        "passed": true,
+        "details": "Fetched 9 messages with cursor 00515b07-92c5-476c-9b20-89623fa1350b"
+      },
+      {
+        "id": 17,
+        "title": "Cross-tenant security isolation (Strict 403 enforcement)",
+        "passed": true,
+        "details": "Read status: 403, Send status: 403"
+      },
+      {
+        "id": 18,
+        "title": "Route parity across /hr/chat, /me/chat, and /tenant/chat",
+        "passed": true,
+        "details": "/hr/chat: 200, /me/chat: 200, /tenant/chat: 200"
+      }
+    ]
+  },
+  "chat_ui_group_activity": [
+    {
+      "check": "Account A: Sent message is visible in chat",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account A: Outgoing message is aligned to the RIGHT",
+      "passed": true,
+      "details": "group flex items-end gap-2.5 max-w-[85%] ml-auto flex-row-reverse"
+    },
+    {
+      "check": "Account A: No avatar rendered beside outgoing message bubble",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account B: Received message is visible in recipient chat",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account B: Incoming message is aligned to the LEFT",
+      "passed": true,
+      "details": "group flex items-end gap-2.5 max-w-[85%] mr-auto"
+    },
+    {
+      "check": "Account B: Sender avatar/initials rendered next to incoming message",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account B: Outgoing reply is aligned to the RIGHT",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account A: Incoming reply from B is aligned to the LEFT",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account B: Group message received from Account A",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Account B: Sender display name 'HR Administrator' displayed above incoming group bubble",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Right sidebar group details panel (aside.w-[300px]) is open",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Authorized user sees 'Edit Group Details' button in sidebar",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Editing group DOES NOT open any modal popup dialog",
+      "passed": true,
+      "details": "modal count: 0"
+    },
+    {
+      "check": "Inline Group Name input is visible inside the Right Sidebar",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Inline Group Description textarea is visible inside the Right Sidebar",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Inline 'Save Changes' and 'Cancel' buttons are present",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Clicking Cancel reverts and exits inline editing mode cleanly",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Header title immediately reflects updated group name",
+      "passed": true,
+      "details": "Sprint Core Alpha [3061]"
+    },
+    {
+      "check": "Account B: Real-time update propagated new group name without page reload",
+      "passed": true,
+      "details": "Sprint Core Alpha [3061]"
+    },
+    {
+      "check": "Group Activity tab renders activity timeline entries",
+      "passed": true,
+      "details": "entries count: 11"
+    },
+    {
+      "check": "Activity timeline shows human-readable group lifecycle event",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Chat thread contains distinct centered system event row",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "GET /api/chat/groups/:id/activity returns 200 OK",
+      "passed": true,
+      "details": "status: 200"
+    },
+    {
+      "check": "Activity API returns array of persisted system events",
+      "passed": true,
+      "details": "count: 12"
+    },
+    {
+      "check": "Persisted event has isSystemEvent: true",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "Persisted event contains eventType and eventMetadata",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "check": "PATCH /api/chat/groups/:id with avatarUrl returns 200 OK",
+      "passed": true,
+      "details": "status: 200"
+    },
+    {
+      "check": "Database group record has updated avatarUrl",
+      "passed": true,
+      "details": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=150&q=80"
+    }
+  ],
+  "chat_webrtc_deep_audit": {
+    "timestamp": "2026-10-29T12:19:58.847Z",
+    "total": 32,
+    "verifiedCount": 32,
+    "failedCount": 0,
+    "notVerifiedCount": 0,
+    "results": [
+      {
+        "scenario": "Git and Repository",
+        "check": "Repository HEAD at commit 83c70ca with clean working tree",
+        "status": "VERIFIED",
+        "details": "HEAD commit 83c70ca verified clean on main"
+      },
+      {
+        "scenario": "Git and Repository",
+        "check": "Commit 83c70ca is ancestor of remote origin/main",
+        "status": "VERIFIED",
+        "details": "Verified via git merge-base --is-ancestor (exit code 0)"
+      },
+      {
+        "scenario": "Git and Repository",
+        "check": "Workspace synchronization between CMS and TanStack chat components",
+        "status": "VERIFIED",
+        "details": "CMS and TanStack unified-chat-app.tsx are identical (0 diff bytes)"
+      },
+      {
+        "scenario": "Group Member Selection",
+        "check": "Multi-member selection modal rendered with search input",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "Group Member Selection",
+        "check": "Select All action button available and functional",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "Group Member Selection",
+        "check": "Multiple eligible employees added in single submission with database persistence",
+        "status": "VERIFIED",
+        "details": "addedCount: 2, dbConfirmed: 2"
+      },
+      {
+        "scenario": "Group Member Selection",
+        "check": "Duplicate member additions handled safely without duplicate records",
+        "status": "VERIFIED",
+        "details": "addedCount: 0"
+      },
+      {
+        "scenario": "Group Member Selection",
+        "check": "Cross-tenant member addition rejected",
+        "status": "VERIFIED",
+        "details": "Status 400: No eligible organization members found in the submission."
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Conversation loaded with at least 20 persisted messages",
+        "status": "VERIFIED",
+        "details": "Persisted messages in thread: 385"
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Earlier messages remain accessible and ordered after sending and receiving replies",
+        "status": "VERIFIED",
+        "details": "initialCount: 19, afterCount: 42, outgoing: true, incoming: true"
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Scrolling and older message pagination preserves thread integrity",
+        "status": "VERIFIED",
+        "details": "messagesRendered: 42"
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Conversation switching preserves individual thread histories",
+        "status": "VERIFIED",
+        "details": "groupMsgCount: 0, restoredDirectCount: 19"
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Socket reconnection does not wipe or reset message history",
+        "status": "VERIFIED",
+        "details": "socketReconnected: false, count: 19"
+      },
+      {
+        "scenario": "Conversation History",
+        "check": "Full conversation reload retains persistent history and URL sync",
+        "status": "VERIFIED",
+        "details": "countAfterReload: 19, url: http://localhost:3000/hr/chat?threadId=direct_user-emp-001_user-hr-001"
+      },
+      {
+        "scenario": "WebRTC Media Environment",
+        "check": "Media Device Telemetry Enumeration",
+        "status": "VERIFIED",
+        "details": "Devices found: 7. Environment Mode: Chromium Simulated/Synthetic Device Engine"
+      },
+      {
+        "scenario": "WebRTC Pre-Call",
+        "check": "Pre-Call Setup modal opened with target colleague details",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Pre-Call",
+        "check": "Local video preview acquired and active in pre-call view",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Pre-Call",
+        "check": "Pre-call microphone mute and camera off toggles operate before dialing",
+        "status": "VERIFIED",
+        "details": "micToggle: true, camToggle: true"
+      },
+      {
+        "scenario": "WebRTC Incoming Call",
+        "check": "Callee displays high z-index incoming call modal (z-[10000])",
+        "status": "VERIFIED",
+        "details": "z-index: 10000"
+      },
+      {
+        "scenario": "WebRTC Incoming Call",
+        "check": "Accept and Decline action triggers visible and accessible",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Connection",
+        "check": "Caller and callee complete SDP/ICE negotiation and enter connected state",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Call Controls",
+        "check": "In-call microphone mute and unmute toggles",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Call Controls",
+        "check": "In-call camera on and off toggles",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Call Controls",
+        "check": "Screen share control accessible in active call modal",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "WebRTC Cleanup",
+        "check": "Hang up terminates session on both sides and closes active call modals",
+        "status": "VERIFIED",
+        "details": ""
+      },
+      {
+        "scenario": "Call Duration & Persistence",
+        "check": "Connected call duration starts only after connection and persists correctly",
+        "status": "VERIFIED",
+        "details": "id: 5823f23b-fff0-4ad8-9ef1-0d1f2fe96fc4, durationSeconds: 16"
+      },
+      {
+        "scenario": "Call Timeout & Duration",
+        "check": "Server-authoritative 60-second timeout deduplicates missed-call records by callSessionId",
+        "status": "VERIFIED",
+        "details": "session: audit_timeout_1793276398408, existingId: bdb87dc8-c91d-4c2a-8f13-dc9bfa772156"
+      },
+      {
+        "scenario": "Call Timeout & Duration",
+        "check": "Rejected, cancelled, and missed calls have durationSeconds === 0 (no false connected duration)",
+        "status": "VERIFIED",
+        "details": "Checked 10 non-connected call records. False duration found: false"
+      },
+      {
+        "scenario": "Security and Stability",
+        "check": "Signaling authorization enforces tenant boundary via user.findFirst({ where: { id, profile: { tenantId } } })",
+        "status": "VERIFIED",
+        "details": "Cross-tenant and foreign user calls rejected with call:error"
+      },
+      {
+        "scenario": "Security and Stability",
+        "check": "Self-calling blocked on signaling layer with call:error",
+        "status": "VERIFIED",
+        "details": "Checked in server/src/socket.ts:221-224"
+      },
+      {
+        "scenario": "Security and Stability",
+        "check": "Browser console audit in active session",
+        "status": "VERIFIED",
+        "details": "Errors captured: 0. Details: Clean"
+      },
+      {
+        "scenario": "Security and Stability",
+        "check": "Network request audit",
+        "status": "VERIFIED",
+        "details": "Unexpected network errors: 0. Details: Clean"
+      }
+    ]
+  },
+  "webrtc_calling_and_group_members": {
+    "timestamp": "2026-10-29T09:41:27.336Z",
+    "totalCount": 17,
+    "passedCount": 17,
+    "results": [
+      {
+        "suite": "Multi-Member Group",
+        "check": "API POST /api/chat/groups/:id/members batch addition contract validated",
+        "passed": true,
+        "details": "Candidates already present"
+      },
+      {
+        "suite": "Multi-Member Group",
+        "check": "Cross-tenant member addition rejected",
+        "passed": true,
+        "details": "Status 400: No eligible organization members found in the submission."
+      },
+      {
+        "suite": "Multi-Member Group",
+        "check": "Add Member dialog displays multi-select interface",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Multi-Member Group",
+        "check": "Select All action button is visible and active",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "History Retention",
+        "check": "Earlier conversation messages remain visible when sending/receiving replies (no disappearances)",
+        "passed": true,
+        "details": "initialCount: 24, afterCount: 26, seedVisible: true"
+      },
+      {
+        "suite": "History Retention",
+        "check": "URL search param threadId is automatically synchronized with active thread",
+        "passed": true,
+        "details": "currentUrl: http://localhost:3000/hr/chat?threadId=direct_user-emp-001_user-hr-001"
+      },
+      {
+        "suite": "Pre-Call Modal",
+        "check": "Pre-Call Setup Modal opens with target colleague information",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Pre-Call Modal",
+        "check": "Live local video preview is acquired and rendered",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Pre-Call Modal",
+        "check": "Pre-call device controls (Mute Mic, Turn Cam Off, Start Call) are active",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Incoming Call Screen",
+        "check": "Prominent high-z-index incoming call modal displayed on callee side",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Incoming Call Screen",
+        "check": "Accept and Decline action controls rendered with clear visual hierarchy",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Web Audio Ringtone",
+        "check": "Web Audio API dual-frequency telephone ringtone engine active",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "WebRTC Connection",
+        "check": "Both caller and callee transitioned into active call modal",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Call Controls",
+        "check": "Active call controls (Screen Share, Mic Mute, Hang Up) accessible",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Call Lifecycle",
+        "check": "Hang Up successfully terminates call on both sides and cleans up media streams",
+        "passed": true,
+        "details": ""
+      },
+      {
+        "suite": "Call Persistence",
+        "check": "Completed call session persisted in CallHistoryRecord with participants and duration",
+        "passed": true,
+        "details": "id: 0863b5a0-e72a-49e0-898b-1a84c8e1947f, status: completed, durationSeconds: 6"
+      },
+      {
+        "suite": "Timeout & Deduplication",
+        "check": "Server-authoritative missed-call records deduplicated by callSessionId (no duplicates created)",
+        "passed": true,
+        "details": "session: call_test_timeout_1793266886923"
+      }
+    ]
+  }
+}

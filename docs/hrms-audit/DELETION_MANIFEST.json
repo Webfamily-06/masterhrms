@@ -1,0 +1,416 @@
+{
+  "totalItems": 51,
+  "totalBytes": 5566632710,
+  "totalMB": "5308.75",
+  "totalGB": "5.184",
+  "manifest": [
+    {
+      "path": "CMS/.next",
+      "type": "directory",
+      "sizeBytes": 4231563194,
+      "sizeMB": 4035.53,
+      "category": "Category C: Generated Artifact",
+      "reason": "Untracked Next.js webpack cache and dev builds; regenerated cleanly by next build."
+    },
+    {
+      "path": ".next",
+      "type": "directory",
+      "sizeBytes": 140700633,
+      "sizeMB": 134.18,
+      "category": "Category C: Generated Artifact",
+      "reason": "Untracked root legacy Next.js build cache."
+    },
+    {
+      "path": "dist",
+      "type": "directory",
+      "sizeBytes": 183862044,
+      "sizeMB": 175.34,
+      "category": "Category C: Generated Artifact",
+      "reason": "Untracked root Vite build output; regenerated cleanly by npm run build:vite."
+    },
+    {
+      "path": "node_modules_cms_temp",
+      "type": "directory",
+      "sizeBytes": 471104958,
+      "sizeMB": 449.28,
+      "category": "Category A: Unused / Temporary",
+      "reason": "Untracked temporary backup copy of CMS node_modules from prior dependency restructuring."
+    },
+    {
+      "path": "docs/Addon/extracted",
+      "type": "directory",
+      "sizeBytes": 98254282,
+      "sizeMB": 93.7,
+      "category": "Category A: Unused / Temporary",
+      "reason": "Untracked temporary zip extraction artifacts from legacy addon inspection."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp2064",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp3192",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp38248",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp41444",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp43840",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp45168",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp52408",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp54336",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp55188",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp55776",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp56444",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "node_modules/.prisma/client/query_engine-windows.dll.node.tmp9824",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp18092",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp21600",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp24072",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp30472",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp33280",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp41684",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp43224",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp44708",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp47264",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "server/node_modules/.prisma/client/query_engine-windows.dll.node.tmp47900",
+      "type": "file",
+      "sizeBytes": 19261952,
+      "sizeMB": 18.3696,
+      "category": "Category C: Generated Artifact",
+      "reason": "Stale temporary query_engine DLL copy generated during Windows prisma generate with locked handles."
+    },
+    {
+      "path": "CMS/public/video/hero-video.mp4",
+      "type": "file",
+      "sizeBytes": 15947880,
+      "sizeMB": 15.2091,
+      "category": "Category B: Duplicate Asset",
+      "reason": "Exact SHA-256 byte duplicate of canonical CMS/public/videos/hero-video.mp4 referenced in CMS/src/components/home/hero.tsx"
+    },
+    {
+      "path": "scripts/census_diff.json",
+      "type": "file",
+      "sizeBytes": 175116,
+      "sizeMB": 0.167,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_call_flow_results.json",
+      "type": "file",
+      "sizeBytes": 6279,
+      "sizeMB": 0.006,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_final_acceptance_results.json",
+      "type": "file",
+      "sizeBytes": 3681,
+      "sizeMB": 0.0035,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_final_staging_evidence.json",
+      "type": "file",
+      "sizeBytes": 1468,
+      "sizeMB": 0.0014,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_functional_audit_results.json",
+      "type": "file",
+      "sizeBytes": 5194,
+      "sizeMB": 0.005,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_realtime_performance_results.json",
+      "type": "file",
+      "sizeBytes": 3779,
+      "sizeMB": 0.0036,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_ui_group_activity_acceptance_results.json",
+      "type": "file",
+      "sizeBytes": 3647,
+      "sizeMB": 0.0035,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/chat_webrtc_deep_audit_results.json",
+      "type": "file",
+      "sizeBytes": 7061,
+      "sizeMB": 0.0067,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/classified_routes_full.json",
+      "type": "file",
+      "sizeBytes": 168639,
+      "sizeMB": 0.1608,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/consolidated_audit_results.json",
+      "type": "file",
+      "sizeBytes": 104756,
+      "sizeMB": 0.0999,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/detailed_66_analysis.json",
+      "type": "file",
+      "sizeBytes": 27645,
+      "sizeMB": 0.0264,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/email_acceptance_results.json",
+      "type": "file",
+      "sizeBytes": 1844,
+      "sizeMB": 0.0018,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/extracted_payroll_metadata.json",
+      "type": "file",
+      "sizeBytes": 214348,
+      "sizeMB": 0.2044,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/full_discovered_route_inventory.json",
+      "type": "file",
+      "sizeBytes": 169816,
+      "sizeMB": 0.1619,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/incomplete_routes_deep_audit.json",
+      "type": "file",
+      "sizeBytes": 34054,
+      "sizeMB": 0.0325,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/incomplete_routes_inventory.json",
+      "type": "file",
+      "sizeBytes": 40408,
+      "sizeMB": 0.0385,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/independent_acceptance_results.json",
+      "type": "file",
+      "sizeBytes": 24360,
+      "sizeMB": 0.0232,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/media_baseline.json",
+      "type": "file",
+      "sizeBytes": 2149,
+      "sizeMB": 0.002,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/migration_audit_results.json",
+      "type": "file",
+      "sizeBytes": 20657,
+      "sizeMB": 0.0197,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/navigation_reconciliation.json",
+      "type": "file",
+      "sizeBytes": 157487,
+      "sizeMB": 0.1502,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/reexports_analysis.json",
+      "type": "file",
+      "sizeBytes": 25409,
+      "sizeMB": 0.0242,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/route_deep_audit.json",
+      "type": "file",
+      "sizeBytes": 235525,
+      "sizeMB": 0.2246,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    },
+    {
+      "path": "scripts/webrtc_calling_and_group_members_results.json",
+      "type": "file",
+      "sizeBytes": 3453,
+      "sizeMB": 0.0033,
+      "category": "Category D: Obsolete Test / Debug Artifact",
+      "reason": "One-off static JSON audit report from prior migration tasks; not referenced in package.json or CI."
+    }
+  ]
+}
