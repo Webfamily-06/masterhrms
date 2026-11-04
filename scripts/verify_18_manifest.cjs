@@ -91,7 +91,7 @@ const expectedManifest = [
     id: 15,
     path: 'docs/hrms-audit/PHASE4B6_SHA256_MANIFEST.txt',
     expectedSize: 3225,
-    expectedSha256: 'f7c7aee0d7fb43a88e6c1d7c71bdbf83f178465f029521b4caec04c1e675ba37'
+    expectedSha256: '1038a649c99a738967a64e5ac562515954e8149527a32a2c97b478a40f94b12a'
   },
   {
     id: 16,
@@ -150,8 +150,8 @@ const expectedManifest = [
   {
     id: 25,
     path: 'docs/hrms-audit/PHASE4B12_FINAL_PR_SAFETY_REVIEW.md',
-    expectedSize: 11278,
-    expectedSha256: '98dead0286a59f710f36cc4d6d28657e38337993a981b62ad22ba7cf2d0d017e'
+    expectedSize: 11329,
+    expectedSha256: '5aa6275b93853cff070e77e41a1141d52de37df456fd69b01ff81f1d942ed105'
   }
 ];
 
