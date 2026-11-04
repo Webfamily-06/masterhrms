@@ -5,7 +5,7 @@ import { useIncomingCall } from "@/context/incoming-call-context";
 import { Phone, PhoneOff, Video } from "lucide-react";
 
 export function FullScreenIncomingCall() {
-  const { incomingCall, acceptCall, rejectCall } = useIncomingCall();
+  const { incomingCall, acceptCall, rejectCall, autoplayBlocked, unlockAudio } = useIncomingCall();
   const acceptButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -44,6 +44,7 @@ export function FullScreenIncomingCall() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="incoming-call-caller"
+      onClick={unlockAudio}
       className="fixed inset-0 z-[99999] flex flex-col items-center justify-between py-12 px-6 bg-slate-950/95 backdrop-blur-2xl text-white select-none animate-in fade-in duration-300"
     >
       <div className="flex flex-col items-center gap-2 pt-6">
@@ -61,6 +62,15 @@ export function FullScreenIncomingCall() {
           )}
         </div>
         <p className="text-slate-400 text-sm font-medium">MasterHRMS Calling Network</p>
+        {autoplayBlocked && (
+          <button
+            type="button"
+            onClick={unlockAudio}
+            className="mt-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-medium flex items-center gap-1.5 animate-bounce hover:bg-amber-500/30 transition-colors"
+          >
+            <span>🔇 Audio muted by browser — click to unmute</span>
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col items-center my-auto">
@@ -107,7 +117,7 @@ export function FullScreenIncomingCall() {
             aria-label="Decline call (Press Escape)"
             className="group relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition-all duration-200 shadow-xl shadow-rose-900/40 focus:outline-none focus:ring-4 focus:ring-rose-500/50"
           >
-            <PhoneOff className="w-7 h-7 sm:w-8 sm:h-8 text-white group-hover:rotate-12 transition-transform duration-200" />
+            <PhoneOff className="w-7 h-7 sm:w-8 sm:h-8 text-white group-hover:rotate-12 transition-transform duration-200 pointer-events-none" />
           </button>
           <span className="text-xs font-medium text-slate-400">Decline (Esc)</span>
         </div>
@@ -120,9 +130,9 @@ export function FullScreenIncomingCall() {
             aria-label="Accept call (Press Enter)"
             className="group relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all duration-200 shadow-xl shadow-emerald-900/40 focus:outline-none focus:ring-4 focus:ring-emerald-500/50"
           >
-            <div className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping opacity-75" />
+            <div className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping opacity-75 pointer-events-none" />
             {isVideo ? (
-              <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white relative z-10 group-hover:scale-110 transition-transform duration-200" />
+              <Video className="w-7 h-7 sm:w-8 sm:h-8 text-white relative z-10 group-hover:scale-110 transition-transform duration-200 pointer-events-none" />
             ) : (
               <Phone className="w-7 h-7 sm:w-8 sm:h-8 text-white relative z-10 group-hover:scale-110 transition-transform duration-200" />
             )}

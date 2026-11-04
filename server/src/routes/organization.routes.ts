@@ -8,6 +8,19 @@ import { applyFieldSecurityMask } from "../lib/field-security";
 
 export const organizationRouter = Router();
 
+export const BRANCH_PHYSICAL_COLUMNS_SELECT = {
+  id: true,
+  tenantId: true,
+  name: true,
+  code: true,
+  address: true,
+  phone: true,
+  email: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 // =========================================================================
 // 1. BRANCHES MASTER (/branches)
 // =========================================================================
@@ -18,6 +31,7 @@ organizationRouter.use(
     entityName: "Branch",
     searchFields: ["name", "code", "email", "phone"],
     uniqueFields: ["code"],
+    select: BRANCH_PHYSICAL_COLUMNS_SELECT,
   })
 );
 

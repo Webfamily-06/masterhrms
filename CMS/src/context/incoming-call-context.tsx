@@ -18,6 +18,8 @@ export interface IncomingCallInfo {
 }
 
 interface IncomingCallContextValue {
+  autoplayBlocked: boolean;
+  unlockAudio: () => void;
   incomingCall: IncomingCallInfo | null;
   isRinging: boolean;
   acceptCall: () => void;
@@ -36,6 +38,15 @@ class RingtonePlayer {
   private ctx: AudioContext | null = null;
   private intervalId: any = null;
   private isPlaying = false;
+  public isAutoplayBlocked = false;
+
+  public unlock() {
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume().then(() => {
+        this.isAutoplayBlocked = false;
+      }).catch(() => {});
+    }
+  }
 
   public start() {
     if (this.isPlaying || typeof window === "undefined") return;
@@ -46,7 +57,12 @@ class RingtonePlayer {
       if (!AudioCtx) return;
       this.ctx = new AudioCtx();
       if (this.ctx.state === "suspended") {
-        this.ctx.resume().catch(() => {});
+        this.isAutoplayBlocked = true;
+        this.ctx.resume().then(() => {
+          this.isAutoplayBlocked = false;
+        }).catch(() => {
+          this.isAutoplayBlocked = true;
+        });
       }
 
       const playToneBurst = () => {
@@ -118,12 +134,19 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 export function IncomingCallProvider({ children }: { children: React.ReactNode }) {
   const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
   const [isRinging, setIsRinging] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [isPushSupported, setIsPushSupported] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
   const [isSubscribedToPush, setIsSubscribedToPush] = useState(false);
 
   const ringtoneRef = useRef<RingtonePlayer | null>(null);
   const autoRejectTimerRef = useRef<any>(null);
+  const seenCallsRef = useRef<Map<string, number>>(new Map());
+
+  const unlockAudio = useCallback(() => {
+    ringtoneRef.current?.unlock();
+    setAutoplayBlocked(false);
+  }, []);
 
   // Initialize ringtone instance
   useEffect(() => {
@@ -227,6 +250,8 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     checkSub();
   }, []);
 
+
+
   const stopCallAlert = useCallback(() => {
     ringtoneRef.current?.stop();
     setIsRinging(false);
@@ -252,6 +277,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     const callerName = data.callerName || "A Colleague";
     const callType = (data.callType || data.type || "audio").toLowerCase() as "audio" | "video";
 
+    const now = Date.now();
+    const lastSeen = seenCallsRef.current.get(data.callId);
+    if (lastSeen && now - lastSeen < 60000 && incomingCall?.callId === data.callId) {
+      return; // Deduplicate identical in-flight invitation
+    }
+    seenCallsRef.current.set(data.callId, now);
+
     setIncomingCall({
       callId: data.callId,
       callerId,
@@ -262,11 +294,14 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       callType,
       threadId: data.threadId,
       tenantId: data.tenantId,
-      receivedAt: Date.now(),
+      receivedAt: now,
     });
 
     setIsRinging(true);
     ringtoneRef.current?.start();
+    if (ringtoneRef.current?.isAutoplayBlocked) {
+      setAutoplayBlocked(true);
+    }
 
     if (autoRejectTimerRef.current) {
       clearTimeout(autoRejectTimerRef.current);
@@ -294,12 +329,28 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     stopCallAlert();
     setIncomingCall(null);
 
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
+      : null;
+
+    if (token) {
+      fetch(`/api/calls/${encodeURIComponent(call.callId)}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => {});
+    }
+
     try {
       const socket = getSocketClient();
-      socket.emit("call:accept", {
-        callId: call.callId,
-        targetUserId: call.callerId,
-      });
+      if (socket?.connected) {
+        socket.emit("call:accept", {
+          callId: call.callId,
+          targetUserId: call.callerId,
+        });
+      }
     } catch {}
 
     if (typeof window !== "undefined") {
@@ -309,8 +360,22 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         })
       );
 
+      // Determine proper workspace prefix
+      const userRaw = localStorage.getItem("hrms_user");
+      let prefix = "/tenant";
+      if (userRaw) {
+        try {
+          const u = JSON.parse(userRaw);
+          if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
+            prefix = "/hr";
+          } else if (u.roles?.includes("employee")) {
+            prefix = "/me";
+          }
+        } catch {}
+      }
+
       if (!window.location.pathname.includes("/chat")) {
-        window.location.href = `/chat?callId=${encodeURIComponent(call.callId)}`;
+        window.location.href = `${prefix}/chat?callId=${encodeURIComponent(call.callId)}&autoAnswer=true`;
       }
     }
   }, [incomingCall, stopCallAlert]);
@@ -374,7 +439,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
       if (eventName === "call:incoming") handleIncomingCallEvent(data);
-      if (eventName === "call:cancelled" || eventName === "call:timeout") handleCallCancelledEvent(data);
+      if (eventName === "call:cancelled" || eventName === "call:timeout" || eventName === "call:rejected") {
+        handleCallCancelledEvent(data);
+      }
+      if (eventName === "call:accepted") {
+        stopCallAlert();
+        setIncomingCall(null);
+      }
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
 
@@ -442,11 +513,47 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     };
   }, [handleIncomingCallEvent, handleCallCancelledEvent, stopCallAlert, acceptCall]);
 
+  const checkPendingCall = useCallback(async () => {
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
+      : null;
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/calls/pending", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body?.success && body?.hasPendingCall && body?.data) {
+          handleIncomingCallEvent(body.data);
+        } else if (body?.success && !body?.hasPendingCall && incomingCall) {
+          stopCallAlert();
+          setIncomingCall(null);
+        }
+      }
+    } catch {}
+  }, [handleIncomingCallEvent, incomingCall, stopCallAlert]);
+
+  useEffect(() => {
+    checkPendingCall();
+    const handleFocus = () => checkPendingCall();
+    const handleOnline = () => checkPendingCall();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [checkPendingCall]);
+
   return (
     <IncomingCallContext.Provider
       value={{
         incomingCall,
         isRinging,
+        autoplayBlocked,
+        unlockAudio,
         acceptCall,
         rejectCall,
         dismissCall,

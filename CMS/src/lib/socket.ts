@@ -14,6 +14,8 @@ const RAW_API_URL =
 // Used for Pusher authEndpoint and legacy Socket.IO when an explicit socket URL is set.
 const DERIVED_BASE_URL = RAW_API_URL
   ? RAW_API_URL.replace(/\/api\/?$/, "")
+  : (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1")
+  ? window.location.origin
   : "http://localhost:4000";
 
 // SOCKET_URL is only set when a dedicated Socket.IO server is explicitly configured.
@@ -38,10 +40,23 @@ const SOCKET_URL: string | null = EXPLICIT_SOCKET_URL
   : null;
 
 // Stable base URL for Pusher auth — always available regardless of Socket.IO status.
-const PUSHER_BASE_URL =
-  typeof process !== "undefined" && process.env.NEXT_PUBLIC_SOCKET_URL
-    ? process.env.NEXT_PUBLIC_SOCKET_URL.replace(/\/api\/?$/, "")
-    : DERIVED_BASE_URL;
+/**
+ * Resolves the authoritative Pusher authentication endpoint.
+ * In production (Vercel, custom domain), uses window.location.origin when NEXT_PUBLIC_API_URL is absent.
+ */
+export function getPusherAuthEndpoint(): string {
+  if (RAW_API_URL) {
+    const origin = RAW_API_URL.replace(/\/api\/?$/, "");
+    return `${origin}/api/pusher/auth`;
+  }
+  if (typeof window !== "undefined") {
+    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+      return "http://localhost:4000/api/pusher/auth";
+    }
+    return `${window.location.origin}/api/pusher/auth`;
+  }
+  return "http://localhost:4000/api/pusher/auth";
+}
 
 let globalSocket: Socket | null = null;
 
@@ -462,7 +477,7 @@ export function useRealtimeSocket() {
           const token = localStorage.getItem("hrms_auth_token");
           pusherClient = new PusherClient(cfg.key, {
             cluster: cfg.cluster || "ap2",
-            authEndpoint: `${PUSHER_BASE_URL}/api/pusher/auth`,
+            authEndpoint: getPusherAuthEndpoint(),
             auth: {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -474,7 +489,14 @@ export function useRealtimeSocket() {
             userChannel = pusherClient.subscribe(`private-user-${currentUserId}`);
             userChannel.bind("notification:new", onNotification);
             userChannel.bind("call:incoming", dispatchPusherEvent("call:incoming"));
+            userChannel.bind("call:accepted", dispatchPusherEvent("call:accepted"));
+            userChannel.bind("call:rejected", dispatchPusherEvent("call:rejected"));
+            userChannel.bind("call:cancelled", dispatchPusherEvent("call:cancelled"));
+            userChannel.bind("call:timeout", dispatchPusherEvent("call:timeout"));
+            userChannel.bind("call:signal", dispatchPusherEvent("call:signal"));
+            userChannel.bind("call:ended", dispatchPusherEvent("call:ended"));
             userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
+            userChannel.bind("call:media-state", dispatchPusherEvent("call:media-state"));
             userChannel.bind("calendar:reminder-due", (data: any) => {
               onNotification({
                 id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,

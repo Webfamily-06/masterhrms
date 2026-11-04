@@ -2678,12 +2678,11 @@ export function UnifiedChatApp({
         try {
           const offer = await peerConnectionRef.current.createOffer();
           await peerConnectionRef.current.setLocalDescription(offer);
-          socket.emit("call:signal", {
-            toUserId: activeCallTargetId,
-            targetUserId: activeCallTargetId,
-            callId: data.callId || activeCallIdRef.current || activeCallId,
-            signal: { type: "offer", sdp: offer },
-          });
+          emitWebRtcSignal(
+            activeCallTargetId,
+            data.callId || activeCallIdRef.current || activeCallId,
+            { type: "offer", sdp: offer }
+          );
         } catch (err: any) {
           console.error("Failed to create WebRTC offer:", err);
         }
@@ -2789,12 +2788,11 @@ export function UnifiedChatApp({
           }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socket.emit("call:signal", {
-            toUserId: data.fromUserId,
-            targetUserId: data.fromUserId,
-            callId: data.callId || curCallId,
-            signal: { type: "answer", sdp: answer },
-          });
+          emitWebRtcSignal(
+            data.fromUserId,
+            data.callId || curCallId,
+            { type: "answer", sdp: answer }
+          );
         } else if (signal.type === "answer") {
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
           // Drain candidate queue
@@ -2902,6 +2900,12 @@ export function UnifiedChatApp({
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
       if (eventName === "call:incoming") handleIncomingCall(data);
+      if (eventName === "call:accepted") handleCallAccepted(data);
+      if (eventName === "call:rejected") handleCallRejected(data);
+      if (eventName === "call:cancelled") handleCallCancelled();
+      if (eventName === "call:timeout") handleCallTimeout(data);
+      if (eventName === "call:signal") handleCallSignal(data);
+      if (eventName === "call:ended") handleCallEnded(data);
       if (eventName === "call:busy") handleCallBusy(data);
       if (eventName === "call:media-state") handleMediaState(data);
       if (eventName === "group-call:incoming") handleIncomingGroupMeeting(data);
@@ -3383,6 +3387,29 @@ export function UnifiedChatApp({
     }
   }, [preCallModalOpen, preCallStream, preCallType, preCallVideoOff]);
 
+  const emitWebRtcSignal = (targetUserId: string, callId: string, signal: any) => {
+    const socket = getSocketClient();
+    if (socket?.connected) {
+      socket.emit("call:signal", {
+        toUserId: targetUserId,
+        targetUserId,
+        callId,
+        signal,
+      });
+    } else {
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
+        : null;
+      if (token) {
+        fetch(`/api/calls/${encodeURIComponent(callId)}/signal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ toUserId: targetUserId, signal }),
+        }).catch(() => {});
+      }
+    }
+  };
+
   // Main Call Initiation Entrypoint (routes via Pre-Call screen)
   const handleInitiateCall = (
     type: "audio" | "video",
@@ -3477,13 +3504,8 @@ export function UnifiedChatApp({
       setActiveCallId(callId);
       const socket = getSocketClient();
       pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit("call:signal", {
-            toUserId: resolvedTargetId,
-            targetUserId: resolvedTargetId,
-            callId,
-            signal: { type: "candidate", candidate: event.candidate },
-          });
+        if (event.candidate) {
+          emitWebRtcSignal(resolvedTargetId, callId, { type: "candidate", candidate: event.candidate });
         }
       };
 
@@ -3529,7 +3551,7 @@ export function UnifiedChatApp({
         queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
       }, 60000);
 
-      if (socket) {
+      if (socket?.connected) {
         socket.emit("call:invite", {
           toUserId: resolvedTargetId,
           targetUserId: resolvedTargetId,
@@ -3541,6 +3563,34 @@ export function UnifiedChatApp({
           callerEmail: currentUser?.email,
           callerAvatarUrl: (currentUser as any)?.avatarUrl,
           threadId: activeThreadId,
+        });
+      }
+
+      // Authoritative Persistent Calls API dispatch (supports Vercel serverless & background sync)
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
+        : null;
+      if (token) {
+        fetch("/api/calls/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            targetUserId: resolvedTargetId,
+            callType: type,
+            callId,
+            callerPhone: phone,
+            threadId: activeThreadId,
+          }),
+        }).then(async (res) => {
+          if (res.status === 409) {
+            const body = await res.json();
+            toast.error(body.error || "User is currently in another call.");
+            cleanUpMedia();
+            setActiveCallModalOpen(false);
+            setCallStatus("ended");
+          }
+        }).catch((err) => {
+          console.warn("[startActualCall] REST invite fallback error:", err);
         });
       }
     } catch (err: any) {
@@ -3710,8 +3760,9 @@ export function UnifiedChatApp({
   };
 
   // Accept Incoming Call (Callee)
-  const handleAcceptIncomingCall = async () => {
-    if (!incomingCall) return;
+  const handleAcceptIncomingCall = async (incomingOverride?: any) => {
+    const targetCall = incomingOverride || incomingCall;
+    if (!targetCall) return;
     stopRingtone();
     if (incomingCallTimerRef.current) {
       clearTimeout(incomingCallTimerRef.current);
@@ -3719,7 +3770,7 @@ export function UnifiedChatApp({
     }
 
     try {
-      const isVideoCall = incomingCall.type === "video";
+      const isVideoCall = targetCall.type === "video";
       let stream: MediaStream | null = null;
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -3730,13 +3781,13 @@ export function UnifiedChatApp({
       }
 
       localStreamRef.current = stream;
-      setActiveCallType(incomingCall.type);
-      setActiveCallTargetName(incomingCall.callerName);
-      setActiveCallTargetPhone(incomingCall.callerPhone || "");
-      setActiveCallTargetEmail(incomingCall.callerEmail || "");
-      setActiveCallTargetId(incomingCall.fromUserId);
-      setActiveCallTargetAvatar(incomingCall.callerAvatarUrl || (incomingCall as any).callerAvatar || null);
-      setActiveCallId(incomingCall.callId);
+      setActiveCallType(targetCall.type);
+      setActiveCallTargetName(targetCall.callerName);
+      setActiveCallTargetPhone(targetCall.callerPhone || "");
+      setActiveCallTargetEmail(targetCall.callerEmail || "");
+      setActiveCallTargetId(targetCall.fromUserId);
+      setActiveCallTargetAvatar(targetCall.callerAvatarUrl || (incomingCall as any).callerAvatar || null);
+      setActiveCallId(targetCall.callId);
       setActiveCallRole("callee");
       setCallStatus("connected");
       setCallDurationSeconds(0);
@@ -3761,9 +3812,9 @@ export function UnifiedChatApp({
       pc.onicecandidate = (event) => {
         if (event.candidate && socket) {
           socket.emit("call:signal", {
-            toUserId: incomingCall.fromUserId,
-            targetUserId: incomingCall.fromUserId,
-            callId: incomingCall.callId,
+            toUserId: targetCall.fromUserId,
+            targetUserId: targetCall.fromUserId,
+            callId: targetCall.callId,
             signal: { type: "candidate", candidate: event.candidate },
           });
         }
@@ -3795,8 +3846,8 @@ export function UnifiedChatApp({
       // Emit accept
       if (socket) {
         socket.emit("call:accept", {
-          toUserId: incomingCall.fromUserId,
-          callId: incomingCall.callId,
+          toUserId: targetCall.fromUserId,
+          callId: targetCall.callId,
         });
       }
 
@@ -3828,6 +3879,58 @@ export function UnifiedChatApp({
     } catch {}
     setIncomingCall(null);
   };
+
+  // Global Call Acceptance & URL callId Sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleGlobalAccepted = (e: any) => {
+      const call = e.detail;
+      if (call?.callId) {
+        handleAcceptIncomingCall({
+          callId: call.callId,
+          fromUserId: call.callerId,
+          type: call.callType,
+          callerName: call.callerName,
+          callerAvatarUrl: call.callerAvatar,
+          threadId: call.threadId,
+        });
+      }
+    };
+    window.addEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+
+    const params = new URLSearchParams(window.location.search);
+    const callIdParam = params.get("callId");
+    const autoAnswer = params.get("autoAnswer") === "true";
+    if (callIdParam && !activeCallIdRef.current) {
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
+      if (token) {
+        fetch(`/api/calls/${encodeURIComponent(callIdParam)}/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.success && res?.data) {
+              const d = res.data;
+              if (d.status === "ringing" || d.status === "connected") {
+                if (autoAnswer && d.callerId !== currentUserId) {
+                  handleAcceptIncomingCall({
+                    callId: d.callId,
+                    fromUserId: d.callerId,
+                    type: d.callType,
+                    callerName: d.callerName,
+                    callerAvatarUrl: d.callerAvatar,
+                    threadId: d.threadId,
+                  });
+                }
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    return () => window.removeEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+  }, [currentUserId, handleAcceptIncomingCall]);
 
   // End / Cancel Call
   const handleEndCall = async () => {

@@ -10,7 +10,8 @@ export default function ChatRedirectPage() {
 
   useEffect(() => {
     const target = resolveWorkspaceChatRoute('') || '/super/dashboard';
-    router.replace(target);
+    const search = typeof window !== 'undefined' ? window.location.search : '';
+    router.replace(`${target}${search}`);
   }, [router]);
 
   return (

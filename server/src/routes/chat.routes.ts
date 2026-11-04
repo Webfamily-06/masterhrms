@@ -177,12 +177,28 @@ chatRouter.get("/participant/:id", requireAuth, async (req: AuthRequest, res: Re
         tenantId,
         OR: [{ id }, { userId: id }],
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        position: true,
+        employmentType: true,
+        joinedAt: true,
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, name: true } },
         user: {
-          include: {
-            profile: true,
+          select: {
+            profile: {
+              select: {
+                id: true,
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
           },
         },
       },
@@ -255,7 +271,15 @@ chatRouter.get("/contacts", requireAuth, async (req: AuthRequest, res: Response)
         tenantId,
         status: "active",
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        position: true,
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, name: true } },
       },
@@ -499,7 +523,15 @@ chatRouter.get("/conversations", requireAuth, async (req: AuthRequest, res: Resp
 
         const emp = await prisma.employee.findFirst({
           where: { tenantId, OR: [{ userId: otherUserId }, { id: otherUserId }] },
-          include: {
+          select: {
+            id: true,
+            userId: true,
+            employeeCode: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            position: true,
             department: { select: { id: true, name: true } },
             designation: { select: { id: true, name: true } },
           },
@@ -595,7 +627,15 @@ chatRouter.post("/conversations/direct", requireAuth, async (req: AuthRequest, r
         tenantId,
         OR: [{ userId: targetUserId }, { id: targetUserId }],
       },
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        employeeCode: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        position: true,
         department: { select: { id: true, name: true } },
         designation: { select: { id: true, name: true } },
       },

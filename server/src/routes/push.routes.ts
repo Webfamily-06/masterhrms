@@ -122,7 +122,7 @@ pushRouter.post("/test", requireAuth, async (req: AuthRequest, res: Response) =>
       callerAvatar: null,
       callType: "audio",
       issuedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 45000).toISOString(),
+      expiresAt: new Date(Date.now() + 60000).toISOString(),
       actionRoute: "/apps/chat/chats",
     };
 

@@ -12,6 +12,7 @@ export interface MasterBlueprintConfig {
   permissionPrefix?: string;
   searchFields?: string[];
   uniqueFields?: string[];
+  select?: Record<string, boolean>;
 }
 
 /**
@@ -24,7 +25,7 @@ export interface MasterBlueprintConfig {
  */
 export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
   const router = Router();
-  const { modelName, entityName, searchFields = ["name", "code"], uniqueFields = ["name"] } = config;
+  const { modelName, entityName, searchFields = ["name", "code"], uniqueFields = ["name"], select } = config;
 
   // 1. LIST ENTITIES (GET /)
   router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -52,13 +53,18 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
         return res.status(500).json({ error: `Model '${modelName}' not found in Prisma client` });
       }
 
+      const findArgs: any = {
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip: (page - 1) * limit,
+        take: limit,
+      };
+      if (select) {
+        findArgs.select = select;
+      }
+
       const [items, total] = await Promise.all([
-        delegate.findMany({
-          where,
-          orderBy: { [sortBy]: sortOrder },
-          skip: (page - 1) * limit,
-          take: limit,
-        }),
+        delegate.findMany(findArgs),
         delegate.count({ where }),
       ]);
 

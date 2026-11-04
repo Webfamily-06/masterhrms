@@ -10,6 +10,50 @@ import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/dat
 import { EmployeeSystemIdService } from "./employee-system-id.service";
 import { normalizePhoneE164 } from "../schemas/employee.schema";
 
+export const EMPLOYEE_PHYSICAL_COLUMNS_SELECT = {
+  id: true,
+  tenantId: true,
+  userId: true,
+  departmentId: true,
+  branchId: true,
+  designationId: true,
+  managerId: true,
+  employeeCode: true,
+  firstName: true,
+  lastName: true,
+  email: true,
+  phone: true,
+  position: true,
+  employmentType: true,
+  status: true,
+  salary: true,
+  joinedAt: true,
+  pan: true,
+  aadhaar: true,
+  uan: true,
+  esiNumber: true,
+  bankName: true,
+  bankAccount: true,
+  bankIfsc: true,
+  bankBranch: true,
+  dateOfBirth: true,
+  gender: true,
+  taxRegime: true,
+  state: true,
+  workStateCode: true,
+  establishmentId: true,
+  clientId: true,
+  pfNumber: true,
+  pfEligible: true,
+  pfCalculationMethod: true,
+  pfCustomCap: true,
+  esiEligible: true,
+  ptEligible: true,
+  tdsEligible: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
 export interface UpdateEmployeeInput {
   // Step 1: Personal
   firstName?: string;
@@ -174,6 +218,7 @@ export class EmployeeService {
     if (input.employeeCode) {
       const existingCode = await db.employee.findFirst({
         where: { tenantId, employeeCode: input.employeeCode },
+        select: { id: true },
       });
       if (existingCode) {
         throw new Error(`An employee with code '${input.employeeCode}' already exists in this workspace.`);
@@ -182,6 +227,7 @@ export class EmployeeService {
 
     const existingEmail = await db.employee.findFirst({
       where: { tenantId, email: input.email.toLowerCase().trim() },
+      select: { id: true },
     });
     if (existingEmail) {
       throw new Error(`An employee with email '${input.email}' already exists in this workspace.`);
@@ -425,7 +471,8 @@ export class EmployeeService {
       db.employee.count({ where }),
       db.employee.findMany({
         where,
-        include: {
+        select: {
+          ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
           department: { select: { id: true, name: true } },
           branch: { select: { id: true, name: true, code: true } },
           designation: { select: { id: true, name: true } },
@@ -506,7 +553,20 @@ export class EmployeeService {
       where: { id: employeeId, tenantId },
       include: {
         department: true,
-        branch: true,
+        branch: {
+          select: {
+            id: true,
+            tenantId: true,
+            name: true,
+            code: true,
+            address: true,
+            phone: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         designation: true,
         manager: {
           select: {
@@ -892,7 +952,20 @@ export class EmployeeService {
       where: { id: employeeId, tenantId },
       include: {
         department: true,
-        branch: true,
+        branch: {
+          select: {
+            id: true,
+            tenantId: true,
+            name: true,
+            code: true,
+            address: true,
+            phone: true,
+            email: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
         designation: true,
         user: { include: { profile: true } },
       },
