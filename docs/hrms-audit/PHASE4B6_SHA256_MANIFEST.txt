@@ -15,16 +15,16 @@
 2beb6f48ab982aa0b02e3fb5fa2f096dc3957a0f26f6ab098e8482a16a40334f  server/prisma/migrations/20260928000001_step_3_5_sale_payments/migration.sql
 e64e132993688391e9ec4f7aa696ff92ff83ae86ad54643ea3ed902aa38a4a22  server/prisma/migrations/20260928000002_step_3_6_returns_credit_debit_notes/migration.sql
 b7c63561df634455428f392f91bb244aa28856d2ceca2d25e1c44645fae8e62c  server/prisma/migrations/20260928000003_rbac_and_tenant_modules/migration.sql
-b2685a0f108cabb31dd6508f7489f226d242e8b2350f51f64a20ab8918149dc4  server/prisma/migrations/20261102000000_add_device_sessions/migration.sql
+03e303b01a753c8d1c948ebeaf4717923e4ae2247ec0b6a0c34db04f7f6376c9  server/prisma/migrations/20261102000000_add_device_sessions/migration.sql
 79e4bc5d3dad92bd34629a5d04d8435c67efa1af6d2d9ed2c61b3587737aa475  server/prisma/migrations/20261103000002_add_branch_geofencing/migration.sql
-c690e00389f5d80c548f2ca74deeff24534894a680b7957d6119dede4f26070e  server/prisma/migrations/20261104100000_aud_conc_002_idempotency_constraints/migration.sql
+d63409c253e5496064094211478305df9f2f448ea26e1b9e68763b2718a790bf  server/prisma/migrations/20261104100000_aud_conc_002_idempotency_constraints/migration.sql
 
 # ==============================================================================
 # 2. AUTOMATED DATABASE TEST & VERIFICATION HARNESSES
 # ==============================================================================
-37d47c054ffab51d403f15249da214e60e4f45300a2909d318c18ad490440a26  scripts/pg17_container_certification.cjs
-f21ed173deec71227c1afcadb160741da193cccf47170c1d0257bba88027169f  scripts/verify_migrations_1_7.cjs
-dd07b2eeaa74bd3f6b1a4a7cf1c8c9e7d76095f67b15fb2c5563b989259f10a8  scripts/isolated_integration_test.cjs
+8733cee2402f8a1744b7962bb2bd7e91f4a1a6f529f642a36bdb3fb57feaaba2  scripts/pg17_container_certification.cjs
+945284e88f514474550c092f61d9edefdba329a2ca3a70f508cc133b103b0f73  scripts/verify_migrations_1_7.cjs
+cd5a74c0f0944a73d957fcafa2647ba7d1f3d969539c8d43cbb2dbe31f3968db  scripts/isolated_integration_test.cjs
 
 # ==============================================================================
 # 3. PHASE 4B.5.4 AUDIT & RUNBOOK DOCUMENTS

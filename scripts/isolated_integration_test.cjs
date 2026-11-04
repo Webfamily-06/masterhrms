@@ -3,28 +3,30 @@ const fs = require('fs');
 const path = require('path');
 const { performance } = require('perf_hooks');
 
-const PSQL_PATH = 'C:\\Program Files (x86)\\HikCentral Access Control\\VSM Servers\\PostgreSQL\\bin\\psql.exe';
-const DB_PORT = '5434';
+const CONTAINER_NAME = 'masterhrms-pg17-audit';
 const DB_USER = 'postgres';
-const DB_NAME = 'postgres';
+const DB_NAME = 'masterhrms_test';
 
 function runPsql(sql, tuplesOnly = false) {
-  const args = ['-U', DB_USER, '-p', DB_PORT, '-d', DB_NAME];
+  const args = ['exec', '-i', CONTAINER_NAME, 'psql', '-U', DB_USER, '-d', DB_NAME];
   if (tuplesOnly) {
     args.push('-t', '-A');
   }
-  return execFileSync(PSQL_PATH, [...args, '-c', sql], { encoding: 'utf8' }).trim();
+  return execFileSync('docker', [...args, '-c', sql], { encoding: 'utf8' }).trim();
 }
 
 function runPsqlFile(filePath) {
-  const args = ['-U', DB_USER, '-p', DB_PORT, '-d', DB_NAME, '-f', filePath];
-  return execFileSync(PSQL_PATH, args, { encoding: 'utf8' }).trim();
+  const content = fs.readFileSync(filePath, 'utf8');
+  return execFileSync('docker', ['exec', '-i', CONTAINER_NAME, 'psql', '-U', DB_USER, '-d', DB_NAME], {
+    input: content,
+    encoding: 'utf8'
+  }).trim();
 }
 
 async function runSuite() {
   console.log('================================================================');
-  console.log('MASTERHRMS — REAL ISOLATED POSTGRESQL INTEGRATION TEST SUITE');
-  console.log(`Target: PostgreSQL 16.1 (127.0.0.1:${DB_PORT})`);
+  console.log('MASTERHRMS — REAL ISOLATED POSTGRESQL 17.11 INTEGRATION TEST SUITE');
+  console.log(`Target: Docker Container (${CONTAINER_NAME}) running PostgreSQL 17.11`);
   console.log('================================================================\n');
 
   // [TEST 0] Engine Version
