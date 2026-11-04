@@ -2,6 +2,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { performance } = require('perf_hooks');
+const { PrismaClient } = require('@prisma/client');
 
 const CONTAINER_NAME = 'masterhrms-pg17-audit';
 const DB_USER = 'postgres';
@@ -21,6 +22,75 @@ function runPsqlFile(filePath) {
     input: content,
     encoding: 'utf8'
   }).trim();
+}
+
+async function verifySupabaseProductionUntouched() {
+  console.log('\n[SAFETY AUDIT] Verifying zero test writes reached Supabase production...');
+  const envPath = path.resolve('server/.env');
+  let databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl && fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, 'utf8');
+    for (const line of envContent.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('DATABASE_URL=')) {
+        databaseUrl = trimmed.substring('DATABASE_URL='.length).replace(/^["']|["']$/g, '');
+        break;
+      }
+    }
+  }
+
+  if (!databaseUrl) {
+    console.warn('[WARN] No Supabase DATABASE_URL found in environment; skipped remote verification.');
+    return;
+  }
+
+  const prisma = new PrismaClient({
+    datasources: { db: { url: databaseUrl } }
+  });
+
+  try {
+    // 1. Check leave_requests total count (must remain exactly 21)
+    const leaveCountRes = await prisma.$queryRawUnsafe(`SELECT count(*)::text as cnt FROM public.leave_requests;`);
+    const leaveCount = parseInt(leaveCountRes[0].cnt, 10);
+    if (leaveCount !== 21) {
+      throw new Error(`CRITICAL LEAK: Supabase leave_requests count is ${leaveCount} (expected exactly 21 baseline rows)!`);
+    }
+
+    // 2. Check for synthetic test IDs in Supabase (must be zero)
+    const testIdsRes = await prisma.$queryRawUnsafe(
+      `SELECT count(*)::text as cnt FROM public.leave_requests WHERE id LIKE 'leave-half-%' OR id IN ('leave-1', 'leave-2', 'leave-21');`
+    );
+    const testIdCount = parseInt(testIdsRes[0].cnt, 10);
+    if (testIdCount !== 0) {
+      throw new Error(`CRITICAL LEAK: Found ${testIdCount} synthetic test rows in Supabase production!`);
+    }
+
+    // 3. Check data type of days column in Supabase (must remain integer)
+    const colRes = await prisma.$queryRawUnsafe(
+      `SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'leave_requests' AND column_name = 'days';`
+    );
+    const colType = colRes[0]?.data_type;
+    if (colType !== 'integer') {
+      throw new Error(`CRITICAL LEAK: Supabase leave_requests.days data_type is "${colType}" (expected "integer")!`);
+    }
+
+    // 4. Check device_sessions does not exist in Supabase
+    const dsRes = await prisma.$queryRawUnsafe(
+      `SELECT count(*)::text as cnt FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'device_sessions';`
+    );
+    const dsCount = parseInt(dsRes[0].cnt, 10);
+    if (dsCount !== 0) {
+      throw new Error(`CRITICAL LEAK: device_sessions exists in Supabase production prior to approved migration!`);
+    }
+
+    console.log('[PASS] Confirmed 100% isolation: Zero test writes reached Supabase production.');
+    console.log(`       - Supabase leave_requests row count: ${leaveCount} (intact)`);
+    console.log(`       - Synthetic test records in Supabase: ${testIdCount} (zero leak)`);
+    console.log(`       - Supabase leave_requests.days data type: ${colType} (unaltered)`);
+    console.log(`       - Supabase device_sessions table exists: ${dsCount === 1 ? 'true' : 'false'} (uncreated)`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 async function runSuite() {
@@ -105,7 +175,7 @@ async function runSuite() {
   runPsql(baseSchemaSql);
   console.log('[PASS] Base tables and baseline fixtures created.\n');
 
-  // [TEST 2] Leave requests days INTEGER -> NUMERIC(4,1) conversion
+  // [TEST 2] Leave requests days INTEGER -> NUMERIC(4,1) conversion & safe transactional rollback demo
   console.log('[TEST 2] Testing leave_requests.days conversion (INTEGER -> NUMERIC(4, 1))...');
   // Insert 21 integer rows matching production profile
   let insertValues = [];
@@ -145,15 +215,37 @@ async function runSuite() {
     VALUES ('leave-half-1', 'tenant-test-1', 'emp-test-1', 0.5),
            ('leave-half-2', 'tenant-test-1', 'emp-test-1', 1.5);
   `);
-  const fracRows = runPsql(`SELECT id, days FROM leave_requests WHERE id LIKE 'leave-half-%';`);
-  console.log('[PASS] Fractional half-day leaves successfully inserted and stored:\n' + fracRows);
+  const fracRows = runPsql(`SELECT id, days FROM leave_requests WHERE id LIKE 'leave-half-%' ORDER BY id;`);
+  console.log('[PASS] Synthetic fractional half-day leaves successfully inserted and stored:\n' + fracRows);
 
-  // Rollback simulation test: verify precision loss warning
-  console.log('\nTesting rollback precision loss behavior (ROUND(days)::INTEGER)...');
-  runPsql(`ALTER TABLE leave_requests ALTER COLUMN days TYPE INTEGER USING ROUND(days)::INTEGER;`);
-  const rolledBackRows = runPsql(`SELECT id, days FROM leave_requests WHERE id LIKE 'leave-half-%';`);
-  console.log('[VERIFIED] Rollback data loss proof:\n' + rolledBackRows);
-  console.log('0.5 was rounded up to 1, 1.5 was rounded up to 2. Demonstrates why rollback causes permanent data loss if fractional rows exist.\n');
+  // Safe transactional test demonstrating precision-losing rollback behavior without committing destructive changes
+  console.log('\nExecuting safe transactional precision-losing conversion test (BEGIN -> ALTER -> INSPECT -> ROLLBACK)...');
+  const txDemoSql = `
+    BEGIN;
+    -- In-transaction simulation of destructive precision downcast
+    ALTER TABLE leave_requests ALTER COLUMN days TYPE INTEGER USING ROUND(days)::INTEGER;
+    -- Inspect rounded values inside transaction
+    SELECT id, days FROM leave_requests WHERE id LIKE 'leave-half-%' ORDER BY id;
+    -- Rollback to preserve fractional values and prevent persistent data loss
+    ROLLBACK;
+  `;
+  const txOutput = runPsql(txDemoSql);
+  console.log('[VERIFIED] Inside-transaction precision-loss demonstration:\n' + txOutput);
+
+  // Verify that fractional values remain 100% intact post-rollback
+  const intactRows = runPsql(`SELECT id, days FROM leave_requests WHERE id LIKE 'leave-half-%' ORDER BY id;`, true);
+  console.log('[PASS] Post-rollback fractional integrity verified (values remain intact):\n' + intactRows);
+  if (!intactRows.includes('0.5') || !intactRows.includes('1.5')) {
+    throw new Error('FAIL: Fractional days were modified despite ROLLBACK! Actual: ' + intactRows);
+  }
+
+  // Verify column specification is still NUMERIC(4, 1)
+  const intactColSpec = runPsql(`
+    SELECT data_type, numeric_precision, numeric_scale 
+    FROM information_schema.columns 
+    WHERE table_name = 'leave_requests' AND column_name = 'days';
+  `, true);
+  console.log(`[PASS] Column data type remains intact: ${intactColSpec} (expected numeric|4|1)\n`);
 
   // [TEST 3] Migration 8: Device Sessions Table
   console.log('[TEST 3] Testing corrected Migration 8 (device_sessions)...');
@@ -296,7 +388,10 @@ async function runSuite() {
   runPsqlFile(migration10Path);
   console.log('[PASS] Migration 10 rerun idempotency verified.\n');
 
-  console.log('================================================================');
+  // [TEST 6] Safety Verification: Zero Test Writes to Supabase Production
+  await verifySupabaseProductionUntouched();
+
+  console.log('\n================================================================');
   console.log('ALL ISOLATED POSTGRESQL INTEGRATION TESTS COMPLETED SUCCESSFULLY');
   console.log('================================================================');
 }

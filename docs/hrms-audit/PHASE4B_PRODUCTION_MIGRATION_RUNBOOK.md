@@ -142,23 +142,40 @@ CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_loan_installments_loan_payroll
 
 ---
 
-### Block 3: Prisma Migration State Reconciliation (CLI Command)
-*Duration: ~20s*
+### Block 3: Prisma Migration State Reconciliation (QUARANTINED PROCEDURE)
 
-Initialize and record all 10 local migrations in `_prisma_migrations` so that Prisma does not attempt to execute legacy MySQL migrations on subsequent deploys:
+> [!WARNING]
+> **SAFETY QUARANTINE — MANDATORY GATE REQUIREMENT:**  
+> `prisma migrate resolve --applied` commands are **EXCLUDED AND QUARANTINED** from the standard executable production deployment script.
+> 
+> Under no circumstances may `prisma migrate resolve --applied` be executed during standard pipeline runs.
+> 
+> **Prerequisites for executing this operation:**
+> 1. **Separate Explicit Written Approval:** Requires documented sign-off from the Lead Database Administrator and Technical Lead.
+> 2. **Migration-by-Migration Baseline Proof:** Prior to marking any migration as applied, the operator must execute the exact catalog assertion script (`scripts/verify_migrations_1_7.cjs` for M1–M7 and post-flight queries for M8–M10) proving 100% physical object existence on the target database.
+> 3. **Audit Log Verification:** The output of `scripts/inspect_supabase_production.cjs` must confirm `_prisma_migrations` baseline state.
 
-```bash
-# Resolve all 10 migrations against production
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260926000000_wave3_step3_2_fiscal_controls --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260927000000_wave3_step3_3_1_inventory_decimal_and_stock_movement --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260927120000_wave3_step3_3_5_offline_replay_key --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000000_step_3_4_purchase_payments --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000001_step_3_5_sale_payments --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000002_step_3_6_returns_credit_debit_notes --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000003_rbac_and_tenant_modules --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261102000000_add_device_sessions --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261103000002_add_branch_geofencing --schema server/prisma/schema.prisma
-npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261104100000_aud_conc_002_idempotency_constraints --schema server/prisma/schema.prisma
+```
++-----------------------------------------------------------------------------------------------+
+|                            QUARANTINED BASELINE RESOLVE COMMANDS                              |
+|                    (FOR OPERATOR MANUAL EXECUTION ONLY AFTER EXPLICIT APPROVAL)               |
++-----------------------------------------------------------------------------------------------+
+| # DO NOT RUN IN AUTOMATED SCRIPTS OR UNLESS SEPARATELY AUTHORIZED                             |
+|                                                                                               |
+| # M1-M7 Legacy Baseline (Validated 48/48 physical objects via verify_migrations_1_7.cjs):     |
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260926000000_wave3_step3_2_fiscal_controls --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260927000000_wave3_step3_3_1_inventory_decimal_and_stock_movement --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260927120000_wave3_step3_3_5_offline_replay_key --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000000_step_3_4_purchase_payments --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000001_step_3_5_sale_payments --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000002_step_3_6_returns_credit_debit_notes --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20260928000003_rbac_and_tenant_modules --schema server/prisma/schema.prisma
+|                                                                                               |
+| # M8-M10 Active PostgreSQL Migrations (To be marked applied only after Block 1 & 2 DDL pass): |
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261102000000_add_device_sessions --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261103000002_add_branch_geofencing --schema server/prisma/schema.prisma
+| npx dotenv-cli -e server/.env -- npx prisma migrate resolve --applied 20261104100000_aud_conc_002_idempotency_constraints --schema server/prisma/schema.prisma
++-----------------------------------------------------------------------------------------------+
 ```
 
 ---
@@ -201,10 +218,24 @@ WHERE indexrelid::regclass::text IN ('uq_journal_entries_tenant_payroll_run', 'u
 
 ## 4. Emergency Abort & Rollback Script
 
-If any step in Block 1 or Block 2 encounters a blocker:
+> [!CAUTION]
+> **CRITICAL DATA PRESERVATION RULE — LEAVE DAYS PRECISION:**  
+> The rollback procedure **MUST NEVER** execute `ALTER TABLE leave_requests ALTER COLUMN days TYPE INTEGER USING ROUND(days)::INTEGER`.
+> Silently rounding fractional values (e.g. 0.5 or 1.5 days) causes irreversible statutory calculation drift and employee balance corruption.
+> 
+> **Fractional Row Preflight Check:**
+> ```sql
+> SELECT count(*) AS fractional_row_count 
+> FROM public.leave_requests 
+> WHERE (days % 1) != 0;
+> ```
+> - If `fractional_row_count = 0`: The column may safely be reverted using `ALTER TABLE public.leave_requests ALTER COLUMN days TYPE INTEGER USING days::INTEGER; ALTER TABLE public.leave_requests ALTER COLUMN days SET DEFAULT 1;`.
+> - If `fractional_row_count > 0`: **DO NOT DOWNCAST COLUMN TYPE**. The operator must follow the Forward-Fix or Backup Recovery protocol below.
+
+### Standard Rollback Script (Zero Fractional Leave Rows)
+If any step in Block 1 or Block 2 encounters a blocker and NO fractional leave requests were created:
 
 ```sql
--- EMERGENCY ROLLBACK SCRIPT
 BEGIN;
 SET LOCAL lock_timeout = '3s';
 
@@ -228,13 +259,16 @@ ALTER TABLE public.employees
     DROP COLUMN IF EXISTS completion_480_days_date,
     DROP COLUMN IF EXISTS maternity_nomination_date;
 
--- Roll back leave_requests days to INTEGER
-ALTER TABLE public.leave_requests 
-    ALTER COLUMN days TYPE INTEGER 
-    USING ROUND(days)::INTEGER;
-
-ALTER TABLE public.leave_requests 
-    ALTER COLUMN days SET DEFAULT 1;
+-- Safe roll back for leave_requests (ONLY IF zero fractional rows exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.leave_requests WHERE (days % 1) != 0) THEN
+        ALTER TABLE public.leave_requests ALTER COLUMN days TYPE INTEGER USING days::INTEGER;
+        ALTER TABLE public.leave_requests ALTER COLUMN days SET DEFAULT 1;
+    ELSE
+        RAISE WARNING 'Fractional leave records detected. Preserved NUMERIC(4, 1) column to prevent data truncation.';
+    END IF;
+END $$;
 
 -- Roll back branches geofence columns
 ALTER TABLE public.branches 
@@ -251,6 +285,30 @@ COMMIT;
 DROP INDEX CONCURRENTLY IF EXISTS public.uq_journal_entries_tenant_payroll_run;
 DROP INDEX CONCURRENTLY IF EXISTS public.uq_loan_installments_loan_payroll_run;
 ```
+
+### Fractional Data Recovery Protocols (If Fractional Rows Exist)
+
+If fractional leave records exist when a rollback is triggered, choose one of the following documented recovery paths:
+
+1. **Forward-Fix Protocol (Recommended):**
+   - Retain `days NUMERIC(4, 1)` on `public.leave_requests`.
+   - Revert application code or service layers only.
+   - `NUMERIC(4, 1)` natively accommodates integer inputs (`1.0`, `2.0`, `3.0`) without requiring schema changes, ensuring 100% backward compatibility with legacy application queries while eliminating data loss risk.
+
+2. **Granular Table Backup Restore Protocol:**
+   - If an absolute return to pre-migration database state is mandated by compliance:
+   - Restore `public.leave_requests` directly from the verified pre-migration logical backup:
+     ```bash
+     pg_restore -h aws-0-ap-south-1.pooler.supabase.com \
+                -p 5432 \
+                -U postgres.ofzbhbcnizyegroggkxl \
+                -d postgres \
+                --table=leave_requests \
+                --clean \
+                --data-only \
+                backup_masterhrms_pre_phase4b_*.dump
+     ```
+   - Export any newly created fractional requests to an audit ledger CSV prior to restoration to ensure statutory traceability.
 
 ---
 

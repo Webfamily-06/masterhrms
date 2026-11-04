@@ -1,14 +1,13 @@
 const fs = require('fs');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
 
 // Master Package File Manifest Definition (Exact expected sizes and SHA-256 hashes)
 const expectedManifest = [
   {
     id: 1,
     path: 'server/prisma/migrations/20261102000000_add_device_sessions/migration.sql',
-    expectedSize: 5677,
-    expectedSha256: '03e303b01a753c8d1c948ebeaf4717923e4ae2247ec0b6a0c34db04f7f6376c9'
+    expectedSize: 15338,
+    expectedSha256: '39c6e43ca8a2885977c2c1e3695ac66a4e9aec2e74fdfcbcfc5aa0079903fe98'
   },
   {
     id: 2,
@@ -19,8 +18,8 @@ const expectedManifest = [
   {
     id: 3,
     path: 'server/prisma/migrations/20261104100000_aud_conc_002_idempotency_constraints/migration.sql',
-    expectedSize: 2862,
-    expectedSha256: 'd63409c253e5496064094211478305df9f2f448ea26e1b9e68763b2718a790bf'
+    expectedSize: 6454,
+    expectedSha256: '182ac871d45f389a160e05a675e3e81ffa8bfa71ca301f587d994d583f13563b'
   },
   {
     id: 4,
@@ -37,8 +36,8 @@ const expectedManifest = [
   {
     id: 6,
     path: 'scripts/isolated_integration_test.cjs',
-    expectedSize: 14051,
-    expectedSha256: 'cd5a74c0f0944a73d957fcafa2647ba7d1f3d969539c8d43cbb2dbe31f3968db'
+    expectedSize: 18500,
+    expectedSha256: 'f7c21d39a955416af375781ec537112bd4b4439286a251d1d8042571be7f2415'
   },
   {
     id: 7,
@@ -49,8 +48,8 @@ const expectedManifest = [
   {
     id: 8,
     path: 'docs/hrms-audit/PHASE4B_PRODUCTION_MIGRATION_RUNBOOK.md',
-    expectedSize: 10848,
-    expectedSha256: '3b06989718bf2c72b87d27b297d4ed0438d53f2740f70c6ca435de15256ff5ce'
+    expectedSize: 15057,
+    expectedSha256: 'c5429c29c60389673c14c488bab213328a917e10bbb2898d84654be7e6ef0180'
   },
   {
     id: 9,
@@ -91,8 +90,8 @@ const expectedManifest = [
   {
     id: 15,
     path: 'docs/hrms-audit/PHASE4B6_SHA256_MANIFEST.txt',
-    expectedSize: 4378,
-    expectedSha256: 'e87d26803a675b8c432204f9fc87a632356f7937c2c6f385fb8bb0463660a477'
+    expectedSize: 3225,
+    expectedSha256: 'f7c7aee0d7fb43a88e6c1d7c71bdbf83f178465f029521b4caec04c1e675ba37'
   },
   {
     id: 16,
@@ -135,6 +134,24 @@ const expectedManifest = [
     path: 'docs/hrms-audit/PHASE4B9_FINAL_DATABASE_MIGRATION_PACKAGE.md',
     expectedSize: 30721,
     expectedSha256: 'ad489449baa4d503285957a0147c60487e49d9c70056cfec9678cb8586c5cfa5'
+  },
+  {
+    id: 23,
+    path: 'docs/hrms-audit/PHASE4B10_FINAL_DATABASE_PR_CERTIFICATION.md',
+    expectedSize: 32596,
+    expectedSha256: '7d13973ae37649f28c4d1b11b477ab4a9dd9bdfdb86268a0d2006f72342c1790'
+  },
+  {
+    id: 24,
+    path: 'docs/hrms-audit/PHASE4B11_LOCAL_REMOTE_RECONCILIATION.md',
+    expectedSize: 12728,
+    expectedSha256: '8db19cb189f79dc24abb5f4e24cd0bcc2543d32c4756f49b9cda57d8b60b6243'
+  },
+  {
+    id: 25,
+    path: 'docs/hrms-audit/PHASE4B12_FINAL_PR_SAFETY_REVIEW.md',
+    expectedSize: 11278,
+    expectedSha256: '98dead0286a59f710f36cc4d6d28657e38337993a981b62ad22ba7cf2d0d017e'
   }
 ];
 
