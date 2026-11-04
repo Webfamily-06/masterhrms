@@ -21,7 +21,7 @@ export async function generateStaticParams() {
   return posts.map((post) => ({ slug: post.slug }));
 }
 
-const internalApiBase = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.API_BASE_URL || 'http://127.0.0.1:4000';
+const internalApiBase = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/api` : '') || (process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:4000');
 
 async function verifySuperAdmin(token: string): Promise<boolean> {
   if (!token) return false;

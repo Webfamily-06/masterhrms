@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth";
-import { activeCalls, getIO } from "../socket";
+import { activeCalls, getIO, ActiveCallSession } from "../socket";
 import { rawPrisma, prisma } from "../prisma";
 import { IncomingCallPushService } from "../services/incoming-call-push.service";
 import { PusherService } from "../services/pusher.service";
@@ -108,7 +108,8 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
   try {
     const callerId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
-    const { targetUserId: rawTargetId, callType = "audio", callId: passedCallId, callerPhone, threadId } = req.body || {};
+    const { targetUserId: rawTargetId, callType: rawCallType, callId: passedCallId, callerPhone, threadId } = req.body || {};
+    const callType: "audio" | "video" = rawCallType === "video" ? "video" : "audio";
 
     if (!rawTargetId) {
       return res.status(400).json({ success: false, error: "targetUserId is required" });
@@ -231,7 +232,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
     });
 
     // 2. Register in activeCalls with authoritative 60s timeout
-    const session = {
+    const session: ActiveCallSession = {
       callId,
       tenantId,
       callerId,

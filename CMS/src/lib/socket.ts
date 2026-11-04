@@ -16,7 +16,7 @@ const DERIVED_BASE_URL = RAW_API_URL
   ? RAW_API_URL.replace(/\/api\/?$/, "")
   : (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1")
   ? window.location.origin
-  : "http://localhost:4000";
+  : (typeof window !== "undefined" ? window.location.origin : (process.env.NODE_ENV === "production" ? "" : "http://localhost:4000"));
 
 // SOCKET_URL is only set when a dedicated Socket.IO server is explicitly configured.
 // On Vercel serverless (no NEXT_PUBLIC_SOCKET_URL), this is null and Socket.IO is disabled.
@@ -35,7 +35,7 @@ const IS_LOCAL =
 // When null, getSocketClient() returns a disabled no-op-like socket.
 const SOCKET_URL: string | null = EXPLICIT_SOCKET_URL
   ? EXPLICIT_SOCKET_URL
-  : IS_LOCAL
+  : (IS_LOCAL && process.env.NODE_ENV !== "production")
   ? "http://localhost:4000"
   : null;
 
@@ -50,12 +50,13 @@ export function getPusherAuthEndpoint(): string {
     return `${origin}/api/pusher/auth`;
   }
   if (typeof window !== "undefined") {
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    if (process.env.NODE_ENV !== "production" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")) {
       return "http://localhost:4000/api/pusher/auth";
     }
     return `${window.location.origin}/api/pusher/auth`;
   }
-  return "http://localhost:4000/api/pusher/auth";
+  const serverOrigin = process.env.INTERNAL_API_URL || process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "" : "http://localhost:4000");
+  return serverOrigin ? `${serverOrigin.replace(/\/+$/, "")}/api/pusher/auth` : "/api/pusher/auth";
 }
 
 let globalSocket: Socket | null = null;
@@ -70,9 +71,8 @@ export function getSocketClient(): Socket {
   // socket that does NOT auto-connect and does NOT retry, preventing 404 reconnect loops.
   if (SOCKET_URL === null) {
     if (!globalSocket) {
-      // Create a socket pointed at a placeholder — it will never connect because autoConnect
-      // is false and we never call .connect() on it.
-      globalSocket = io("http://localhost:4000", {
+      // Create a disabled socket that never connects (autoConnect: false, no retries)
+      globalSocket = io({
         autoConnect: false,
         reconnection: false,
       });

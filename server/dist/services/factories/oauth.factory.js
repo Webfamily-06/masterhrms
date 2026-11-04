@@ -37,7 +37,7 @@ class OAuthFactory {
      */
     static async resolveConfig(req) {
         const isProd = process.env.NODE_ENV === "production";
-        const reqHost = req ? `${req.protocol}://${req.get("host")}` : (process.env.API_URL || "http://localhost:4000");
+        const reqHost = req ? `${req.protocol}://${req.get("host")}` : (process.env.API_URL || (isProd ? (0, workspace_host_1.getRootUrl)() : "http://localhost:4000"));
         let oauthBaseUrl = reqHost;
         let frontendBaseUrl = process.env.FRONTEND_URL || process.env.APP_URL;
         if (!frontendBaseUrl) {

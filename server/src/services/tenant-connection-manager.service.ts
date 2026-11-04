@@ -28,6 +28,9 @@ export class TenantConnectionManager {
   private constructor() {
     const baseDbUrl = process.env.DATABASE_URL;
     if (!baseDbUrl) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("⚠️ [TenantConnectionManager] DATABASE_URL is strictly required in production.");
+      }
       console.warn("⚠️ [TenantConnectionManager] DATABASE_URL is missing from environment variables.");
     }
     const rawShared = new PrismaClient({

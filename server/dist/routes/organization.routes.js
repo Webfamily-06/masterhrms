@@ -1,12 +1,24 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.organizationRouter = void 0;
+exports.BRANCH_PHYSICAL_COLUMNS_SELECT = exports.organizationRouter = void 0;
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
 const tenant_context_1 = require("../context/tenant-context");
 const master_data_blueprint_1 = require("../blueprints/master-data.blueprint");
 const announcements_routes_1 = require("./announcements.routes");
 exports.organizationRouter = (0, express_1.Router)();
+exports.BRANCH_PHYSICAL_COLUMNS_SELECT = {
+    id: true,
+    tenantId: true,
+    name: true,
+    code: true,
+    address: true,
+    phone: true,
+    email: true,
+    status: true,
+    createdAt: true,
+    updatedAt: true,
+};
 // =========================================================================
 // 1. BRANCHES MASTER (/branches)
 // =========================================================================
@@ -15,6 +27,7 @@ exports.organizationRouter.use("/branches", (0, master_data_blueprint_1.createMa
     entityName: "Branch",
     searchFields: ["name", "code", "email", "phone"],
     uniqueFields: ["code"],
+    select: exports.BRANCH_PHYSICAL_COLUMNS_SELECT,
 }));
 // =========================================================================
 // 2. DEPARTMENTS MASTER (/departments)

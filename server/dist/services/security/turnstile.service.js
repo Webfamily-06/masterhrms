@@ -1,21 +1,9 @@
 "use strict";
-/**
- * MASTERHRMS — Cloudflare Turnstile Siteverify Service
- *
- * Implements server-side bot verification against Cloudflare Siteverify API.
- * Follows Cloudflare Turnstile security best practices:
- * - Secret key strictly isolated on the server.
- * - Action matching to prevent cross-form token reuse.
- * - Hostname allowlist matching to prevent cross-domain token reuse.
- * - Single-use token caching to prevent token replay attacks.
- * - Safe fail-closed handling on timeout or provider error when enforced.
- * - Configurable enforcement modes: "off" | "audit" | "enforce".
- * - Production hardening: dummy tokens and silent disabling strictly prohibited in production.
- */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TurnstileService = void 0;
 exports.getTurnstileConfig = getTurnstileConfig;
 exports.verifyTurnstileToken = verifyTurnstileToken;
+const workspace_host_1 = require("../../lib/workspace-host");
 class TurnstileService {
     static SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
     static DUMMY_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
@@ -68,11 +56,27 @@ class TurnstileService {
      * Get configured expected hostnames.
      */
     static getExpectedHostnames() {
-        const raw = process.env.TURNSTILE_HOSTNAMES || "localhost,127.0.0.1,masterhrms.com";
-        return new Set(raw
-            .split(",")
-            .map((h) => h.trim().toLowerCase())
-            .filter(Boolean));
+        if (process.env.TURNSTILE_HOSTNAMES && process.env.TURNSTILE_HOSTNAMES.trim().length > 0) {
+            return new Set(process.env.TURNSTILE_HOSTNAMES
+                .split(",")
+                .map((h) => h.trim().toLowerCase())
+                .filter(Boolean));
+        }
+        const hostnames = new Set();
+        const baseDomain = (0, workspace_host_1.getBaseDomain)().toLowerCase();
+        if (baseDomain) {
+            hostnames.add(baseDomain);
+        }
+        hostnames.add("masterhrms.com");
+        const fallbackDomain = (process.env.PRODUCTION_FALLBACK_DOMAIN || "").trim().toLowerCase();
+        if (fallbackDomain) {
+            hostnames.add(fallbackDomain);
+        }
+        if (process.env.NODE_ENV !== "production") {
+            hostnames.add("localhost");
+            hostnames.add("127.0.0.1");
+        }
+        return hostnames;
     }
     /**
      * Verify Turnstile token with Cloudflare Siteverify API.

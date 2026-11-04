@@ -300,7 +300,7 @@ function PublicApiPage() {
                 Quick Start cURL Example
               </div>
               <pre className="p-3 bg-black text-emerald-400 rounded-lg text-xs overflow-x-auto">
-{`curl -X GET "http://localhost:5000/api/v1/public-api/employees" \\
+{`curl -X GET "${typeof window !== "undefined" ? window.location.origin : "https://masterhrms.com"}/api/v1/public-api/employees" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json"`}
               </pre>

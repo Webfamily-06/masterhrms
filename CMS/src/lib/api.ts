@@ -2,10 +2,40 @@
  * Backend API Client for Master HRMS (Node.js + Express + MySQL)
  */
 
+/**
+ * Resolves the absolute backend API URL for Server-Side Rendering (SSR).
+ * In Node.js server execution, fetch() strictly requires an absolute URL with scheme (http/https).
+ * Uses only existing backend environment variables: INTERNAL_API_URL, SERVER_URL, NEXT_PUBLIC_API_URL.
+ * If running in production without any backend origin configured, throws an actionable configuration error.
+ */
+export const resolveServerApiUrl = (): string => {
+  const envUrl =
+    (typeof process !== 'undefined' && process.env?.INTERNAL_API_URL) ||
+    (typeof process !== 'undefined' && process.env?.SERVER_URL) ||
+    (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL);
+
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    const clean = envUrl.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+    throw new Error(
+      '[MASTERHRMS Configuration Error] SSR execution requires an absolute backend API URL. ' +
+      'Please configure INTERNAL_API_URL, SERVER_URL, or NEXT_PUBLIC_API_URL in your deployment environment.'
+    );
+  }
+
+  // Development SSR fallback
+  return 'http://localhost:4000/api';
+};
+
 export const API_URL =
   typeof window !== 'undefined'
     ? '/api'
-    : `${(process.env?.INTERNAL_API_URL || process.env?.SERVER_URL || 'http://localhost:4000').replace(/\/+$/, '')}/api`;
+    : (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' && !process.env?.INTERNAL_API_URL && !process.env?.SERVER_URL && !process.env?.NEXT_PUBLIC_API_URL
+        ? ''
+        : resolveServerApiUrl());
 
 export const API_BASE =
   (typeof process !== "undefined" && process.env?.INTERNAL_API_URL
@@ -16,7 +46,11 @@ export const API_BASE =
     : undefined) ||
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
   (typeof import.meta !== "undefined" && (import.meta as any)?.env?.VITE_API_URL) ||
-  (typeof window !== "undefined" ? "/api" : "http://localhost:4000/api");
+  (typeof window !== "undefined"
+    ? "/api"
+    : (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' && !process.env?.INTERNAL_API_URL && !process.env?.SERVER_URL && !process.env?.NEXT_PUBLIC_API_URL
+        ? ''
+        : resolveServerApiUrl()));
 
 export function getAuthToken(): string {
   if (typeof window === "undefined") return "";
@@ -180,11 +214,12 @@ export async function apiRequest<T = any>(
     }
   }
 
+  const base = API_BASE || resolveServerApiUrl();
   let cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  if (API_BASE.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
+  if (base.endsWith("/api") && cleanEndpoint.startsWith("/api/")) {
     cleanEndpoint = cleanEndpoint.substring(4);
   }
-  const url = `${API_BASE}${cleanEndpoint}`;
+  const url = `${base}${cleanEndpoint}`;
   let response: Response;
   try {
     response = await fetch(url, { ...options, headers });

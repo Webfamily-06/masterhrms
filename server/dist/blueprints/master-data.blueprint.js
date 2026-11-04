@@ -18,7 +18,7 @@ const data_scope_1 = require("../lib/data-scope");
  */
 function createMasterDataRouter(config) {
     const router = (0, express_1.Router)();
-    const { modelName, entityName, searchFields = ["name", "code"], uniqueFields = ["name"] } = config;
+    const { modelName, entityName, searchFields = ["name", "code"], uniqueFields = ["name"], select } = config;
     // 1. LIST ENTITIES (GET /)
     router.get("/", auth_1.requireAuth, async (req, res) => {
         try {
@@ -41,13 +41,17 @@ function createMasterDataRouter(config) {
             if (!delegate) {
                 return res.status(500).json({ error: `Model '${modelName}' not found in Prisma client` });
             }
+            const findArgs = {
+                where,
+                orderBy: { [sortBy]: sortOrder },
+                skip: (page - 1) * limit,
+                take: limit,
+            };
+            if (select) {
+                findArgs.select = select;
+            }
             const [items, total] = await Promise.all([
-                delegate.findMany({
-                    where,
-                    orderBy: { [sortBy]: sortOrder },
-                    skip: (page - 1) * limit,
-                    take: limit,
-                }),
+                delegate.findMany(findArgs),
                 delegate.count({ where }),
             ]);
             const userContext = await (0, data_scope_1.resolveUserSecurityContext)(req.user?.userId, tenantId, req.user?.roles || [], db);

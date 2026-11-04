@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EmployeeService = void 0;
+exports.EmployeeService = exports.EMPLOYEE_PHYSICAL_COLUMNS_SELECT = void 0;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const tenant_context_1 = require("../context/tenant-context");
 const auth_helpers_1 = require("../lib/auth-helpers");
@@ -15,6 +15,49 @@ const allowed_actions_1 = require("../lib/allowed-actions");
 const data_scope_1 = require("../lib/data-scope");
 const employee_system_id_service_1 = require("./employee-system-id.service");
 const employee_schema_1 = require("../schemas/employee.schema");
+exports.EMPLOYEE_PHYSICAL_COLUMNS_SELECT = {
+    id: true,
+    tenantId: true,
+    userId: true,
+    departmentId: true,
+    branchId: true,
+    designationId: true,
+    managerId: true,
+    employeeCode: true,
+    firstName: true,
+    lastName: true,
+    email: true,
+    phone: true,
+    position: true,
+    employmentType: true,
+    status: true,
+    salary: true,
+    joinedAt: true,
+    pan: true,
+    aadhaar: true,
+    uan: true,
+    esiNumber: true,
+    bankName: true,
+    bankAccount: true,
+    bankIfsc: true,
+    bankBranch: true,
+    dateOfBirth: true,
+    gender: true,
+    taxRegime: true,
+    state: true,
+    workStateCode: true,
+    establishmentId: true,
+    clientId: true,
+    pfNumber: true,
+    pfEligible: true,
+    pfCalculationMethod: true,
+    pfCustomCap: true,
+    esiEligible: true,
+    ptEligible: true,
+    tdsEligible: true,
+    createdAt: true,
+    updatedAt: true,
+};
 class EmployeeService {
     /**
      * ATOMIC EMPLOYEE CREATION (8-Step Wizard Target)
@@ -28,6 +71,7 @@ class EmployeeService {
         if (input.employeeCode) {
             const existingCode = await db.employee.findFirst({
                 where: { tenantId, employeeCode: input.employeeCode },
+                select: { id: true },
             });
             if (existingCode) {
                 throw new Error(`An employee with code '${input.employeeCode}' already exists in this workspace.`);
@@ -35,6 +79,7 @@ class EmployeeService {
         }
         const existingEmail = await db.employee.findFirst({
             where: { tenantId, email: input.email.toLowerCase().trim() },
+            select: { id: true },
         });
         if (existingEmail) {
             throw new Error(`An employee with email '${input.email}' already exists in this workspace.`);
@@ -261,7 +306,8 @@ class EmployeeService {
             db.employee.count({ where }),
             db.employee.findMany({
                 where,
-                include: {
+                select: {
+                    ...exports.EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
                     department: { select: { id: true, name: true } },
                     branch: { select: { id: true, name: true, code: true } },
                     designation: { select: { id: true, name: true } },
@@ -322,7 +368,20 @@ class EmployeeService {
             where: { id: employeeId, tenantId },
             include: {
                 department: true,
-                branch: true,
+                branch: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        name: true,
+                        code: true,
+                        address: true,
+                        phone: true,
+                        email: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
                 designation: true,
                 manager: {
                     select: {
@@ -664,7 +723,20 @@ class EmployeeService {
             where: { id: employeeId, tenantId },
             include: {
                 department: true,
-                branch: true,
+                branch: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        name: true,
+                        code: true,
+                        address: true,
+                        phone: true,
+                        email: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
+                },
                 designation: true,
                 user: { include: { profile: true } },
             },

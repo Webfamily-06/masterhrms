@@ -288,7 +288,7 @@ function initSocket(server, allowedOrigins) {
         };
         // 1. INITIATE CALL (1-on-1)
         socket.on("call:invite", async (payload) => {
-            const targetUserId = payload?.targetUserId || payload?.toUserId;
+            let targetUserId = payload?.targetUserId || payload?.toUserId;
             const callType = (payload?.callType || payload?.type || "audio").toLowerCase();
             const callId = payload?.callId || `call_${Date.now()}`;
             const tenantId = socket.data.tenantId;
@@ -302,15 +302,28 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            // Check if target user is in the same tenant
-            const targetUser = await prisma_1.prisma.user.findFirst({
+            // Check if target user is in the same tenant (with employeeId resolution)
+            let targetUser = await prisma_1.prisma.user.findFirst({
                 where: { id: targetUserId, profile: { tenantId } },
                 include: { profile: true },
             });
             if (!targetUser) {
+                const emp = await (prisma_1.rawPrisma || prisma_1.prisma).employee.findFirst({
+                    where: { id: targetUserId, tenantId },
+                    select: { userId: true },
+                });
+                if (emp?.userId) {
+                    targetUser = await prisma_1.prisma.user.findFirst({
+                        where: { id: emp.userId, profile: { tenantId } },
+                        include: { profile: true },
+                    });
+                }
+            }
+            if (!targetUser) {
                 emitCallForbidden(socket);
                 return;
             }
+            targetUserId = targetUser.id;
             // A user may be in only one live one-to-one call or group meeting. Check both sides here
             // instead of trusting client state, otherwise a caller could create concurrent peer connections.
             let busyUserId = null;

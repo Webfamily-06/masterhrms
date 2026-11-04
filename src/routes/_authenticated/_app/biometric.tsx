@@ -2340,8 +2340,8 @@ export function BiometricPage() {
               <div className="space-y-1">
                 <Label className="text-[11px] font-bold">1. Server Host / Domain / IP</Label>
                 <div className="flex items-center gap-2">
-                  <Input readOnly value={cloudConfig?.serverHost || "localhost"} className="h-8 text-xs font-mono bg-background" />
-                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(cloudConfig?.serverHost || "localhost", "Server Host")} className="h-8">
+                  <Input readOnly value={cloudConfig?.serverHost || (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? window.location.hostname : (typeof import.meta !== "undefined" && (import.meta as any).env?.PROD ? "masterhrms.com" : "Configure Server / LAN IP (e.g. 192.168.x.x)"))} className="h-8 text-xs font-mono bg-background" />
+                  <Button size="sm" variant="outline" onClick={() => copyToClipboard(cloudConfig?.serverHost || (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1" ? window.location.hostname : (typeof import.meta !== "undefined" && (import.meta as any).env?.PROD ? "masterhrms.com" : "Configure Server / LAN IP (e.g. 192.168.x.x)")), "Server Host")} className="h-8">
                     Copy
                   </Button>
                 </div>

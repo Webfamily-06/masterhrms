@@ -75,7 +75,7 @@ export class OAuthFactory {
    */
   static async resolveConfig(req?: any): Promise<ResolvedPlatformOAuthConfig> {
     const isProd = process.env.NODE_ENV === "production";
-    const reqHost = req ? `${req.protocol}://${req.get("host")}` : (process.env.API_URL || "http://localhost:4000");
+    const reqHost = req ? `${req.protocol}://${req.get("host")}` : (process.env.API_URL || (isProd ? getRootUrl() : "http://localhost:4000"));
     let oauthBaseUrl = reqHost;
     let frontendBaseUrl = process.env.FRONTEND_URL || process.env.APP_URL;
 

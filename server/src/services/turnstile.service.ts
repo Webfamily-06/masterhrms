@@ -1,3 +1,4 @@
+import { getBaseDomain } from "../lib/workspace-host";
 /**
  * MASTERHRMS — Cloudflare Turnstile Siteverify Service
  * 
@@ -90,13 +91,33 @@ export class TurnstileService {
    * Get configured expected hostnames.
    */
   public static getExpectedHostnames(): Set<string> {
-    const raw = process.env.TURNSTILE_HOSTNAMES || "localhost,127.0.0.1,masterhrms.com";
-    return new Set(
-      raw
-        .split(",")
-        .map((h) => h.trim().toLowerCase())
-        .filter(Boolean)
-    );
+    if (process.env.TURNSTILE_HOSTNAMES && process.env.TURNSTILE_HOSTNAMES.trim().length > 0) {
+      return new Set(
+        process.env.TURNSTILE_HOSTNAMES
+          .split(",")
+          .map((h) => h.trim().toLowerCase())
+          .filter(Boolean)
+      );
+    }
+
+    const hostnames = new Set<string>();
+    const baseDomain = getBaseDomain().toLowerCase();
+    if (baseDomain) {
+      hostnames.add(baseDomain);
+    }
+    hostnames.add("masterhrms.com");
+
+    const fallbackDomain = (process.env.PRODUCTION_FALLBACK_DOMAIN || "").trim().toLowerCase();
+    if (fallbackDomain) {
+      hostnames.add(fallbackDomain);
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      hostnames.add("localhost");
+      hostnames.add("127.0.0.1");
+    }
+
+    return hostnames;
   }
 
   /**

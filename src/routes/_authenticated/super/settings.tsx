@@ -228,6 +228,9 @@ const getDefaultOauthBaseUrl = () => {
   if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
     return `${window.location.protocol}//api.${getPlatformBaseDomain()}`;
   }
+  if (typeof import.meta !== "undefined" && (import.meta as any).env?.PROD) {
+    return `https://api.${getPlatformBaseDomain()}`;
+  }
   return "http://localhost:4000";
 };
 
@@ -237,6 +240,9 @@ const getDefaultFrontendBaseUrl = () => {
   }
   if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
     return `${window.location.protocol}//${getPlatformBaseDomain()}`;
+  }
+  if (typeof import.meta !== "undefined" && (import.meta as any).env?.PROD) {
+    return `https://${getPlatformBaseDomain()}`;
   }
   return "http://localhost:3000";
 };
@@ -597,7 +603,7 @@ function SuperSettingsAdmin() {
   }
 
   function copyAllCallbacks() {
-    const base = (form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "");
+    const base = (form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "");
     const bundle = [
       `=== Master HRMS OAuth Callback URLs for ${base} ===`,
       `Google:    ${base}/api/auth/oauth/google/callback`,
@@ -2685,7 +2691,7 @@ function SuperSettingsAdmin() {
               <div className="flex gap-2">
                 <Input
                   readOnly
-                  value={`${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/google/callback`}
+                  value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/google/callback`}
                   className="text-xs font-mono bg-background select-all"
                 />
                 <Button
@@ -2695,7 +2701,7 @@ function SuperSettingsAdmin() {
                   className="gap-1.5 text-xs shrink-0"
                   onClick={() =>
                     copyToClipboard(
-                      `${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/google/callback`,
+                      `${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/google/callback`,
                       "Google",
                     )
                   }
@@ -2795,7 +2801,7 @@ function SuperSettingsAdmin() {
               <div className="flex gap-2">
                 <Input
                   readOnly
-                  value={`${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/apple/callback`}
+                  value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/apple/callback`}
                   className="text-xs font-mono bg-background select-all"
                 />
                 <Button
@@ -2805,7 +2811,7 @@ function SuperSettingsAdmin() {
                   className="gap-1.5 text-xs shrink-0"
                   onClick={() =>
                     copyToClipboard(
-                      `${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/apple/callback`,
+                      `${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/apple/callback`,
                       "Apple",
                     )
                   }
@@ -2883,7 +2889,7 @@ function SuperSettingsAdmin() {
               <div className="flex gap-2">
                 <Input
                   readOnly
-                  value={`${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/linkedin/callback`}
+                  value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/linkedin/callback`}
                   className="text-xs font-mono bg-background select-all"
                 />
                 <Button
@@ -2893,7 +2899,7 @@ function SuperSettingsAdmin() {
                   className="gap-1.5 text-xs shrink-0"
                   onClick={() =>
                     copyToClipboard(
-                      `${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/linkedin/callback`,
+                      `${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/linkedin/callback`,
                       "LinkedIn",
                     )
                   }
@@ -2971,7 +2977,7 @@ function SuperSettingsAdmin() {
               <div className="flex gap-2">
                 <Input
                   readOnly
-                  value={`${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/facebook/callback`}
+                  value={`${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/facebook/callback`}
                   className="text-xs font-mono bg-background select-all"
                 />
                 <Button
@@ -2981,7 +2987,7 @@ function SuperSettingsAdmin() {
                   className="gap-1.5 text-xs shrink-0"
                   onClick={() =>
                     copyToClipboard(
-                      `${(form.oauthBaseUrl || "http://localhost:4000").replace(/\/+$/, "")}/api/auth/oauth/facebook/callback`,
+                      `${(form.oauthBaseUrl || getDefaultOauthBaseUrl()).replace(/\/+$/, "")}/api/auth/oauth/facebook/callback`,
                       "Facebook",
                     )
                   }

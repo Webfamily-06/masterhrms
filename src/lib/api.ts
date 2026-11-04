@@ -15,7 +15,7 @@ export const API_BASE =
   window.location.hostname !== "127.0.0.1" &&
   !window.location.hostname.endsWith(".localhost")
     ? "/api"
-    : "http://localhost:4000/api");
+    : (typeof import.meta !== "undefined" && import.meta.env?.PROD ? "/api" : "http://localhost:4000/api"));
 
 export function getAuthToken(): string {
   if (typeof window === "undefined") return "";

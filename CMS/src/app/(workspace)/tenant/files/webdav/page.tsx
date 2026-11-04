@@ -92,7 +92,7 @@ export default function WebdavTokensPage() {
       ? (window.location.port === "3000"
           ? `${window.location.protocol}//${window.location.hostname}:4000/webdav`
           : `${window.location.origin}/webdav`)
-      : (typeof process !== "undefined" && process.env.INTERNAL_API_URL ? `${process.env.INTERNAL_API_URL}/webdav` : "http://localhost:4000/webdav"));
+      : (typeof process !== "undefined" && process.env.INTERNAL_API_URL ? `${process.env.INTERNAL_API_URL}/webdav` : (process.env.NODE_ENV === "production" ? "/webdav" : "http://localhost:4000/webdav")));
 
   return (
     <div className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full gap-6">

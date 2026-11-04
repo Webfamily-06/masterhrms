@@ -161,12 +161,28 @@ exports.chatRouter.get("/participant/:id", auth_1.requireAuth, async (req, res) 
                 tenantId,
                 OR: [{ id }, { userId: id }],
             },
-            include: {
+            select: {
+                id: true,
+                userId: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                position: true,
+                employmentType: true,
+                joinedAt: true,
                 department: { select: { id: true, name: true } },
                 designation: { select: { id: true, name: true } },
                 user: {
-                    include: {
-                        profile: true,
+                    select: {
+                        profile: {
+                            select: {
+                                id: true,
+                                fullName: true,
+                                avatarUrl: true,
+                            },
+                        },
                     },
                 },
             },
@@ -232,7 +248,15 @@ exports.chatRouter.get("/contacts", auth_1.requireAuth, async (req, res) => {
                 tenantId,
                 status: "active",
             },
-            include: {
+            select: {
+                id: true,
+                userId: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                position: true,
                 department: { select: { id: true, name: true } },
                 designation: { select: { id: true, name: true } },
             },
@@ -447,7 +471,15 @@ exports.chatRouter.get("/conversations", auth_1.requireAuth, async (req, res) =>
             let title = "Employee";
             const emp = await prisma_1.prisma.employee.findFirst({
                 where: { tenantId, OR: [{ userId: otherUserId }, { id: otherUserId }] },
-                include: {
+                select: {
+                    id: true,
+                    userId: true,
+                    employeeCode: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phone: true,
+                    position: true,
                     department: { select: { id: true, name: true } },
                     designation: { select: { id: true, name: true } },
                 },
@@ -534,7 +566,15 @@ exports.chatRouter.post("/conversations/direct", auth_1.requireAuth, async (req,
                 tenantId,
                 OR: [{ userId: targetUserId }, { id: targetUserId }],
             },
-            include: {
+            select: {
+                id: true,
+                userId: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                position: true,
                 department: { select: { id: true, name: true } },
                 designation: { select: { id: true, name: true } },
             },

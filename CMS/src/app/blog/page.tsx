@@ -19,7 +19,7 @@ export const revalidate = 0;
 
 const Page = async () => {
   let cmsPosts: FormattedPost[] = [];
-  const internalApiBase = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.API_BASE_URL || 'http://127.0.0.1:4000';
+  const internalApiBase = process.env.SERVER_URL || process.env.INTERNAL_API_URL || process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, '')}/api` : '') || (process.env.NODE_ENV === 'production' ? '' : 'http://127.0.0.1:4000');
   try {
     const res = await fetch(new URL('/api/cms/blogs', internalApiBase).toString(), { cache: 'no-store' });
     if (res.ok) {

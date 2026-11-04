@@ -110,7 +110,7 @@ exports.pushRouter.post("/test", auth_1.requireAuth, async (req, res) => {
             callerAvatar: null,
             callType: "audio",
             issuedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 45000).toISOString(),
+            expiresAt: new Date(Date.now() + 60000).toISOString(),
             actionRoute: "/apps/chat/chats",
         };
         const results = await Promise.all(activeSubs.map((sub) => vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, testPayload, { ttl: 45, urgency: "high", topic: "test_call" })));
