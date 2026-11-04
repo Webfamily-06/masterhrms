@@ -221,6 +221,18 @@ export async function autoPostPayrollToLedger(params: {
     }
 
     await prisma.$transaction(async (tx) => {
+      // AUD-CONC-002: PostgreSQL transaction-level advisory lock serializes concurrent postings for the same run
+      await (tx as any).$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('gl_payroll_${payrollRunId}'))`);
+
+      // AUD-CONC-002: Idempotency check inside transaction
+      const existingInTx = await tx.journalEntry.findFirst({
+        where: { tenantId, reference: payrollRunId },
+      });
+      if (existingInTx) {
+        console.log(`[LEDGER] Journal Entry for payroll ${payrollRunId} already exists (${existingInTx.entryNumber}). Skipping duplicate.`);
+        return;
+      }
+
       await assertOpenPeriodForPosting(tx, tenantId, new Date());
       const entry = await tx.journalEntry.create({
         data: {

@@ -1,0 +1,47 @@
+# MASTERHRMS — PHASE 4B.6
+# CRYPTOGRAPHIC SHA-256 FILE MANIFEST
+# Generated: 2026-11-04T14:13:00+05:30
+# Repository: Webfamily-06/masterhrms
+# Commit Baseline HEAD: 9e8749bfe0275f4bf684d23edf3763fd1e9c74c0
+# Algorithm: SHA-256 (Raw byte calculation from filesystem)
+
+# ==============================================================================
+# 1. DATABASE MIGRATION SQL FILES (MIGRATIONS 1–10)
+# ==============================================================================
+82fc3c0f335768687f11a38ff17b0fcab31f616a6b4533c0a3892b590c4e319b  server/prisma/migrations/20260926000000_wave3_step3_2_fiscal_controls/migration.sql
+1e54d7530536c6773083c4d8e564d48f56664d6c69ba8bc01ca8104be459e368  server/prisma/migrations/20260927000000_wave3_step3_3_1_inventory_decimal_and_stock_movement/migration.sql
+0b00159cd62da860f770558a46312c7442e59907d481123796771e15ff043b5c  server/prisma/migrations/20260927120000_wave3_step3_3_5_offline_replay_key/migration.sql
+56a2e25cd3b83379d9c0e37c363839d43a3f85e8163f74a269a6fe77d9e9221e  server/prisma/migrations/20260928000000_step_3_4_purchase_payments/migration.sql
+2beb6f48ab982aa0b02e3fb5fa2f096dc3957a0f26f6ab098e8482a16a40334f  server/prisma/migrations/20260928000001_step_3_5_sale_payments/migration.sql
+e64e132993688391e9ec4f7aa696ff92ff83ae86ad54643ea3ed902aa38a4a22  server/prisma/migrations/20260928000002_step_3_6_returns_credit_debit_notes/migration.sql
+b7c63561df634455428f392f91bb244aa28856d2ceca2d25e1c44645fae8e62c  server/prisma/migrations/20260928000003_rbac_and_tenant_modules/migration.sql
+b2685a0f108cabb31dd6508f7489f226d242e8b2350f51f64a20ab8918149dc4  server/prisma/migrations/20261102000000_add_device_sessions/migration.sql
+79e4bc5d3dad92bd34629a5d04d8435c67efa1af6d2d9ed2c61b3587737aa475  server/prisma/migrations/20261103000002_add_branch_geofencing/migration.sql
+c690e00389f5d80c548f2ca74deeff24534894a680b7957d6119dede4f26070e  server/prisma/migrations/20261104100000_aud_conc_002_idempotency_constraints/migration.sql
+
+# ==============================================================================
+# 2. AUTOMATED DATABASE TEST & VERIFICATION HARNESSES
+# ==============================================================================
+37d47c054ffab51d403f15249da214e60e4f45300a2909d318c18ad490440a26  scripts/pg17_container_certification.cjs
+f21ed173deec71227c1afcadb160741da193cccf47170c1d0257bba88027169f  scripts/verify_migrations_1_7.cjs
+dd07b2eeaa74bd3f6b1a4a7cf1c8c9e7d76095f67b15fb2c5563b989259f10a8  scripts/isolated_integration_test.cjs
+
+# ==============================================================================
+# 3. PHASE 4B.5.4 AUDIT & RUNBOOK DOCUMENTS
+# ==============================================================================
+425a9601c4532b622cbb078795dc89b6e127b6403fb2c507c6f9a2f568084f4c  docs/hrms-audit/PHASE4B5_4_REPOSITORY_CHANGE_INVENTORY.md
+d0d584e7004c2c44e2b1a05a7cf03ccfcbeaa34374968c6c6cdcd761a18b659e  docs/hrms-audit/PHASE4B5_4_MIGRATION_SOURCE_RECONCILIATION.md
+8547f0d897efa9ba4b4ac96d8f8d024e9d92b8accf32a3656e8c5bab34fdacd9  docs/hrms-audit/PHASE4B5_4_PRISMA_BASELINE_MATRIX.md
+f06d9cadcc7714ea11aa8eac41274649fd78d7750b383cfd91032a9776c620b9  docs/hrms-audit/PHASE4B5_4_DATABASE_PR_MANIFEST.md
+d8f22e03dd6343e5d2e9ec72bfb965a60e3d8869f265a554dff18964110bc196  docs/hrms-audit/PHASE4B5_4_PRODUCTION_EXECUTION_READINESS.md
+c16b4271025b3d070db01e1ec977dfdbd3ec78605cf423fb11e5842bed9917d2  docs/hrms-audit/PHASE4B5_4_FINAL_GATE_REPORT.md
+3b06989718bf2c72b87d27b297d4ed0438d53f2740f70c6ca435de15256ff5ce  docs/hrms-audit/PHASE4B_PRODUCTION_MIGRATION_RUNBOOK.md
+
+# ==============================================================================
+# 4. PHASE 4B.6 HANDOFF EVIDENCE PACKAGE DELIVERABLES
+# ==============================================================================
+d6e8e436d32af0d89f727909a10dae9fbae8054e674ff9bab16283a17b5b59aa  docs/hrms-audit/PHASE4B6_SOURCE_EVIDENCE_BUNDLE.md
+becb45f2bfdb4269876273ec6c763ba8eb697fc587d652f6a62657bc8ccda728  docs/hrms-audit/PHASE4B6_PG17_CERTIFICATION_EVIDENCE.md
+017728ff311863a809e52b9f6deadfec43947ea9c91768c88e53fa5c47ca7e7b  docs/hrms-audit/PHASE4B6_M1_M7_BASELINE_EVIDENCE.md
+fd7d5ce542f59417710edce169bca1dbb1f5c7555d8c399431ed98504646606b  docs/hrms-audit/PHASE4B6_DATABASE_PR_FILE_MANIFEST.md
+9b339f8ba37a510efd638dd50e35168586888871cab1875701335d618d4055e2  docs/hrms-audit/PHASE4B6_OPEN_ISSUES.md

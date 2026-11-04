@@ -95,7 +95,32 @@ class ContractInvoiceService {
                 }
             });
             if (duplicate && !options?.forceRegenerate) {
-                throw new Error(`Invoice ${duplicate.invoiceNo} already exists for client ${clientSummary.clientName} in this payroll run. Cancel or void existing invoice before regenerating.`);
+                // AUD-CONC-002: Idempotent return of existing invoice
+                let meta = {};
+                try {
+                    meta = duplicate.notes ? JSON.parse(duplicate.notes) : {};
+                }
+                catch { }
+                createdInvoices.push({
+                    id: duplicate.id,
+                    invoiceNo: duplicate.invoiceNo,
+                    payrollRunId,
+                    clientId: clientSummary.clientId,
+                    clientName: clientSummary.clientName,
+                    headcount: clientSummary.headcount,
+                    billableCtc: clientSummary.totalBillableCtc,
+                    mmuAmount: clientSummary.totalMmu,
+                    taxableSupplyValue: clientSummary.taxableSupplyValue,
+                    supplyType: clientSummary.supplyType,
+                    cgst: clientSummary.cgst,
+                    sgst: clientSummary.sgst,
+                    igst: clientSummary.igst,
+                    totalGst: clientSummary.totalGst,
+                    totalAmount: Number(duplicate.total),
+                    status: meta.workflowStatus || "DRAFT",
+                    createdAt: duplicate.createdAt,
+                });
+                continue;
             }
             if (duplicate && options?.forceRegenerate) {
                 // Mark existing as cancelled

@@ -3,6 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getStatutoryFormData = getStatutoryFormData;
 const prisma_1 = require("../prisma");
 const payroll_engine_service_1 = require("./payroll-engine.service");
+const statutory_form_registry_service_1 = require("./statutory/statutory-form-registry.service");
+const statutory_builder_common_1 = require("./statutory/builders/statutory-builder-common");
+const db = prisma_1.rawPrisma || prisma_1.prisma;
 /**
  * Single Canonical Data Service for Statutory Forms
  * Strict Tenant Isolation + Live DB Aggregation + Zero Fake Seed Fallback
@@ -10,7 +13,7 @@ const payroll_engine_service_1 = require("./payroll-engine.service");
 async function getStatutoryFormData(params) {
     const { tenantId, employeeId, formType, payrollRunId, financialYear, quarter = "Q1" } = params;
     // 1. Validate Tenant
-    const tenant = await prisma_1.prisma.tenant.findUnique({
+    const tenant = await db.tenant.findUnique({
         where: { id: tenantId },
     });
     if (!tenant) {
@@ -19,18 +22,10 @@ async function getStatutoryFormData(params) {
     // 2. Fetch Employee Master if requested
     let employee = null;
     if (employeeId) {
-        employee = await prisma_1.prisma.employee.findFirst({
+        employee = await db.employee.findFirst({
             where: { id: employeeId, tenantId },
-            include: {
-                department: true,
-                salaryAssignments: {
-                    where: { isCurrent: true },
-                    include: {
-                        structure: { include: { items: { include: { component: true } } } },
-                        items: { include: { component: true } },
-                    },
-                    take: 1,
-                },
+            select: {
+                ...statutory_builder_common_1.SAFE_EMPLOYEE_SELECT,
                 taxDeclarations: {
                     where: { financialYear },
                     take: 1,
@@ -45,7 +40,7 @@ async function getStatutoryFormData(params) {
     const fyYears = financialYear.split("-");
     const startYear = Number(fyYears[0]) || 2026;
     const endYear = Number(fyYears[1]) || (startYear + 1);
-    const payslips = await prisma_1.prisma.payslip.findMany({
+    const payslips = await db.payslip.findMany({
         where: {
             tenantId,
             ...(employeeId ? { employeeId } : {}),
@@ -56,12 +51,12 @@ async function getStatutoryFormData(params) {
             ],
         },
         include: {
-            employee: { include: { department: true } },
+            employee: { select: statutory_builder_common_1.SAFE_EMPLOYEE_SELECT },
         },
         orderBy: [{ periodYear: "asc" }, { periodMonth: "asc" }],
     });
     // Also check snapshots
-    const snapshots = await prisma_1.prisma.payrollSnapshot.findMany({
+    const snapshots = await db.payrollSnapshot.findMany({
         where: {
             tenantId,
             ...(employeeId ? { employeeId } : {}),
@@ -123,9 +118,9 @@ async function getStatutoryFormData(params) {
         totalDeductionApproved: Number(declaration.totalDeductionApproved || 0),
     } : undefined);
     // 7. Fetch all employees in tenant for multi-employee returns (Wages Register & Form 138)
-    const allTenantEmployees = await prisma_1.prisma.employee.findMany({
+    const allTenantEmployees = await db.employee.findMany({
         where: { tenantId },
-        include: { department: true, salaryAssignments: { where: { isCurrent: true }, take: 1 } },
+        select: statutory_builder_common_1.SAFE_EMPLOYEE_SELECT,
         orderBy: { employeeCode: "asc" },
     });
     // 8. Build Strongly-Typed Form-Specific Model
@@ -495,10 +490,20 @@ async function getStatutoryFormData(params) {
         case "FORM_V":
         case "FORM_W":
         case "FORM_X":
-        case "FORM_S":
+        case "FORM_S": {
+            const reg = await statutory_form_registry_service_1.StatutoryFormRegistryService.generateRegister(formType, {
+                tenantId,
+                payrollRunId,
+                financialYear,
+                year: startYear,
+                month: 4,
+            });
+            formSpecificModel = reg.model;
+            break;
+        }
         case "WAGES_REGISTER_FORM_A":
         default: {
-            const formCode = (["FORM_U", "FORM_V", "FORM_W", "FORM_X", "FORM_S"].includes(formType) ? formType : "WAGES_REGISTER_FORM_A");
+            const formCode = "WAGES_REGISTER_FORM_A";
             const payslipByEmp = new Map(payslips.map((p) => [p.employeeId, p]));
             const snapshotByEmp = new Map(snapshots.map((s) => [s.employeeId, s]));
             const rosterRows = allTenantEmployees.map((emp, idx) => {

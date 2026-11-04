@@ -87,27 +87,17 @@ export interface EligibleEmployee {
   rawEmployee: any;
 }
 
-// In-memory finalization lock to avoid race conditions across concurrent requests
-const activeRunLocks = new Set<string>();
+// In-memory locking removed in AUD-CONC-002 in favor of PostgreSQL atomic conditional updates (claim-check)
 
 export class PayrollOrchestratorService {
   /**
    * Acquire execution lock for a payroll run
    */
-  public static acquireLock(runId: string): boolean {
-    if (activeRunLocks.has(runId)) {
-      return false;
-    }
-    activeRunLocks.add(runId);
+  public static acquireLock(_runId: string): boolean {
     return true;
   }
 
-  /**
-   * Release execution lock
-   */
-  public static releaseLock(runId: string): void {
-    activeRunLocks.delete(runId);
-  }
+  public static releaseLock(_runId: string): void {}
 
   /**
    * Stage 1: Period Creation & Calendar Initialization
@@ -1194,6 +1184,56 @@ export class PayrollOrchestratorService {
     runId: string,
     actor: { id: string; email: string; role: string }
   ) {
+    // Stage 13 Distributed Atomic Claim: Conditional update on approvalStatus
+    // Changes approvalStatus from "APPROVED" -> "FINALIZING"
+    const claim = await db.payrollRun.updateMany({
+      where: {
+        id: runId,
+        tenantId,
+        approvalStatus: "APPROVED",
+      },
+      data: {
+        approvalStatus: "FINALIZING",
+        processedAt: new Date(),
+        approvedBy: actor.email,
+      },
+    });
+
+    if (claim.count === 0) {
+      const existing = await db.payrollRun.findUnique({
+        where: { id: runId },
+        select: { approvalStatus: true, tenantId: true },
+      });
+
+      if (!existing || existing.tenantId !== tenantId) {
+        const err: any = new Error("Payroll run not found for the specified tenant.");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (existing.approvalStatus === "FINALIZING") {
+        const err: any = new Error(
+          "409 Conflict: Payroll cycle is currently being finalized by another worker. Distributed lock prevented concurrent double execution."
+        );
+        err.statusCode = 409;
+        throw err;
+      }
+
+      if (existing.approvalStatus === "CLOSED" || existing.approvalStatus === "OUTPUTS_GENERATED") {
+        const err: any = new Error(
+          `409 Conflict: Payroll cycle is already finalized (current state: ${existing.approvalStatus}). Finalized payroll runs are strictly immutable.`
+        );
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const err: any = new Error(
+        `Cannot finalize payroll cycle from state '${existing.approvalStatus}'. Must be in 'APPROVED'.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
     const run = await db.payrollRun.findUnique({
       where: { id: runId },
       include: {
@@ -1202,20 +1242,8 @@ export class PayrollOrchestratorService {
       },
     });
 
-    if (!run || run.tenantId !== tenantId) {
-      throw new Error("Payroll run not found for the specified tenant.");
-    }
-
-    if (run.approvalStatus !== "APPROVED") {
-      throw new Error(
-        `Cannot finalize payroll cycle from state '${run.approvalStatus}'. Must be in 'APPROVED'.`
-      );
-    }
-
-    // Acquire execution lock
-    const locked = this.acquireLock(runId);
-    if (!locked) {
-      throw new Error("Finalization is already in progress for this run. Concurrent execution prevented.");
+    if (!run) {
+      throw new Error("Payroll run not found after atomic claim.");
     }
 
     try {
@@ -1277,7 +1305,7 @@ export class PayrollOrchestratorService {
           data: { isLocked: true },
         });
 
-        // Commit Loan Balances
+        // Commit Loan Balances idempotently
         for (const slip of run.payslips) {
           const breakdown = slip.breakdown as any;
           const loanRecovery = Number(breakdown?.loanRecovery || 0);
@@ -1292,31 +1320,42 @@ export class PayrollOrchestratorService {
             });
 
             if (loan) {
-              const newBalance = Math.max(0, Number(loan.outstandingBalance) - loanRecovery);
-              await tx.employeeLoan.update({
-                where: { id: loan.id },
-                data: {
-                  outstandingBalance: newBalance,
-                  status: newBalance === 0 ? "completed" : "active",
+              await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext('loan_${loan.id}'))`);
+              const existingInstallment = await tx.loanInstallment.findFirst({
+                where: {
+                  loanId: loan.id,
+                  payrollRunId: runId,
                 },
               });
 
-              // Create installment record
-              const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
-              await tx.loanInstallment.create({
-                data: {
-                  loanId: loan.id,
-                  tenantId,
-                  installmentNumber: count + 1,
-                  periodMonth: run.periodMonth,
-                  periodYear: run.periodYear,
-                  emiAmount: loanRecovery,
-                  principalComponent: loanRecovery,
-                  interestComponent: 0,
-                  status: "paid",
-                  paymentDate: new Date(),
-                },
-              });
+              if (!existingInstallment) {
+                const newBalance = Math.max(0, Number(loan.outstandingBalance) - loanRecovery);
+                await tx.employeeLoan.update({
+                  where: { id: loan.id },
+                  data: {
+                    outstandingBalance: newBalance,
+                    status: newBalance === 0 ? "completed" : "active",
+                  },
+                });
+
+                // Create installment record linked to payrollRunId
+                const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
+                await tx.loanInstallment.create({
+                  data: {
+                    loanId: loan.id,
+                    tenantId,
+                    installmentNumber: count + 1,
+                    periodMonth: run.periodMonth,
+                    periodYear: run.periodYear,
+                    emiAmount: loanRecovery,
+                    principalComponent: loanRecovery,
+                    interestComponent: 0,
+                    status: "paid",
+                    payrollRunId: runId,
+                    deductedAt: new Date(),
+                  },
+                });
+              }
             }
           }
         }
@@ -1368,10 +1407,299 @@ export class PayrollOrchestratorService {
         cryptographicHash,
         outputManifest,
       };
-    } finally {
-      this.releaseLock(runId);
+    } catch (err: any) {
+      // Automatic rollback to APPROVED if failure happened before snapshots or ledger were committed
+      try {
+        const checkRun = await db.payrollRun.findUnique({
+          where: { id: runId },
+          select: { approvalStatus: true },
+        });
+        if (checkRun?.approvalStatus === "FINALIZING") {
+          const lockedSnapshots = await db.payrollSnapshot.count({
+            where: { payrollRunId: runId, isLocked: true },
+          });
+          if (lockedSnapshots === 0) {
+            await db.payrollRun.update({
+              where: { id: runId },
+              data: {
+                approvalStatus: "APPROVED",
+                varianceSummary: {
+                  ...(typeof run.varianceSummary === "object" && run.varianceSummary ? run.varianceSummary : {}),
+                  lastFinalizationError: err.message,
+                  lastFinalizationAttemptAt: new Date().toISOString(),
+                },
+              },
+            });
+          }
+        }
+      } catch (cleanupErr) {
+        console.error("[PayrollOrchestrator:RollbackError]", cleanupErr);
+      }
+      throw err;
     }
   }
+
+  /**
+   * Stage 13 Crash Recovery: Recovers a payroll cycle stuck in FINALIZING state.
+   * - If cycle was finalizing for longer than staleThresholdMinutes (default 15m), recovers safely.
+   * - If financial outputs/snapshots were locked: rolls forward to CLOSED.
+   * - If no financial side-effects were committed: safely rolls back to APPROVED.
+   */
+  public static async recoverPayrollCycle(
+    tenantId: string,
+    runId: string,
+    actor: { id: string; email: string; role: string },
+    options?: {
+      staleThresholdMinutes?: number;
+      force?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    actionTaken: "ROLLED_BACK_TO_APPROVED" | "ROLLED_FORWARD_TO_CLOSED";
+    message: string;
+    cycle: any;
+    audit: any;
+  }> {
+    const run = await db.payrollRun.findUnique({
+      where: { id: runId },
+      include: { snapshots: true },
+    });
+
+    if (!run || run.tenantId !== tenantId) {
+      const err: any = new Error("Payroll run not found for the specified tenant.");
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (run.approvalStatus !== "FINALIZING") {
+      const err: any = new Error(
+        `Payroll cycle is in '${run.approvalStatus}' state, not 'FINALIZING'. Only stuck finalizing cycles can be recovered.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const thresholdMinutes = options?.staleThresholdMinutes ?? 15;
+    const lastActiveTime = run.processedAt || run.createdAt;
+    const elapsedMinutes = (Date.now() - new Date(lastActiveTime).getTime()) / (60 * 1000);
+
+    if (elapsedMinutes < thresholdMinutes && !options?.force) {
+      const remainingMinutes = Math.ceil(thresholdMinutes - elapsedMinutes);
+      const err: any = new Error(
+        `Payroll run is not yet considered stale. Elapsed time: ${elapsedMinutes.toFixed(1)} mins (Threshold: ${thresholdMinutes} mins). Wait ${remainingMinutes} more minute(s) or specify force: true.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // Inspect state of financial side-effects
+    const lockedSnapshots = await db.payrollSnapshot.count({
+      where: { payrollRunId: runId, isLocked: true },
+    });
+
+    let glEntry = await db.journalEntry.findFirst({
+      where: { tenantId, reference: runId },
+    });
+
+    const hasCommittedFinancials = lockedSnapshots > 0 || !!glEntry;
+
+    if (hasCommittedFinancials) {
+      console.warn(
+        `[PayrollRecovery] Cycle ${runId} has committed financials (lockedSnapshots=${lockedSnapshots}, glPosted=${!!glEntry}). Initiating financial verification and rollforward to CLOSED.`
+      );
+
+      const periodStr = `${String(run.periodMonth).padStart(2, "0")}/${run.periodYear}`;
+      const totalGross = Number(run.totalAmount || 0);
+      const totalNet = Number(run.totalNet || 0);
+      const totalDeductions = Number(run.totalDeductions || 0);
+
+      // 1. Validate Double-Entry Debit-Credit Equality before allowing closure
+      if (Math.abs(totalGross - (totalNet + totalDeductions)) > 0.01) {
+        const err: any = new Error(
+          `Financial Reconciliation Error: Gross salary (₹${totalGross}) does not balance with Net pay (₹${totalNet}) + Deductions (₹${totalDeductions}). Rollforward recovery blocked to protect financial integrity.`
+        );
+        err.statusCode = 422;
+        throw err;
+      }
+
+      // 2. Ensure all cycle snapshots are locked
+      await db.payrollSnapshot.updateMany({
+        where: { payrollRunId: runId },
+        data: { isLocked: true },
+      });
+
+      // 3. Verify General Ledger Posting Exists; if missing, backfill via autoPostPayrollToLedger
+      if (!glEntry) {
+        console.warn(
+          `[PayrollRecovery] Cycle ${runId} has locked snapshots but missing GL entry. Backfilling General Ledger posting...`
+        );
+
+        const tenantCtx: TenantContext = {
+          tenantId,
+          userId: actor.id,
+          roles: [actor.role || "finance_director"],
+          status: "ACTIVE",
+          tenancyStrategy: "SHARED_SCHEMA",
+          db: rawPrisma,
+        };
+
+        await runWithTenantContext(tenantCtx, async () => {
+          await autoPostPayrollToLedger({
+            tenantId,
+            payrollRunId: runId,
+            period: periodStr,
+            totalGross,
+            totalNet,
+            totalDeductions,
+          });
+        });
+
+        // Re-verify that GL entry was successfully persisted
+        glEntry = await db.journalEntry.findFirst({
+          where: { tenantId, reference: runId },
+        });
+
+        if (!glEntry) {
+          const err: any = new Error(
+            "General Ledger posting failed during recovery. Cycle cannot be transitioned to CLOSED."
+          );
+          err.statusCode = 500;
+          throw err;
+        }
+      }
+
+      // 4. Generate post-finalization outputs (statutory registers, manifests)
+      const outputManifest = await this.generatePostFinalizationOutputs(tenantId, runId, actor);
+
+      // 5. Atomic conditional update to CLOSED (prevents race condition between concurrent recovery requests)
+      const updateResult = await db.payrollRun.updateMany({
+        where: {
+          id: runId,
+          tenantId,
+          approvalStatus: "FINALIZING",
+        },
+        data: {
+          status: "completed",
+          approvalStatus: "CLOSED",
+          isPublished: true,
+          publishedAt: run.publishedAt || new Date(),
+          publishedBy: run.publishedBy || actor.email,
+          statutoryManifest: {
+            ...(typeof run.statutoryManifest === "object" && run.statutoryManifest ? run.statutoryManifest : {}),
+            outputs: outputManifest,
+            recoveredAt: new Date().toISOString(),
+            recoveredBy: actor.email,
+            recoveryAction: "ROLLED_FORWARD_TO_CLOSED",
+            recoveryReason: `Crash recovery after ${elapsedMinutes.toFixed(1)} minutes stuck in FINALIZING with verified GL posting and snapshots`,
+          },
+        },
+      });
+
+      if (updateResult.count === 0) {
+        const latestRun = await db.payrollRun.findUnique({ where: { id: runId } });
+        if (latestRun && latestRun.approvalStatus === "CLOSED") {
+          return {
+            success: true,
+            actionTaken: "ROLLED_FORWARD_TO_CLOSED",
+            message: "Payroll cycle was already recovered to CLOSED by a concurrent request.",
+            cycle: latestRun,
+            audit: {
+              recoveredBy: actor.email,
+              recoveredAt: new Date().toISOString(),
+              elapsedMinutes: Number(elapsedMinutes.toFixed(1)),
+              actionTaken: "ROLLED_FORWARD_TO_CLOSED",
+              lockedSnapshots: await db.payrollSnapshot.count({ where: { payrollRunId: runId, isLocked: true } }),
+              glPosted: true,
+              concurrentHandled: true,
+            },
+          };
+        }
+        const err: any = new Error("Payroll cycle state changed concurrently. Recovery aborted.");
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const recoveredCycle = await db.payrollRun.findUnique({ where: { id: runId } });
+
+      return {
+        success: true,
+        actionTaken: "ROLLED_FORWARD_TO_CLOSED",
+        message: "Payroll cycle safely rolled forward to CLOSED. Financial mutations and General Ledger posting were verified intact.",
+        cycle: recoveredCycle,
+        audit: {
+          recoveredBy: actor.email,
+          recoveredAt: new Date().toISOString(),
+          elapsedMinutes: Number(elapsedMinutes.toFixed(1)),
+          actionTaken: "ROLLED_FORWARD_TO_CLOSED",
+          lockedSnapshots: await db.payrollSnapshot.count({ where: { payrollRunId: runId, isLocked: true } }),
+          glPosted: true,
+        },
+      };
+    } else {
+      console.warn(`[PayrollRecovery] Cycle ${runId} has NO committed financials. Rolling back to APPROVED.`);
+
+      const updateResult = await db.payrollRun.updateMany({
+        where: {
+          id: runId,
+          tenantId,
+          approvalStatus: "FINALIZING",
+        },
+        data: {
+          approvalStatus: "APPROVED",
+          varianceSummary: {
+            ...(typeof run.varianceSummary === "object" && run.varianceSummary ? run.varianceSummary : {}),
+            recoveredAt: new Date().toISOString(),
+            recoveredBy: actor.email,
+            recoveryAction: "ROLLED_BACK_TO_APPROVED",
+            recoveryReason: `Crash recovery after ${elapsedMinutes.toFixed(1)} minutes stuck in FINALIZING without financial side-effects`,
+          },
+        },
+      });
+
+      if (updateResult.count === 0) {
+        const latestRun = await db.payrollRun.findUnique({ where: { id: runId } });
+        if (latestRun && latestRun.approvalStatus === "APPROVED") {
+          return {
+            success: true,
+            actionTaken: "ROLLED_BACK_TO_APPROVED",
+            message: "Payroll cycle was already rolled back to APPROVED by a concurrent request.",
+            cycle: latestRun,
+            audit: {
+              recoveredBy: actor.email,
+              recoveredAt: new Date().toISOString(),
+              elapsedMinutes: Number(elapsedMinutes.toFixed(1)),
+              actionTaken: "ROLLED_BACK_TO_APPROVED",
+              lockedSnapshots: 0,
+              glPosted: false,
+              concurrentHandled: true,
+            },
+          };
+        }
+        const err: any = new Error("Payroll cycle state changed concurrently. Recovery aborted.");
+        err.statusCode = 409;
+        throw err;
+      }
+
+      const recoveredCycle = await db.payrollRun.findUnique({ where: { id: runId } });
+
+      return {
+        success: true,
+        actionTaken: "ROLLED_BACK_TO_APPROVED",
+        message: "Payroll cycle safely rolled back to APPROVED state. No financial side-effects were committed.",
+        cycle: recoveredCycle,
+        audit: {
+          recoveredBy: actor.email,
+          recoveredAt: new Date().toISOString(),
+          elapsedMinutes: Number(elapsedMinutes.toFixed(1)),
+          actionTaken: "ROLLED_BACK_TO_APPROVED",
+          lockedSnapshots: 0,
+          glPosted: false,
+        },
+      };
+    }
+  }
+
+
 
   /**
    * Stages 14, 15, 16: Post-Finalization Output Generators
@@ -1410,8 +1738,8 @@ export class PayrollOrchestratorService {
         const billingManifest = await ContractBillingService.generateRunBillingManifest(tenantId, runId);
         if (billingManifest && billingManifest.totalHeadcount > 0) {
           const invoiceResult = await ContractInvoiceService.generateInvoicesForPayrollRun(
-            tenantId,
             runId,
+            tenantId,
             actor.email
           );
           clientInvoices = invoiceResult?.invoices || [];

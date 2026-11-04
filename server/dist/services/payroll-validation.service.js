@@ -417,10 +417,36 @@ class PayrollValidationService {
         if (existingRun.approvalStatus === "finalized" || existingRun.status === "paid") {
             throw new Error("Cannot modify or re-finalize a payroll run that is already finalized or paid. Records are immutable.");
         }
-        // Acquire concurrency lock
-        const locked = this.acquireLock(runId);
-        if (!locked) {
-            throw new Error("Payroll run finalization is already in progress for this batch. Concurrent execution prevented.");
+        // Concurrency Lock: Atomic distributed check in AUD-CONC-002
+        if (db.payrollRun?.updateMany) {
+            const claim = await db.payrollRun.updateMany({
+                where: {
+                    id: runId,
+                    tenantId,
+                    status: { notIn: ["completed", "paid"] },
+                    approvalStatus: { notIn: ["finalized", "FINALIZING", "CLOSED"] },
+                },
+                data: {
+                    approvalStatus: "FINALIZING",
+                },
+            });
+            if (claim.count === 0) {
+                if (existingRun.approvalStatus === "finalized" || existingRun.status === "paid") {
+                    throw new Error("Cannot modify or re-finalize a payroll run that is already finalized or paid. Records are immutable.");
+                }
+                const err = new Error("Payroll run finalization is already in progress for this batch. Concurrent execution prevented.");
+                err.status = 409;
+                throw err;
+            }
+        }
+        else {
+            // Mock fallback for mock-based unit tests
+            const locked = this.acquireLock(runId);
+            if (!locked) {
+                const err = new Error("Payroll run finalization is already in progress for this batch. Concurrent execution prevented.");
+                err.status = 409;
+                throw err;
+            }
         }
         try {
             // Re-validate immediately before finalization to avoid stale state

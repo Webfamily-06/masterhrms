@@ -431,6 +431,46 @@ payrollCyclesRouter.patch(
 );
 
 /**
+ * POST /api/payroll/cycles/:id/recover
+ * AUD-CONC-002 Crash Recovery: Safely recovers a payroll cycle stuck in FINALIZING state.
+ * Roles: super_admin, tenant_admin, finance_director, finance_admin
+ */
+payrollCyclesRouter.post(
+  "/:id/recover",
+  requireRole("super_admin", "tenant_admin", "finance_director", "finance_admin"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId || req.user?.tenantId;
+      if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+      const actor = {
+        id: req.user?.id || "USER_UNKNOWN",
+        email: req.user?.email || "finance@company.com",
+        role: (req.user as any)?.role || req.user?.roles?.[0] || "finance_director",
+      };
+
+      const result = await PayrollOrchestratorService.recoverPayrollCycle(
+        tenantId,
+        req.params.id,
+        actor,
+        {
+          staleThresholdMinutes: req.body?.staleThresholdMinutes ? Number(req.body.staleThresholdMinutes) : undefined,
+          force: Boolean(req.body?.force),
+        }
+      );
+
+      return res.json({
+        success: true,
+        ...result,
+      });
+    } catch (err: any) {
+      console.error("[PayrollCycles:Recover]", err);
+      return res.status(err.statusCode || 400).json({ error: err.message });
+    }
+  }
+);
+
+/**
  * POST /api/payroll/cycles/:id/finalize
  * Stage 13: Finalize, Post to Ledger, Lock Snapshots, Emit Stages 14-16 Outputs
  */

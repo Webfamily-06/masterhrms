@@ -111,6 +111,14 @@ async function autoPostSaleToLedger(params) {
             });
         }
         await prisma_1.prisma.$transaction(async (tx) => {
+            // AUD-CONC-002: Idempotency guard inside transaction
+            const existingInTx = await tx.journalEntry.findFirst({
+                where: { tenantId, reference: saleId },
+            });
+            if (existingInTx) {
+                console.log(`[LEDGER] Journal Entry for payroll ${payrollRunId} already exists (${existingInTx.entryNumber}). Skipping duplicate posting.`);
+                return;
+            }
             await (0, fiscal_period_service_1.assertOpenPeriodForPosting)(tx, tenantId, new Date());
             const entry = await tx.journalEntry.create({
                 data: {
@@ -752,24 +760,39 @@ async function autoPostPurchaseReturnToLedger(params) {
         const purchRetAcc = await getAccountByCode(tenantId, "5020", "Purchase Returns & Allowances", "expense", "cost_of_goods_sold");
         const taxInputAcc = taxAmount > 0 ? await getAccountByCode(tenantId, "1040", "GST Input Tax Credit", "asset", "current_asset") : null;
         await prisma_1.prisma.$transaction(async (tx) => {
-            await (0, fiscal_period_service_1.assertOpenPeriodForPosting)(tx, tenantId, new Date());
-            const entry = await tx.journalEntry.create({
-                data: { tenantId, entryNumber, reference: returnId, description: `Purchase Return ${returnNumber}`, entryDate: new Date(), status: "posted" },
+            // AUD-CONC-002: Idempotency guard inside transaction for payroll
+            const existingInTx = await tx.journalEntry.findFirst({
+                where: { tenantId, reference: payrollRunId },
             });
-            await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: apAcc.id, type: "debit", debit: totalAmount, credit: 0, notes: `AP reduction for purchase return ${returnNumber}` } });
-            await tx.chartOfAccount.update({ where: { id: apAcc.id }, data: { balance: { decrement: totalAmount } } });
-            await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: purchRetAcc.id, type: "credit", debit: 0, credit: subtotalAmount, notes: `Expense reversal for purchase return ${returnNumber}` } });
-            await tx.chartOfAccount.update({ where: { id: purchRetAcc.id }, data: { balance: { decrement: subtotalAmount } } });
-            if (taxAmount > 0 && taxInputAcc) {
-                await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: taxInputAcc.id, type: "credit", debit: 0, credit: taxAmount, notes: `Input tax reversal for purchase return ${returnNumber}` } });
-                await tx.chartOfAccount.update({ where: { id: taxInputAcc.id }, data: { balance: { decrement: taxAmount } } });
+            if (existingInTx) {
+                console.log([LEDGER], Journal, Entry);
+                for (payroll; already; exists().Skipping)
+                    duplicate;
+                posting.;
             }
         });
-        console.log(`✓ [LEDGER] Purchase Return posted: JE ${entryNumber} for ${returnNumber} (${totalAmount})`);
+        return;
     }
-    catch (err) {
-        console.error("Ledger auto-post error for purchase return:", err);
-        if (err instanceof fiscal_period_service_1.PeriodPostingError)
-            throw err;
+    finally {
     }
+    await (0, fiscal_period_service_1.assertOpenPeriodForPosting)(tx, tenantId, new Date());
+    const entry = await tx.journalEntry.create({
+        data: { tenantId, entryNumber, reference: returnId, description: `Purchase Return ${returnNumber}`, entryDate: new Date(), status: "posted" },
+    });
+    await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: apAcc.id, type: "debit", debit: totalAmount, credit: 0, notes: `AP reduction for purchase return ${returnNumber}` } });
+    await tx.chartOfAccount.update({ where: { id: apAcc.id }, data: { balance: { decrement: totalAmount } } });
+    await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: purchRetAcc.id, type: "credit", debit: 0, credit: subtotalAmount, notes: `Expense reversal for purchase return ${returnNumber}` } });
+    await tx.chartOfAccount.update({ where: { id: purchRetAcc.id }, data: { balance: { decrement: subtotalAmount } } });
+    if (taxAmount > 0 && taxInputAcc) {
+        await tx.journalItem.create({ data: { journalEntryId: entry.id, accountId: taxInputAcc.id, type: "credit", debit: 0, credit: taxAmount, notes: `Input tax reversal for purchase return ${returnNumber}` } });
+        await tx.chartOfAccount.update({ where: { id: taxInputAcc.id }, data: { balance: { decrement: taxAmount } } });
+    }
+}
+;
+console.log(`✓ [LEDGER] Purchase Return posted: JE ${entryNumber} for ${returnNumber} (${totalAmount})`);
+try { }
+catch (err) {
+    console.error("Ledger auto-post error for purchase return:", err);
+    if (err instanceof fiscal_period_service_1.PeriodPostingError)
+        throw err;
 }
