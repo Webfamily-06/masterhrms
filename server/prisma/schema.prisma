@@ -81,6 +81,7 @@ model Tenant {
   brands                       Brand[]
   budgetPlans                  BudgetPlan[]
   calendarEvents               CalendarEvent[]
+  calls                        Call[]
   callHistoryRecords           CallHistoryRecord[]
   campusCandidates             CampusCandidate[]
   candidateAssessments         CandidateAssessment[]
@@ -4215,6 +4216,72 @@ model SystemCronJob {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("system_cron_jobs")
+}
+
+// Authoritative Active Call Session (Phase C1)
+model Call {
+  id               String            @id @default(uuid()) @db.VarChar(36)
+  tenantId         String            @map("tenant_id") @db.VarChar(36)
+  type             String            @default("DIRECT") @db.VarChar(20) // DIRECT, GROUP
+  media            String            @default("AUDIO") @db.VarChar(20)  // AUDIO, VIDEO
+  status           String            @default("RINGING") @db.VarChar(20) // RINGING, ACTIVE, ENDED, MISSED, CANCELLED, REJECTED
+  startedBy        String            @map("started_by") @db.VarChar(36)
+  roomKey          String            @unique @map("room_key") @db.VarChar(100)
+  groupId          String?           @map("group_id") @db.VarChar(36)
+  threadId         String?           @map("thread_id") @db.VarChar(100)
+  historyRecordId  String?           @map("history_record_id") @db.VarChar(36) // Deterministic 1-to-1 link to CallHistoryRecord
+  startedAt        DateTime          @default(now()) @map("started_at")
+  ringingExpiresAt DateTime          @map("ringing_expires_at") // Persisted 60-second timeout
+  answeredAt       DateTime?         @map("answered_at")
+  endedAt          DateTime?         @map("ended_at")
+  endReason        String?           @map("end_reason") @db.VarChar(50) // ALL_LEFT, HOST_ENDED, TIMEOUT, CANCELLED, REJECTED, PEER_DISCONNECTED
+  maxParticipants  Int               @default(2) @map("max_participants")
+  metadata         Json?             @db.JsonB
+
+  participants     CallParticipant[]
+  events           CallEvent[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, startedAt])
+  @@index([status, ringingExpiresAt])
+  @@map("calls")
+}
+
+// Authoritative Participant Membership (Phase C1)
+// Note: audioOn, videoOn, screenOn kept in ephemeral realtime layer per mandatory adjustment.
+model CallParticipant {
+  id                      String    @id @default(uuid()) @db.VarChar(36)
+  callId                  String    @map("call_id") @db.VarChar(36)
+  userId                  String    @map("user_id") @db.VarChar(36)
+  state                   String    @default("INVITED") @db.VarChar(20) // INVITED, RINGING, JOINED, RECONNECTING, LEFT, DECLINED, MISSED
+  role                    String    @default("PARTICIPANT") @db.VarChar(20) // HOST, PARTICIPANT
+  joinedAt                DateTime? @map("joined_at")
+  leftAt                  DateTime? @map("left_at")
+  leaveReason             String?   @map("leave_reason") @db.VarChar(50)
+  reconnectGraceExpiresAt DateTime? @map("reconnect_grace_expires_at") // Persisted 30-second grace window
+
+  call                    Call      @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, userId])
+  @@index([userId, state])
+  @@index([state, reconnectGraceExpiresAt])
+  @@map("call_participants")
+}
+
+// Immutable Call Audit Trail (Phase C1)
+model CallEvent {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  callId    String   @map("call_id") @db.VarChar(36)
+  actorId   String   @map("actor_id") @db.VarChar(36)
+  eventType String   @map("event_type") @db.VarChar(50) // CALL_INITIATED, CALL_ACCEPTED, PARTICIPANT_DISCONNECTED, RECONNECTED, CALL_ENDED
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@index([callId, createdAt])
+  @@map("call_events")
 }
 
 model CallHistoryRecord {

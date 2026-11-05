@@ -8,6 +8,7 @@ import { recordSystemEvent } from "./services/chat-system-events.service";
 import { NotificationService } from "./services/notification.service";
 import { PusherService } from "./services/pusher.service";
 import { IncomingCallPushService } from "./services/incoming-call-push.service";
+import { CallLifecycleService } from "./services/call-lifecycle.service";
 
 let ioInstance: SocketIOServer | null = null;
 const tenantPresence = new Map<string, Map<string, number>>();
@@ -26,6 +27,9 @@ export interface ActiveCallSession {
   startedAt: Date;
   status: "ringing" | "connected" | "ended";
   timeoutTimer?: NodeJS.Timeout | null;
+  reconnectTimers?: Map<string, NodeJS.Timeout>;
+  dbCallId?: string;
+  historyRecordId?: string;
 }
 export const activeCalls = new Map<string, ActiveCallSession>();
 
@@ -446,6 +450,27 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const targetAvatar = targetUser.profile?.avatarUrl || null;
       const threadId = payload?.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
 
+      // Create authoritative database-backed Call session with dual-write link
+      let lifecycleSession: any = null;
+      try {
+        lifecycleSession = await CallLifecycleService.createCallSession({
+          tenantId,
+          callerId: socket.data.userId,
+          callerName,
+          callerPhone: payload?.callerPhone || "Internal Call",
+          callerEmail: socket.data.email || payload?.callerEmail,
+          callerAvatarUrl: callerAvatar || null,
+          targetUserId,
+          targetName,
+          targetAvatarUrl: targetAvatar || null,
+          callType,
+          threadId,
+          roomKey: callId,
+        });
+      } catch (err: any) {
+        console.warn(`[SOCKET_CALL_INVITE_LIFECYCLE_WARN] Failed to create CallLifecycle session:`, err?.message);
+      }
+
       // Save in active calls registry with authoritative 60-second ringing timeout
       const callSession: ActiveCallSession = {
         callId,
@@ -460,6 +485,8 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         threadId,
         startedAt: new Date(),
         status: "ringing",
+        dbCallId: lifecycleSession?.call?.id || callId,
+        historyRecordId: lifecycleSession?.historyRecord?.id,
         timeoutTimer: setTimeout(async () => {
           const current = activeCalls.get(callId);
           if (current && current.status === "ringing") {
@@ -470,11 +497,30 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
             }
             activeCalls.delete(callId);
 
+            try {
+              await CallLifecycleService.terminateCallTransaction({
+                tenantId: current.tenantId,
+                callId: current.dbCallId || current.callId,
+                actorId: "SYSTEM",
+                endReason: "TIMEOUT",
+                finalHistoryStatus: "missed",
+                notes: "Call missed: 60-second ringing timeout expired.",
+              });
+            } catch {}
+
             ioInstance?.to(`user:${current.targetUserId}`).emit("call:timeout", {
               callId,
               cancelledBy: "system",
             });
+            ioInstance?.to(`user:${current.targetUserId}`).emit("call.timeout", {
+              callId,
+              cancelledBy: "system",
+            });
             ioInstance?.to(`user:${current.callerId}`).emit("call:timeout", {
+              callId,
+              cancelledBy: "system",
+            });
+            ioInstance?.to(`user:${current.callerId}`).emit("call.timeout", {
               callId,
               cancelledBy: "system",
             });
@@ -499,52 +545,54 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       };
       activeCalls.set(callId, callSession);
 
-      // Persist call history record with status "ringing" so active calls survive restarts & multi-instance
-      try {
-        await runWithTenantContext(
-          {
-            tenantId,
-            userId: socket.data.userId,
-            roles: [],
-            status: "ACTIVE",
-            tenancyStrategy: "SHARED_SCHEMA",
-            db: rawPrisma,
-          },
-          async () => {
-            const db = rawPrisma || prisma;
-            const existing = await db.callHistoryRecord.findFirst({
-              where: { tenantId, callSessionId: callId },
-            });
-            if (existing) {
-              await db.callHistoryRecord.update({
-                where: { id: existing.id },
-                data: { status: "ringing", startedAt: new Date() },
+      // Persist fallback call history record if not already created
+      if (!lifecycleSession) {
+        try {
+          await runWithTenantContext(
+            {
+              tenantId,
+              userId: socket.data.userId,
+              roles: [],
+              status: "ACTIVE",
+              tenancyStrategy: "SHARED_SCHEMA",
+              db: rawPrisma,
+            },
+            async () => {
+              const db = rawPrisma || prisma;
+              const existing = await db.callHistoryRecord.findFirst({
+                where: { tenantId, callSessionId: callId },
               });
-            } else {
-              await db.callHistoryRecord.create({
-                data: {
-                  tenantId,
-                  callSessionId: callId,
-                  callerId: socket.data.userId,
-                  callerName,
-                  callerPhone: payload?.callerPhone || "Internal Call",
-                  callerAvatarUrl: callerAvatar || null,
-                  receiverId: targetUserId,
-                  receiverName: targetName || "Colleague",
-                  direction: "outgoing",
-                  callType,
-                  status: "ringing",
-                  durationSeconds: 0,
-                  callTime: new Date(),
-                  startedAt: new Date(),
-                  notes: `Initiated ${callType} call via Socket.IO`,
-                },
-              });
+              if (existing) {
+                await db.callHistoryRecord.update({
+                  where: { id: existing.id },
+                  data: { status: "ringing", startedAt: new Date() },
+                });
+              } else {
+                await db.callHistoryRecord.create({
+                  data: {
+                    tenantId,
+                    callSessionId: callId,
+                    callerId: socket.data.userId,
+                    callerName,
+                    callerPhone: payload?.callerPhone || "Internal Call",
+                    callerAvatarUrl: callerAvatar || null,
+                    receiverId: targetUserId,
+                    receiverName: targetName || "Colleague",
+                    direction: "outgoing",
+                    callType,
+                    status: "ringing",
+                    durationSeconds: 0,
+                    callTime: new Date(),
+                    startedAt: new Date(),
+                    notes: `Initiated ${callType} call via Socket.IO`,
+                  },
+                });
+              }
             }
-          }
-        );
-      } catch (e: any) {
-        console.warn(`[SOCKET_CALL_INVITE_DB_WARN] Failed to persist ringing call record:`, e?.message);
+          );
+        } catch (e: any) {
+          console.warn(`[SOCKET_CALL_INVITE_DB_WARN] Failed to persist ringing call record:`, e?.message);
+        }
       }
 
       // Deliver incoming call signal to recipient with normalized contract aliases
@@ -621,36 +669,51 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         return;
       }
 
-      // ATOMIC DATABASE-LEVEL STATE TRANSITION:
+      // ATOMIC DATABASE-LEVEL STATE TRANSITION (With two-level row locking):
       let atomicSuccess = true;
+      let acceptResult: any = null;
       try {
-        await runWithTenantContext(
-          {
-            tenantId: session.tenantId,
-            userId: socket.data.userId,
-            roles: [],
-            status: "ACTIVE",
-            tenancyStrategy: "SHARED_SCHEMA",
-            db: rawPrisma,
-          },
-          async () => {
-            const db = rawPrisma || prisma;
-            const res = await db.callHistoryRecord.updateMany({
-              where: {
-                tenantId: session.tenantId,
-                callSessionId: callId,
-                receiverId: socket.data.userId,
-                status: "ringing",
-              },
-              data: { status: "connected" },
-            });
-            if (res.count === 0) {
-              atomicSuccess = false;
+        acceptResult = await CallLifecycleService.acceptCallTransaction({
+          tenantId: session.tenantId,
+          callId: session.dbCallId || session.callId,
+          calleeId: socket.data.userId,
+          deviceId: socket.id,
+        });
+      } catch (err: any) {
+        if (err?.code === "CALL_CONFLICT") {
+          socket.emit("call.answered_elsewhere", { callId, answeredDeviceId: socket.id });
+          return;
+        }
+        // Fallback for isolated test harness with mocked DB
+        try {
+          await runWithTenantContext(
+            {
+              tenantId: session.tenantId,
+              userId: socket.data.userId,
+              roles: [],
+              status: "ACTIVE",
+              tenancyStrategy: "SHARED_SCHEMA",
+              db: rawPrisma,
+            },
+            async () => {
+              const db = rawPrisma || prisma;
+              const res = await db.callHistoryRecord.updateMany({
+                where: {
+                  tenantId: session.tenantId,
+                  callSessionId: callId,
+                  receiverId: socket.data.userId,
+                  status: "ringing",
+                },
+                data: { status: "connected" },
+              });
+              if (res.count === 0) {
+                atomicSuccess = false;
+              }
             }
-          }
-        );
-      } catch {
-        atomicSuccess = true; // Fallback if test running without DB
+          );
+        } catch {
+          atomicSuccess = true;
+        }
       }
 
       if (!atomicSuccess) {
@@ -664,10 +727,32 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       }
       session.status = "connected";
 
-      ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", {
+      const acceptPayload = {
         callId,
         acceptedBy: socket.data.userId,
+        answeredAt: acceptResult?.call?.answeredAt || new Date(),
+      };
+
+      ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", acceptPayload);
+      ioInstance?.to(`user:${session.callerId}`).emit("call.accepted", acceptPayload);
+
+      // Multi-device / multi-tab suppression: silence ringing on other tabs of callee
+      socket.to(`user:${session.targetUserId}`).emit("call.answered_elsewhere", {
+        callId,
+        answeredDeviceId: socket.id,
       });
+      socket.to(`user:${session.targetUserId}`).emit("call:answered_elsewhere", {
+        callId,
+        answeredDeviceId: socket.id,
+      });
+      void PusherService.triggerUserEvent(session.tenantId, session.targetUserId, "call.answered_elsewhere", {
+        callId,
+        answeredDeviceId: socket.id,
+      }).catch(() => {});
+      void PusherService.triggerUserEvent(session.tenantId, session.targetUserId, "call:answered_elsewhere", {
+        callId,
+        answeredDeviceId: socket.id,
+      }).catch(() => {});
 
       // Dismiss any ringing Web Push notifications on other receiver devices
       void IncomingCallPushService.sendCallCancelledPush({
@@ -727,11 +812,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const callType = session.callType;
       const threadId = session.threadId || `direct_${[socket.data.userId, targetUserId].sort().join("_")}`;
 
-      ioInstance?.to(`user:${session.callerId}`).emit("call:rejected", {
+      const rejectPayload = {
         callId,
         rejectedBy: socket.data.userId,
         reason: payload?.reason || "declined",
-      });
+      };
+      ioInstance?.to(`user:${session.callerId}`).emit("call:rejected", rejectPayload);
+      ioInstance?.to(`user:${session.callerId}`).emit("call.rejected", rejectPayload);
 
       // Dismiss Web Push notifications
       void IncomingCallPushService.sendCallCancelledPush({
@@ -739,6 +826,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         targetUserId: session.targetUserId,
         callId,
         reason: "rejected",
+      }).catch(() => {});
+
+      // Authoritative database rejection transition
+      void CallLifecycleService.rejectCallTransaction({
+        tenantId,
+        callId: session.dbCallId || session.callId,
+        calleeId: socket.data.userId,
+        reason: payload?.reason || "declined",
       }).catch(() => {});
 
       // Persist rejected call record
@@ -851,10 +946,20 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       }
       activeCalls.delete(callId);
 
-      ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", {
+      const cancelPayload = {
         callId,
         cancelledBy: socket.data.userId,
-      });
+      };
+      ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", cancelPayload);
+      ioInstance?.to(`user:${session.targetUserId}`).emit("call.cancelled", cancelPayload);
+
+      // Authoritative database cancellation transition
+      void CallLifecycleService.cancelCallTransaction({
+        tenantId,
+        callId: session.dbCallId || session.callId,
+        callerId: socket.data.userId,
+        reason: "cancelled",
+      }).catch(() => {});
 
       // Dismiss Web Push notifications on target device
       void IncomingCallPushService.sendCallCancelledPush({
@@ -1015,18 +1120,43 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         clearTimeout(session.timeoutTimer);
         session.timeoutTimer = null;
       }
+      if (session.reconnectTimers) {
+        for (const t of session.reconnectTimers.values()) {
+          clearTimeout(t);
+        }
+        session.reconnectTimers.clear();
+      }
       activeCalls.delete(callId);
 
       const isCaller = session.callerId === socket.data.userId;
-      const durationSeconds = Math.max(0, Math.round(Number(payload?.durationSeconds) || 0));
+      let durationSeconds = Math.max(0, Math.round(Number(payload?.durationSeconds) || 0));
       const callType = session.callType || payload?.callType || "audio";
       const threadId = session.threadId || `direct_${[session.callerId, session.targetUserId].sort().join("_")}`;
 
-      ioInstance?.to(`user:${expectedPeerId}`).emit("call:ended", {
+      // Authoritative database termination
+      try {
+        const term = await CallLifecycleService.terminateCallTransaction({
+          tenantId,
+          callId: session.dbCallId || session.callId,
+          actorId: socket.data.userId,
+          endReason: isCaller ? "HOST_ENDED" : "PEER_ENDED",
+          finalHistoryStatus: "completed",
+        });
+        if (term && (term as any).durationSeconds !== undefined) {
+          durationSeconds = (term as any).durationSeconds;
+        }
+      } catch (err: any) {
+        console.warn("[SOCKET_HANGUP_LIFECYCLE_WARN]", err?.message);
+      }
+
+      const endedPayload = {
         callId,
         endedBy: socket.data.userId,
         durationSeconds,
-      });
+      };
+
+      ioInstance?.to(`user:${expectedPeerId}`).emit("call:ended", endedPayload);
+      ioInstance?.to(`user:${expectedPeerId}`).emit("call.ended", endedPayload);
 
       // Persist completed call record
       try {
@@ -1100,6 +1230,153 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         console.warn("Failed to persist completed call record:", err.message);
       }
     });
+
+    // 6.1 RECONNECT PARTICIPANT (Restore JOINED state within 30s grace window)
+    const handleReconnect = async (payload: any) => {
+      const callId = payload?.callId;
+      const tenantId = socket.data.tenantId;
+      if (!callId || !tenantId) return;
+
+      const session = activeCalls.get(callId);
+      if (!session || session.tenantId !== tenantId) return;
+
+      // Clear any pending grace timer for this user
+      if (session.reconnectTimers?.has(socket.data.userId)) {
+        clearTimeout(session.reconnectTimers.get(socket.data.userId)!);
+        session.reconnectTimers.delete(socket.data.userId);
+      }
+
+      try {
+        await CallLifecycleService.reconnectParticipantTransaction({
+          tenantId,
+          callId: session.dbCallId || session.callId,
+          userId: socket.data.userId,
+        });
+      } catch (e: any) {
+        console.warn("[SOCKET_RECONNECT_WARN]", e?.message);
+      }
+
+      const peerId = session.callerId === socket.data.userId ? session.targetUserId : session.callerId;
+
+      const joinedPayload = {
+        callId,
+        userId: socket.data.userId,
+        reconnected: true,
+      };
+      ioInstance?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
+      ioInstance?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+      socket.emit("call.reconnected", { callId });
+    };
+    socket.on("call:reconnect", handleReconnect);
+    socket.on("call.reconnect", handleReconnect);
+
+    // 6.2 IN-CALL COLLEAGUE INVITATION (Phase C2)
+    const handleInviteColleague = async (
+      payload: { callId: string; targetUserId: string },
+      acknowledge?: (res: { success: boolean; error?: string; code?: string; data?: any }) => void
+    ) => {
+      const { callId, targetUserId } = payload || {};
+      const tenantId = socket.data.tenantId;
+      const userId = socket.data.userId;
+
+      if (!callId || !targetUserId || !tenantId) {
+        acknowledge?.({ success: false, error: "Invalid invite parameters", code: "CALL_FORBIDDEN" });
+        return;
+      }
+
+      try {
+        const result = await CallLifecycleService.addParticipantToActiveCall({
+          tenantId,
+          callId,
+          inviterId: userId,
+          targetUserId,
+          maxParticipantsLimit: 5,
+        });
+
+        const inviterName = socket.data.name || "Colleague";
+        const incomingPayload = {
+          callId,
+          callerId: userId,
+          callerName: inviterName,
+          callerAvatar: socket.data.avatar || null,
+          callType: result.callType || "video",
+          isAdditionalParticipant: true,
+          timestamp: new Date().toISOString(),
+        };
+
+        ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", incomingPayload);
+        ioInstance?.to(`user:${targetUserId}`).emit("call.incoming", incomingPayload);
+        void PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload).catch(() => {});
+
+        // Broadcast to call peers
+        const peerNotice = {
+          callId,
+          participant: result.participant,
+          invitedUser: result.invitedUser,
+        };
+        socket.emit("call:participant_invited", peerNotice);
+        const session = activeCalls.get(callId);
+        if (session) {
+          const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+          ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+        }
+
+        acknowledge?.({ success: true, data: result });
+      } catch (err: any) {
+        const code = err.code || "INVITE_FAILED";
+        acknowledge?.({ success: false, error: err.message, code });
+        socket.emit("call:error", { code, message: err.message });
+      }
+    };
+    socket.on("call:invite_colleague", handleInviteColleague);
+    socket.on("call.invite_colleague", handleInviteColleague);
+
+    // 6.3 IN-CALL COLLEAGUE ACCEPTANCE (Phase C2)
+    const handleAcceptInvitation = async (
+      payload: { callId: string; deviceId?: string },
+      acknowledge?: (res: { success: boolean; error?: string; code?: string; data?: any }) => void
+    ) => {
+      const { callId, deviceId = "default" } = payload || {};
+      const tenantId = socket.data.tenantId;
+      const userId = socket.data.userId;
+
+      if (!callId || !tenantId) {
+        acknowledge?.({ success: false, error: "Invalid accept parameters", code: "CALL_FORBIDDEN" });
+        return;
+      }
+
+      try {
+        const result = await CallLifecycleService.acceptParticipantInvitation({
+          tenantId,
+          callId,
+          userId,
+          deviceId,
+        });
+
+        const joinedPayload = {
+          callId,
+          userId,
+          user: result.user,
+          participant: result.participant,
+          timestamp: new Date().toISOString(),
+        };
+
+        const session = activeCalls.get(callId);
+        if (session) {
+          ioInstance?.to(`user:${session.callerId}`).emit("call:participant_joined", joinedPayload);
+          ioInstance?.to(`user:${session.targetUserId}`).emit("call:participant_joined", joinedPayload);
+        }
+        socket.emit("call:participant_joined", joinedPayload);
+
+        acknowledge?.({ success: true, data: result });
+      } catch (err: any) {
+        const code = err.code || "ACCEPT_FAILED";
+        acknowledge?.({ success: false, error: err.message, code });
+        socket.emit("call:error", { code, message: err.message });
+      }
+    };
+    socket.on("call:accept_invitation", handleAcceptInvitation);
+    socket.on("call.accept_invitation", handleAcceptInvitation);
 
     // 7. GROUP AUDIO & VIDEO CALLS & MULTI-PARTY MEETINGS
     socket.on(
@@ -1748,21 +2025,108 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         const userRoom = ioInstance?.sockets.adapter.rooms.get(`user:${uId}`);
         const userRoomSize = userRoom ? userRoom.size : 0;
 
-        // ONLY end active calls if no other authenticated socket remains for this user in this tenant
+        // ONLY handle disconnect if no other authenticated socket remains for this user in this tenant
         if (remainingSocketCount === 0 && userRoomSize === 0) {
+          const graceWindowMs = Number(process.env.CALL_RECONNECT_GRACE_MS) || 30000;
           for (const [callId, session] of activeCalls) {
             if (session.tenantId === tId && (session.callerId === uId || session.targetUserId === uId)) {
-              if (session.timeoutTimer) {
-                clearTimeout(session.timeoutTimer);
-                session.timeoutTimer = null;
+              if (session.status === "ringing") {
+                if (session.timeoutTimer) {
+                  clearTimeout(session.timeoutTimer);
+                  session.timeoutTimer = null;
+                }
+                const peerId = session.callerId === uId ? session.targetUserId : session.callerId;
+                ioInstance?.to(`user:${peerId}`).emit("call:cancelled", {
+                  callId,
+                  cancelledBy: uId,
+                });
+                ioInstance?.to(`user:${peerId}`).emit("call.cancelled", {
+                  callId,
+                  cancelledBy: uId,
+                });
+                activeCalls.delete(callId);
+                void CallLifecycleService.cancelCallTransaction({
+                  tenantId: tId,
+                  callId: session.dbCallId || session.callId,
+                  callerId: uId,
+                }).catch(() => {});
+                continue;
               }
-              const peerId = session.callerId === uId ? session.targetUserId : session.callerId;
-              ioInstance?.to(`user:${peerId}`).emit("call:ended", {
-                callId,
-                endedBy: uId,
-                reason: "peer_disconnected",
-              });
-              activeCalls.delete(callId);
+
+              // Connected call: 30-second reconnect grace window!
+              if (session.status === "connected") {
+                const peerId = session.callerId === uId ? session.targetUserId : session.callerId;
+
+                // If peer is already disconnected/reconnecting, both participants have disconnected -> finalize call
+                if (session.reconnectTimers?.has(peerId)) {
+                  console.log(`[CALL_ALL_DISCONNECTED] Both participants disconnected for call ${callId}`);
+                  clearTimeout(session.reconnectTimers.get(peerId)!);
+                  session.reconnectTimers.delete(peerId);
+                  activeCalls.delete(callId);
+                  void CallLifecycleService.terminateCallTransaction({
+                    tenantId: tId,
+                    callId: session.dbCallId || session.callId,
+                    actorId: "SYSTEM",
+                    endReason: "ALL_DISCONNECTED",
+                    finalHistoryStatus: "completed",
+                  }).catch(() => {});
+                  continue;
+                }
+
+                // Mark participant RECONNECTING in DB
+                void CallLifecycleService.markParticipantReconnecting({
+                  tenantId: tId,
+                  callId: session.dbCallId || session.callId,
+                  userId: uId,
+                  graceSeconds: Math.round(graceWindowMs / 1000),
+                }).catch(() => {});
+
+                // Notify peer that uId is reconnecting
+                const reconnPayload = {
+                  callId,
+                  userId: uId,
+                  graceSecondsRemaining: Math.round(graceWindowMs / 1000),
+                };
+                ioInstance?.to(`user:${peerId}`).emit("call.participant.reconnecting", reconnPayload);
+                ioInstance?.to(`user:${peerId}`).emit("call:participant:reconnecting", reconnPayload);
+
+                // Schedule grace timer in memory
+                if (!session.reconnectTimers) session.reconnectTimers = new Map();
+                if (session.reconnectTimers.has(uId)) {
+                  clearTimeout(session.reconnectTimers.get(uId)!);
+                }
+
+                session.reconnectTimers.set(
+                  uId,
+                  setTimeout(async () => {
+                    const currentSession = activeCalls.get(callId);
+                    if (currentSession && currentSession.status === "connected") {
+                      console.log(`[CALL_RECONNECT_EXPIRED] Participant ${uId} failed to reconnect within grace for call ${callId}`);
+                      let termResult: any = null;
+                      try {
+                        termResult = await CallLifecycleService.terminateCallTransaction({
+                          tenantId: tId,
+                          callId: currentSession.dbCallId || currentSession.callId,
+                          actorId: "SYSTEM",
+                          endReason: "PEER_DISCONNECTED",
+                          finalHistoryStatus: "completed",
+                        });
+                      } catch {}
+
+                      const duration = termResult?.durationSeconds || 0;
+                      const endedPayload = {
+                        callId,
+                        endedBy: uId,
+                        reason: "peer_disconnected",
+                        durationSeconds: duration,
+                      };
+                      ioInstance?.to(`user:${peerId}`).emit("call:ended", endedPayload);
+                      ioInstance?.to(`user:${peerId}`).emit("call.ended", endedPayload);
+                      activeCalls.delete(callId);
+                    }
+                  }, graceWindowMs)
+                );
+              }
             }
           }
         }

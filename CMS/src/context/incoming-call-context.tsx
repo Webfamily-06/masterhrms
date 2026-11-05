@@ -323,6 +323,17 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     });
   }, [stopCallAlert]);
 
+  const handleAnsweredElsewhere = useCallback((data: any) => {
+    stopCallAlert();
+    setIncomingCall((current) => {
+      if (current && (!data?.callId || current.callId === data.callId)) {
+        toast.info("Call answered on another device.");
+        return null;
+      }
+      return current;
+    });
+  }, [stopCallAlert]);
+
   const acceptCall = useCallback(() => {
     if (!incomingCall) return;
     const call = incomingCall;
@@ -427,9 +438,15 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         if (socket && !socket.connected) socket.connect();
         if (socket) {
           socket.on("call:incoming", handleIncomingCallEvent);
+          socket.on("call.incoming", handleIncomingCallEvent);
           socket.on("call:cancelled", handleCallCancelledEvent);
+          socket.on("call.cancelled", handleCallCancelledEvent);
           socket.on("call:timeout", handleCallCancelledEvent);
+          socket.on("call.timeout", handleCallCancelledEvent);
           socket.on("call:rejected", handleCallCancelledEvent);
+          socket.on("call.rejected", handleCallCancelledEvent);
+          socket.on("call.answered_elsewhere", handleAnsweredElsewhere);
+          socket.on("call:answered_elsewhere", handleAnsweredElsewhere);
         }
       } catch (e) {
         console.warn("[IncomingCallProvider] Socket initialization error:", e);
@@ -438,13 +455,12 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
 
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
-      if (eventName === "call:incoming") handleIncomingCallEvent(data);
-      if (eventName === "call:cancelled" || eventName === "call:timeout" || eventName === "call:rejected") {
+      if (eventName === "call:incoming" || eventName === "call.incoming") handleIncomingCallEvent(data);
+      if (eventName === "call:cancelled" || eventName === "call.cancelled" || eventName === "call:timeout" || eventName === "call.timeout" || eventName === "call:rejected" || eventName === "call.rejected") {
         handleCallCancelledEvent(data);
       }
-      if (eventName === "call:accepted") {
-        stopCallAlert();
-        setIncomingCall(null);
+      if (eventName === "call:accepted" || eventName === "call.accepted" || eventName === "call.answered_elsewhere" || eventName === "call:answered_elsewhere") {
+        handleAnsweredElsewhere(data);
       }
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
@@ -500,9 +516,15 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     return () => {
       if (socket) {
         socket.off("call:incoming", handleIncomingCallEvent);
+        socket.off("call.incoming", handleIncomingCallEvent);
         socket.off("call:cancelled", handleCallCancelledEvent);
+        socket.off("call.cancelled", handleCallCancelledEvent);
         socket.off("call:timeout", handleCallCancelledEvent);
+        socket.off("call.timeout", handleCallCancelledEvent);
         socket.off("call:rejected", handleCallCancelledEvent);
+        socket.off("call.rejected", handleCallCancelledEvent);
+        socket.off("call.answered_elsewhere", handleAnsweredElsewhere);
+        socket.off("call:answered_elsewhere", handleAnsweredElsewhere);
       }
       window.removeEventListener("hrms:pusher", handlePusherEvent);
       window.removeEventListener("hrms:logout", handleLogout);
@@ -511,7 +533,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       }
       stopCallAlert();
     };
-  }, [handleIncomingCallEvent, handleCallCancelledEvent, stopCallAlert, acceptCall]);
+  }, [handleIncomingCallEvent, handleCallCancelledEvent, handleAnsweredElsewhere, stopCallAlert, acceptCall]);
 
   const checkPendingCall = useCallback(async () => {
     const token = typeof window !== "undefined"

@@ -42,6 +42,7 @@ export function FullScreenIncomingCall() {
   return (
     <div
       role="dialog"
+      data-testid="incoming-call-dialog"
       aria-modal="true"
       aria-labelledby="incoming-call-caller"
       onClick={unlockAudio}
@@ -113,6 +114,7 @@ export function FullScreenIncomingCall() {
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"
+            data-testid="btn-decline-call"
             onClick={() => rejectCall("declined_by_user")}
             aria-label="Decline call (Press Escape)"
             className="group relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-rose-600 hover:bg-rose-500 active:scale-95 transition-all duration-200 shadow-xl shadow-rose-900/40 focus:outline-none focus:ring-4 focus:ring-rose-500/50"
@@ -126,6 +128,7 @@ export function FullScreenIncomingCall() {
           <button
             ref={acceptButtonRef}
             type="button"
+            data-testid="btn-accept-call"
             onClick={acceptCall}
             aria-label="Accept call (Press Enter)"
             className="group relative flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 transition-all duration-200 shadow-xl shadow-emerald-900/40 focus:outline-none focus:ring-4 focus:ring-emerald-500/50"

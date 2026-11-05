@@ -47,7 +47,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
 import { useSession } from "@/lib/session";
-import { useIncomingCall } from "@/context/incoming-call-context";
 import {
   MultiParticipantMeetingDialog,
   IncomingGroupMeetingDialog,
@@ -55,6 +54,14 @@ import {
   type MeetingParticipant,
   type SfuDiagnosticInfo,
 } from "./multi-participant-meeting-dialog";
+import {
+  AdaptiveVideoGrid,
+  type GridParticipant,
+  getDeterministicInitials,
+  getDeterministicAvatarColor,
+} from "@/components/calling/adaptive-video-grid";
+import { ScreenShareStage } from "@/components/calling/screen-share-stage";
+import { InCallInviteModal } from "@/components/calling/in-call-invite-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -747,8 +754,6 @@ export function UnifiedChatApp({
   const [activeThreadType, setActiveThreadType] = useState<"direct" | "group">("direct");
   const [activeTargetUserId, setActiveTargetUserId] = useState<string>("");
   const [activeGroupId, setActiveGroupId] = useState<string>("");
-  const { isPushSupported, isSubscribedToPush, enablePushNotifications, pushPermission } = useIncomingCall();
-  const [pushBannerDismissed, setPushBannerDismissed] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFilter, setFilterFilter] = useState<"all" | "unread">("all");
@@ -949,7 +954,29 @@ export function UnifiedChatApp({
   const [callDurationSeconds, setCallDurationSeconds] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [remoteIsVideoOff, setRemoteIsVideoOff] = useState(false);
   const [remoteIsScreenSharing, setRemoteIsScreenSharing] = useState(false);
+
+  // Phase C1 Authoritative Reconnect & Call Summary State
+  const [peerReconnecting, setPeerReconnecting] = useState<{
+    userId: string;
+    graceSecondsRemaining: number;
+  } | null>(null);
+
+  const [callSummary, setCallSummary] = useState<{
+    callId: string;
+    targetName: string;
+    targetAvatar?: string | null;
+    targetId: string;
+    targetEmail?: string;
+    callType: "audio" | "video";
+    durationSeconds: number;
+    startedAt: Date;
+    endedAt: Date;
+    endReason: string;
+    networkQuality: string;
+    networkRttMs: number;
+  } | null>(null);
 
   // Incoming call state (for callee)
   const [incomingCall, setIncomingCall] = useState<{
@@ -1003,6 +1030,7 @@ export function UnifiedChatApp({
     avatarUrl?: string;
     status: "invited" | "ringing" | "connected";
   }>>([]);
+  const [additionalParticipants, setAdditionalParticipants] = useState<GridParticipant[]>([]);
 
   // Busy & Call Waiting Handlers
   const [busyStateData, setBusyStateData] = useState<{
@@ -1192,6 +1220,24 @@ export function UnifiedChatApp({
     activeCallIdRef.current = activeCallId;
   }, [activeCallId]);
 
+  // Peer Reconnecting Countdown (30-second grace window)
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (peerReconnecting && peerReconnecting.graceSecondsRemaining > 0) {
+      timer = setInterval(() => {
+        setPeerReconnecting((prev) => {
+          if (!prev || prev.graceSecondsRemaining <= 1) {
+            return null;
+          }
+          return { ...prev, graceSecondsRemaining: prev.graceSecondsRemaining - 1 };
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [peerReconnecting]);
+
   const mediaConstraints = useCallback((video: boolean): MediaStreamConstraints => ({
     audio: {
       echoCancellation: true,
@@ -1310,7 +1356,6 @@ export function UnifiedChatApp({
 
   const callTimeoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const incomingCallTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const handleAcceptIncomingCallRef = useRef<((callOverride?: any) => Promise<void>) | null>(null);
 
   // Optimistic message list state
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageItem[]>([]);
@@ -1806,6 +1851,7 @@ export function UnifiedChatApp({
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     setIsScreenSharing(false);
+    setAdditionalParticipants([]);
   }, [stopRingtone]);
 
   // Video element stream binding hook (ensures tracks are connected after DOM mounts)
@@ -1826,6 +1872,106 @@ export function UnifiedChatApp({
       }
     }
   }, [activeCallModalOpen, isVideoOff, callStatus, activeCallType, isScreenSharing]);
+
+  // Phase C2: Assembled participants list for AdaptiveVideoGrid & ScreenShareStage
+  const activeCallParticipants = useMemo<GridParticipant[]>(() => {
+    const list: GridParticipant[] = [];
+
+    // 1. Local user tile
+    list.push({
+      userId: currentUserId || "local-user",
+      name: (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "You",
+      avatarUrl: (currentUser as any)?.profile?.avatarUrl || (currentUser as any)?.avatarUrl || null,
+      stream: localStreamRef.current,
+      videoRef: localVideoRef,
+      isLocal: true,
+      isCameraOff: isVideoOff,
+      isMuted: isMuted,
+      isSpeaking: localIsSpeaking,
+      isScreenSharing: isScreenSharing,
+      state: "JOINED",
+    });
+
+    // 2. Primary Remote peer (if active call target exists)
+    if (activeCallTargetId) {
+      list.push({
+        userId: activeCallTargetId,
+        name: activeCallTargetName || "Colleague",
+        avatarUrl: activeCallTargetAvatar || null,
+        stream: remoteStreamRef.current,
+        videoRef: remoteVideoRef,
+        isLocal: false,
+        isCameraOff: remoteIsVideoOff || !remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled),
+        isMuted: false,
+        isSpeaking: remoteIsSpeaking,
+        isScreenSharing: remoteIsScreenSharing,
+        state: peerReconnecting ? "RECONNECTING" : "JOINED",
+        reconnectCountdown: peerReconnecting?.graceSecondsRemaining,
+      });
+    }
+
+    // 3. Additional invited / joined colleagues
+    for (const ap of additionalParticipants) {
+      if (ap.userId !== currentUserId && ap.userId !== activeCallTargetId) {
+        list.push(ap);
+      }
+    }
+
+    return list;
+  }, [
+    currentUserId,
+    currentUser,
+    isVideoOff,
+    isMuted,
+    localIsSpeaking,
+    isScreenSharing,
+    activeCallTargetId,
+    activeCallTargetName,
+    activeCallTargetAvatar,
+    remoteIsVideoOff,
+    remoteIsSpeaking,
+    remoteIsScreenSharing,
+    peerReconnecting,
+    additionalParticipants,
+  ]);
+
+  // Phase C2: In-Call Colleague Invite Handler
+  const handleInviteColleagueToCall = async (targetUserId: string): Promise<boolean> => {
+    const cId = activeCallIdRef.current || activeCallId;
+    if (!cId) {
+      toast.error("No active call session.");
+      return false;
+    }
+
+    try {
+      const res = await api.post(`/api/calls/${cId}/invite-colleague`, { targetUserId });
+      if (res.data?.success) {
+        const data = res.data.data;
+        setAdditionalParticipants((prev) => {
+          if (prev.some((p) => p.userId === targetUserId)) return prev;
+          return [
+            ...prev,
+            {
+              userId: targetUserId,
+              name: data.invitedUser?.name || "Colleague",
+              avatarUrl: data.invitedUser?.avatarUrl || null,
+              state: "INVITED",
+              isCameraOff: true,
+              isMuted: true,
+            },
+          ];
+        });
+        toast.success(`Invitation sent to ${data.invitedUser?.name || "colleague"}`);
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.warn("Invite colleague error:", err);
+      const msg = err.response?.data?.error || err.message || "Failed to invite colleague";
+      toast.error(msg);
+      return false;
+    }
+  };
 
   // ──────────────────────────────────────────────────────────────────────────
   // MULTI-PARTICIPANT GROUP MEETING LIFECYCLE & MEDIA CONTROLS
@@ -2682,12 +2828,11 @@ export function UnifiedChatApp({
         try {
           const offer = await peerConnectionRef.current.createOffer();
           await peerConnectionRef.current.setLocalDescription(offer);
-          socket.emit("call:signal", {
-            toUserId: activeCallTargetId,
-            targetUserId: activeCallTargetId,
-            callId: data.callId || activeCallIdRef.current || activeCallId,
-            signal: { type: "offer", sdp: offer },
-          });
+          emitWebRtcSignal(
+            activeCallTargetId,
+            data.callId || activeCallIdRef.current || activeCallId,
+            { type: "offer", sdp: offer }
+          );
         } catch (err: any) {
           console.error("Failed to create WebRTC offer:", err);
         }
@@ -2793,12 +2938,11 @@ export function UnifiedChatApp({
           }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socket.emit("call:signal", {
-            toUserId: data.fromUserId,
-            targetUserId: data.fromUserId,
-            callId: data.callId || curCallId,
-            signal: { type: "answer", sdp: answer },
-          });
+          emitWebRtcSignal(
+            data.fromUserId,
+            data.callId || curCallId,
+            { type: "answer", sdp: answer }
+          );
         } else if (signal.type === "answer") {
           await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
           // Drain candidate queue
@@ -2824,6 +2968,69 @@ export function UnifiedChatApp({
       }
     };
 
+    const handleParticipantReconnecting = (data: any) => {
+      const cId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && data.callId === cId) {
+        setPeerReconnecting({
+          userId: data.userId,
+          graceSecondsRemaining: data.graceSecondsRemaining || 30,
+        });
+      }
+    };
+
+    const handleParticipantJoined = (data: any) => {
+      const cId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && data.callId === cId) {
+        if (data.reconnected) {
+          setPeerReconnecting(null);
+          toast.success(`${activeCallTargetName || "Colleague"} reconnected!`);
+        } else if (data.userId && data.userId !== currentUserId) {
+          const uId = data.userId;
+          setAdditionalParticipants((prev) => {
+            const idx = prev.findIndex((p) => p.userId === uId);
+            const joinedPart: GridParticipant = {
+              userId: uId,
+              name: data.user?.name || "Colleague",
+              avatarUrl: data.user?.avatarUrl || null,
+              state: "JOINED",
+              isCameraOff: false,
+              isMuted: false,
+            };
+            if (idx >= 0) {
+              const copy = [...prev];
+              copy[idx] = { ...copy[idx], ...joinedPart };
+              return copy;
+            }
+            return [...prev, joinedPart];
+          });
+          toast.success(`${data.user?.name || "Colleague"} joined the call`);
+        }
+      }
+    };
+
+    const handleParticipantInvited = (data: any) => {
+      const cId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && data.callId === cId) {
+        const uId = data.invitedUser?.id || data.participant?.userId;
+        if (uId && uId !== currentUserId) {
+          setAdditionalParticipants((prev) => {
+            if (prev.some((p) => p.userId === uId)) return prev;
+            return [
+              ...prev,
+              {
+                userId: uId,
+                name: data.invitedUser?.name || "Colleague",
+                avatarUrl: data.invitedUser?.avatarUrl || null,
+                state: "INVITED",
+                isCameraOff: true,
+                isMuted: true,
+              },
+            ];
+          });
+        }
+      }
+    };
+
     const handleCallEnded = (data: any) => {
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
@@ -2833,9 +3040,37 @@ export function UnifiedChatApp({
         clearTimeout(incomingCallTimerRef.current);
         incomingCallTimerRef.current = null;
       }
-      toast.info(`Call ended (${formatDuration(data.durationSeconds || 0)}).`);
+      const finalDuration = data?.durationSeconds !== undefined
+        ? Math.max(0, Math.round(Number(data.durationSeconds)))
+        : callDurationSeconds;
+
+      if (callStatus === "connected" || finalDuration > 0) {
+        setCallSummary({
+          callId: data?.callId || activeCallIdRef.current || activeCallId,
+          targetName: activeCallTargetName || "Colleague",
+          targetAvatar: activeCallTargetAvatar,
+          targetId: activeCallTargetId,
+          targetEmail: activeCallTargetEmail,
+          callType: activeCallType,
+          durationSeconds: finalDuration,
+          startedAt: new Date(Date.now() - finalDuration * 1000),
+          endedAt: new Date(),
+          endReason: data?.reason === "peer_disconnected"
+            ? "Colleague disconnected (30-second grace window expired)"
+            : data?.reason === "PEER_DISCONNECTED"
+            ? "Colleague disconnected (30-second grace window expired)"
+            : data?.reason || "Call completed",
+          networkQuality: networkQuality,
+          networkRttMs: networkRttMs,
+        });
+        setActiveCallModalOpen(true);
+      } else {
+        setActiveCallModalOpen(false);
+        setCallSummary(null);
+      }
+
       cleanUpMedia();
-      setActiveCallModalOpen(false);
+      setPeerReconnecting(null);
       setIncomingCall(null);
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
@@ -2861,13 +3096,25 @@ export function UnifiedChatApp({
 
     // Call signaling events
     socket.on("call:incoming", handleIncomingCall);
+    socket.on("call.incoming", handleIncomingCall);
     socket.on("call:accepted", handleCallAccepted);
+    socket.on("call.accepted", handleCallAccepted);
     socket.on("call:rejected", handleCallRejected);
+    socket.on("call.rejected", handleCallRejected);
     socket.on("call:cancelled", handleCallCancelled);
+    socket.on("call.cancelled", handleCallCancelled);
     socket.on("call:busy", handleCallBusy);
     socket.on("call:timeout", handleCallTimeout);
+    socket.on("call.timeout", handleCallTimeout);
     socket.on("call:signal", handleCallSignal);
     socket.on("call:ended", handleCallEnded);
+    socket.on("call.ended", handleCallEnded);
+    socket.on("call.participant.reconnecting", handleParticipantReconnecting);
+    socket.on("call:participant:reconnecting", handleParticipantReconnecting);
+    socket.on("call.participant.joined", handleParticipantJoined);
+    socket.on("call:participant:joined", handleParticipantJoined);
+    socket.on("call.participant_invited", handleParticipantInvited);
+    socket.on("call:participant_invited", handleParticipantInvited);
 
     // Multi-participant meeting socket events
     socket.on("group-call:incoming", handleIncomingGroupMeeting);
@@ -2900,12 +3147,21 @@ export function UnifiedChatApp({
           toast.info(`${activeCallTargetName || "Colleague"} stopped sharing screen`);
         }
       }
+      if (data?.type === "video-mute") {
+        setRemoteIsVideoOff(!!data.active);
+      }
     };
     socket.on("call:media-state", handleMediaState);
 
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
       if (eventName === "call:incoming") handleIncomingCall(data);
+      if (eventName === "call:accepted") handleCallAccepted(data);
+      if (eventName === "call:rejected") handleCallRejected(data);
+      if (eventName === "call:cancelled") handleCallCancelled();
+      if (eventName === "call:timeout") handleCallTimeout(data);
+      if (eventName === "call:signal") handleCallSignal(data);
+      if (eventName === "call:ended") handleCallEnded(data);
       if (eventName === "call:busy") handleCallBusy(data);
       if (eventName === "call:media-state") handleMediaState(data);
       if (eventName === "group-call:incoming") handleIncomingGroupMeeting(data);
@@ -2925,53 +3181,7 @@ export function UnifiedChatApp({
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
 
-    const handleGlobalCallAccepted = (e: Event) => {
-      const call = (e as CustomEvent).detail;
-      if (!call) return;
-      const callData = {
-        callId: call.callId,
-        fromUserId: call.callerId,
-        type: call.callType,
-        callerName: call.callerName,
-        callerPhone: call.callerPhone,
-        callerEmail: call.callerEmail,
-        callerAvatarUrl: call.callerAvatar,
-        threadId: call.threadId,
-      };
-      setIncomingCall(callData);
-      setTimeout(() => {
-        handleAcceptIncomingCallRef.current?.(callData);
-      }, 50);
-    };
-    window.addEventListener("hrms:global-call-accepted", handleGlobalCallAccepted);
-
-    // If navigated from background push notification with ?callId=...
-    // REQUIREMENT: Never auto-accept call via URL parameter.
-    // Display incoming call ringing dialog/overlay and require explicit user click on "Accept".
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlCallId = params.get("callId");
-      if (urlCallId) {
-        api.get(`/api/calls/${encodeURIComponent(urlCallId)}/status`).then((res: any) => {
-          if (res?.success && res?.data?.status === "ringing") {
-            const data = res.data;
-            const callData = {
-              callId: data.callId,
-              fromUserId: data.callerId,
-              type: data.callType,
-              callerName: data.callerName,
-              callerAvatarUrl: data.callerAvatar,
-              threadId: data.threadId,
-            };
-            setIncomingCall(callData);
-            // Explicitly do NOT auto-accept. The user must click "Accept" or "Decline".
-          }
-        }).catch(() => {});
-      }
-    }
-
     return () => {
-      window.removeEventListener("hrms:global-call-accepted", handleGlobalCallAccepted);
       if (activeThreadId) {
         socket.emit("chat:leave", { threadId: activeThreadId });
       }
@@ -2998,6 +3208,10 @@ export function UnifiedChatApp({
       socket.off("call:ended", handleCallEnded);
       socket.off("call:error", handleCallError);
       socket.off("call:media-state", handleMediaState);
+      socket.off("call.participant.joined", handleParticipantJoined);
+      socket.off("call:participant:joined", handleParticipantJoined);
+      socket.off("call.participant_invited", handleParticipantInvited);
+      socket.off("call:participant_invited", handleParticipantInvited);
 
       socket.off("group-call:incoming", handleIncomingGroupMeeting);
       socket.off("group-call:state_sync", handleGroupStateSync);
@@ -3433,6 +3647,29 @@ export function UnifiedChatApp({
     }
   }, [preCallModalOpen, preCallStream, preCallType, preCallVideoOff]);
 
+  const emitWebRtcSignal = (targetUserId: string, callId: string, signal: any) => {
+    const socket = getSocketClient();
+    if (socket?.connected) {
+      socket.emit("call:signal", {
+        toUserId: targetUserId,
+        targetUserId,
+        callId,
+        signal,
+      });
+    } else {
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
+        : null;
+      if (token) {
+        fetch(`/api/calls/${encodeURIComponent(callId)}/signal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ toUserId: targetUserId, signal }),
+        }).catch(() => {});
+      }
+    }
+  };
+
   // Main Call Initiation Entrypoint (routes via Pre-Call screen)
   const handleInitiateCall = (
     type: "audio" | "video",
@@ -3527,13 +3764,8 @@ export function UnifiedChatApp({
       setActiveCallId(callId);
       const socket = getSocketClient();
       pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit("call:signal", {
-            toUserId: resolvedTargetId,
-            targetUserId: resolvedTargetId,
-            callId,
-            signal: { type: "candidate", candidate: event.candidate },
-          });
+        if (event.candidate) {
+          emitWebRtcSignal(resolvedTargetId, callId, { type: "candidate", candidate: event.candidate });
         }
       };
 
@@ -3579,7 +3811,7 @@ export function UnifiedChatApp({
         queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
       }, 60000);
 
-      if (socket) {
+      if (socket?.connected) {
         socket.emit("call:invite", {
           toUserId: resolvedTargetId,
           targetUserId: resolvedTargetId,
@@ -3591,6 +3823,34 @@ export function UnifiedChatApp({
           callerEmail: currentUser?.email,
           callerAvatarUrl: (currentUser as any)?.avatarUrl,
           threadId: activeThreadId,
+        });
+      }
+
+      // Authoritative Persistent Calls API dispatch (supports Vercel serverless & background sync)
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
+        : null;
+      if (token) {
+        fetch("/api/calls/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            targetUserId: resolvedTargetId,
+            callType: type,
+            callId,
+            callerPhone: phone,
+            threadId: activeThreadId,
+          }),
+        }).then(async (res) => {
+          if (res.status === 409) {
+            const body = await res.json();
+            toast.error(body.error || "User is currently in another call.");
+            cleanUpMedia();
+            setActiveCallModalOpen(false);
+            setCallStatus("ended");
+          }
+        }).catch((err) => {
+          console.warn("[startActualCall] REST invite fallback error:", err);
         });
       }
     } catch (err: any) {
@@ -3760,8 +4020,8 @@ export function UnifiedChatApp({
   };
 
   // Accept Incoming Call (Callee)
-  const handleAcceptIncomingCall = async (callOverride?: any) => {
-    const targetCall = callOverride || incomingCall;
+  const handleAcceptIncomingCall = async (incomingOverride?: any) => {
+    const targetCall = incomingOverride || incomingCall;
     if (!targetCall) return;
     stopRingtone();
     if (incomingCallTimerRef.current) {
@@ -3786,7 +4046,7 @@ export function UnifiedChatApp({
       setActiveCallTargetPhone(targetCall.callerPhone || "");
       setActiveCallTargetEmail(targetCall.callerEmail || "");
       setActiveCallTargetId(targetCall.fromUserId);
-      setActiveCallTargetAvatar(targetCall.callerAvatarUrl || (targetCall as any).callerAvatar || null);
+      setActiveCallTargetAvatar(targetCall.callerAvatarUrl || (incomingCall as any).callerAvatar || null);
       setActiveCallId(targetCall.callId);
       setActiveCallRole("callee");
       setCallStatus("connected");
@@ -3857,7 +4117,6 @@ export function UnifiedChatApp({
       handleRejectIncomingCall("permission_denied");
     }
   };
-  handleAcceptIncomingCallRef.current = handleAcceptIncomingCall;
 
   // Reject Incoming Call
   const handleRejectIncomingCall = (reason = "declined") => {
@@ -3881,10 +4140,84 @@ export function UnifiedChatApp({
     setIncomingCall(null);
   };
 
+  // Global Call Acceptance & URL callId Sync
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleGlobalAccepted = (e: any) => {
+      const call = e.detail;
+      if (call?.callId) {
+        handleAcceptIncomingCall({
+          callId: call.callId,
+          fromUserId: call.callerId,
+          type: call.callType,
+          callerName: call.callerName,
+          callerAvatarUrl: call.callerAvatar,
+          threadId: call.threadId,
+        });
+      }
+    };
+    window.addEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+
+    const params = new URLSearchParams(window.location.search);
+    const callIdParam = params.get("callId");
+    const autoAnswer = params.get("autoAnswer") === "true";
+    if (callIdParam && !activeCallIdRef.current) {
+      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
+      if (token) {
+        fetch(`/api/calls/${encodeURIComponent(callIdParam)}/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res?.success && res?.data) {
+              const d = res.data;
+              if (d.status === "ringing" || d.status === "connected") {
+                if (autoAnswer && d.callerId !== currentUserId) {
+                  handleAcceptIncomingCall({
+                    callId: d.callId,
+                    fromUserId: d.callerId,
+                    type: d.callType,
+                    callerName: d.callerName,
+                    callerAvatarUrl: d.callerAvatar,
+                    threadId: d.threadId,
+                  });
+                }
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    return () => window.removeEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+  }, [currentUserId, handleAcceptIncomingCall]);
+
   // End / Cancel Call
   const handleEndCall = async () => {
     const finalDuration = callDurationSeconds;
-    setActiveCallModalOpen(false);
+    const isConnectedCall = callStatus === "connected";
+
+    if (isConnectedCall) {
+      setCallSummary({
+        callId: activeCallId,
+        targetName: activeCallTargetName || "Colleague",
+        targetAvatar: activeCallTargetAvatar,
+        targetId: activeCallTargetId,
+        targetEmail: activeCallTargetEmail,
+        callType: activeCallType,
+        durationSeconds: finalDuration,
+        startedAt: new Date(Date.now() - finalDuration * 1000),
+        endedAt: new Date(),
+        endReason: "You ended the call",
+        networkQuality: networkQuality,
+        networkRttMs: networkRttMs,
+      });
+      setActiveCallModalOpen(true);
+      setCallStatus("ended");
+    } else {
+      setActiveCallModalOpen(false);
+      setCallSummary(null);
+    }
     setActiveCallTargetAvatar(null);
 
     try {
@@ -3929,6 +4262,7 @@ export function UnifiedChatApp({
       toast.info("Call ended.");
     } finally {
       cleanUpMedia();
+      setPeerReconnecting(null);
     }
   };
 
@@ -6246,36 +6580,6 @@ export function UnifiedChatApp({
                 </button>
               </div>
             </div>
-
-            {/* Desktop Web Push Call Alert Notice */}
-            {isPushSupported && !isSubscribedToPush && pushPermission !== "denied" && !pushBannerDismissed && (
-              <div className="bg-indigo-50/90 dark:bg-indigo-950/40 border-b border-indigo-200/60 dark:border-indigo-900/50 px-4 py-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-200">
-                <div className="flex items-center gap-2 mr-2">
-                  <Bell className="size-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                  <span>
-                    Enable browser notifications to receive incoming calls when MasterHRMS is in the background or closed.
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={() => enablePushNotifications()}
-                    className="h-6 text-[11px] px-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                  >
-                    Enable
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setPushBannerDismissed(true)}
-                    className="size-6 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40"
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* In-Thread Search Bar */}
             {inThreadSearchOpen && (
@@ -8855,16 +9159,139 @@ export function UnifiedChatApp({
       </Dialog>
 
       {/* 4. REAL INTERACTIVE WEBRTC CALL MODAL (AUDIO & VIDEO) */}
-      <Dialog open={activeCallModalOpen && !isCallMinimized} onOpenChange={setActiveCallModalOpen}>
+      <Dialog
+        open={activeCallModalOpen && !isCallMinimized}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCallSummary(null);
+            setActiveCallModalOpen(false);
+          } else {
+            setActiveCallModalOpen(true);
+          }
+        }}
+      >
         <DialogContent
           className={cn(
             "font-sans text-center transition-all duration-200 [&>button:last-child]:hidden",
-            activeCallType === "video"
+            callSummary
+              ? "sm:max-w-md bg-card text-foreground p-6 shadow-2xl rounded-2xl border border-border"
+              : activeCallType === "video"
               ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-background text-foreground flex flex-col justify-between"
               : "sm:max-w-md bg-card text-foreground"
           )}
           style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
+          {callSummary ? (
+            /* PHASE C1 CALL SUMMARY & END SCREEN */
+            <div data-testid="call-summary-screen" className="flex flex-col items-center gap-4 py-2 text-center animate-in fade-in zoom-in-95 duration-200 w-full">
+              {/* Header Profile */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative">
+                  <Avatar className="size-20 border-2 border-border shadow-lg">
+                    {callSummary.targetAvatar ? (
+                      <AvatarImage src={callSummary.targetAvatar} alt={callSummary.targetName} />
+                    ) : null}
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">
+                      {callSummary.targetName ? callSummary.targetName.slice(0, 2).toUpperCase() : "HR"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-card border border-border shadow">
+                    {callSummary.callType === "video" ? (
+                      <Video className="size-3.5 text-primary" />
+                    ) : (
+                      <Phone className="size-3.5 text-primary" />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-foreground">{callSummary.targetName}</h3>
+                  {callSummary.targetEmail && (
+                    <p className="text-xs text-muted-foreground">{callSummary.targetEmail}</p>
+                  )}
+                </div>
+                <Badge variant="outline" className="px-2.5 py-0.5 text-xs font-medium capitalize mt-0.5">
+                  {callSummary.callType} Call Completed
+                </Badge>
+              </div>
+
+              {/* Metrics & Session Metadata */}
+              <div className="w-full bg-muted/40 rounded-xl p-3.5 border border-border/60 flex flex-col gap-2.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="size-3.5" /> Call Duration
+                  </span>
+                  <span className="font-mono font-bold text-foreground text-sm">
+                    {formatDuration(callSummary.durationSeconds)}
+                  </span>
+                </div>
+                <div className="h-px bg-border/40" />
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Started At</span>
+                  <span className="text-foreground">
+                    {new Date(callSummary.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Ended At</span>
+                  <span className="text-foreground">
+                    {new Date(callSummary.endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">End Reason</span>
+                  <span className="text-foreground font-medium truncate max-w-[200px]" title={callSummary.endReason}>
+                    {callSummary.endReason}
+                  </span>
+                </div>
+                {callSummary.networkQuality && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Activity className="size-3.5" /> Network Quality
+                    </span>
+                    <span className="text-foreground capitalize flex items-center gap-1">
+                      <span className={cn(
+                        "size-2 rounded-full",
+                        callSummary.networkQuality === "poor" ? "bg-destructive" : "bg-emerald-500"
+                      )} />
+                      {callSummary.networkQuality} ({callSummary.networkRttMs}ms)
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="w-full flex items-center gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2 cursor-pointer"
+                  data-testid="call-summary-back-btn"
+                  onClick={() => {
+                    setCallSummary(null);
+                    setActiveCallModalOpen(false);
+                    setCallStatus("calling");
+                    setCallDurationSeconds(0);
+                  }}
+                >
+                  <MessageSquare className="size-4" />
+                  <span>Back to Chat</span>
+                </Button>
+                <Button
+                  variant="default"
+                  className="flex-1 gap-2 cursor-pointer"
+                  data-testid="call-summary-again-btn"
+                  onClick={() => {
+                    const { callType, targetId, targetName, targetEmail, targetAvatar } = callSummary;
+                    setCallSummary(null);
+                    startActualCall(callType, targetId, targetName, "", targetEmail, null, false, false, targetAvatar);
+                  }}
+                >
+                  <RotateCcw className="size-4" />
+                  <span>Call Again</span>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header Bar */}
           <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
             <div className="flex items-center gap-2 text-left min-w-0">
@@ -8961,6 +9388,22 @@ export function UnifiedChatApp({
             </div>
           )}
 
+          {/* Peer Reconnecting (30-second Grace Period) Banner */}
+          {peerReconnecting && (
+            <div
+              data-testid="peer-reconnecting-banner"
+              className="w-full bg-amber-500/20 border border-amber-500/40 text-amber-900 dark:text-amber-200 px-3.5 py-2 rounded-lg flex items-center justify-between text-xs font-semibold shadow-md my-1.5 shrink-0 animate-in fade-in"
+            >
+              <div className="flex items-center gap-2">
+                <RefreshCw className="size-3.5 animate-spin text-amber-600 dark:text-amber-400" />
+                <span>{activeCallTargetName || "Peer"} disconnected. Reconnecting...</span>
+              </div>
+              <span className="font-mono bg-amber-500/30 px-2 py-0.5 rounded text-[11px] font-bold">
+                {peerReconnecting.graceSecondsRemaining}s grace period
+              </span>
+            </div>
+          )}
+
           {/* Remote Screen Sharing Alert Banner */}
           {remoteIsScreenSharing && !isScreenSharing && (
             <div className="w-full bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-md my-1 shrink-0 animate-in fade-in">
@@ -8972,196 +9415,27 @@ export function UnifiedChatApp({
           {/* Media Stage */}
           <div className={cn("w-full flex-1 min-h-0 my-2 relative overflow-hidden flex items-center justify-center", activeCallType === "video" ? "bg-background rounded-xl border border-border" : "py-6")}>
             {activeCallType === "video" ? (
-              isScreenSharing ? (
+              isScreenSharing || remoteIsScreenSharing ? (
                 /* SCREEN SHARE PRESENTATION STAGE */
-                <div className="w-full h-full relative flex flex-col items-center justify-between p-2">
-                  {/* Top Presenter Ownership Banner */}
-                  <div className="absolute top-3 z-30 flex items-center gap-3 px-3.5 py-1 rounded-full bg-card/90 text-foreground border border-primary/50 shadow-xl text-xs">
-                    <Tv className="size-3.5 text-primary" />
-                    <span>Presenting your screen</span>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="h-6 text-[10px] px-2.5 rounded-full bg-destructive hover:bg-destructive cursor-pointer"
-                      onClick={toggleScreenShare}
-                    >
-                      Stop Sharing
-                    </Button>
-                  </div>
-
-                  {/* 88-90% Presentation View */}
-                  <div className="w-full flex-1 min-h-0 relative rounded-lg overflow-hidden flex items-center justify-center bg-black">
-                    <video
-                      ref={(el) => {
-                        localVideoRef.current = el;
-                        if (el && localStreamRef.current) {
-                          if (el.srcObject !== localStreamRef.current) {
-                            el.srcObject = localStreamRef.current;
-                          }
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-
-                  {/* 10-12% Participant Thumbnail Strip */}
-                  <div className="w-full h-24 pt-2 flex items-center justify-center gap-3 z-20 shrink-0">
-                    {/* Remote participant card */}
-                    <div className={cn("h-full aspect-video rounded-lg bg-card relative overflow-hidden border", remoteIsSpeaking ? "border-success/30 ring-2 ring-success/50" : "border-border")}>
-                      <video
-                        ref={(el) => {
-                          remoteVideoRef.current = el;
-                          if (el && remoteStreamRef.current) {
-                            if (el.srcObject !== remoteStreamRef.current) {
-                              el.srcObject = remoteStreamRef.current;
-                            }
-                          }
-                        }}
-                        autoPlay
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-foreground flex items-center gap-1">
-                        <span>{activeCallTargetName}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : viewMode === "grid" ? (
-                /* GRID MODE (EQUAL 50/50 TILES) */
-                <div className="w-full h-full grid grid-cols-1 md:grid-cols-2 gap-3 p-2">
-                  {/* Remote Tile */}
-                  <div className={cn("w-full h-full bg-card rounded-xl relative overflow-hidden flex items-center justify-center border", remoteIsSpeaking ? "border-success/30 ring-4 ring-success/40" : "border-border")}>
-                    <video
-                      ref={(el) => {
-                        remoteVideoRef.current = el;
-                        if (el && remoteStreamRef.current) {
-                          if (el.srcObject !== remoteStreamRef.current) {
-                            el.srcObject = remoteStreamRef.current;
-                          }
-                        }
-                      }}
-                      autoPlay
-                      playsInline
-                      className="w-full h-full object-cover"
-                    />
-                    {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background text-foreground">
-                        <div className={cn("size-16 rounded-full flex items-center justify-center text-xl font-bold", getAvatarColor(activeCallTargetName))}>
-                          {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-xs text-foreground">{activeCallTargetName}&apos;s camera paused</span>
-                      </div>
-                    )}
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1">
-                      <span>{activeCallTargetName}</span>
-                      {remoteIsSpeaking && <span className="text-success font-medium">&bull; Speaking</span>}
-                    </div>
-                  </div>
-
-                  {/* Local Tile */}
-                  <div className={cn("w-full h-full bg-card rounded-xl relative overflow-hidden flex items-center justify-center border", localIsSpeaking ? "border-success/30 ring-4 ring-success/40" : "border-border")}>
-                    {isVideoOff ? (
-                      <div className="flex flex-col items-center justify-center text-muted-foreground text-xs gap-1">
-                        <VideoOff className="size-6 text-foreground" />
-                        <span>Your camera is turned off</span>
-                      </div>
-                    ) : (
-                      <video
-                        ref={(el) => {
-                          localVideoRef.current = el;
-                          if (el && localStreamRef.current && !isVideoOff) {
-                            if (el.srcObject !== localStreamRef.current) {
-                              el.srcObject = localStreamRef.current;
-                            }
-                          }
-                        }}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[10px] text-foreground flex items-center gap-1">
-                      <span>You</span>
-                      {isMuted ? <span className="text-warning">&bull; Muted</span> : localIsSpeaking ? <span className="text-success font-medium">&bull; Speaking</span> : null}
-                    </div>
-                  </div>
-                </div>
+                <ScreenShareStage
+                  presenter={
+                    isScreenSharing
+                      ? activeCallParticipants.find((p) => p.isLocal) || activeCallParticipants[0]
+                      : activeCallParticipants.find((p) => !p.isLocal) || activeCallParticipants[0]
+                  }
+                  participants={activeCallParticipants}
+                  screenStream={isScreenSharing ? (screenStreamRef.current || localStreamRef.current) : remoteStreamRef.current}
+                  isLocalPresenter={isScreenSharing}
+                  onStopScreenShare={toggleScreenShare}
+                />
               ) : (
-                /* SPEAKER MODE (FULL REMOTE + FLOATING LOCAL PIP) */
-                <div className="w-full h-full relative overflow-hidden flex items-center justify-center">
-                  <video
-                    ref={(el) => {
-                      remoteVideoRef.current = el;
-                      if (el && remoteStreamRef.current) {
-                        if (el.srcObject !== remoteStreamRef.current) {
-                          el.srcObject = remoteStreamRef.current;
-                        }
-                      }
-                    }}
-                    autoPlay
-                    playsInline
-                    className={cn("w-full h-full object-cover transition-all duration-300", remoteIsSpeaking && "ring-4 ring-success/50")}
-                  />
-
-                  {!remoteStreamRef.current?.getVideoTracks().some((track) => track.enabled) && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background text-foreground">
-                      {activeCallTargetAvatar ? (
-                        <img
-                          src={activeCallTargetAvatar}
-                          alt={activeCallTargetName || "Caller"}
-                          className={cn("size-24 rounded-full object-cover shadow-xl", remoteIsSpeaking && "ring-4 ring-success animate-pulse")}
-                        />
-                      ) : (
-                        <div className={cn("size-24 rounded-full flex items-center justify-center text-3xl font-bold shadow-xl", getAvatarColor(activeCallTargetName), remoteIsSpeaking && "ring-4 ring-success animate-pulse")}>
-                          {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="text-sm text-foreground">{activeCallTargetName}&apos;s camera is off</span>
-                      {remoteIsSpeaking && (
-                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-success/20 text-success text-xs font-semibold">
-                          <Activity className="size-3 animate-pulse" /> Speaking...
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Floating local preview in corner */}
-                  <div className={cn(
-                    "absolute bottom-3 right-3 bg-card rounded-xl overflow-hidden border-2 shadow-2xl z-10 transition-all",
-                    localIsSpeaking ? "border-success/30 ring-2 ring-success/40" : "border-border",
-                    "w-32 h-24 sm:w-44 sm:h-32"
-                  )}>
-                    {isVideoOff ? (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground text-[10px]">
-                        <VideoOff className="size-4 mb-1" /> Cam Off
-                      </div>
-                    ) : (
-                      <video
-                        ref={(el) => {
-                          localVideoRef.current = el;
-                          if (el && localStreamRef.current && !isVideoOff) {
-                            if (el.srcObject !== localStreamRef.current) {
-                              el.srcObject = localStreamRef.current;
-                            }
-                          }
-                        }}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-foreground flex items-center gap-1">
-                      <span>You</span>
-                      {isMuted && <span className="text-destructive font-semibold">(Muted)</span>}
-                    </div>
-                  </div>
-                </div>
+                /* ADAPTIVE PARTICIPANT GRID (1, 2, 3-4, 5+ layouts) */
+                <AdaptiveVideoGrid
+                  participants={activeCallParticipants}
+                  activeSpeakerId={
+                    activeCallParticipants.find((p) => p.isSpeaking)?.userId || null
+                  }
+                />
               )
             ) : (
               /* VOICE CALL DISPLAY */
@@ -9314,6 +9588,8 @@ export function UnifiedChatApp({
               <PhoneOff className="size-5" />
             </Button>
           </div>
+          </>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -9341,17 +9617,9 @@ export function UnifiedChatApp({
                 />
                 {(!remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled) || isVideoOff) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-background text-foreground gap-1.5">
-                    {activeCallTargetAvatar ? (
-                      <img
-                        src={activeCallTargetAvatar}
-                        alt={activeCallTargetName || "Caller"}
-                        className="size-10 rounded-full object-cover shadow-md"
-                      />
-                    ) : (
-                      <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
-                        {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
+                      {(activeCallTargetName || "C").charAt(0).toUpperCase()}
+                    </div>
                     <span className="text-[10px] text-foreground font-medium truncate max-w-[120px]">{activeCallTargetName}</span>
                   </div>
                 )}
@@ -9466,99 +9734,21 @@ export function UnifiedChatApp({
         </div>
       )}
 
-      {/* IN-CALL ADD PARTICIPANT MODAL */}
-      <Dialog open={inCallAddParticipantOpen} onOpenChange={setInCallAddParticipantOpen}>
-        <DialogContent
-          className="sm:max-w-md font-sans"
-          style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-        >
-          <DialogHeader>
-            <DialogTitle className="font-sans flex items-center gap-2">
-              <UserPlus className="size-5 text-primary" />
-              <span>Add Colleague to Meeting</span>
-            </DialogTitle>
-            <DialogDescription className="font-sans text-xs">
-              Invite team members in your organization to join this live conversation.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-2 space-y-3 font-sans">
-            {/* Strict SFU Deployment Notice */}
-            <div className="p-3 rounded-lg bg-warning/15 dark:bg-warning/40 border border-warning/30 dark:border-warning/60 text-warning dark:text-warning space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-xs text-warning dark:text-warning">
-                <InfoIcon className="size-4 text-warning dark:text-warning shrink-0" />
-                <span>Multi-participant calls require LiveKit/mediasoup SFU and TURN deployment. This call will remain one-to-one.</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-warning dark:text-warning">
-                Adding participants to an active 1-to-1 WebRTC call is disabled. Direct peer-to-peer WebRTC cannot bridge 3+ participants without an SFU media server. For group discussions, please create or open a group chat.
-              </p>
-            </div>
-
-            <div className="relative">
-              <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search team members by name or email..."
-                value={inCallParticipantSearch}
-                onChange={(e) => setInCallParticipantSearch(e.target.value)}
-                className="text-xs pl-8 font-sans"
-              />
-            </div>
-
-            {/* Participants List - Action disabled per SFU requirements */}
-            <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1 divide-y divide-border/50">
-              {contacts
-                .filter(
-                  (c) =>
-                    c.userId !== currentUserId &&
-                    c.userId !== activeCallTargetId &&
-                    (c.name.toLowerCase().includes(inCallParticipantSearch.toLowerCase()) ||
-                      (c.email || "").toLowerCase().includes(inCallParticipantSearch.toLowerCase()))
-                )
-                .slice(0, 10)
-                .map((contact) => (
-                  <div key={contact.id} className="pt-1.5 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className={cn("size-7 rounded-full flex items-center justify-center font-bold text-xs text-foreground", contact.avatarColor)}>
-                        {contact.avatarLetter}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium truncate text-foreground">{contact.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{contact.designation || contact.email}</p>
-                      </div>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled
-                      className="h-7 text-xs px-2.5 opacity-60 cursor-not-allowed bg-muted text-muted-foreground"
-                      title="Multi-participant calls require LiveKit/SFU deployment."
-                    >
-                      Requires LiveKit/SFU
-                    </Button>
-                  </div>
-                ))}
-            </div>
-
-            {/* SFU Architecture Disclosure Notice */}
-            <div className="p-2.5 rounded-lg bg-muted dark:bg-card/80 border border-border dark:border-border text-[11px] text-muted-foreground space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-foreground dark:text-foreground">
-                <InfoIcon className="size-3.5 text-primary shrink-0" />
-                <span>Multi-Party Architecture Boundary</span>
-              </div>
-              <p className="text-[10px] leading-relaxed">
-                MasterHRMS currently utilizes 1-to-1 WebRTC peer-to-peer signaling. Inviting colleagues sends an immediate in-app call notification. For multi-stream media routing with 3+ simultaneous video tracks, LiveKit SFU media cluster deployment is recommended.
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter className="font-sans pt-2 border-t">
-            <Button variant="outline" size="sm" onClick={() => setInCallAddParticipantOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* IN-CALL ADD PARTICIPANT MODAL (Phase C2) */}
+      <InCallInviteModal
+        open={inCallAddParticipantOpen}
+        onOpenChange={setInCallAddParticipantOpen}
+        callId={activeCallIdRef.current || activeCallId || ""}
+        activeParticipantIds={activeCallParticipants.map((p) => p.userId)}
+        contacts={contacts.map((c) => ({
+          userId: c.userId || c.id,
+          name: c.name,
+          email: c.email || undefined,
+          avatarUrl: c.avatarUrl || null,
+          designation: c.designation || undefined,
+        }))}
+        onInviteColleague={handleInviteColleagueToCall}
+      />
 
       {/* IN-CALL SETTINGS & DEVICE CHOOSER MODAL */}
       <Dialog open={inCallSettingsOpen} onOpenChange={setInCallSettingsOpen}>

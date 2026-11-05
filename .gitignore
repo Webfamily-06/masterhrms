@@ -119,3 +119,5 @@ server/test_out.pdf
 docs/Addon/
 node_modules_cms_temp/
 *.tsbuildinfo
+chrome-devtools-mcp/
+design_draft.md

@@ -4,6 +4,7 @@ import { activeCalls, getIO, ActiveCallSession } from "../socket";
 import { rawPrisma, prisma } from "../prisma";
 import { IncomingCallPushService } from "../services/incoming-call-push.service";
 import { PusherService } from "../services/pusher.service";
+import { CallLifecycleService, CallError, CallForbiddenError, CallConflictError, CallNotFoundError } from "../services/call-lifecycle.service";
 
 export const callRouter = Router();
 
@@ -63,7 +64,48 @@ callRouter.get("/pending", requireAuth, async (req: AuthRequest, res: Response) 
       }
     }
 
-    // 2. Fallback to database CallHistoryRecord
+    // 2. Authoritative PostgreSQL Call model check
+    const pendingCall = await db.call.findFirst({
+      where: {
+        tenantId,
+        status: "RINGING",
+        ringingExpiresAt: { gt: new Date() },
+        participants: {
+          some: {
+            userId,
+            state: "RINGING",
+          },
+        },
+      },
+      include: {
+        participants: true,
+      },
+      orderBy: { startedAt: "desc" },
+    });
+
+    if (pendingCall) {
+      const callerUser = await db.user.findUnique({
+        where: { id: pendingCall.startedBy },
+        include: { profile: true },
+      });
+      return res.json({
+        success: true,
+        hasPendingCall: true,
+        data: {
+          callId: pendingCall.roomKey || pendingCall.id,
+          callerId: pendingCall.startedBy,
+          callerName: callerUser?.profile?.fullName || callerUser?.email || "Colleague",
+          callerAvatar: callerUser?.profile?.avatarUrl || null,
+          callType: pendingCall.media.toLowerCase(),
+          threadId: pendingCall.threadId,
+          startedAt: pendingCall.startedAt,
+          tenantId: pendingCall.tenantId,
+          dbCallId: pendingCall.id,
+        },
+      });
+    }
+
+    // 3. Fallback to database CallHistoryRecord
     const sixtySecondsAgo = new Date(now - 60000);
     const pendingRecord = await db.callHistoryRecord.findFirst({
       where: {
@@ -209,27 +251,46 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
     const targetAvatar = targetUser?.profile?.avatarUrl || null;
     const finalThreadId = threadId || "direct_" + [callerId, resolvedTargetId].sort().join("_");
 
-    // 1. Persist CallHistoryRecord with status "ringing"
-    await db.callHistoryRecord.create({
-      data: {
+    // 1. Authoritative CallSession creation (Atomic Call, CallParticipant, CallEvent, CallHistoryRecord)
+    let lifecycleSession: any = null;
+    try {
+      lifecycleSession = await CallLifecycleService.createCallSession({
         tenantId,
-        callSessionId: callId,
         callerId,
         callerName,
         callerPhone: callerPhone || "Internal Call",
+        callerEmail: callerUser?.email,
         callerAvatarUrl: callerAvatar,
-        receiverId: resolvedTargetId,
-        receiverName: targetName,
-        direction: "outgoing",
-        callType: callType,
-        status: "ringing",
-        durationSeconds: 0,
-        callTime: new Date(),
-        startedAt: new Date(),
-        groupId: finalThreadId,
-        notes: "Initiated " + callType + " call via Persistent Calls API",
-      },
-    });
+        targetUserId: resolvedTargetId,
+        targetName,
+        targetAvatarUrl: targetAvatar,
+        callType,
+        threadId: finalThreadId,
+        roomKey: callId,
+      });
+    } catch (err: any) {
+      console.warn("[CallRoutes] Lifecycle session creation fallback:", err.message);
+      await db.callHistoryRecord.create({
+        data: {
+          tenantId,
+          callSessionId: callId,
+          callerId,
+          callerName,
+          callerPhone: callerPhone || "Internal Call",
+          callerAvatarUrl: callerAvatar,
+          receiverId: resolvedTargetId,
+          receiverName: targetName,
+          direction: "outgoing",
+          callType: callType,
+          status: "ringing",
+          durationSeconds: 0,
+          callTime: new Date(),
+          startedAt: new Date(),
+          groupId: finalThreadId ? (finalThreadId.length <= 36 ? finalThreadId : finalThreadId.substring(0, 36)) : null,
+          notes: "Initiated " + callType + " call via Persistent Calls API",
+        },
+      });
+    }
 
     // 2. Register in activeCalls with authoritative 60s timeout
     const session: ActiveCallSession = {
@@ -245,13 +306,28 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
       threadId: finalThreadId,
       startedAt: new Date(),
       status: "ringing",
+      dbCallId: lifecycleSession?.call?.id || callId,
+      historyRecordId: lifecycleSession?.historyRecord?.id,
       timeoutTimer: setTimeout(async () => {
         const current = activeCalls.get(callId);
         if (current && current.status === "ringing") {
           activeCalls.delete(callId);
+          try {
+            await CallLifecycleService.terminateCallTransaction({
+              tenantId: current.tenantId,
+              callId: current.dbCallId || current.callId,
+              actorId: "SYSTEM",
+              endReason: "TIMEOUT",
+              finalHistoryStatus: "missed",
+              notes: "Call missed: 60-second ringing timeout expired.",
+            });
+          } catch {}
+
           const io = getIO();
           io?.to("user:" + current.targetUserId).emit("call:timeout", { callId, cancelledBy: "system" });
+          io?.to("user:" + current.targetUserId).emit("call.timeout", { callId, cancelledBy: "system" });
           io?.to("user:" + current.callerId).emit("call:timeout", { callId, cancelledBy: "system" });
+          io?.to("user:" + current.callerId).emit("call.timeout", { callId, cancelledBy: "system" });
           void PusherService.triggerUserEvent(current.tenantId, current.targetUserId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => {});
           void PusherService.triggerUserEvent(current.tenantId, current.callerId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => {});
           void IncomingCallPushService.sendCallCancelledPush({
@@ -259,10 +335,6 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
             targetUserId: current.targetUserId,
             callId,
             reason: "timeout",
-          }).catch(() => {});
-          await db.callHistoryRecord.updateMany({
-            where: { tenantId: current.tenantId, callSessionId: callId, status: "ringing" },
-            data: { status: "missed", endedAt: new Date(), notes: "Call timed out after 60 seconds." },
           }).catch(() => {});
         }
       }, 60000),
@@ -398,8 +470,69 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
       });
     }
 
-    // 2. Fall back to persisted CallHistoryRecord (survives server restart and multi-instance deployments)
+    // 2. Authoritative PostgreSQL Call model
     const db = rawPrisma || prisma;
+    const dbCall = await db.call.findFirst({
+      where: {
+        tenantId,
+        OR: [{ id: callId }, { roomKey: callId }],
+      },
+      include: {
+        participants: true,
+      },
+    });
+
+    if (dbCall) {
+      const isParticipant = dbCall.participants.some((p: any) => p.userId === userId);
+      if (!isParticipant) {
+        return res.status(403).json({ success: false, error: "Access denied: You are not a participant in this call." });
+      }
+
+      // Check for ringing expiration (> 60s)
+      const now = new Date();
+      let effectiveStatus = dbCall.status;
+      if (dbCall.status === "RINGING" && dbCall.ringingExpiresAt && now >= dbCall.ringingExpiresAt) {
+        effectiveStatus = "MISSED";
+        void CallLifecycleService.terminateCallTransaction({
+          tenantId,
+          callId: dbCall.id,
+          actorId: "SYSTEM",
+          endReason: "TIMEOUT",
+          finalHistoryStatus: "missed",
+          notes: "Call missed (ringing timeout expired)",
+        }).catch(() => {});
+      }
+
+      const callerPart = dbCall.participants.find((p: any) => p.role === "HOST") || dbCall.participants[0];
+      const calleePart = dbCall.participants.find((p: any) => p.role !== "HOST") || dbCall.participants[1];
+
+      return res.json({
+        success: true,
+        data: {
+          callId: dbCall.roomKey || dbCall.id,
+          dbCallId: dbCall.id,
+          status: effectiveStatus.toLowerCase(),
+          callType: dbCall.media.toLowerCase(),
+          callerId: callerPart?.userId || dbCall.startedBy,
+          targetUserId: calleePart?.userId,
+          threadId: dbCall.threadId,
+          startedAt: dbCall.startedAt,
+          answeredAt: dbCall.answeredAt,
+          endedAt: dbCall.endedAt,
+          isPending: effectiveStatus === "RINGING",
+          participants: dbCall.participants.map((p: any) => ({
+            userId: p.userId,
+            role: p.role,
+            state: p.state,
+            joinedAt: p.joinedAt,
+            leftAt: p.leftAt,
+            reconnectGraceExpiresAt: p.reconnectGraceExpiresAt,
+          })),
+        },
+      });
+    }
+
+    // 3. Fall back to persisted CallHistoryRecord (survives server restart and legacy records)
     const history = await db.callHistoryRecord.findFirst({
       where: {
         tenantId,
@@ -459,84 +592,43 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
     const { callId } = req.params;
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
-    const db = rawPrisma || prisma;
 
-    // 1. Verify existence & designated recipient ownership before transition
-    const currentRecord = await db.callHistoryRecord.findFirst({
-      where: { tenantId, callSessionId: callId },
-    });
-
-    if (!currentRecord) {
-      return res.status(404).json({ success: false, error: "Call session not found or already ended." });
-    }
-
-    if (currentRecord.receiverId !== userId) {
-      return res.status(403).json({ success: false, error: "Only the designated recipient may accept this call." });
-    }
-
-    // 2. Validate timeout / expiration guardrail (60 seconds)
-    const now = Date.now();
-    const started = currentRecord.startedAt ? new Date(currentRecord.startedAt).getTime() : now;
-    if (now - started > 60000) {
-      await db.callHistoryRecord.updateMany({
-        where: { tenantId, callSessionId: callId, status: "ringing" },
-        data: { status: "missed", endedAt: new Date(), notes: "Call timed out after 60 seconds with no answer." },
-      }).catch(() => {});
-      return res.status(409).json({ success: false, error: "Call has timed out and expired." });
-    }
-
-    // 3. ATOMIC DATABASE-LEVEL STATE TRANSITION:
-    // UPDATE CallHistoryRecord SET status = 'connected' WHERE tenantId = ? AND callSessionId = ? AND receiverId = ? AND status = 'ringing'
-    const updateResult = await db.callHistoryRecord.updateMany({
-      where: {
+    let acceptResult: any = null;
+    try {
+      acceptResult = await CallLifecycleService.acceptCallTransaction({
         tenantId,
-        callSessionId: callId,
-        receiverId: userId,
-        status: "ringing",
-      },
-      data: {
-        status: "connected",
-      },
-    });
-
-    // 4. Concurrency Guard: If affected rows is 0, another device/request won the race or call is no longer ringing
-    if (updateResult.count === 0) {
-      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
-      if (recheck?.status === "connected") {
+        callId,
+        calleeId: userId,
+        deviceId: (req.headers["x-device-id"] as string) || "rest_client",
+      });
+    } catch (err: any) {
+      if (err instanceof CallConflictError) {
         return res.status(409).json({
           success: false,
           error: "Call was already answered or accepted on another device.",
-          data: {
-            callId,
-            status: "connected",
-            threadId: recheck.groupId || undefined,
-          },
+          code: err.code,
         });
       }
-      return res.status(409).json({
-        success: false,
-        error: `Call cannot be accepted because it is in '${recheck?.status || "unknown"}' state.`,
-      });
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({
+          success: false,
+          error: err.message,
+          code: err.code,
+        });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({
+          success: false,
+          error: err.message,
+          code: err.code,
+        });
+      }
+      throw err;
     }
 
-    // 5. ATOMIC SUCCESS: Now and only now update in-memory session and emit signaling events
+    // Update in-memory session
     let session = activeCalls.get(callId);
-    if (!session) {
-      session = {
-        callId,
-        tenantId,
-        callerId: currentRecord.callerId || "",
-        callerName: currentRecord.callerName,
-        callerAvatar: currentRecord.callerAvatarUrl,
-        targetUserId: userId,
-        targetName: currentRecord.receiverName,
-        callType: (currentRecord.callType as any) || "audio",
-        status: "connected",
-        startedAt: currentRecord.startedAt,
-        timeoutTimer: null,
-      };
-      activeCalls.set(callId, session);
-    } else {
+    if (session) {
       if (session.timeoutTimer) {
         clearTimeout(session.timeoutTimer);
         session.timeoutTimer = null;
@@ -549,13 +641,24 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
       callId,
       acceptedBy: userId,
       status: "connected",
+      answeredAt: acceptResult.call.answeredAt,
       timestamp: new Date().toISOString(),
     };
 
-    io?.to(`user:${session.callerId}`).emit("call:accepted", acceptPayload);
-    io?.to(`user:${session.targetUserId}`).emit("call:accepted", acceptPayload);
-    void PusherService.triggerUserEvent(tenantId, session.callerId, "call:accepted", acceptPayload).catch(() => {});
-    void PusherService.triggerUserEvent(tenantId, session.targetUserId, "call:accepted", acceptPayload).catch(() => {});
+    const callerId = acceptResult.call.startedBy;
+    io?.to(`user:${callerId}`).emit("call:accepted", acceptPayload);
+    io?.to(`user:${callerId}`).emit("call.accepted", acceptPayload);
+    io?.to(`user:${userId}`).emit("call:accepted", acceptPayload);
+    io?.to(`user:${userId}`).emit("call.accepted", acceptPayload);
+
+    // Multi-tab/device suppression: tell other devices of callee that call was answered
+    io?.to(`user:${userId}`).emit("call.answered_elsewhere", {
+      callId,
+      answeredDeviceId: "rest_client",
+    });
+
+    void PusherService.triggerUserEvent(tenantId, callerId, "call:accepted", acceptPayload).catch(() => {});
+    void PusherService.triggerUserEvent(tenantId, userId, "call:accepted", acceptPayload).catch(() => {});
 
     return res.json({
       success: true,
@@ -563,7 +666,8 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
       data: {
         callId,
         status: "connected",
-        threadId: session.threadId,
+        threadId: acceptResult.call.threadId,
+        answeredAt: acceptResult.call.answeredAt,
       },
     });
   } catch (error: any) {
@@ -579,48 +683,25 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
     const { reason } = req.body || {};
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
-    const db = rawPrisma || prisma;
 
-    // 1. Verify existence and recipient ownership
-    const currentRecord = await db.callHistoryRecord.findFirst({
-      where: { tenantId, callSessionId: callId },
-    });
-
-    if (!currentRecord) {
-      return res.status(404).json({ success: false, error: "Call session not found or already ended." });
-    }
-
-    if (currentRecord.receiverId !== userId) {
-      return res.status(403).json({ success: false, error: "Only the designated recipient may reject this call." });
-    }
-
-    // 2. ATOMIC DATABASE-LEVEL STATE TRANSITION:
-    const updateResult = await db.callHistoryRecord.updateMany({
-      where: {
+    let rejectedCall: any = null;
+    try {
+      rejectedCall = await CallLifecycleService.rejectCallTransaction({
         tenantId,
-        callSessionId: callId,
-        receiverId: userId,
-        status: "ringing",
-      },
-      data: {
-        status: "rejected",
-        endedAt: new Date(),
-        notes: reason || "Declined via REST",
-      },
-    });
-
-    if (updateResult.count === 0) {
-      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
-      if (recheck?.status === "rejected") {
-        return res.json({ success: true, message: "Call already rejected" });
-      }
-      return res.status(409).json({
-        success: false,
-        error: `Call cannot be rejected because it is in '${recheck?.status || "unknown"}' state.`,
+        callId,
+        calleeId: userId,
+        reason: reason || "declined",
       });
+    } catch (err: any) {
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({ success: false, error: err.message, code: err.code });
+      }
+      throw err;
     }
 
-    // 3. Clear memory and notify participants
     const session = activeCalls.get(callId);
     if (session) {
       if (session.timeoutTimer) {
@@ -631,6 +712,7 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
       activeCalls.delete(callId);
     }
 
+    const callerId = rejectedCall.startedBy || session?.callerId;
     const io = getIO();
     const rejectPayload = {
       callId,
@@ -639,12 +721,14 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
       timestamp: new Date().toISOString(),
     };
 
-    io?.to(`user:${currentRecord.callerId}`).emit("call:rejected", rejectPayload);
-    io?.to(`user:${currentRecord.receiverId}`).emit("call:rejected", rejectPayload);
-    void PusherService.triggerUserEvent(tenantId, currentRecord.callerId, "call:rejected", rejectPayload).catch(() => {});
-    void PusherService.triggerUserEvent(tenantId, currentRecord.receiverId, "call:rejected", rejectPayload).catch(() => {});
+    if (callerId) {
+      io?.to(`user:${callerId}`).emit("call:rejected", rejectPayload);
+      io?.to(`user:${callerId}`).emit("call.rejected", rejectPayload);
+      void PusherService.triggerUserEvent(tenantId, callerId, "call:rejected", rejectPayload).catch(() => {});
+    }
+    io?.to(`user:${userId}`).emit("call:rejected", rejectPayload);
+    io?.to(`user:${userId}`).emit("call.rejected", rejectPayload);
 
-    // Cancel persistent push notifications on all callee devices
     void IncomingCallPushService.sendCallCancelledPush({
       callId,
       tenantId,
@@ -668,48 +752,25 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const { callId } = req.params;
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
-    const db = rawPrisma || prisma;
 
-    // 1. Verify existence and caller ownership
-    const currentRecord = await db.callHistoryRecord.findFirst({
-      where: { tenantId, callSessionId: callId },
-    });
-
-    if (!currentRecord) {
-      return res.status(404).json({ success: false, error: "Call session not found or already ended." });
-    }
-
-    if (currentRecord.callerId !== userId) {
-      return res.status(403).json({ success: false, error: "Only the caller may cancel this call." });
-    }
-
-    // 2. ATOMIC DATABASE-LEVEL STATE TRANSITION:
-    const updateResult = await db.callHistoryRecord.updateMany({
-      where: {
+    let cancelledCall: any = null;
+    try {
+      cancelledCall = await CallLifecycleService.cancelCallTransaction({
         tenantId,
-        callSessionId: callId,
+        callId,
         callerId: userId,
-        status: "ringing",
-      },
-      data: {
-        status: "cancelled",
-        endedAt: new Date(),
-        notes: "Cancelled via REST",
-      },
-    });
-
-    if (updateResult.count === 0) {
-      const recheck = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } });
-      if (recheck?.status === "cancelled") {
-        return res.json({ success: true, message: "Call already cancelled" });
-      }
-      return res.status(409).json({
-        success: false,
-        error: `Call cannot be cancelled because it is in '${recheck?.status || "unknown"}' state.`,
+        reason: "Caller cancelled",
       });
+    } catch (err: any) {
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({ success: false, error: err.message, code: err.code });
+      }
+      throw err;
     }
 
-    // 3. Clear memory and notify participants
     const session = activeCalls.get(callId);
     if (session) {
       if (session.timeoutTimer) {
@@ -728,26 +789,28 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
       timestamp: new Date().toISOString(),
     };
 
-    if (currentRecord.receiverId) {
-      io?.to(`user:${currentRecord.receiverId}`).emit("call:cancelled", cancelPayload);
-    }
-    io?.to(`user:${currentRecord.callerId}`).emit("call:cancelled", cancelPayload);
-    if (currentRecord.receiverId) void PusherService.triggerUserEvent(tenantId, currentRecord.receiverId, "call:cancelled", cancelPayload).catch(() => {});
-
-    if (currentRecord.receiverId) {
+    const targetUserId = session?.targetUserId;
+    if (targetUserId) {
+      io?.to(`user:${targetUserId}`).emit("call:cancelled", cancelPayload);
+      io?.to(`user:${targetUserId}`).emit("call.cancelled", cancelPayload);
+      void PusherService.triggerUserEvent(tenantId, targetUserId, "call:cancelled", cancelPayload).catch(() => {});
       void IncomingCallPushService.sendCallCancelledPush({
         callId,
         tenantId,
-        targetUserId: currentRecord.receiverId,
+        targetUserId,
         reason: "Caller cancelled",
       }).catch(() => {});
     }
+
+    io?.to(`user:${userId}`).emit("call:cancelled", cancelPayload);
+    io?.to(`user:${userId}`).emit("call.cancelled", cancelPayload);
 
     return res.json({
       success: true,
       message: "Call cancelled successfully",
     });
   } catch (error: any) {
+    console.error("[CallRoutes] Cancel error:", error);
     return res.status(500).json({ success: false, error: error.message || "Failed to cancel call" });
   }
 });
@@ -756,35 +819,22 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
 callRouter.post("/:callId/end", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
-    const { reason } = req.body || {};
+    const { reason, durationSeconds: reqDuration } = req.body || {};
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
-    const db = rawPrisma || prisma;
 
-    const currentRecord = await db.callHistoryRecord.findFirst({
-      where: { tenantId, callSessionId: callId },
-    });
-
-    if (!currentRecord) {
-      return res.status(404).json({ success: false, error: "Call session not found." });
-    }
-
-    if (currentRecord.callerId !== userId && currentRecord.receiverId !== userId) {
-      return res.status(403).json({ success: false, error: "Only call participants may end this call." });
-    }
-
-    await db.callHistoryRecord.updateMany({
-      where: {
+    let termResult: any = null;
+    try {
+      termResult = await CallLifecycleService.terminateCallTransaction({
         tenantId,
-        callSessionId: callId,
-        status: { in: ["ringing", "connected"] },
-      },
-      data: {
-        status: "ended",
-        endedAt: new Date(),
-        notes: reason || "Ended",
-      },
-    });
+        callId,
+        actorId: userId,
+        endReason: reason || "USER_HANGUP",
+        finalHistoryStatus: "completed",
+      });
+    } catch (err: any) {
+      console.warn("[CallRoutes] Terminate transaction warning:", err.message);
+    }
 
     const session = activeCalls.get(callId);
     if (session) {
@@ -792,32 +842,251 @@ callRouter.post("/:callId/end", requireAuth, async (req: AuthRequest, res: Respo
         clearTimeout(session.timeoutTimer);
         session.timeoutTimer = null;
       }
+      if (session.reconnectTimers) {
+        for (const t of session.reconnectTimers.values()) {
+          clearTimeout(t);
+        }
+        session.reconnectTimers.clear();
+      }
       session.status = "ended";
       activeCalls.delete(callId);
     }
+
+    const durationSeconds = termResult?.durationSeconds !== undefined
+      ? termResult.durationSeconds
+      : Math.max(0, Math.round(Number(reqDuration) || 0));
 
     const io = getIO();
     const endPayload = {
       callId,
       endedBy: userId,
       reason: reason || "ended",
+      durationSeconds,
       timestamp: new Date().toISOString(),
     };
 
-    io?.to(`user:${currentRecord.callerId}`).emit("call:ended", endPayload);
-    if (currentRecord.receiverId) {
-      io?.to(`user:${currentRecord.receiverId}`).emit("call:ended", endPayload);
+    if (session) {
+      const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+      io?.to(`user:${peerId}`).emit("call:ended", endPayload);
+      io?.to(`user:${peerId}`).emit("call.ended", endPayload);
+      void PusherService.triggerUserEvent(tenantId, peerId, "call:ended", endPayload).catch(() => {});
     }
-    void PusherService.triggerUserEvent(tenantId, currentRecord.callerId, "call:ended", endPayload).catch(() => {});
-    if (currentRecord.receiverId) {
-      void PusherService.triggerUserEvent(tenantId, currentRecord.receiverId, "call:ended", endPayload).catch(() => {});
-    }
+    io?.to(`user:${userId}`).emit("call:ended", endPayload);
+    io?.to(`user:${userId}`).emit("call.ended", endPayload);
 
     return res.json({
       success: true,
       message: "Call ended successfully",
+      data: {
+        callId,
+        durationSeconds,
+      },
     });
   } catch (error: any) {
+    console.error("[CallRoutes] End error:", error);
     return res.status(500).json({ success: false, error: error.message || "Failed to end call" });
+  }
+});
+
+// POST /api/calls/:callId/reconnect - Restore JOINED state within 30s grace window
+callRouter.post("/:callId/reconnect", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user!.userId || (req.user as any).id;
+    const tenantId = req.user!.tenantId!;
+
+    let reconnResult: any = null;
+    try {
+      reconnResult = await CallLifecycleService.reconnectParticipantTransaction({
+        tenantId,
+        callId,
+        userId,
+      });
+    } catch (err: any) {
+      if (err instanceof CallConflictError) {
+        return res.status(409).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({ success: false, error: err.message, code: err.code });
+      }
+      throw err;
+    }
+
+    const session = activeCalls.get(callId);
+    if (session && session.reconnectTimers?.has(userId)) {
+      clearTimeout(session.reconnectTimers.get(userId)!);
+      session.reconnectTimers.delete(userId);
+    }
+
+    const io = getIO();
+    const joinedPayload = {
+      callId,
+      userId,
+      reconnected: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    if (session) {
+      const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+      io?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
+      io?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+    }
+
+    return res.json({
+      success: true,
+      message: "Reconnected successfully",
+      data: {
+        callId,
+        participant: reconnResult.participant,
+      },
+    });
+  } catch (error: any) {
+    console.error("[CallRoutes] Reconnect error:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to reconnect" });
+  }
+});
+
+// POST /api/calls/:callId/invite-colleague - Phase C2 In-Call Colleague Invitation
+callRouter.post("/:callId/invite-colleague", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { callId } = req.params;
+    const { targetUserId } = req.body;
+    const userId = req.user!.userId || (req.user as any).id;
+    const tenantId = req.user!.tenantId!;
+
+    if (!targetUserId) {
+      return res.status(400).json({ success: false, error: "targetUserId is required" });
+    }
+
+    const resolvedTargetId = await resolveTargetUserId(tenantId, targetUserId);
+    if (!resolvedTargetId) {
+      return res.status(403).json({
+        success: false,
+        error: "Colleague not found or belongs to another organization",
+        code: "CALL_FORBIDDEN",
+      });
+    }
+
+    let result;
+    try {
+      result = await CallLifecycleService.addParticipantToActiveCall({
+        tenantId,
+        callId,
+        inviterId: userId,
+        targetUserId: resolvedTargetId,
+        maxParticipantsLimit: 5,
+      });
+    } catch (err: any) {
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallConflictError) {
+        return res.status(409).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({ success: false, error: err.message, code: err.code });
+      }
+      throw err;
+    }
+
+    const io = getIO();
+    const inviterName = (req.user as any)?.profile?.fullName || (req.user as any)?.name || "Colleague";
+    const inviterAvatar = (req.user as any)?.profile?.avatarUrl || null;
+
+    const incomingPayload = {
+      callId,
+      callerId: userId,
+      callerName: inviterName,
+      callerAvatar: inviterAvatar,
+      callType: result.callType || "video",
+      isAdditionalParticipant: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    io?.to(`user:${resolvedTargetId}`).emit("call:incoming", incomingPayload);
+    io?.to(`user:${resolvedTargetId}`).emit("call.incoming", incomingPayload);
+    void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:incoming", incomingPayload).catch(() => {});
+
+    // Broadcast to call peers that a colleague has been invited
+    const peerNotice = {
+      callId,
+      participant: result.participant,
+      invitedUser: result.invitedUser,
+    };
+    io?.to(`user:${userId}`).emit("call:participant_invited", peerNotice);
+    const session = activeCalls.get(callId);
+    if (session) {
+      const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+      io?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+    }
+
+    return res.json({
+      success: true,
+      message: "Colleague invited successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("[CallRoutes] Invite colleague error:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to invite colleague" });
+  }
+});
+
+// POST /api/calls/:callId/accept-invitation - Phase C2 In-Call Colleague Accept
+callRouter.post("/:callId/accept-invitation", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user!.userId || (req.user as any).id;
+    const tenantId = req.user!.tenantId!;
+    const deviceId = req.body?.deviceId || "default";
+
+    let result;
+    try {
+      result = await CallLifecycleService.acceptParticipantInvitation({
+        tenantId,
+        callId,
+        userId,
+        deviceId,
+      });
+    } catch (err: any) {
+      if (err instanceof CallForbiddenError) {
+        return res.status(403).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallConflictError) {
+        return res.status(409).json({ success: false, error: err.message, code: err.code });
+      }
+      if (err instanceof CallNotFoundError) {
+        return res.status(404).json({ success: false, error: err.message, code: err.code });
+      }
+      throw err;
+    }
+
+    const io = getIO();
+    const joinedPayload = {
+      callId,
+      userId,
+      user: result.user,
+      participant: result.participant,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Broadcast to other participants
+    const session = activeCalls.get(callId);
+    if (session) {
+      io?.to(`user:${session.callerId}`).emit("call:participant_joined", joinedPayload);
+      io?.to(`user:${session.targetUserId}`).emit("call:participant_joined", joinedPayload);
+    }
+    io?.to(`group_call_${callId}`).emit("call:participant_joined", joinedPayload);
+
+    return res.json({
+      success: true,
+      message: "Invitation accepted",
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("[CallRoutes] Accept invitation error:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to accept invitation" });
   }
 });

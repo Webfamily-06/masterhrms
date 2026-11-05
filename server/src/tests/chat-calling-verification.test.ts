@@ -285,7 +285,11 @@ async function runChatAndCallingVerification() {
     assert.strictEqual(accepted3.acceptedBy, userBId);
     console.log("  ✔ Intended receiver accepted call; caller notified.");
 
+    const hangupPromise3 = new Promise<any>((resolve) => {
+      clientB3.once("call:ended", (data) => resolve(data));
+    });
     clientA3.emit("call:hangup", { callId: call3Id, targetUserId: userBId, durationSeconds: 5 });
+    await hangupPromise3;
     clientA3.disconnect();
     clientB3.disconnect();
 
@@ -437,8 +441,11 @@ async function runChatAndCallingVerification() {
     console.log("  ✔ Third-party reject rejected with CALL_FORBIDDEN.");
 
     // Bob accepts call
+    const bobAcceptedPromise7 = new Promise<any>((resolve) => {
+      clientA7.once("call:accepted", (data) => resolve(data));
+    });
     clientB7.emit("call:accept", { callId: call7Id, targetUserId: userAId });
-    await new Promise((r) => setTimeout(r, 100));
+    await bobAcceptedPromise7;
 
     // Charlie tries to hang up active call
     const charlieHangupErrorPromise = new Promise<any>((resolve) => {
@@ -450,7 +457,11 @@ async function runChatAndCallingVerification() {
     console.log("  ✔ Third-party hangup rejected with CALL_FORBIDDEN.");
 
     // Legitimate hangup
+    const hangupPromise7 = new Promise<any>((resolve) => {
+      clientB7.once("call:ended", (data) => resolve(data));
+    });
     clientA7.emit("call:hangup", { callId: call7Id, targetUserId: userBId, durationSeconds: 10 });
+    await hangupPromise7;
     clientA7.disconnect();
     clientB7.disconnect();
     clientC7.disconnect();
@@ -499,7 +510,11 @@ async function runChatAndCallingVerification() {
       callerName: "Alice Telecom",
     });
     await incomingPromise9;
+    const bobAcceptedPromise9 = new Promise<any>((resolve) => {
+      clientA9.once("call:accepted", (data) => resolve(data));
+    });
     clientB9.emit("call:accept", { callId: call9Id, targetUserId: userAId });
+    await bobAcceptedPromise9;
     await new Promise((r) => setTimeout(r, 100));
 
     // Alice sends signal directed to Charlie instead of Bob
@@ -517,7 +532,11 @@ async function runChatAndCallingVerification() {
     assert.strictEqual(invalidTargetErr.code, "CALL_FORBIDDEN");
     console.log("  ✔ Signal target mismatch rejected with CALL_FORBIDDEN.");
 
+    const hangupPromise9 = new Promise<any>((resolve) => {
+      clientB9.once("call:ended", (data) => resolve(data));
+    });
     clientA9.emit("call:hangup", { callId: call9Id, targetUserId: userBId, durationSeconds: 5 });
+    await hangupPromise9;
     clientA9.disconnect();
     clientB9.disconnect();
     clientC9.disconnect();
@@ -558,8 +577,11 @@ async function runChatAndCallingVerification() {
     console.log("  ✔ Media-state during ringing rejected with CALL_FORBIDDEN.");
 
     // Bob accepts call
+    const bobAcceptedPromise10 = new Promise<any>((resolve) => {
+      clientA10.once("call:accepted", (data) => resolve(data));
+    });
     clientB10.emit("call:accept", { callId: call10Id, targetUserId: userAId });
-    await new Promise((r) => setTimeout(r, 100));
+    await bobAcceptedPromise10;
 
     // Charlie (third user) tries media-state on active call
     const charlieMediaStateErrorPromise = new Promise<any>((resolve) => {
@@ -590,7 +612,11 @@ async function runChatAndCallingVerification() {
     assert.strictEqual(bobReceivedMedia.active, true);
     console.log("  ✔ Legitimate participant media-state relayed cleanly.");
 
+    const hangupPromise10 = new Promise<any>((resolve) => {
+      clientB10.once("call:ended", (data) => resolve(data));
+    });
     clientA10.emit("call:hangup", { callId: call10Id, targetUserId: userBId, durationSeconds: 10 });
+    await hangupPromise10;
     clientA10.disconnect();
     clientB10.disconnect();
     clientC10.disconnect();
@@ -615,8 +641,11 @@ async function runChatAndCallingVerification() {
       callerName: "Alice Telecom",
     });
     await incomingPromise11;
+    const bobAcceptedPromise11 = new Promise<any>((resolve) => {
+      clientA11.once("call:accepted", (data) => resolve(data));
+    });
     clientB11.emit("call:accept", { callId: call11Id, targetUserId: userAId });
-    await new Promise((r) => setTimeout(r, 100));
+    await bobAcceptedPromise11;
 
     // Charlie calls Bob while Bob is busy
     const charlieBusyPromise = new Promise<any>((resolve) => {
@@ -651,7 +680,11 @@ async function runChatAndCallingVerification() {
     assert.strictEqual(sig11.signal.candidate, "unbroken");
     console.log("  ✔ Busy receiver's existing call remains active and unbroken.");
 
+    const hangupPromise11 = new Promise<any>((resolve) => {
+      clientB11.once("call:ended", (data) => resolve(data));
+    });
     clientA11.emit("call:hangup", { callId: call11Id, targetUserId: userBId, durationSeconds: 20 });
+    await hangupPromise11;
     clientA11.disconnect();
     clientB11.disconnect();
     clientC11.disconnect();
@@ -759,8 +792,11 @@ async function runChatAndCallingVerification() {
       callerName: "Alice Telecom",
     });
     await incomingPromise13;
+    const bobAcceptedPromise13 = new Promise<any>((resolve) => {
+      clientA13_tab1.once("call:accepted", (data) => resolve(data));
+    });
     clientB13.emit("call:accept", { callId: call13Id, targetUserId: userAId });
-    await new Promise((r) => setTimeout(r, 100));
+    await bobAcceptedPromise13;
 
     let bobReceivedEnded = false;
     clientB13.on("call:ended", () => {
