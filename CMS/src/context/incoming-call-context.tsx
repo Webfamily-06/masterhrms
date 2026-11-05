@@ -15,6 +15,9 @@ export interface IncomingCallInfo {
   threadId?: string;
   tenantId?: string;
   receivedAt?: number;
+  isGroup?: boolean;
+  groupId?: string;
+  groupName?: string;
 }
 
 interface IncomingCallContextValue {
@@ -22,6 +25,8 @@ interface IncomingCallContextValue {
   unlockAudio: () => void;
   incomingCall: IncomingCallInfo | null;
   isRinging: boolean;
+  isAccepting: boolean;
+  isDeclining: boolean;
   acceptCall: () => void;
   rejectCall: (reason?: string) => void;
   dismissCall: () => void;
@@ -135,6 +140,8 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
   const [isRinging, setIsRinging] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
   const [isPushSupported, setIsPushSupported] = useState(false);
   const [pushPermission, setPushPermission] = useState<NotificationPermission>("default");
   const [isSubscribedToPush, setIsSubscribedToPush] = useState(false);
@@ -142,6 +149,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const ringtoneRef = useRef<RingtonePlayer | null>(null);
   const autoRejectTimerRef = useRef<any>(null);
   const seenCallsRef = useRef<Map<string, number>>(new Map());
+  const isActingRef = useRef<boolean>(false);
 
   const unlockAudio = useCallback(() => {
     ringtoneRef.current?.unlock();
@@ -250,11 +258,12 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     checkSub();
   }, []);
 
-
-
   const stopCallAlert = useCallback(() => {
     ringtoneRef.current?.stop();
     setIsRinging(false);
+    isActingRef.current = false;
+    setIsAccepting(false);
+    setIsDeclining(false);
     if (autoRejectTimerRef.current) {
       clearTimeout(autoRejectTimerRef.current);
       autoRejectTimerRef.current = null;
@@ -277,12 +286,30 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     const callerName = data.callerName || "A Colleague";
     const callType = (data.callType || data.type || "audio").toLowerCase() as "audio" | "video";
 
+    // 1. SELF-CALL GUARD: Never display incoming ringing modal or ringtone to the caller themselves
+    let currentUserId: string | null = null;
+    try {
+      const userRaw = localStorage.getItem("hrms_user");
+      if (userRaw) {
+        const u = JSON.parse(userRaw);
+        currentUserId = u.id || u.userId || u.sub;
+      }
+    } catch {}
+    if (currentUserId && (callerId === currentUserId || data.callerId === currentUserId || data.fromUserId === currentUserId)) {
+      return;
+    }
+
+    // 2. DEDUPLICATION: Drop duplicate events within 15 seconds across Socket.IO and Pusher
     const now = Date.now();
     const lastSeen = seenCallsRef.current.get(data.callId);
-    if (lastSeen && now - lastSeen < 60000 && incomingCall?.callId === data.callId) {
-      return; // Deduplicate identical in-flight invitation
+    if (lastSeen && now - lastSeen < 15000 && incomingCall?.callId === data.callId) {
+      return;
     }
     seenCallsRef.current.set(data.callId, now);
+
+    isActingRef.current = false;
+    setIsAccepting(false);
+    setIsDeclining(false);
 
     setIncomingCall({
       callId: data.callId,
@@ -295,6 +322,9 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       threadId: data.threadId,
       tenantId: data.tenantId,
       receivedAt: now,
+      isGroup: !!data.isGroup,
+      groupId: data.groupId,
+      groupName: data.groupName,
     });
 
     setIsRinging(true);
@@ -303,6 +333,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       setAutoplayBlocked(true);
     }
 
+    // 60-second client-side auto-dismiss
     if (autoRejectTimerRef.current) {
       clearTimeout(autoRejectTimerRef.current);
     }
@@ -310,12 +341,27 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       stopCallAlert();
       setIncomingCall(null);
     }, 60000);
-  }, [stopCallAlert]);
+  }, [incomingCall, stopCallAlert]);
+
+  const handleGroupIncoming = useCallback((data: any) => {
+    if (!data?.callId) return;
+    handleIncomingCallEvent({
+      ...data,
+      isGroup: true,
+      callerId: data.callerId,
+      callerName: data.callerName || "Colleague",
+      callerAvatar: data.callerAvatar,
+      groupName: data.groupName || "Group Meeting",
+      groupId: data.groupId,
+      callType: data.callType || "audio",
+    });
+  }, [handleIncomingCallEvent]);
 
   const handleCallCancelledEvent = useCallback((data: any) => {
     stopCallAlert();
     setIncomingCall((current) => {
-      if (current && (!data?.callId || current.callId === data.callId)) {
+      const targetId = data?.callId || data?.callSessionId;
+      if (current && (!targetId || current.callId === targetId)) {
         toast.info(`Call from ${current.callerName} ended.`);
         return null;
       }
@@ -326,7 +372,8 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const handleAnsweredElsewhere = useCallback((data: any) => {
     stopCallAlert();
     setIncomingCall((current) => {
-      if (current && (!data?.callId || current.callId === data.callId)) {
+      const targetId = data?.callId || data?.callSessionId;
+      if (current && (!targetId || current.callId === targetId)) {
         toast.info("Call answered on another device.");
         return null;
       }
@@ -334,8 +381,12 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     });
   }, [stopCallAlert]);
 
+  // Server-authoritative, strictly idempotent Accept Call
   const acceptCall = useCallback(() => {
-    if (!incomingCall) return;
+    if (isActingRef.current || !incomingCall) return;
+    isActingRef.current = true;
+    setIsAccepting(true);
+
     const call = incomingCall;
     stopCallAlert();
     setIncomingCall(null);
@@ -344,8 +395,47 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
       : null;
 
+    // Handle Group Call Acceptance
+    if (call.isGroup) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("hrms:global-group-call-accepted", {
+            detail: call,
+          })
+        );
+
+        const userRaw = localStorage.getItem("hrms_user");
+        let prefix = "/tenant";
+        if (userRaw) {
+          try {
+            const u = JSON.parse(userRaw);
+            if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
+              prefix = "/hr";
+            } else if (u.roles?.includes("employee")) {
+              prefix = "/me";
+            }
+          } catch {}
+        }
+
+        if (!window.location.pathname.includes("/chat")) {
+          window.location.href = `${prefix}/chat?groupId=${encodeURIComponent(call.groupId || "")}&meetingCallId=${encodeURIComponent(call.callId)}&autoJoin=true`;
+        }
+      }
+      return;
+    }
+
+    // Handle 1:1 or Mid-call Colleague Call Acceptance
     if (token) {
       fetch(`/api/calls/${encodeURIComponent(call.callId)}/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => {});
+
+      // Also call accept-invitation if this was an in-call mid-call invite
+      fetch(`/api/calls/${encodeURIComponent(call.callId)}/accept-invitation`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -356,7 +446,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
 
     try {
       const socket = getSocketClient();
-      if (socket?.connected) {
+      if (socket) {
         socket.emit("call:accept", {
           callId: call.callId,
           targetUserId: call.callerId,
@@ -371,7 +461,6 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         })
       );
 
-      // Determine proper workspace prefix
       const userRaw = localStorage.getItem("hrms_user");
       let prefix = "/tenant";
       if (userRaw) {
@@ -391,22 +480,20 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     }
   }, [incomingCall, stopCallAlert]);
 
+  // Server-authoritative, strictly idempotent Reject Call
   const rejectCall = useCallback((reason: string = "declined") => {
-    if (!incomingCall) return;
+    if (isActingRef.current || !incomingCall) return;
+    isActingRef.current = true;
+    setIsDeclining(true);
+
     const call = incomingCall;
     stopCallAlert();
     setIncomingCall(null);
 
-    try {
-      const socket = getSocketClient();
-      socket.emit("call:reject", {
-        callId: call.callId,
-        targetUserId: call.callerId,
-        reason,
-      });
-    } catch {}
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
+      : null;
 
-    const token = localStorage.getItem("hrms_auth_token");
     if (token) {
       fetch(`/api/calls/${encodeURIComponent(call.callId)}/reject`, {
         method: "POST",
@@ -417,6 +504,21 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         body: JSON.stringify({ reason }),
       }).catch(() => {});
     }
+
+    try {
+      const socket = getSocketClient();
+      if (socket) {
+        if (call.isGroup) {
+          socket.emit("group-call:leave", { callId: call.callId });
+        } else {
+          socket.emit("call:reject", {
+            callId: call.callId,
+            targetUserId: call.callerId,
+            reason,
+          });
+        }
+      }
+    } catch {}
   }, [incomingCall, stopCallAlert]);
 
   const dismissCall = useCallback(() => {
@@ -427,16 +529,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return;
 
     let socket: any = null;
-    // Only connect Socket.IO when: a dedicated server is configured AND the user is authenticated.
-    // This prevents unauthenticated visitors and public pages from triggering 404 reconnect loops
-    // on Vercel serverless deployments where no persistent Socket.IO server exists.
     const authToken = localStorage.getItem("hrms_auth_token");
     if (!isSocketDisabled() && authToken) {
       try {
         socket = getSocketClient();
-        // Connect on demand (autoConnect is false in the updated socket.ts)
         if (socket && !socket.connected) socket.connect();
         if (socket) {
+          // 1:1 Call signaling
           socket.on("call:incoming", handleIncomingCallEvent);
           socket.on("call.incoming", handleIncomingCallEvent);
           socket.on("call:cancelled", handleCallCancelledEvent);
@@ -447,6 +546,46 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
           socket.on("call.rejected", handleCallCancelledEvent);
           socket.on("call.answered_elsewhere", handleAnsweredElsewhere);
           socket.on("call:answered_elsewhere", handleAnsweredElsewhere);
+          socket.on("call:ended", handleCallCancelledEvent);
+          socket.on("call.ended", handleCallCancelledEvent);
+          socket.on("call:participant_joined", (data: any) => {
+            const userRaw = localStorage.getItem("hrms_user");
+            let cUserId = "";
+            if (userRaw) {
+              try { cUserId = JSON.parse(userRaw).id; } catch {}
+            }
+            if (data?.userId === cUserId || data?.participant?.userId === cUserId) {
+              stopCallAlert();
+              setIncomingCall(null);
+            }
+          });
+
+          // Group Call signaling
+          socket.on("group-call:incoming", handleGroupIncoming);
+          socket.on("group-call.incoming", handleGroupIncoming);
+          socket.on("group-call:ended", handleCallCancelledEvent);
+          socket.on("group-call:user_left", (data: any) => {
+            const userRaw = localStorage.getItem("hrms_user");
+            let cUserId = "";
+            if (userRaw) {
+              try { cUserId = JSON.parse(userRaw).id; } catch {}
+            }
+            if (data?.userId === cUserId) {
+              stopCallAlert();
+              setIncomingCall(null);
+            }
+          });
+          socket.on("group-call:user_joined", (data: any) => {
+            const userRaw = localStorage.getItem("hrms_user");
+            let cUserId = "";
+            if (userRaw) {
+              try { cUserId = JSON.parse(userRaw).id; } catch {}
+            }
+            if (data?.userId === cUserId) {
+              stopCallAlert();
+              setIncomingCall(null);
+            }
+          });
         }
       } catch (e) {
         console.warn("[IncomingCallProvider] Socket initialization error:", e);
@@ -456,7 +595,18 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
       if (eventName === "call:incoming" || eventName === "call.incoming") handleIncomingCallEvent(data);
-      if (eventName === "call:cancelled" || eventName === "call.cancelled" || eventName === "call:timeout" || eventName === "call.timeout" || eventName === "call:rejected" || eventName === "call.rejected") {
+      if (eventName === "group-call:incoming" || eventName === "group-call.incoming") handleGroupIncoming(data);
+      if (
+        eventName === "call:cancelled" ||
+        eventName === "call.cancelled" ||
+        eventName === "call:timeout" ||
+        eventName === "call.timeout" ||
+        eventName === "call:rejected" ||
+        eventName === "call.rejected" ||
+        eventName === "call:ended" ||
+        eventName === "call.ended" ||
+        eventName === "group-call:ended"
+      ) {
         handleCallCancelledEvent(data);
       }
       if (eventName === "call:accepted" || eventName === "call.accepted" || eventName === "call.answered_elsewhere" || eventName === "call:answered_elsewhere") {
@@ -468,47 +618,15 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     const handleSwMessage = (event: MessageEvent) => {
       const data = event.data;
       if (!data) return;
-
-      if (data.type === "CALL_INCOMING_PUSH") {
-        handleIncomingCallEvent(data);
-      } else if (data.type === "CALL_CANCELLED_PUSH") {
-        handleCallCancelledEvent(data);
-      } else if (data.type === "CALL_ACTION_REJECT") {
-        stopCallAlert();
-        setIncomingCall(null);
-      } else if (data.type === "CALL_ACTION_NAVIGATE") {
-        // Notification click: Validate active authenticated session on this device
-        const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
-        if (!token) {
-          console.warn("[IncomingCallProvider] Stale notification clicked after logout; redirecting to login.");
-          if (typeof window !== "undefined") {
-            window.location.href = "/auth";
-          }
-          return;
-        }
-
-        // Display pending incoming call interface. Never auto-accept.
-        if (data.callId && !incomingCall) {
-          fetch(`/api/calls/${encodeURIComponent(data.callId)}/status`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-            .then((res) => res.json())
-            .then((result) => {
-              if (result?.success && result?.data?.status === "ringing") {
-                handleIncomingCallEvent(result.data);
-              }
-            })
-            .catch(() => {});
-        }
+      if (data.type === "CALL_INCOMING") handleIncomingCallEvent(data.payload);
+      if (data.type === "CALL_CANCELLED") handleCallCancelledEvent(data.payload);
+      if (data.type === "CALL_ACCEPTED_ON_DEVICE") {
+        acceptCall();
+      }
+      if (data.type === "CALL_DECLINED_ON_DEVICE") {
+        rejectCall("declined_via_notification");
       }
     };
-
-    const handleLogout = () => {
-      stopCallAlert();
-      setIncomingCall(null);
-    };
-    window.addEventListener("hrms:logout", handleLogout);
-
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.addEventListener("message", handleSwMessage);
     }
@@ -525,15 +643,18 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         socket.off("call.rejected", handleCallCancelledEvent);
         socket.off("call.answered_elsewhere", handleAnsweredElsewhere);
         socket.off("call:answered_elsewhere", handleAnsweredElsewhere);
+        socket.off("call:ended", handleCallCancelledEvent);
+        socket.off("call.ended", handleCallCancelledEvent);
+        socket.off("group-call:incoming", handleGroupIncoming);
+        socket.off("group-call.incoming", handleGroupIncoming);
+        socket.off("group-call:ended", handleCallCancelledEvent);
       }
       window.removeEventListener("hrms:pusher", handlePusherEvent);
-      window.removeEventListener("hrms:logout", handleLogout);
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker.removeEventListener("message", handleSwMessage);
       }
-      stopCallAlert();
     };
-  }, [handleIncomingCallEvent, handleCallCancelledEvent, handleAnsweredElsewhere, stopCallAlert, acceptCall]);
+  }, [handleIncomingCallEvent, handleGroupIncoming, handleCallCancelledEvent, handleAnsweredElsewhere, stopCallAlert, acceptCall, rejectCall]);
 
   const checkPendingCall = useCallback(async () => {
     const token = typeof window !== "undefined"
@@ -576,6 +697,8 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         isRinging,
         autoplayBlocked,
         unlockAudio,
+        isAccepting,
+        isDeclining,
         acceptCall,
         rejectCall,
         dismissCall,

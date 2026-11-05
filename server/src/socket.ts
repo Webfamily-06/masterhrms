@@ -1394,6 +1394,8 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         payload: { groupId: string; callId: string; callType: "audio" | "video" },
         acknowledge?: (result: { success: boolean; code?: string; message?: string; callId?: string }) => void
       ) => {
+        // TRY_WRAPPER_GROUP_CALL_START
+        try {
       const { groupId, callId, callType } = payload;
       const tenantId = socket.data.tenantId;
       if (!groupId || !callId || !tenantId) {
@@ -1521,6 +1523,10 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         `${socket.data.name} started a group ${callType} meeting.`,
         { groupId, callId, callType }
       );
+      } catch (err: any) {
+        console.error("[Socket] group-call:start error:", err);
+        acknowledge?.({ success: false, code: "CALL_ERROR", message: err?.message || "Failed to start meeting." });
+      }
       }
     );
 

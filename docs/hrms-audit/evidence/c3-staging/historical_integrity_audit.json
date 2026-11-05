@@ -7,7 +7,7 @@
   "isHashIdentical": true,
   "baselineModifiedCount": 0,
   "baselineDeletedCount": 0,
-  "additiveTestRecordsCount": 7,
+  "additiveTestRecordsCount": 13,
   "testRecords": [
     {
       "id": "0e832160-0b94-4e33-b4f7-06dfb95a1a9d",
@@ -34,11 +34,27 @@
       "callType": "video"
     },
     {
+      "id": "31891fc8-2569-4840-a973-5567ced778c7",
+      "createdAt": "2026-11-05T07:24:56.312Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    },
+    {
       "id": "32563439-febf-4414-82f8-537f90ea12aa",
       "createdAt": "2026-11-05T01:40:45.330Z",
       "caller": "Sarah HR Lead",
       "receiver": "Alex Rivera",
       "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "6f821a08-346b-4657-a4d3-405fa9474010",
+      "createdAt": "2026-11-05T07:22:08.143Z",
+      "caller": "Alex Rivera",
+      "receiver": "Sarah HR Lead",
+      "status": "ringing",
       "callType": "video"
     },
     {
@@ -50,11 +66,27 @@
       "callType": "video"
     },
     {
+      "id": "b4ba7105-26a9-49e4-96fb-2cc5bb1acf99",
+      "createdAt": "2026-11-05T07:23:24.306Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    },
+    {
       "id": "c70372e4-74e3-45fd-871d-c0c77a844bbd",
       "createdAt": "2026-11-05T02:10:36.042Z",
       "caller": "Sarah HR Lead",
       "receiver": "Alex Rivera",
       "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "dd2ffa18-65f8-41b5-b94b-65aafacfa296",
+      "createdAt": "2026-11-05T07:57:33.262Z",
+      "caller": "Admin User",
+      "receiver": "Alice Admin",
+      "status": "ringing",
       "callType": "video"
     },
     {
@@ -64,7 +96,23 @@
       "receiver": "Alex Rivera",
       "status": "completed",
       "callType": "video"
+    },
+    {
+      "id": "f097ca92-2054-46db-8bd7-d42110410eb3",
+      "createdAt": "2026-11-05T08:02:05.949Z",
+      "caller": "Alex Rivera",
+      "receiver": "Tenant A Super Admin",
+      "status": "connected",
+      "callType": "video"
+    },
+    {
+      "id": "f420b02b-6c15-4ef7-a404-5b559797c5f3",
+      "createdAt": "2026-11-05T08:01:35.772Z",
+      "caller": "Admin User",
+      "receiver": "Alice Admin",
+      "status": "connected",
+      "callType": "video"
     }
   ],
-  "timestamp": "2026-11-05T07:06:40.947Z"
+  "timestamp": "2026-11-05T08:05:58.102Z"
 }

@@ -16,5 +16,5 @@
     "tokenScopes": "Host granted roomAdmin/roomCreate; Participant restricted to publish/subscribe only",
     "secrets": "Zero API secrets present in API responses"
   },
-  "timestamp": "2026-11-05T05:35:00.331Z"
+  "timestamp": "2026-11-05T07:42:29.054Z"
 }

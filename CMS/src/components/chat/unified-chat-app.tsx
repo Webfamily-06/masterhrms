@@ -1843,6 +1843,26 @@ export function UnifiedChatApp({
       remoteStreamRef.current.getTracks().forEach((track) => track.stop());
       remoteStreamRef.current = null;
     }
+    if (meetingLocalStreamRef.current) {
+      meetingLocalStreamRef.current.getTracks().forEach((track) => track.stop());
+      meetingLocalStreamRef.current = null;
+    }
+    if (meetingScreenStreamRef.current) {
+      meetingScreenStreamRef.current.getTracks().forEach((track) => track.stop());
+      meetingScreenStreamRef.current = null;
+    }
+    if (preCallStream) {
+      preCallStream.getTracks().forEach((track) => track.stop());
+      setPreCallStream(null);
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
+      try { audioContextRef.current.close(); } catch {}
+      audioContextRef.current = null;
+    }
+    if (ringtoneContextRef.current && ringtoneContextRef.current.state !== "closed") {
+      try { ringtoneContextRef.current.close(); } catch {}
+      ringtoneContextRef.current = null;
+    }
     if (peerConnectionRef.current) {
       try {
         peerConnectionRef.current.close();
@@ -1854,7 +1874,7 @@ export function UnifiedChatApp({
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     setIsScreenSharing(false);
     setAdditionalParticipants([]);
-  }, [stopRingtone]);
+  }, [stopRingtone, preCallStream]);
 
   // Video element stream binding hook (ensures tracks are connected after DOM mounts)
   useEffect(() => {
@@ -2139,7 +2159,9 @@ export function UnifiedChatApp({
     }
 
     const callId = `meeting_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const correlationId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     let meetingSessionStarted = false;
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(callType === "video"));
       meetingLocalStreamRef.current = stream;
@@ -2177,27 +2199,62 @@ export function UnifiedChatApp({
       setIsMeetingOpen(true);
 
       const socket = getSocketClient();
-      const startResponse = await new Promise<{ success: boolean; message?: string }>((resolve, reject) => {
-        socket.timeout(8000).emit("group-call:start", {
-          callId,
-          groupId: activeGroupId,
-          groupName: activeGroup?.name || "Group Meeting",
-          callType,
-        }, (error: Error | null, response: { success?: boolean; message?: string }) => {
-          if (error) {
-            reject(new Error("The meeting server did not confirm the meeting start."));
-            return;
+      let confirmedViaSocket = false;
+
+      // 1. Primary fast path: Socket.IO confirmation with 4s timeout
+      if (socket && socket.connected) {
+        try {
+          const socketStart = await new Promise<{ success: boolean; message?: string }>((resolve, reject) => {
+            socket.timeout(4000).emit(
+              "group-call:start",
+              {
+                callId,
+                groupId: activeGroupId,
+                groupName: activeGroup?.name || "Group Meeting",
+                callType,
+                correlationId,
+              },
+              (error: Error | null, response: { success?: boolean; message?: string }) => {
+                if (error) {
+                  reject(error);
+                  return;
+                }
+                if (response?.success) {
+                  resolve({ success: true, message: response.message });
+                } else {
+                  reject(new Error(response?.message || "Socket confirmation rejected"));
+                }
+              }
+            );
+          });
+          if (socketStart?.success) confirmedViaSocket = true;
+        } catch (sockErr) {
+          console.warn("[GroupMeeting] Socket confirmation timeout or error, executing server-authoritative REST fallback:", sockErr);
+        }
+      }
+
+      // 2. Server-authoritative REST fallback if socket timed out or was disconnected
+      if (!confirmedViaSocket) {
+        try {
+          const restRes: any = await api.post("/api/chat/meetings/start", {
+            callId,
+            groupId: activeGroupId,
+            groupName: activeGroup?.name || "Group Meeting",
+            callType,
+            correlationId,
+          });
+          if (restRes?.data?.success || restRes?.success) {
+            confirmedViaSocket = true;
+          } else {
+            throw new Error(restRes?.data?.error || restRes?.error || "The meeting server did not confirm the meeting start.");
           }
-          if (!response?.success) {
-            reject(new Error(response?.message || "The meeting could not be started."));
-            return;
-          }
-          resolve({ success: true, message: response.message });
-        });
-      });
-      if (!startResponse.success) throw new Error(startResponse.message || "The meeting could not be started.");
+        } catch (restErr: any) {
+          throw new Error(restErr?.response?.data?.error || restErr?.message || "The meeting server did not confirm the meeting start.");
+        }
+      }
+
       meetingSessionStarted = true;
-      setActiveMeeting((current) => current?.callId === callId ? { ...current, status: "connected" } : current);
+      setActiveMeeting((current) => (current?.callId === callId ? { ...current, status: "connected" } : current));
 
       const tokenResponse = await api.post(`/api/chat/meetings/${callId}/token`, {
         groupId: activeGroupId,
@@ -2209,14 +2266,22 @@ export function UnifiedChatApp({
         getSocketClient().emit("group-call:leave", { callId });
       }
       cleanUpMeetingMedia();
-      toast.error(err?.message || "Could not start the meeting.");
+      const errCorrelation = `err_${Date.now().toString(36)}`;
+      console.error(`[MeetingStartError:${errCorrelation}]`, err);
+      toast.error(err?.message || "Could not start the meeting.", {
+        description: `Correlation ID: ${errCorrelation}. You can retry safely without duplicate sessions.`,
+        action: {
+          label: "Retry",
+          onClick: () => handleStartGroupMeeting(callType),
+        },
+      });
     }
   };
 
-  const handleAcceptGroupMeeting = async () => {
-    if (!incomingGroupMeeting) return;
+  const handleAcceptGroupMeeting = async (incomingOverride?: any) => {
+    const meetingData = incomingOverride || incomingGroupMeeting;
+    if (!meetingData) return;
     stopRingtone();
-    const meetingData = incomingGroupMeeting;
     setIncomingGroupMeeting(null);
 
     try {
@@ -4204,6 +4269,21 @@ export function UnifiedChatApp({
       }
     };
     window.addEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+    const handleGlobalGroupAccepted = (e: any) => {
+      const call = e.detail;
+      if (call?.callId) {
+        handleAcceptGroupMeeting({
+          callId: call.callId,
+          groupId: call.groupId,
+          groupName: call.groupName || "Group Meeting",
+          callType: call.callType || "audio",
+          callerId: call.callerId,
+          callerName: call.callerName || "Colleague",
+          callerAvatar: call.callerAvatar,
+        });
+      }
+    };
+    window.addEventListener("hrms:global-group-call-accepted", handleGlobalGroupAccepted);
 
     const params = new URLSearchParams(window.location.search);
     const callIdParam = params.get("callId");
@@ -4236,7 +4316,10 @@ export function UnifiedChatApp({
       }
     }
 
-    return () => window.removeEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+    return () => {
+      window.removeEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+      window.removeEventListener("hrms:global-group-call-accepted", handleGlobalGroupAccepted);
+    };
   }, [currentUserId, handleAcceptIncomingCall]);
 
   // End / Cancel Call
@@ -9210,6 +9293,8 @@ export function UnifiedChatApp({
         open={activeCallModalOpen && !isCallMinimized}
         onOpenChange={(open) => {
           if (!open) {
+            cleanUpMedia();
+            cleanUpMeetingMedia();
             setCallSummary(null);
             setActiveCallModalOpen(false);
           } else {
@@ -9313,6 +9398,8 @@ export function UnifiedChatApp({
                   className="flex-1 gap-2 cursor-pointer"
                   data-testid="call-summary-back-btn"
                   onClick={() => {
+                    cleanUpMedia();
+                    cleanUpMeetingMedia();
                     setCallSummary(null);
                     setActiveCallModalOpen(false);
                     setCallStatus("calling");
@@ -9784,127 +9871,8 @@ export function UnifiedChatApp({
           </div>
         </div>
       )}
+      {/* 7. INCOMING CALL MANAGED GLOBALLY VIA FullScreenIncomingCall */}
 
-      {/* 7. ENHANCED INCOMING CALL DIALOG (CALLEE) */}
-      {incomingCall && (
-        <Dialog open={!!incomingCall} onOpenChange={() => handleRejectIncomingCall("dismissed")}>
-          <DialogContent
-            data-testid="incoming-call-dialog"
-            className="sm:max-w-md font-sans text-center z-[100000] border-2 border-primary/50 shadow-2xl overflow-hidden p-6 [&>button:last-child]:hidden"
-            style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
-          >
-            <div className="py-2 flex flex-col items-center font-sans space-y-4">
-              {/* Concentric Animated Sonar Rings */}
-              <div className="relative my-2 flex items-center justify-center">
-                <div className="absolute size-32 rounded-full bg-primary/20 animate-ping -z-10" />
-                <div className="absolute size-28 rounded-full bg-primary/30 animate-pulse -z-10" />
-                <div className="size-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-3xl shadow-2xl ring-8 ring-primary/20">
-                  {incomingCall.callerName.charAt(0).toUpperCase()}
-                </div>
-                <div className="absolute -bottom-1 -right-1 p-2 rounded-full bg-primary text-primary-foreground shadow-lg ring-2 ring-background">
-                  {incomingCall.type === "video" ? <Video className="size-4" /> : <Phone className="size-4" />}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-xl text-foreground">{incomingCall.callerName}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {incomingCall.callerEmail || incomingCall.callerPhone || "Colleague"}
-                </p>
-                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/60 text-primary dark:text-primary text-xs font-semibold">
-                  <span className="size-2 rounded-full bg-primary animate-ping" />
-                  <span>Incoming {incomingCall.type === "video" ? "Video" : "Audio"} Call</span>
-                </div>
-              </div>
-
-              {/* Quick Message Decline Options */}
-              <div className="w-full pt-1 space-y-1.5">
-                <p className="text-[10px] text-muted-foreground">Quick decline with message:</p>
-                <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const callerId = incomingCall.fromUserId;
-                      handleRejectIncomingCall("declined");
-                      if (callerId) {
-                        api.post("/api/chat/messages", {
-                          recipientId: callerId,
-                          content: "Can't talk right now. I'll message you shortly.",
-                        }).catch(() => {});
-                      }
-                    }}
-                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
-                  >
-                    Can&apos;t talk now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const callerId = incomingCall.fromUserId;
-                      handleRejectIncomingCall("declined");
-                      if (callerId) {
-                        api.post("/api/chat/messages", {
-                          recipientId: callerId,
-                          content: "Currently in another meeting. I will catch up shortly.",
-                        }).catch(() => {});
-                      }
-                    }}
-                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
-                  >
-                    In a meeting
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const callerId = incomingCall.fromUserId;
-                      handleRejectIncomingCall("declined");
-                      if (callerId) {
-                        api.post("/api/chat/messages", {
-                          recipientId: callerId,
-                          content: "I will call you back as soon as possible.",
-                        }).catch(() => {});
-                      }
-                    }}
-                    className="text-[10px] px-2.5 py-1 rounded-full bg-muted hover:bg-muted/80 text-foreground border border-border/80 transition-colors cursor-pointer"
-                  >
-                    Call you back soon
-                  </button>
-                </div>
-              </div>
-
-              {/* Accept & Decline Action Buttons */}
-              <div className="flex items-center gap-10 pt-3">
-                <div className="flex flex-col items-center gap-1.5">
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    data-testid="btn-decline-call"
-                    className="rounded-full size-14 shadow-xl bg-destructive hover:bg-destructive cursor-pointer"
-                    onClick={() => handleRejectIncomingCall("declined")}
-                    title="Decline Call"
-                  >
-                    <PhoneOff className="size-6" />
-                  </Button>
-                  <span className="text-[11px] font-medium text-muted-foreground">Decline</span>
-                </div>
-
-                <div className="flex flex-col items-center gap-1.5">
-                  <Button
-                    size="icon"
-                    data-testid="btn-accept-call"
-                    className="rounded-full size-14 shadow-xl bg-success hover:bg-success text-success-foreground cursor-pointer ring-4 ring-success/30 animate-pulse"
-                    onClick={handleAcceptIncomingCall}
-                    title="Accept Call"
-                  >
-                    <Phone className="size-6" />
-                  </Button>
-                  <span className="text-[11px] font-medium text-success dark:text-success">Accept</span>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* 7b. INCOMING GROUP MEETING DIALOG */}
       <IncomingGroupMeetingDialog

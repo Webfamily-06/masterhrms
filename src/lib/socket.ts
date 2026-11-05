@@ -14,6 +14,10 @@ const SOCKET_URL = import.meta.env.VITE_API_URL
       ? window.location.origin
       : "http://localhost:4000");
 
+export function isSocketDisabled(): boolean {
+  return !SOCKET_URL;
+}
+
 let globalSocket: Socket | null = null;
 
 export function getSocketClient(): Socket {

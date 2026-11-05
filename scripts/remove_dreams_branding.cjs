@@ -68,3 +68,4 @@ for (const dir of TARGET_DIRS) {
 console.log("\n================================================================================");
 console.log(`SUMMARY: Modified ${totalFilesModified} files with ${totalReplacements} branding replacements.`);
 console.log("================================================================================\n");
+
