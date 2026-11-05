@@ -100,7 +100,7 @@ export function DreamsVideoCallScreen({
         </button>
       </div>
 
-      {/* Main video call wrapper matching HRMS-HTML/video-call.html */}
+      {/* Main video call wrapper Master HRMS Video Call */}
       <div className="bg-white dark:bg-card border border-border-color rounded-md p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 flex-1 min-h-0 overflow-hidden shadow-xs">
         {/* Main speaker tile */}
         <div className="relative rounded-md overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300 dark:from-slate-800 dark:to-slate-900 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px]">
@@ -181,7 +181,7 @@ export function DreamsVideoCallScreen({
           )}
         </div>
 
-        {/* Participant strip matching HRMS-HTML/video-call.html */}
+        {/* Participant strip Master HRMS Video Call */}
         <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-2 sm:gap-3 shrink-0">
           {filmstripList.map((participant, index) => {
             const isLocal = participant.isLocal;
@@ -239,7 +239,7 @@ export function DreamsVideoCallScreen({
           })}
         </div>
 
-        {/* Control bar matching HRMS-HTML/video-call.html */}
+        {/* Control bar Master HRMS Video Call */}
         <div className="border-t border-border-color pt-3 sm:pt-4 flex items-center justify-center gap-2 sm:gap-3 shrink-0">
           {/* Mute Mic */}
           <button

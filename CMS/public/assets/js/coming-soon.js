@@ -1,6 +1,6 @@
 /*
-Author       : Dreams Technologies
-Template Name: Dreams ERP - Time Tracking Boostrap 5 Admin Dashboard
+Author       : Master HRMS
+Template Name: Master HRMS - Time Tracking Boostrap 5 Admin Dashboard
 */
 (function () {
     "use strict";

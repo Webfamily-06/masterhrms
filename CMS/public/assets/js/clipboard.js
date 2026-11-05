@@ -1,6 +1,6 @@
 /*
-Author       : Dreams Technologies
-Template Name: Dreams AI
+Author       : Master HRMS
+Template Name: Master HRMS AI
 */
 (function () {
     "use strict";

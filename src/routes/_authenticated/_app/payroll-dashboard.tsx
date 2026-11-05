@@ -254,7 +254,7 @@ export default function PayrollDashboardPage() {
         </div>
       </div>
 
-      {/* ── KPI Summary Cards (Dreams ERP Standard) ── */}
+      {/* ── KPI Summary Cards (Master HRMS Standard) ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
           <div className="flex items-center justify-between mb-2">

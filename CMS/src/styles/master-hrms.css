@@ -409,7 +409,7 @@ textarea,
 }
 
 /* ============================================================
-   DREAMS ERP & MASTER WORKSPACE BULLETPROOF RESPONSIVE LAYOUT
+   Master HRMS & MASTER WORKSPACE BULLETPROOF RESPONSIVE LAYOUT
    ============================================================ */
 
 :root {
@@ -762,7 +762,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
    1. DESKTOP WORKSPACE (>= 1024px)
    ------------------------------------------------------------ */
 @media (min-width: 1024px) {
-  /* Sidebar Fixed Container (0px gaps, docked flush matching Dreams ERP) */
+  /* Sidebar Fixed Container (0px gaps, docked flush matching Master HRMS) */
   :is(.main-wrapper, .workspace-shell, .super-layout) .sidebar {
     position: fixed !important;
     top: 0 !important;
@@ -782,7 +782,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
     overflow: hidden !important;
   }
 
-  /* Topbar Header Sticky Full-Width (0px gaps, docked flush matching Dreams ERP) */
+  /* Topbar Header Sticky Full-Width (0px gaps, docked flush matching Master HRMS) */
   :is(.main-wrapper, .workspace-shell, .super-layout) .navbar-header {
     position: sticky !important;
     top: 0 !important;
@@ -1438,7 +1438,7 @@ html:not(.dark) .sidebar .sidebar-logo img.dark\:block.hidden,
 
 
 /* ----------------------------------------------------------
-   DREAMS ERP DASHBOARD WIDGET & PALETTE UTILITIES
+   Master HRMS DASHBOARD WIDGET & PALETTE UTILITIES
    ---------------------------------------------------------- */
 .bg-linear-gradient {
   background: linear-gradient(111.78deg, #1e293b 35.73%, #183667 94.6%) !important;

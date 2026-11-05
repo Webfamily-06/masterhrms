@@ -728,7 +728,7 @@ export function AppShell() {
         </div>
       )}
 
-      {/* Dreams ERP Sidenav */}
+      {/* Master HRMS Sidenav */}
       <PortalSidebar
         profile={profile}
         collapsed={collapsed}

@@ -60,7 +60,7 @@ export function DreamsVoiceCallScreen({
       {/* Hidden WebRTC Audio Output */}
       {remoteAudioRef && <audio ref={remoteAudioRef as any} autoPlay />}
 
-      {/* Header matching HRMS-HTML/voice-call.html */}
+      {/* Header Master HRMS Voice Call */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-4 px-1 shrink-0">
         <div className="flex items-center gap-2">
           <h1 className="text-gray-900 dark:text-white text-lg sm:text-xl font-bold mb-0">Voice Call</h1>
@@ -77,7 +77,7 @@ export function DreamsVoiceCallScreen({
         </button>
       </div>
 
-      {/* Main voice call card wrapper matching HRMS-HTML/voice-call.html */}
+      {/* Main voice call card wrapper Master HRMS Voice Call */}
       <div className="bg-white dark:bg-card border border-border-color rounded-md p-3 sm:p-4 flex flex-col justify-between flex-1 min-h-0 overflow-hidden shadow-xs">
         {/* Caller bar */}
         <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4 shrink-0">
@@ -158,7 +158,7 @@ export function DreamsVoiceCallScreen({
           </div>
         </div>
 
-        {/* Voice call canvas matching HRMS-HTML/voice-call.html */}
+        {/* Voice call canvas Master HRMS Voice Call */}
         <div className="relative rounded-md overflow-hidden bg-light dark:bg-slate-800/40 flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] my-1">
           {/* Centered Caller Avatar */}
           <div
@@ -208,7 +208,7 @@ export function DreamsVoiceCallScreen({
           </div>
         </div>
 
-        {/* Control bar matching HRMS-HTML/voice-call.html */}
+        {/* Control bar Master HRMS Voice Call */}
         <div className="border-t border-border-color pt-3 sm:pt-4 mt-2 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 shrink-0">
           {/* Mute Mic */}
           <button

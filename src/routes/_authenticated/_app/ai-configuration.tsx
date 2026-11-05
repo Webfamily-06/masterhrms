@@ -55,7 +55,7 @@ export default function AIConfigurationPage() {
 
   return (
     <div className="space-y-4">
-      {/* ── Page Header / Breadcrumb (Dreams ERP Standard) ── */}
+      {/* ── Page Header / Breadcrumb (Master HRMS Standard) ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-border-color">
         <div>
           <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-0.5">AI Engine Configuration</h1>

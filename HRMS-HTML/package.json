@@ -1,7 +1,7 @@
 {
   "name": "dreamserp-tailwind",
   "version": "1.0.0",
-  "description": "Dreams ERP - Tailwind CSS ERP Admin Dashboard Template",
+  "description": "Master HRMS — Enterprise HR & ERP Platform",
   "scripts": {
     "start": "node server.js"
   },

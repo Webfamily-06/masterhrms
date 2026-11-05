@@ -742,7 +742,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Dreams ERP Sidenav */}
+      {/* Master HRMS Sidenav */}
       <DreamsSidebar
         profile={profile}
         collapsed={collapsed}

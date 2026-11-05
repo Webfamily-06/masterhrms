@@ -1,6 +1,6 @@
 /*
-Author       : Dreams Technologies
-Template Name: Dreams ERP - Tailwind Admin Dashboard
+Author       : Master HRMS
+Template Name: Master HRMS - Tailwind Admin Dashboard
 */
 (function() {
 	"use strict";

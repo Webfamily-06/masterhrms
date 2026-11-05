@@ -115,7 +115,7 @@ function send404(res, pathname) {
 
 server.listen(PORT, () => {
   console.log(`========================================`);
-  console.log(` Dreams ERP Server is running!`);
+  console.log(` Master HRMS Server is running!`);
   console.log(` URL: http://localhost:${PORT}`);
   console.log(` Press Ctrl+C to stop the server`);
   console.log(`========================================`);
