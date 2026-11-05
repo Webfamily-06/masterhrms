@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/procurement-dashboard.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:32 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+
+	<meta charset="utf-8">
+
+    <title>Procurement Dashboard | Dreams ERP - Tailwind CSS ERP Admin Dashboard Template</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dreams ERP is a professional Tailwind CSS ERP Admin Dashboard Template featuring CRM, HRM, Inventory, Finance, Sales, Procurement, Project Management dashboards, reusable UI components, and responsive layouts.">
+    <meta name="author" content="Dreams Technologies">
+
+	<!-- Favicon -->
+    <link rel="shortcut icon" type="image/x-icon" href="assets/img/favicon.png">
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-icon.png">
+
+    <!-- Theme Script -->
+    <script src="assets/js/theme-script.js"></script>
+
+    <!-- Phosphor CSS -->
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/duotone/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/regular/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/fill/style.css">
+
+    <!-- Lucide CSS -->
+    <link rel="stylesheet" href="assets/libs/lucide-static/font/lucide.css">
+
+    <!-- Simplebar CSS -->
+    <link rel="stylesheet" href="assets/libs/simplebar/simplebar.min.css">
+
+    <!-- Prism CSS -->
+    <link rel="stylesheet" href="assets/libs/prismjs/themes/prism.min.css">
+
+    <!-- Fontawesome CSS -->
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/fontawesome.min.css">
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/all.min.css">
+
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.min.css">
+    <link rel="stylesheet" href="assets/libs/flatpickr/flatpickr.css">
+
+    <!-- Main CSS -->
+
+  <script type="module" crossorigin src="assets/js/script.js"></script>
+  <link rel="stylesheet" crossorigin href="assets/css/style.css">
+</head>
+
+<body>
+	
+	<!-- Main Wrapper -->
+	<div class="main-wrapper">
+
+		<!-- Topbar Start -->
+        <header class="navbar-header flex items-center max-lg:w-full">
+            <div class="topbar-menu flex items-center justify-between w-full gap-2">
+                <div class="flex items-center gap-3">
+
+                    <!-- Sidebar Mobile Button -->
+                    <a id="mobile_btn" class="mobile-btn lg:hidden" href="#sidebar" aria-label="menu">
+                        <i class="icon icon-menu"></i>
+                    </a>   
+                    
+                    <!-- Logo -->
+                    <a href="index.html" class="logo">
+
+                        <!-- Logo Normal -->
+                        <span class="logo-light">
+                            <span class="logo-lg"><img src="assets/img/logo.svg" alt="logo"></span>
+                            <span class="logo-sm"><img src="assets/img/logo-small.svg" alt="small logo"></span>
+                        </span>
+
+                        <!-- Logo Dark -->
+                        <span class="logo-dark">
+                            <span class="logo-lg"><img src="assets/img/logo-white.svg" alt="dark logo"></span>
+                        </span>
+                    </a> 
+
+                    <button class="sidenav-toggle-btn topbar-link shrink-0 size-9 text-[20px] items-center justify-center rounded-full" id="toggle_btn2"> 
+                        <i class="ph-duotone ph-arrow-left"></i>
+                    </button>
+                    
+                </div>
+
+                <div class="flex items-center gap-2 lg:w-full">
+                    
+                    <!-- Company Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-left] [--auto-close:inside] hidden lg:flex relative company-dropdown me-auto">
+                        <div class="hs-dropdown-toggle bg-white border border-border-color rounded-md py-[6px] px-2 flex items-center justify-between gap-2 cursor-pointer">
+                            <div class="flex items-center gap-2">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company.svg" alt="company">
+                                </div>
+                                <p class="text-[13px] text-title">Falcon LLP</p>
+                            </div>
+                            <p><i class="icon icon-ellipsis"></i></p>
+                        </div>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-47 p-3 bg-white border border-border-color shadow rounded-md mt-0 z-1 space-y-1" role="menu" aria-orientation="vertical">
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-02.svg" alt="CloneMind AI">
+                                </div>
+                                <p class="text-[13px] text-title">CloneMind AI</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company.svg" alt="Falcon LLP">
+                                </div>
+                                <p class="text-[13px] text-title">Falcon LLP</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-03.svg" alt="Replicon Labs">
+                                </div>
+                                <p class="text-[13px] text-title">Replicon Labs</p>
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <div class="bg-dark size-5 rounded-md flex items-center justify-center">
+                                    <img src="assets/img/icons/company-04.svg" alt="CloneSphere">
+                                </div>
+                                <p class="text-[13px] text-title">CloneSphere</p>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Light/Dark Mode Button -->
+                    <div class="header-item">
+                        <button class="topbar-link items-center justify-center light-dark-mode" type="button">
+                            <i class="ph-duotone ph-moon"></i>
+                        </button>
+                    </div>
+
+                    <!-- Search (icon button — opens modal) -->
+                    <div class="header-item">
+                        <button type="button" class="topbar-link items-center justify-center" data-hs-overlay="#search_modal" aria-label="Search">
+                            <i class="ph-duotone ph-magnifying-glass"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Language Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden lg:flex">
+                        <button type="button" class="topbar-link items-center justify-center">
+                            <i class="ph-duotone ph-translate"></i>
+                        </button>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-30 p-3 bg-white border border-border-color shadow rounded-md mt-[-8px]! z-1 space-y-1" role="menu" aria-orientation="vertical">
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/us.svg" class="size-4 rounded-full" alt="flag">ENG
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/arab.svg" class="size-4 rounded-full" alt="flag">ARB
+                            </a>
+                            <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                <img src="assets/img/icons/germany.svg" class="size-4 rounded-full" alt="flag">GER
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Notification Dropdown -->
+                    <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden relative sm:flex" id="notification-dropdown">
+                        <button class="bg-light border border-border-color rounded-md size-8 flex items-center justify-center relative cursor-pointer">
+                            <i class="ph-duotone ph-bell"></i>
+                            <span class="absolute top-1 end-1 size-2 bg-danger-transparent rounded-full flex items-center justify-center">
+                                <span class="size-1 bg-danger rounded-full"></span>
+                            </span>
+                        </button>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-102 p-5 mt-[-8px]! bg-white border border-border-color shadow rounded-lg z-1 notification-dropdown" role="menu" aria-orientation="vertical">
+
+                            <div class="flex items-center justify-between border-b border-border-color pb-3">
+                                <p class="text-base font-bold text-title">Notifications</p>
+                                <div class="flex items-center gap-3">
+                                    <!-- The Toggle -->
+                                    <div class="flex items-center gap-1">
+                                        <label for="read" class="relative inline-block w-7 h-4 cursor-pointer">
+                                            <input type="checkbox" id="read" class="sr-only">
+                                            <span id="switch-track" class="absolute inset-0 bg-gray-200 rounded-full transition-colors duration-200"></span>
+                                            <span id="switch-thumb" class="absolute top-1/2 start-1 -translate-y-1/2 size-2.5 bg-white rounded-full transition-transform duration-200"></span>
+                                        </label>
+                                        <label for="read" class="cursor-pointer">Only Unread</label>
+                                    </div>
+                                    <button type="button" class="size-8 inline-flex justify-center items-center rounded-md border border-border-color bg-white text-gray-900 text-base hover:bg-danger hover:border-danger hover:text-white dark:hover:text-dark focus:outline-hidden focus:bg-danger cursor-pointer" aria-label="Close" id="close-notification">
+                                        <i class="icon-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div data-simplebar>
+                                <div id="all-notifications">
+                                    <div class="py-5 space-y-3">
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                                    AD
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">25 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-07.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Quotation Sent</p>
+                                                    <p class="text-[13px] mb-0">Quotation <span class="text-primary font-medium">#QT-451</span> sent to Hendy Jade.</p>
+                                                    <div class="flex items-center gap-2 mt-2">
+                                                        <a href="#" class="inline-flex items-center btn-xsmall bg-dark border border-dark text-white  hover:bg-primary hover:border-primary hover:text-white">View Quotation</a>
+                                                        <a href="#" class="inline-flex items-center btn-xsmall bg-white border border-border-color text-gray-900  hover:bg-primary hover:border-primary hover:text-white dark:hover:text-white">Edit Quotation</a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>                                        
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-warning text-white rounded-full flex items-center justify-center me-2">
+                                                    <i class="icon icon-pc-case"></i>
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Low Stock Alert</p>
+                                                    <p class="text-[13px] mb-0">Stock for Product A has dropped below the minimum threshold  <span class="text-primary font-medium">(15 units left).</span></p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-primary-transparent text-primary rounded-full flex items-center justify-center me-2">
+                                                    SJ
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Expense Added</p>
+                                                    <p class="text-[13px] mb-0">New expense entry <span class="text-primary font-medium">‘Office Supplies’</span> worth $250 has been recorded.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">2 hrs ago</p>
+                                        </div>
+
+                                    </div>
+
+                                </div>
+                                <div class="hidden" id="unread-only">
+                                    <div class="py-5 space-y-3">
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 shrink-0 me-2">
+                                                    <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">30 min</p>
+                                        </div>
+
+                                        <!-- Item-->
+                                        <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                            <div class="flex items-center">
+                                                <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                                    AD
+                                                </div>
+                                                <div class="overflow-hidden">
+                                                    <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                                    <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                                </div>
+                                            </div>
+                                            <p class="shrink-0">25 min</p>
+                                        </div>
+
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-3 border-t border-border-color flex items-center justify-between">
+                                <a href="#" class="text-default fw-medium">Mark all as read</a>
+                                <a href="#" class="text-primary font-medium hover:text-primary-hover">
+                                View all Notifications
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Mail / Inbox -->
+                    <div class="header-item hidden sm:flex">
+                        <a href="email.html" class="topbar-link items-center justify-center relative">
+                            <i class="ph-duotone ph-envelope"></i>
+                            <span class="absolute top-1 end-1 size-2 bg-success-transparent rounded-full flex items-center justify-center">
+                                <span class="size-1 bg-success rounded-full"></span>
+                            </span>
+                        </a>
+                    </div>
+
+                    <!-- User Dropdown -->
+                    <div class="profile-dropdown hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative">
+                        <a href="#" class="hs-dropdown-toggle relative flex items-center justify-center rounded-full lg:ms-2" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+                            <div class="size-8 rounded-full overflow-hidden border border-border-color">
+                                <img src="assets/img/avatar/avatar-01.jpg" class="size-full object-cover" alt="user-image">
+                            </div>
+                        </a>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 p-5 bg-white border border-border-color shadow rounded-md mt-2 z-1 divide-y divide-border-color" role="menu" aria-orientation="vertical">
+                            <div class="flex items-center pb-3">
+                                <div class="size-10 rounded-full relative me-2">
+                                    <img src="assets/img/avatar/avatar-01.jpg" class="rounded-full border border-border-color" alt="user-image">
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-title mb-1">Jamie Anderson</p>
+                                    <p class="text-[13px] mb-0">Administrator</p>
+                                </div>
+                            </div>
+                            <div class="py-3 space-y-1">
+                                <a href="profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-round text-base me-2"></i>View Profile
+                                </a>
+                                <a href="edit-profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-pen text-base me-2"></i>Edit Profile
+                                </a>
+                                <a href="general-settings.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-cog text-base me-2"></i>Settings
+                                </a>
+                                <a href="tickets.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-align-start-horizontal text-base me-2"></i>Support Tickets
+                                </a>
+                            </div>
+                            <div class="pt-3">
+                                <a href="lock-screen.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-user-cog text-base me-2"></i>Lock Screen
+                                </a>
+                                <a href="login.html" class="flex items-center px-2 py-[6px] rounded-md text-danger hover:bg-light focus:outline-hidden focus:bg-white">
+                                    <i class="icon icon-log-out text-base me-2"></i>Log Out
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                        
+                </div>
+            </div>
+        </header>
+        <!-- Topbar End -->
+
+        <!-- Search Start -->
+        <div id="search_modal" class="hs-overlay hs-overlay-open:opacity-100 hs-overlay-open:duration-500 hidden size-full fixed top-0 start-0 z-80 opacity-0 overflow-x-hidden transition-all overflow-y-auto pointer-events-none" role="dialog" tabindex="-1">
+            <div class="min-h-screen flex items-center justify-center px-4"> 
+                <div class="max-w-[630px] w-full mx-auto">
+                    <div class="flex flex-col bg-white border p-6 border-border-color rounded-lg pointer-events-auto m-5">
+                        <div class="flex justify-between items-center mb-5">
+                            <p class="text-lg font-bold text-title">Search</p>
+                            <button type="button" class="size-8 inline-flex justify-center items-center rounded-md border border-border-color bg-white text-gray-900 text-base hover:bg-danger hover:border-danger hover:text-white dark:hover:text-dark focus:outline-hidden focus:bg-danger cursor-pointer" aria-label="Close" data-hs-overlay="#search_modal">
+                                <i class="icon-x"></i>
+                            </button>
+                        </div> 
+                        <div class="relative mb-5">
+                            <input type="text" class="w-full ps-3 pe-12 py-1 h-8 bg-white border border-border-color text-title rounded-md focus:border-(--topbar-input-border) placeholder:(-topbar-input-placeholder) focus:ring-0 shadow" placeholder="Search Keywords" autocomplete="off">		
+                            <button type="button" class="cursor-pointer w-8 p-1 text-xs gap-1  flex items-center justify-center absolute end-1 top-1/2 -translate-y-1/2">
+                                <i id="shortcutIcon" class="icon-search"></i>
+                            </button>							
+                        </div>
+                        <div class="mb-5">
+                            <p class="text-title font-semibold mb-2">I’m Looking For</p>
+                            <div class="flex items-center flex-wrap gap-3">
+                                <a href="employees.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Employees</a>
+                                <a href="deals.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Deals</a>
+                                <a href="pos.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">POS</a>
+                                <a href="expenses.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Finance</a>
+                                <a href="cash-sales.html" class="py-1 px-2 bg-light-transparent border border-border-color rounded-md text-xs font-medium text-title hover:bg-primary hover:border-primary hover:text-white">Cash Sales</a>
+                            </div>
+                        </div>
+                        <p class="text-title font-semibold mb-2">Quick Actions</p>
+                        <div class="space-y-1 mb-5">
+                            <a href="general-settings.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-cog text-base text-default group-hover:text-title"></i>Settings</a>
+                            <a href="add-product.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Products</a>
+                            <a href="deals.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Deals</a>
+                            <a href="expenses.html" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title group"><i class="icon icon-circle-plus text-base text-default group-hover:text-title"></i>Create Expense</a>
+                        </div>
+                        <p class="text-title font-semibold mb-2">Search</p>
+                        <div class="space-y-1">
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Anderson</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Oneplus 11G</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Oneplus 11G</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>#INV45879</a>
+                            <a href="#" class="flex items-center gap-2 rounded-md text-title py-[5px] px-[10px] hover:bg-light hover:text-title"><i class="icon icon-clock-10 text-base text-default"></i>Knowledge Base</a>
+                        </div>
+                    </div>
+                </div>
+            </div>  
+        </div>
+        <!-- Search End -->
+
+		<!-- Sidenav Menu Start -->
+        <aside class="sidebar" id="sidebar">
+                    
+            <!-- Start Logo -->
+            <div class="sidebar-logo">
+                <div class="flex items-center">
+                    <!-- Logo Normal -->
+                    <a href="index.html" class="logo logo-normal">
+                        <img src="assets/img/logo.svg" alt="Logo">
+                    </a>
+
+                    <!-- Logo Small -->
+                    <a href="index.html" class="logo-small">
+                        <img src="assets/img/logo-small.svg" alt="Logo">
+                    </a>
+
+                    <!-- Logo Dark -->
+                    <a href="index.html" class="dark-logo">
+                        <img src="assets/img/logo-white.svg" alt="Logo">
+                    </a>
+                </div>
+                <button class="sidenav-toggle-btn btn border-0 p-0 active" id="toggle_btn" aria-label="toggle"> 
+                    <i class="icon icon-panel-right-open align-middle"></i>
+                </button> 
+
+                <!-- Sidebar Menu Close -->
+                <button type="button" class="sidebar-close" aria-label="close">
+                    <i class="icon icon-x align-middle"></i>
+                </button>                
+            </div>
+            <!-- End Logo -->
+
+            <!-- Sidenav Menu -->
+            <div class="sidebar-inner" data-simplebar>                
+                <div id="sidebar-menu" class="sidebar-menu">
+
+                    <ul role="menu" aria-label="Main navigation menu">
+                        <li class="menu-title" aria-disabled="true"><span>Main</span></li>
+
+                        <li class="submenu">
+                            <a href="#" class="active subdrop">
+                                <i class="ph-duotone ph-squares-four"></i><span>Dashboard</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="index.html" class="active">HRM Dashboard</a></li>
+                                <li><a href="inventory-dashboard.html">Inventory Dashboard</a></li>
+                                <li><a href="crm-dashboard.html">CRM Dashboard</a></li>
+                                <li><a href="pos-dashboard.html">POS Dashboard</a></li>
+                                <li><a href="finance-dashboard.html">Finance Dashboard</a></li>
+                                <li><a href="sales-dashboard.html">Sales Dashboard</a></li>
+                                <li><a href="procurement-dashboard.html">Procurement Dashboard</a></li>
+                                <li><a href="project-dashboard.html">Project Dashboard</a></li>
+                                <li><a href="support-dashboard.html">Support Dashboard</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-house"></i><span>Applications</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="chat.html">Chat</a></li>
+                                <li class="submenu submenu-two">
+                                    <a href="#">Calls<span class="menu-arrow inside-submenu"></span></a>
+                                    <ul>
+                                        <li><a href="voice-call.html">Voice Call</a></li>
+                                        <li><a href="video-call.html">Video Call</a></li>
+                                    </ul>
+                                </li>
+                                <li><a href="calendar.html">Calendar</a></li>	
+                                <li><a href="email.html">Email</a></li>
+                                <li><a href="file-manager.html">File Manager</a></li>
+                                <li><a href="notes.html">Notes</a></li>	
+                                <li><a href="todo.html">To Do</a></li>
+                                <li><a href="workflow-approvals.html">Workflow & Approvals</a></li>
+                            </ul>  
+                        </li>      
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-cube"></i><span>Layouts</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="layout-mini.html">Mini Sidebar</a></li>
+                                <li><a href="layout-hoverview.html">Hover View</a></li>
+                                <li><a href="layout-hidden.html">Hidden Menu</a></li>
+                                <li><a href="layout-fullwidth.html">Full Width</a></li>
+                                <li><a href="layout-rtl.html">RTL</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Inventory</span></li>
+
+                        <li>
+                            <a href="products.html">
+                                <i class="ph-duotone ph-cube"></i><span>Products</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="categories.html">
+                                <i class="ph-duotone ph-envelope"></i><span>Categories</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="brands.html">
+                                <i class="ph-duotone ph-triangle"></i><span>Brands</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="units.html">
+                                <i class="ph-duotone ph-compass"></i><span>Units</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="inventory.html">
+                                <i class="ph-duotone ph-subtract"></i><span>Inventory</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="suppliers.html">
+                                <i class="ph-duotone ph-user"></i><span>Suppliers</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="warehouse.html">
+                                <i class="ph-duotone ph-house-simple"></i><span>Warehouse</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-arrow-square-out"></i><span>Stock</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="manage-stock.html">Manage Stock</a></li>
+                                <li><a href="stock-adjustment.html">Stock Adjustment</a></li>
+                                <li><a href="stock-transfer.html">Stock Transfer</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Sales</span></li>
+
+                        <li>
+                            <a href="customers.html">
+                                <i class="ph-duotone ph-address-book"></i><span>Customers</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-orders.html" data-sidebar-group="sales-orders">
+                                <i class="ph-duotone ph-stack"></i><span>Sales Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="recurring-invoices.html" data-sidebar-group="recurring-invoices">
+                                <i class="ph-duotone ph-note"></i><span>Recurring Invoices</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="invoice-templates.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Invoice Templates</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="credit-notes.html" data-sidebar-group="credit-notes">
+                                <i class="ph-duotone ph-money-wavy"></i><span>Credit Notes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-quotes.html">
+                                <i class="ph-duotone ph-notification"></i><span>Sales Quotes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="cash-sales.html">
+                                <i class="ph-duotone ph-wallet"></i><span>Cash Sales</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="refunds.html">
+                                <i class="ph-duotone ph-currency-circle-dollar"></i><span>Refunds</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="delivery-notes.html" data-sidebar-group="delivery-notes">
+                                <i class="ph-duotone ph-file"></i><span>Delivery Notes</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sales-analytics.html">
+                                <i class="ph-duotone ph-tray"></i><span>Sales Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Purchase</span></li>
+
+                        <li>
+                            <a href="purchases.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Purchases</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="purchase-orders.html">
+                                <i class="ph-duotone ph-note"></i><span>Purchase Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="purchase-return.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Purchase Return</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="vendors.html">
+                                <i class="ph-duotone ph-users"></i><span>Vendors</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="procurement-analytics.html">
+                                <i class="ph-duotone ph-package"></i><span>Procurement Analytics</span>
+                            </a>
+                        </li>
+
+<li class="menu-title" aria-disabled="true"><span>Finance</span></li>
+
+                        <li>
+                            <a href="expenses.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Expenses</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="expense-category.html">
+                                <i class="ph-duotone ph-receipt"></i><span>Expense Category</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="payments.html">
+                                <i class="ph-duotone ph-credit-card"></i><span>Payments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="cashflow.html">
+                                <i class="ph-duotone ph-trend-up"></i><span>Cashflow</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="budgeting.html">
+                                <i class="ph-duotone ph-chart-bar"></i><span>Budgeting</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="taxes.html">
+                                <i class="ph-duotone ph-percent "></i><span>Taxes</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-chart-pie-slice"></i><span>Reports</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="expense-summary.html">Expense Summary</a></li>
+                                <li><a href="income-summary.html">Income Summary</a></li>
+                                <li><a href="profit-loss.html">Profit & Loss</a></li>
+                                <li><a href="income-expense.html">Income vs Expense</a></li>
+                                <li><a href="tax-summary.html">Tax Summary</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>HRM</span></li>
+
+                        <li>
+                            <a href="employees-grid.html" data-sidebar-group="employees">
+                                <i class="ph-duotone ph-user-square"></i><span>Employees</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="departments.html">
+                                <i class="ph-duotone ph-buildings"></i><span>Departments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="designations-roles.html">
+                                <i class="ph-duotone ph-user-check"></i><span>Designations / Roles</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="attendance.html">
+                                <i class="ph-duotone ph-calendar-check"></i><span>Attendance</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-calendar-plus"></i><span>Leave</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="leave.html">Leaves</a></li>
+                                <li><a href="leave-types.html">Leave Types</a></li>
+                            </ul>
+                        </li>
+
+                        <li>
+                            <a href="holidays.html">
+                                <i class="ph-duotone ph-squares-four"></i><span>Holidays</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="payroll.html" data-sidebar-group="payroll">
+                                <i class="ph-duotone ph-money-wavy"></i><span>Payroll</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="recruitment.html" data-sidebar-group="recruitment">
+                                <i class="ph-duotone ph-users-three"></i><span>Recruitment</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="performance-appraisal.html">
+                                <i class="ph-duotone ph-seal-check"></i><span>Performance & Appraisal</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="training-development.html">
+                                <i class="ph-duotone ph-shield-check"></i><span>Training & Development</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="hr-analytics.html">
+                                <i class="ph-duotone ph-chart-line-up"></i><span>HR Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>CRM</span></li>
+
+                        <li>
+                            <a href="contacts-grid.html" data-sidebar-group="contacts">
+                                <i class="ph-duotone ph-users"></i><span>Contacts</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="leads-grid.html" data-sidebar-group="leads">
+                                <i class="ph-duotone ph-user-square"></i><span>Leads</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="deals-grid.html" data-sidebar-group="deals">
+                                <i class="ph-duotone ph-handshake"></i><span>Deals</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="pipeline.html">
+                                <i class="ph-duotone ph-stack"></i><span>Pipeline</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="campaigns.html">
+                                <i class="ph-duotone ph-megaphone"></i><span>Campaigns</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="customer-feedback.html">
+                                <i class="ph-duotone ph-question"></i><span>Customer Feedback</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="customer-analytics.html">
+                                <i class="ph-duotone ph-chat-teardrop-text"></i><span>Customer Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Projects</span></li>
+
+                        <li>
+                            <a href="projects-grid.html" data-sidebar-group="projects">
+                                <i class="ph-duotone ph-folder-user"></i><span>Projects</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="tasks-grid.html" data-sidebar-group="tasks">
+                                <i class="ph-duotone ph-checks"></i><span>Tasks</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="timesheet.html">
+                                <i class="ph-duotone ph-clock"></i><span>Timesheet</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="milestones.html">
+                                <i class="ph-duotone ph-flag"></i><span>Milestones</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="resource-allocation.html">
+                                <i class="ph-duotone ph-users"></i><span>Resource Allocation</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="project-analytics.html">
+                                <i class="ph-duotone ph-note-pencil"></i><span>Project Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>POS</span></li>
+
+                        <li>
+                            <a href="pos.html">
+                                <i class="ph-duotone ph-monitor"></i><span>POS</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="pos-orders.html">
+                                <i class="ph-duotone ph-stack"></i><span>POS Orders</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="barcode-print.html">
+                                <i class="ph-duotone ph-barcode"></i><span>Barcode Print</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="qr-code-print.html">
+                                <i class="ph-duotone ph-qr-code"></i><span>QR Code Print</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="print-settings.html">
+                                <i class="ph-duotone ph-printer"></i><span>Print Settings</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Assets</span></li>
+
+                        <li>
+                            <a href="asset-register.html">
+                                <i class="ph ph-archive-box"></i><span>Asset Register</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="assignments.html">
+                                <i class="ph-duotone ph-stack"></i><span>Assignments</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="depreciation.html">
+                                <i class="ph-duotone ph-trend-down"></i><span>Depreciation</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="maintenance.html">
+                                <i class="ph-duotone ph-wrench"></i><span>Maintenance</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="disposal.html">
+                                <i class="ph-duotone ph-trash"></i><span>Disposal</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="asset-analytics.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Asset Analytics</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Documents</span></li>
+
+                        <li>
+                            <a href="document-repository.html">
+                                <i class="ph-duotone ph-user"></i><span>Document Repository</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="policies-manuals.html">
+                                <i class="ph-duotone ph-stack"></i><span>Policies & Manuals</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="compliance-docs.html">
+                                <i class="ph-duotone ph-gear"></i><span>Compliance Docs</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="document-workflows.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Document Workflows</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Support</span></li>
+
+                        <li>
+                            <a href="contact-messages.html">
+                                <i class="ph-duotone ph-user"></i><span>Contact Messages</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="tickets.html">
+                                <i class="ph-duotone ph-stack"></i><span>Tickets</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="knowledge-base.html">
+                                <i class="ph-duotone ph-gear"></i><span>Knowledge Base</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="sla-management.html">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>SLA Management</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>Membership</span></li>
+
+                        <li>
+                            <a href="membership-plans.html" data-sidebar-group="membership-plans">
+                                <i class="ph-duotone ph-user"></i><span>Membership Plans</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="membership-addons.html">
+                                <i class="ph-duotone ph-stack"></i><span>Membership Addons</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="transactions.html">
+                                <i class="ph-duotone ph-gear"></i><span>Transactions</span>
+                            </a>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>System</span></li>
+
+                        <li>
+                            <a href="user-management.html">
+                                <i class="ph-duotone ph-user"></i><span>User Management</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="roles-permissions.html">
+                                <i class="ph-duotone ph-stack"></i><span>Roles & Permissions</span>
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="delete-requests.html">
+                                <i class="ph-duotone ph-gear"></i><span>Delete Requests</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-clipboard-text"></i><span>Settings</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="general-settings.html">General</a></li>
+                                <li><a href="security-settings.html">Security</a></li>
+                                <li><a href="notifications-settings.html">Notifications</a></li>
+                                <li><a href="integrations-settings.html">Integrations</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="menu-title" aria-disabled="true"><span>PAGES</span></li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-user"></i><span>Authentication</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>    
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Login
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="login-cover.html">Cover</a></li>
+                                        <li><a href="login-illustration.html">Illustration</a></li>
+                                        <li><a href="login.html">Basic</a></li>
+                                    </ul>
+                                </li>
+                        
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Register
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="register-cover.html">Cover</a></li>
+                                        <li><a href="register-illustration.html">Illustration</a></li>
+                                        <li><a href="register.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Forgot Password
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="forgot-password-cover.html">Cover</a></li>
+                                        <li><a href="forgot-password-illustration.html">Illustration</a></li>
+                                        <li><a href="forgot-password.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                                <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Reset Password
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="reset-password-cover.html">Cover</a></li>
+                                        <li><a href="reset-password-illustration.html">Illustration</a></li>
+                                        <li><a href="reset-password.html">Basic</a></li>
+                                    </ul>
+                                </li>
+
+                            <li class="submenu submenu-two">
+                                    <a href="#">
+                                        Email Verification
+                                        <span class="menu-arrow inside-submenu"></span>
+                                    </a>
+                                    <ul>
+                                        <li><a href="email-verification-cover.html">Cover</a></li>
+                                        <li><a href="email-verification-illustration.html">Illustration</a></li>
+                                        <li><a href="email-verification.html">Basic</a></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>    
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-warning-circle"></i><span>Error Pages</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="error-404.html">Error 404</a></li>
+                                <li><a href="error-500.html">Error 500</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-wrench"></i><span>Utilities</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="blank-page.html">Blank Page</a></li>
+                                <li><a href="coming-soon.html">Coming Soon</a></li>
+                            </ul>
+                        </li>   
+
+                        <li class="menu-title" aria-disabled="true"><span>UI Interface</span></li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-squares-four"></i><span>Base UI</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="ui-alerts.html">Alerts</a></li>
+                                <li><a href="ui-accordion.html">Accordion</a></li>
+                                <li><a href="ui-avatar.html">Avatar</a></li>
+                                <li><a href="ui-badges.html">Badges</a></li>
+                                <li><a href="ui-buttons.html">Buttons</a></li>
+                                <li><a href="ui-buttons-group.html">Button Group</a></li>
+                                <li><a href="ui-breadcrumb.html">Breadcrumb</a></li>
+                                <li><a href="ui-cards.html">Card</a></li>
+                                <li><a href="ui-colors.html">Colors</a></li>
+                                <li><a href="ui-collapse.html">Collapse</a></li>
+                                <li><a href="ui-dropdowns.html">Dropdowns</a></li>
+                                <li><a href="ui-grid.html">Grid</a></li>
+                                <li><a href="ui-images.html">Images</a></li>
+                                <li><a href="ui-modals.html">Modals</a></li>
+                                <li><a href="ui-offcanvas.html">Offcanvas</a></li>
+                                <li><a href="ui-pagination.html">Pagination</a></li>
+                                <li><a href="ui-popovers.html">Popovers</a></li>
+                                <li><a href="ui-progress.html">Progress</a></li>
+                                <li><a href="ui-nav-tabs.html">Tabs</a></li>
+                                <li><a href="ui-typography.html">Typography</a></li>
+                            </ul>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-shooting-star"></i><span>Advanced UI</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="ui-dragula.html">Dragula</a></li>
+                                <li><a href="ui-clipboard.html">Clipboard</a></li>
+                                <li><a href="ui-rangeslider.html">Range Slider</a></li>
+                                <li><a href="ui-lightbox.html">Lightbox</a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-note-pencil"></i><span>Forms</span><span class="menu-arrow"></span>
+                            </a>
+                                    <ul>
+                                        <li><a href="form-elements.html">Form Elements</a></li>
+                                        <li><a href="form-select2.html">Select2</a></li>
+                                        <li><a href="form-editors.html">Form Editor</a></li>
+                                        <li><a href="form-pickers.html">Form Picker</a></li>
+                                    </ul>
+                                </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-table"></i><span>Tables</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="tables-basic.html">Basic Tables </a></li>
+                                <li><a href="data-tables.html">Data Table </a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-chart-pie-slice"></i><span>Charts</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="chart-apex.html">Apex Charts</a></li>
+                                <li><a href="chart-js.html">Chart Js</a></li>
+                            </ul>
+                        </li> 
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-shapes"></i><span>Icons</span><span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="icon-fontawesome.html">Fontawesome Icons</a></li>
+                                <li><a href="icon-tabler.html">Tabler Icons</a></li>
+                                <li><a href="icon-lucide.html">Lucide</a></li>
+                                <li><a href="icon-phosphor.html">Phosphor</a></li>
+                            </ul>
+                        </li>  
+
+                        <li class="menu-title" aria-disabled="true"><span>HELP</span></li>
+
+                        <li>
+                            <a href="https://dreamserp.dreamstechnologies.com/documentation/index.html" target="_blank"><i class="ph-duotone ph-file-text"></i><span>Documentation</span></a>
+                        </li> 
+
+                        <li>
+                            <a href="https://dreamserp.dreamstechnologies.com/documentation/changelog.html" target="_blank"><i class="ph-duotone ph-git-branch"></i>
+                                <span>Changelog</span>
+                            </a>
+                        </li>
+
+                        <li class="submenu">
+                            <a href="#">
+                                <i class="ph-duotone ph-list-numbers"></i><span>Multi Level</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="#">Multilevel 1</a></li>
+                                <li class="submenu submenu-two">
+                                    <a href="#">Multilevel 2<span class="menu-arrow inside-submenu"></span></a>
+                                    <ul>
+                                        <li><a href="#">Multilevel 2.1</a></li>
+                                        <li class="submenu submenu-two submenu-three">
+                                            <a href="#">Multilevel 2.2<span class="menu-arrow inside-submenu inside-submenu-two"></span></a>
+                                            <ul>
+                                                <li><a href="#">Multilevel 2.2.1</a></li>
+                                                <li><a href="#">Multilevel 2.2.2</a></li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                                <li><a href="#">Multilevel 3</a></li>
+                            </ul>
+                        </li>
+
+                    </ul>                   
+                </div>
+            </div>
+
+        </aside>
+        <!-- Sidenav Menu End -->
+
+		<!-- Start Page Content -->
+		<div class="page-wrapper">
+
+			<main>
+
+				<div class="p-3 lg:py-6 lg:px-0">
+                    
+					<div class="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-6">
+						<h1 class="text-gray-900 text-xl font-bold mb-0">Procurement Dashboard</h1>
+						<div class="flex items-center gap-2">
+							<div class="relative rangepicker-input w-[174px] h-[28px] leading-none">
+								<span class="absolute inset-y-0 left-0 flex items-center px-3 text-muted-foreground text-dark text-xs!">
+									<i class="icon-calendar"></i>
+								</span>
+								<input type="text" class="form-input text-xs! h-[28px] inline-block w-full bg-light border-border-color rounded-lg focus:ring-0 disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus:border-border-color pl-8! ps-8!" data-provider="flatpickr" data-date-format="d M y" data-range-date="true" value="01 Jan 26 to 20 Jan 26" id="picker">
+							</div>
+							<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+								<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+									<i class="icon-download font-normal"></i>  Export <i class="icon-chevron-down"></i>
+								</button>
+
+								<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+									<div class="p-2 space-y-1"> 
+										<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+											Export as PDF
+										</a>
+										<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+											Export as Excel
+										</a>  
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Row 1: 4 KPI sparkline cards -->
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
+						<div class="bg-white border border-border-color rounded-md p-4 overflow-hidden">
+							<div class="flex items-center gap-3 mb-2">
+								<div class="size-10 rounded-full bg-success flex items-center justify-center shrink-0">
+									<i class="ph-duotone ph-user-circle text-white text-lg"></i>
+								</div>
+									<div class="min-w-0"><p class="text-xs text-default mb-1">Total Spend</p>
+										<div class="text-xl font-bold text-gray-900 mb-0">$2,145</div>
+									</div>
+								</div>
+							<div id="proc-spark-1" class="-mx-4 -mb-4"></div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 overflow-hidden">
+							<div class="flex items-center gap-3 mb-2">
+								<div class="size-10 rounded-full bg-purple flex items-center justify-center shrink-0">
+									<i class="ph-duotone ph-info text-white text-lg"></i>
+								</div>
+								<div class="min-w-0">
+									<p class="text-xs text-default mb-1">Purchase Orders</p><div class="text-xl font-bold text-gray-900 mb-0">128</div>
+								</div>
+							</div>
+							<div id="proc-spark-2" class="-mx-4 -mb-4"></div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 overflow-hidden">
+							<div class="flex items-center gap-3 mb-2">
+								<div class="size-10 rounded-full bg-orange flex items-center justify-center shrink-0">
+									<i class="ph-duotone ph-clock text-white text-lg"></i>
+								</div>
+								<div class="min-w-0"><p class="text-xs text-default mb-1">On Time Delivery</p>
+									<div class="text-xl font-bold text-gray-900 mb-0">88%</div>
+								</div>
+							</div>
+							<div id="proc-spark-3" class="-mx-4 -mb-4"></div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 overflow-hidden">
+							<div class="flex items-center gap-3 mb-2">
+								<div class="size-10 rounded-full bg-pink flex items-center justify-center shrink-0">
+									<i class="ph-duotone ph-credit-card text-white text-lg"></i>
+								</div>
+								<div class="min-w-0"><p class="text-xs text-default mb-1">Avg PO Value</p>
+									<div class="text-xl font-bold text-gray-900 mb-0">$600</div>
+								</div>
+							</div>
+							<div id="proc-spark-4" class="-mx-4 -mb-4"></div>
+						</div>
+					</div>
+
+					<!-- Row 2: Top Suppliers + Monthly Spend Trend -->
+					<div class="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
+						<div class="bg-white border border-border-color rounded-md p-4 xl:col-span-5">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Top Suppliers</h2>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										2026 <i class="icon-chevron-down"></i>
+									</button>
+
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1"> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2026
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2025
+											</a> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2024
+											</a> 
+										</div>
+									</div>
+								</div>
+							</div>
+							<div id="proc-top-suppliers-chart"></div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 xl:col-span-7">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Monthly Spend Trend</h2>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										January <i class="icon-chevron-down"></i>
+									</button>
+
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1"> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												January
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												February
+											</a> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												March
+											</a> 
+										</div>
+									</div>
+								</div>
+							</div>
+							<div id="proc-monthly-spend-chart"></div>
+						</div>
+					</div>
+
+					<!-- Row 3: Payments + Top Orders -->
+					<div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-3">
+
+						<div class="bg-white border border-border-color rounded-md p-4 lg:col-span-4">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Payments</h2>
+								<a href="procurement-analytics.html" class="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i class="icon-chevron-right"></i></a>
+							</div>
+							<div class="space-y-3">
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2 min-w-0">
+										<img src="assets/img/avatar/avatar-03.jpg" class="size-9 rounded-full border border-border-color shrink-0" alt="user">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold text-title truncate mb-0">Robert Cosper</p>
+											<p class="text-[11px] text-default mb-0"><a href="#">#CUS0020</a></p>
+										</div>
+									</div>
+									<div class="text-end">
+										<p class="text-xs font-semibold text-title mb-0">$2,300</p>
+										<span class="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded">Paid</span>
+									</div>
+								</div>
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2 min-w-0">
+										<img src="assets/img/avatar/avatar-04.jpg" class="size-9 rounded-full border border-border-color shrink-0" alt="user">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold text-title truncate mb-0">Helen Nelson</p>
+											<p class="text-[11px] text-default mb-0"><a href="#">#CUS0019</a></p>
+										</div>
+									</div>
+									<div class="text-end">
+										<p class="text-xs font-semibold text-title mb-0">$3,600</p>
+										<span class="text-[10px] bg-warning-transparent text-warning px-1.5 py-0.5 rounded">Pending</span>
+									</div>
+								</div>
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2 min-w-0">
+										<img src="assets/img/avatar/avatar-05.jpg" class="size-9 rounded-full border border-border-color shrink-0" alt="user">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold text-title truncate mb-0">Thomas Neal</p>
+											<p class="text-[11px] text-default mb-0"><a href="#">#CUS0018</a></p>
+										</div>
+									</div>
+									<div class="text-end">
+										<p class="text-xs font-semibold text-title mb-0">$4,100</p>
+										<span class="text-[10px] bg-danger-transparent text-danger px-1.5 py-0.5 rounded">Failed
+										</span>
+									</div>
+									</div>
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2 min-w-0">
+										<img src="assets/img/avatar/avatar-06.jpg" class="size-9 rounded-full border border-border-color shrink-0" alt="user">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold text-title truncate mb-0">Sarah Spivey</p>
+											<p class="text-[11px] text-default mb-0"><a href="#">#CUS0017</a></p>
+										</div>
+									</div>
+									<div class="text-end">
+										<p class="text-xs font-semibold text-title mb-0">$1,500</p>
+										<span class="text-[10px] bg-success-transparent text-success px-1.5 py-0.5 rounded">Paid
+										</span>
+									</div>
+								</div>
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2 min-w-0">
+										<img src="assets/img/avatar/avatar-07.jpg" class="size-9 rounded-full border border-border-color shrink-0" alt="user">
+										<div class="min-w-0">
+											<p class="text-xs font-semibold text-title truncate mb-0">Jared Griffin</p>
+											<p class="text-[11px] text-default mb-0"><a href="#">#CUS0016</a></p>
+										</div>
+									</div>
+									<div class="text-end">
+										<p class="text-xs font-semibold text-title mb-0">$2,700</p>
+										<span class="text-[10px] bg-warning-transparent text-warning px-1.5 py-0.5 rounded">Pending</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="bg-white border border-border-color rounded-md p-4 lg:col-span-8">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Top Orders</h2>
+								<a href="procurement-analytics.html" class="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i class="icon-chevron-right"></i>
+								</a>
+							</div>
+							<div class="overflow-x-auto">
+								<table class="w-full text-sm">
+									<thead>
+										<tr class="text-xs text-default border-b border-border-color">
+											<th class="text-left py-2 px-2 font-semibold text-gray-900">ID</th>
+											<th class="text-left py-2 px-2 font-semibold text-gray-900">Supplier</th>
+											<th class="text-left py-2 px-2 font-semibold text-gray-900">Category</th>
+											<th class="text-left py-2 px-2 font-semibold text-gray-900">Amount</th>
+											<th class="text-left py-2 px-2 font-semibold text-gray-900">Status</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr class="border-b border-border-color last:border-0">
+											<td class="py-2.5 px-2 text-xs text-default"><a href="#">#ORD0020</a></td>
+											<td class="py-2.5 px-2">
+												<div class="flex items-center gap-2">
+												    <div class="size-7 rounded-md bg-success-transparent flex items-center justify-center">
+													    <i class="ph-duotone ph-buildings text-success"></i>
+												   </div>
+												   <span class="text-xs font-semibold text-title">Alpha Distributors</span>
+											    </div>
+										    </td>
+											<td class="py-2.5 px-2 text-xs text-default">Raw Materials</td>
+												<td class="py-2.5 px-2 text-xs text-gray-900">$500</td>
+											<td class="py-2.5 px-2">
+												<span class="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Delivered 
+												<i class="ph ph-check text-[10px] ms-1"></i></span>
+											</td>
+										</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#ORD0019</a></td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+												<div class="size-7 rounded-md bg-orange-transparent flex items-center justify-center">
+													<i class="ph-duotone ph-storefront text-orange"></i>
+												</div>
+												<span class="text-xs font-semibold text-title">Beta Industries</span>
+											</div>
+										</td>
+										<td class="py-2.5 px-2 text-xs text-default">IT Equipment</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">$650</td>
+										<td class="py-2.5 px-2">
+											<span class="inline-flex items-center text-[11px] bg-warning-transparent text-warning px-2 py-0.5 rounded">
+												Pending <i class="ph ph-clock text-[10px] ms-1"></i>
+											</span>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#ORD0018</a></td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+												<div class="size-7 rounded-md bg-info-transparent flex items-center justify-center">
+													<i class="ph-duotone ph-leaf text-info"></i>
+												</div>
+												<span class="text-xs font-semibold text-title">Zenith Supplies</span>
+											</div>
+										</td>
+										<td class="py-2.5 px-2 text-xs text-default">IT Equipment</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">$120</td>
+										<td class="py-2.5 px-2">
+											<span class="inline-flex items-center text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">
+												In Transit <i class="ph ph-truck text-[10px] ms-1"></i>
+											</span>
+										</td>
+									</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#ORD0017</a></td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+												<div class="size-7 rounded-md bg-purple-transparent flex items-center justify-center">
+													<i class="ph-duotone ph-circle text-purple"></i>
+												</div>
+												<span class="text-xs font-semibold text-title">Orion Equipments</span>
+											</div>
+										</td>
+										<td class="py-2.5 px-2 text-xs text-default">Office Supplies</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">$860</td>
+										<td class="py-2.5 px-2">
+											<span class="inline-flex items-center text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">
+												Delivered <i class="ph ph-check text-[10px] ms-1"></i>
+											</span>
+										</td>
+									</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+
+					</div>
+
+					<!-- Row 4: Supplier Performance + Spend by Category + Order Status -->
+					<div class="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
+						<div class="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-12">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Supplier Performance</h2>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										2026 <i class="icon-chevron-down"></i>
+									</button>
+
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1"> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2026
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2025
+											</a> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												2024
+											</a> 
+										</div>
+									</div>
+								</div>
+							</div>
+							<div id="proc-supplier-perf-chart"></div>
+							<div class="flex items-center justify-center gap-4 mt-2 text-[11px]"><div class="flex items-center gap-1"><span class="size-2 rounded-full bg-info"></span><span class="text-default">Quality</span></div><div class="flex items-center gap-1"><span class="size-2 rounded-full bg-orange"></span><span class="text-default">Cost Efficiency</span></div></div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-6">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Spend by Category</h2>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										Weekly <i class="icon-chevron-down"></i>
+									</button>
+
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1"> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Weekly
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Monthly
+											</a> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Yearly
+											</a> 
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="flex items-center justify-center">
+								<div id="proc-spend-cat-chart"></div> 
+							</div>
+							<div class="space-y-1.5 mt-3">
+								<div class="flex items-center justify-between gap-2 text-[11px]"><div class="flex items-center gap-2"><span class="size-2 rounded-full bg-success"></span><span class="text-default">Clothing</span></div><span class="font-semibold text-gray-900">42%</span></div>
+								<div class="flex items-center justify-between gap-2 text-[11px]"><div class="flex items-center gap-2"><span class="size-2 rounded-full bg-orange"></span><span class="text-default">Beauty Products</span></div><span class="font-semibold text-gray-900">38%</span></div>
+								<div class="flex items-center justify-between gap-2 text-[11px]"><div class="flex items-center gap-2"><span class="size-2 rounded-full bg-info"></span><span class="text-default">Electronics</span></div><span class="font-semibold text-gray-900">20%</span></div>
+							</div>
+						</div>
+						<div class="bg-white border border-border-color rounded-md p-4 xxl:col-span-4 xl:col-span-6">
+							<div class="flex items-center justify-between mb-3">
+								<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Order Status</h2>
+								<div class="hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative inline-flex">
+									<button type="button" class="hs-dropdown-toggle cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white focus:bg-primary focus:border-primary focus:text-white  focus:outline-hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+										Weekly <i class="icon-chevron-down"></i>
+									</button>
+
+									<div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 bg-white border border-border-color shadow rounded-md mt-2 z-1" role="menu" aria-orientation="vertical" tabindex="-1">
+										<div class="p-2 space-y-1"> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Weekly
+											</a>
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Monthly
+											</a> 
+											<a class="flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 hover:bg-light hover:text-gray-900 focus:outline-hidden focus:bg-white" href="#">
+												Yearly
+											</a> 
+										</div>
+									</div>
+								</div>
+							</div>
+							<div id="proc-order-status-chart" class="flex justify-center"></div>
+							<div class="grid grid-cols-2 gap-2 mt-3">
+								<div class="flex items-center gap-2 text-[11px]"><span class="size-2 rounded-full bg-success"></span><span class="text-default">Approved</span></div>
+								<div class="flex items-center gap-2 text-[11px]"><span class="size-2 rounded-full bg-orange"></span><span class="text-default">Pending</span></div>
+								<div class="flex items-center gap-2 text-[11px]"><span class="size-2 rounded-full bg-info"></span><span class="text-default">Delivered</span></div>
+								<div class="flex items-center gap-2 text-[11px]"><span class="size-2 rounded-full bg-danger"></span><span class="text-default">Rejected</span></div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Row 5: Recent Procurement Activity -->
+					<div class="bg-white border border-border-color rounded-md p-4">
+						<div class="flex items-center justify-between mb-3 flex-wrap gap-3">
+							<h2 class="text-lg max-lg:text-[17px] text-title mb-0">Recent Procurement Activity</h2>
+							<a href="procurement-analytics.html" class="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary">View All <i class="icon-chevron-right"></i></a></div>
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead><tr class="text-xs text-default border-b border-border-color">
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">ID</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Supplier</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Requestor</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Purchase ID</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Ordered Qty</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Delivered Qty</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Delivery Date</th>
+									<th class="text-left py-2 px-2 font-semibold text-gray-900">Status</th>
+								</tr>
+							</thead>
+								<tbody>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#PAR0020</a></td>
+										<td class="py-2.5 px-2 text-xs font-semibold text-title">Alpha Distributors</td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+												<img src="assets/img/avatar/avatar-03.jpg" class="size-7 rounded-full border border-border-color shrink-0" alt="user">
+												<span class="text-xs font-semibold text-title">Alexander Kenn</span>
+											</div></td>
+											<td class="py-2.5 px-2 text-xs text-default"><a href="#">#POD0020</a></td>
+											<td class="py-2.5 px-2 text-xs text-gray-900">02</td>
+											<td class="py-2.5 px-2 text-xs text-gray-900">02</td>
+											<td class="py-2.5 px-2 text-xs text-default">11 Sep 2025</td>
+											<td class="py-2.5 px-2">
+												<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Delivered</span>
+											</td>
+										</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#PAR0019</a></td>
+										<td class="py-2.5 px-2 text-xs font-semibold text-title">Beta Industries</td>
+										<td class="py-2.5 px-2"><div class="flex items-center gap-2">
+											<img src="assets/img/avatar/avatar-04.jpg" class="size-7 rounded-full border border-border-color shrink-0" alt="user">
+											<span class="text-xs font-semibold text-title">Gabriella White</span>
+										</div></td>
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#POD0019</a></td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">03</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">03</td>
+										<td class="py-2.5 px-2 text-xs text-default">05 Sep 2025</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Delivered</span></td>
+										</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#PAR0018</a></td>
+										<td class="py-2.5 px-2 text-xs font-semibold text-title">Zenith Supplies</td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+												<img src="assets/img/avatar/avatar-05.jpg" class="size-7 rounded-full border border-border-color shrink-0" alt="user">
+												<span class="text-xs font-semibold text-title">Christopher Rey</span>
+											</div></td>
+											<td class="py-2.5 px-2 text-xs text-default"><a href="#">#POD0018</a></td>
+											<td class="py-2.5 px-2 text-xs text-gray-900">05</td>
+											<td class="py-2.5 px-2 text-xs text-gray-900">05</td>
+											<td class="py-2.5 px-2 text-xs text-default">27 Aug 2025</td>
+											<td class="py-2.5 px-2">
+												<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Delivered</span>
+											</td>
+											</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#PAR0017</a></td>
+										<td class="py-2.5 px-2 text-xs font-semibold text-title">Orion Equipments</td>
+										<td class="py-2.5 px-2"><div class="flex items-center gap-2">
+											<img src="assets/img/avatar/avatar-06.jpg" class="size-7 rounded-full border border-border-color shrink-0" alt="user">
+											<span class="text-xs font-semibold text-title">Penelope Ton</span>
+										</div></td><td class="py-2.5 px-2 text-xs text-default"><a href="#">#POD0017</a></td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">10</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">04</td>
+										<td class="py-2.5 px-2 text-xs text-default">16 Aug 2025</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-info-transparent text-info px-2 py-0.5 rounded">Partially Delivered</span>
+										</td>
+										</tr>
+									<tr class="border-b border-border-color last:border-0">
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#PAR0011</a></td>
+										<td class="py-2.5 px-2 text-xs font-semibold text-title">Stellar Tools</td>
+										<td class="py-2.5 px-2">
+											<div class="flex items-center gap-2">
+											<img src="assets/img/avatar/avatar-07.jpg" class="size-7 rounded-full border border-border-color shrink-0" alt="user">
+											<span class="text-xs font-semibold text-title">Catherine Lan</span>
+										</div></td>
+										<td class="py-2.5 px-2 text-xs text-default"><a href="#">#POD0011</a></td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">07</td>
+										<td class="py-2.5 px-2 text-xs text-gray-900">07</td>
+										<td class="py-2.5 px-2 text-xs text-default">18 May 2025</td>
+										<td class="py-2.5 px-2">
+											<span class="text-[11px] bg-success-transparent text-success px-2 py-0.5 rounded">Delivered</span>
+										</td>
+										</tr>
+								</tbody>
+							</table>
+						</div>
+					</div>
+
+				</div>
+			</main>
+
+			<!-- Footer -->
+            <footer class="footer px-6 pb-3 flex items-center justify-center gap-2">
+                <p>2026 &copy; Dreams ERP. All Rights Reserved</p>
+            </footer>
+            <!-- End Footer -->
+
+		</div>
+		<!-- End Page Content -->
+
+	</div>
+	<!-- End Main Wrapper -->
+
+	<!-- Simplebar JS -->
+    <script  src="assets/libs/simplebar/simplebar.min.js"></script>
+
+    <!-- Preline JS -->
+    <script src="assets/libs/preline/preline.js"></script>
+
+    <!-- Apexcharts JS -->
+    <script src="assets/libs/apexcharts/apexcharts.min.js"></script>
+    <script src="assets/js/apex-chart-data.js"></script>
+
+    <!-- Flatpickr JS -->
+    <script src="assets/libs/flatpickr/flatpickr.min.js"></script>
+
+    <!-- Custom JS -->
+
+</body>
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/procurement-dashboard.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:32 GMT -->
+</html>

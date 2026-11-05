@@ -9,6 +9,7 @@ import { NotificationService } from "./services/notification.service";
 import { PusherService } from "./services/pusher.service";
 import { IncomingCallPushService } from "./services/incoming-call-push.service";
 import { CallLifecycleService } from "./services/call-lifecycle.service";
+import { MeetingSfuService } from "./services/meeting-sfu.service";
 
 let ioInstance: SocketIOServer | null = null;
 const tenantPresence = new Map<string, Map<string, number>>();
@@ -1319,6 +1320,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         if (session) {
           const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
           ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+        }
+
+        // Phase C3: Broadcast SFU upgrade for 3+ participant calls
+        const sfuRoom = MeetingSfuService.formatCallRoomName(tenantId, callId);
+        socket.emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+        if (session) {
+          const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+          ioInstance?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
         }
 
         acknowledge?.({ success: true, data: result });

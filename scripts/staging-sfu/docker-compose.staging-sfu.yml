@@ -1,0 +1,44 @@
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    container_name: masterhrms_staging_sfu
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --node-ip ${NODE_IP:-127.0.0.1}
+    environment:
+      NODE_IP: "${NODE_IP:-127.0.0.1}"
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-secretkeysecretkeysecretkeysecretkey}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50050:50000-50050/udp"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:7880/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+
+  coturn:
+    image: coturn/coturn:4.6.3-alpine
+    container_name: masterhrms_staging_coturn
+    restart: unless-stopped
+    command:
+      - "-c"
+      - "/etc/coturn/turnserver.conf"
+      - "--static-auth-secret=${TURN_SHARED_SECRET:-staging_turn_shared_secret_masterhrms_2026}"
+      - "--realm=${TURN_REALM:-sfu-staging.masterhrms.com}"
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/tcp"
+      - "49152-49252:49152-49252/udp"
+    healthcheck:
+      test: ["CMD", "turnutils_stunclient", "127.0.0.1", "3478"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 2s

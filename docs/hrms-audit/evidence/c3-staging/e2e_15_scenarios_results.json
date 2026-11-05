@@ -1,0 +1,20 @@
+{
+  "scenarioResults": {
+    "01_twoParticipantsP2P": true,
+    "02_threeParticipantsSfuTransition": true,
+    "03_fiveParticipantsPubSub": true,
+    "04_midCallJoinDetected": true,
+    "05_midCallLeaveDetected": true,
+    "06_cameraOffAvatarFallback": true,
+    "07_cameraOnVideoRestored": true,
+    "08_micMuteUnmutePropagated": true,
+    "09_screenShareStartStop": true,
+    "10_screenShareOwnerDisconnectHandled": true,
+    "11_browserRefreshReconnect": true,
+    "12_networkInterruptionRecovery": true,
+    "13_organizerTermination": true,
+    "14_nonOrganizerLeaveRoomContinues": true,
+    "15_workspaceParity": true
+  },
+  "timestamp": "2026-11-05T05:40:52.378Z"
+}

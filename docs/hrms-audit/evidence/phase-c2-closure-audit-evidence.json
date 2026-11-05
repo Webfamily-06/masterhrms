@@ -1,0 +1,203 @@
+{
+  "auditMetadata": {
+    "auditName": "Phase C2 Closure Audit & C3 Readiness Assessment",
+    "timestamp": "2026-11-05T09:50:00.000Z",
+    "auditorRole": "Principal Software Architect, Senior Full-Stack Engineer, WebRTC Specialist, PostgreSQL Auditor, QA Automation Lead",
+    "git": {
+      "branch": "main",
+      "commit": "79998ccc6c7aeb32b21f85e1716c8ba59df6257f",
+      "workingTree": "clean"
+    },
+    "verdict": "CONDITIONAL PASS",
+    "verdictSummary": "Core C2 application features (adaptive video grid, camera-off fallback, deterministic avatar generation, screen-sharing canvas with replaceTrack, in-call colleague search, and 5-peer backend limit with multi-tenant isolation) are fully implemented and functionally robust. Historical data integrity is 100% verified (119 baseline records match SHA-256 bit-for-bit). However, the Playwright E2E test script contains 8 simulated or hardcoded assertions that inflate the 20/20 pass rate without full empirical browser validation."
+  },
+  "historicalDataIntegrity": {
+    "totalRecords": 123,
+    "baselinePreExistingRecords": 119,
+    "additivePostMigrationRecords": 4,
+    "baselineExpectedHash": "0a98ae9b0f186860a1fc99a1287f740b24b783a5b408d10a1f655f8d7c71dd3a",
+    "baselineComputedHash": "0a98ae9b0f186860a1fc99a1287f740b24b783a5b408d10a1f655f8d7c71dd3a",
+    "hashMatch": true,
+    "mutationsDetected": false,
+    "status": "PASS"
+  },
+  "e2eScenarioAudit": {
+    "totalScenarios": 20,
+    "verifiedByExecution": 11,
+    "verifiedBySourceInspectionSimulatedInTest": 8,
+    "failedScenarios": 0,
+    "scenarios": [
+      {
+        "id": 1,
+        "name": "Camera Toggle & Profile Picture Fallback",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "DOM attribute data-camera-off toggled to true and avatar container rendered in live browser context."
+      },
+      {
+        "id": 2,
+        "name": "Initials Fallback When No Profile Picture",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Deterministic two-letter initials evaluated and asserted in browser context."
+      },
+      {
+        "id": 3,
+        "name": "1-Participant Full-Stage Layout",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (SIMULATED IN TEST)",
+        "details": "Component implements grid-layout-1 for count <= 1, but test script hardcoded record(3, ..., true) without mounting 1-participant state."
+      },
+      {
+        "id": 4,
+        "name": "2-Participant Balanced 50/50 Split Layout",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Asserted data-testid='grid-layout-2' in live DOM during connected 2-party call."
+      },
+      {
+        "id": 5,
+        "name": "3-4 Participant Adaptive 2x2 Grid Layout",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (SOFT TEST ASSERTION)",
+        "details": "Socket event emitted, but assertion had fallback true. Source code verifies grid-layout-4 logic."
+      },
+      {
+        "id": 6,
+        "name": "5+ Participant Active-Speaker Stage + Filmstrip Layout",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (NOT GENUINELY EXECUTED IN TEST)",
+        "details": "Test script evaluated return true. Component implements grid-layout-5plus and participant-filmstrip in source."
+      },
+      {
+        "id": 7,
+        "name": "Screen Sharing Presentation Mode",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Triggered screenshare button, verified screen-share-stage in DOM, captured screenshot 05."
+      },
+      {
+        "id": 8,
+        "name": "Screen Sharing Native Stop (Restores Camera via replaceTrack)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Clicked stop sharing, verified screen stage exited cleanly and track restored."
+      },
+      {
+        "id": 9,
+        "name": "In-Call Colleague Search & Invite Dialog",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Opened modal, searched colleague, dispatched invite, asserted invited state, captured screenshot 04."
+      },
+      {
+        "id": 10,
+        "name": "Cross-Tenant Invitation Rejection (Security Boundary)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Dispatched HTTP POST to /api/calls/:callId/invite-colleague with cross-tenant userId; returned HTTP 403."
+      },
+      {
+        "id": 11,
+        "name": "Max Participants Enforcement (5 Peers P2P Limit)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (NOT GENUINELY EXECUTED IN TEST)",
+        "details": "Test script returned hardcoded object. Backend CallLifecycleService.addParticipantToActiveCall enforces limit >= 5 and throws CallConflictError."
+      },
+      {
+        "id": 12,
+        "name": "Speaking Indicator Audio Activity (Emerald Energy Ring)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (MOCKED IN TEST)",
+        "details": "Test script manually injected .ring-4.ring-emerald-500 into DOM. Frontend source code implements full Web Audio API AnalyserNode logic with average volume thresholding."
+      },
+      {
+        "id": 13,
+        "name": "Voice-Only Fallback on Camera Permission Denial",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (NOT TESTED IN SCRIPT)",
+        "details": "Test script hardcoded record(13, ..., true). Frontend catch blocks handle permission error and fall back to audio."
+      },
+      {
+        "id": 14,
+        "name": "Camera Switching Control via sender.replaceTrack",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (PARTIAL TEST)",
+        "details": "Checked button existence in DOM. ReplaceTrack logic verified in unified-chat-app.tsx."
+      },
+      {
+        "id": 15,
+        "name": "Participant INVITED Badge & Pending Tile",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION (NOT ASSERTED IN TEST)",
+        "details": "Test script hardcoded record(15, ..., true). AdaptiveVideoGrid component renders participant-invited-badge in source."
+      },
+      {
+        "id": 16,
+        "name": "Participant RECONNECTING Countdown Badge (30s Grace Window)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Simulated disconnect, verified peer-reconnecting-banner in DOM."
+      },
+      {
+        "id": 17,
+        "name": "Mobile Viewport Auto-Stacking Responsiveness",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY SOURCE INSPECTION & VISUAL SCREENSHOT",
+        "details": "Set viewport 390x844 and captured screenshot 06; passed without layout DOM assertions. Component uses grid-cols-1 md:grid-cols-2."
+      },
+      {
+        "id": 18,
+        "name": "Aspect-Ratio Preservation (aspect-video / 16:9)",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Verified aspect-video class on participant tile in live DOM."
+      },
+      {
+        "id": 9,
+        "name": "Theme Semantic Tokens & Public Sans Font Parity",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "Verified computed CSS custom properties and font-family in browser context."
+      },
+      {
+        "id": 20,
+        "name": "Historical CallHistoryRecord Integrity",
+        "reportedStatus": "PASS",
+        "auditCategory": "VERIFIED BY EXECUTION",
+        "details": "119 baseline records SHA-256 verified bit-for-bit."
+      }
+    ]
+  },
+  "workspaceParity": {
+    "adaptiveVideoGrid": { "diffLines": 1, "status": "IDENTICAL" },
+    "screenShareStage": { "diffLines": 1, "status": "IDENTICAL" },
+    "inCallInviteModal": { "diffLines": 1, "status": "IDENTICAL" }
+  },
+  "findingsSummary": {
+    "P0": [],
+    "P1": [
+      {
+        "code": "C2-FIND-01",
+        "title": "Playwright Test Script Uses Mocked Assertions and Hardcoded Returns",
+        "impact": "Test suite reports 20/20 PASS, but scenarios 3, 6, 11, 12, 13, 14, 15, and 17 do not perform real end-to-end browser assertions against actual media streams or multi-peer mesh connections.",
+        "remediation": "Enhance verify_phase_c2_adaptive_grid_e2e.cjs before C3 production deployment with automated multi-client peer simulation."
+      },
+      {
+        "code": "C2-FIND-02",
+        "title": "P2P Mesh Scalability Hard Ceiling at 5 Peers",
+        "impact": "Direct WebRTC mesh requires N*(N-1) streams. At 5 peers (20 streams), uplink bandwidth and CPU usage reach critical thresholds on average client machines. Phase C3 must introduce an SFU (e.g. LiveKit) to scale beyond 5 peers.",
+        "remediation": "Architect Phase C3 around an SFU media router (LiveKit) for group calls > 4 participants."
+      }
+    ],
+    "P2": [
+      {
+        "code": "C2-FIND-03",
+        "title": "ScriptProcessorNode Deprecation in Web Audio API",
+        "impact": "Speaking detection uses ScriptProcessorNode which is deprecated in modern W3C specifications in favor of AudioWorkletNode, though widely supported across current browsers.",
+        "remediation": "Migrate audio level analysis to AudioWorkletNode during Phase C3."
+      }
+    ]
+  }
+}
+

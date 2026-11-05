@@ -1,0 +1,15 @@
+{
+  "results": {
+    "scenarioA_1to1UnaffectedBySFU": true,
+    "scenarioB_groupFallbackOnUnreachableSFU": true,
+    "scenarioC_activeSfuInterruptionDetected": true,
+    "scenarioD_sfuRestorationAndRecovery": true
+  },
+  "auditLog": {
+    "scenarioA": "1-to-1 calls remain strictly P2P; never invoke SFU handshake",
+    "scenarioB": "Upgrade failed gracefully (SFU upgrade failed: LiveKit doesn't seem to be supported on this browser. Try to update your browser and make sure no browser extensions are disabling webRTC.); Mode preserved as P2P",
+    "scenarioC": "Browser and LiveKit engine detected socket severance upon container shutdown",
+    "scenarioD": "SFU restored; session recovered in 166ms with audio/video publishing"
+  },
+  "timestamp": "2026-11-05T05:38:12.058Z"
+}

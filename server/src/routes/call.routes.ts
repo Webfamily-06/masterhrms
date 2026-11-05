@@ -4,6 +4,7 @@ import { activeCalls, getIO, ActiveCallSession } from "../socket";
 import { rawPrisma, prisma } from "../prisma";
 import { IncomingCallPushService } from "../services/incoming-call-push.service";
 import { PusherService } from "../services/pusher.service";
+import { MeetingSfuService } from "../services/meeting-sfu.service";
 import { CallLifecycleService, CallError, CallForbiddenError, CallConflictError, CallNotFoundError } from "../services/call-lifecycle.service";
 
 export const callRouter = Router();
@@ -177,7 +178,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
         session.tenantId === tenantId &&
         (session.status === "ringing" || session.status === "connected") &&
         (session.callerId === resolvedTargetId || session.targetUserId === resolvedTargetId ||
-         session.callerId === callerId || session.targetUserId === callerId)
+          session.callerId === callerId || session.targetUserId === callerId)
       ) {
         busyUserId = (session.callerId === resolvedTargetId || session.targetUserId === resolvedTargetId)
           ? resolvedTargetId
@@ -228,7 +229,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
           reason: "Another incoming call was blocked because you are already in a call.",
         };
         io?.to("user:" + resolvedTargetId).emit("call:busy", recipientNotice);
-        void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:busy", recipientNotice).catch(() => {});
+        void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:busy", recipientNotice).catch(() => { });
       }
 
       return res.status(409).json({
@@ -321,21 +322,21 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
               finalHistoryStatus: "missed",
               notes: "Call missed: 60-second ringing timeout expired.",
             });
-          } catch {}
+          } catch { }
 
           const io = getIO();
           io?.to("user:" + current.targetUserId).emit("call:timeout", { callId, cancelledBy: "system" });
           io?.to("user:" + current.targetUserId).emit("call.timeout", { callId, cancelledBy: "system" });
           io?.to("user:" + current.callerId).emit("call:timeout", { callId, cancelledBy: "system" });
           io?.to("user:" + current.callerId).emit("call.timeout", { callId, cancelledBy: "system" });
-          void PusherService.triggerUserEvent(current.tenantId, current.targetUserId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => {});
-          void PusherService.triggerUserEvent(current.tenantId, current.callerId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => {});
+          void PusherService.triggerUserEvent(current.tenantId, current.targetUserId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => { });
+          void PusherService.triggerUserEvent(current.tenantId, current.callerId, "call:timeout", { callId, cancelledBy: "system" }).catch(() => { });
           void IncomingCallPushService.sendCallCancelledPush({
             tenantId: current.tenantId,
             targetUserId: current.targetUserId,
             callId,
             reason: "timeout",
-          }).catch(() => {});
+          }).catch(() => { });
         }
       }, 60000),
     };
@@ -360,7 +361,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
 
     const io = getIO();
     io?.to("user:" + resolvedTargetId).emit("call:incoming", incomingPayload);
-    void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:incoming", incomingPayload).catch(() => {});
+    void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:incoming", incomingPayload).catch(() => { });
     void IncomingCallPushService.sendIncomingCallPush({
       tenantId,
       targetUserId: resolvedTargetId,
@@ -370,7 +371,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
       callerAvatar,
       callType: callType,
       threadId: finalThreadId,
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.status(201).json({
       success: true,
@@ -412,7 +413,7 @@ callRouter.post("/:callId/signal", requireAuth, async (req: AuthRequest, res: Re
     }
 
     const isParticipant = (record.callerId === userId && record.receiverId === toUserId) ||
-                          (record.receiverId === userId && record.callerId === toUserId);
+      (record.receiverId === userId && record.callerId === toUserId);
     if (!isParticipant) {
       return res.status(403).json({ success: false, error: "Unauthorized call signaling peer" });
     }
@@ -426,7 +427,7 @@ callRouter.post("/:callId/signal", requireAuth, async (req: AuthRequest, res: Re
 
     const io = getIO();
     io?.to("user:" + toUserId).emit("call:signal", signalPayload);
-    void PusherService.triggerUserEvent(tenantId, toUserId, "call:signal", signalPayload).catch(() => {});
+    void PusherService.triggerUserEvent(tenantId, toUserId, "call:signal", signalPayload).catch(() => { });
 
     return res.json({ success: true, delivered: true });
   } catch (error) {
@@ -500,7 +501,7 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
           endReason: "TIMEOUT",
           finalHistoryStatus: "missed",
           notes: "Call missed (ringing timeout expired)",
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       const callerPart = dbCall.participants.find((p: any) => p.role === "HOST") || dbCall.participants[0];
@@ -559,7 +560,7 @@ callRouter.get("/:callId/status", requireAuth, async (req: AuthRequest, res: Res
         await db.callHistoryRecord.update({
           where: { id: history.id },
           data: { status: "missed", endedAt: new Date(), notes: "Call timed out after 60 seconds." },
-        }).catch(() => {});
+        }).catch(() => { });
       }
 
       return res.json({
@@ -657,8 +658,8 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
       answeredDeviceId: "rest_client",
     });
 
-    void PusherService.triggerUserEvent(tenantId, callerId, "call:accepted", acceptPayload).catch(() => {});
-    void PusherService.triggerUserEvent(tenantId, userId, "call:accepted", acceptPayload).catch(() => {});
+    void PusherService.triggerUserEvent(tenantId, callerId, "call:accepted", acceptPayload).catch(() => { });
+    void PusherService.triggerUserEvent(tenantId, userId, "call:accepted", acceptPayload).catch(() => { });
 
     return res.json({
       success: true,
@@ -724,7 +725,7 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
     if (callerId) {
       io?.to(`user:${callerId}`).emit("call:rejected", rejectPayload);
       io?.to(`user:${callerId}`).emit("call.rejected", rejectPayload);
-      void PusherService.triggerUserEvent(tenantId, callerId, "call:rejected", rejectPayload).catch(() => {});
+      void PusherService.triggerUserEvent(tenantId, callerId, "call:rejected", rejectPayload).catch(() => { });
     }
     io?.to(`user:${userId}`).emit("call:rejected", rejectPayload);
     io?.to(`user:${userId}`).emit("call.rejected", rejectPayload);
@@ -734,7 +735,7 @@ callRouter.post("/:callId/reject", requireAuth, async (req: AuthRequest, res: Re
       tenantId,
       targetUserId: userId,
       reason: "declined",
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.json({
       success: true,
@@ -793,13 +794,13 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     if (targetUserId) {
       io?.to(`user:${targetUserId}`).emit("call:cancelled", cancelPayload);
       io?.to(`user:${targetUserId}`).emit("call.cancelled", cancelPayload);
-      void PusherService.triggerUserEvent(tenantId, targetUserId, "call:cancelled", cancelPayload).catch(() => {});
+      void PusherService.triggerUserEvent(tenantId, targetUserId, "call:cancelled", cancelPayload).catch(() => { });
       void IncomingCallPushService.sendCallCancelledPush({
         callId,
         tenantId,
         targetUserId,
         reason: "Caller cancelled",
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     io?.to(`user:${userId}`).emit("call:cancelled", cancelPayload);
@@ -869,7 +870,7 @@ callRouter.post("/:callId/end", requireAuth, async (req: AuthRequest, res: Respo
       const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
       io?.to(`user:${peerId}`).emit("call:ended", endPayload);
       io?.to(`user:${peerId}`).emit("call.ended", endPayload);
-      void PusherService.triggerUserEvent(tenantId, peerId, "call:ended", endPayload).catch(() => {});
+      void PusherService.triggerUserEvent(tenantId, peerId, "call:ended", endPayload).catch(() => { });
     }
     io?.to(`user:${userId}`).emit("call:ended", endPayload);
     io?.to(`user:${userId}`).emit("call.ended", endPayload);
@@ -1008,7 +1009,7 @@ callRouter.post("/:callId/invite-colleague", requireAuth, async (req: AuthReques
 
     io?.to(`user:${resolvedTargetId}`).emit("call:incoming", incomingPayload);
     io?.to(`user:${resolvedTargetId}`).emit("call.incoming", incomingPayload);
-    void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:incoming", incomingPayload).catch(() => {});
+    void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:incoming", incomingPayload).catch(() => { });
 
     // Broadcast to call peers that a colleague has been invited
     const peerNotice = {
@@ -1021,6 +1022,12 @@ callRouter.post("/:callId/invite-colleague", requireAuth, async (req: AuthReques
     if (session) {
       const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
       io?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+      // Phase C3: Broadcast SFU upgrade for 3+ participant calls
+      const sfuRoom = MeetingSfuService.formatCallRoomName(tenantId, callId);
+      io?.to(`user:${userId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+      if (session) {
+        io?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+      }
     }
 
     return res.json({
@@ -1090,3 +1097,150 @@ callRouter.post("/:callId/accept-invitation", requireAuth, async (req: AuthReque
     return res.status(500).json({ success: false, error: error.message || "Failed to accept invitation" });
   }
 });
+
+
+// POST /api/calls/:callId/sfu-token - Phase C3 Scoped LiveKit SFU Token for Active Calls
+callRouter.post("/:callId/sfu-token", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user!.userId || (req.user as any).id;
+    const tenantId = req.user!.tenantId!;
+    const db = rawPrisma || prisma;
+
+    // 1. Verify Call exists and belongs to user's tenant
+    const call = await db.call.findFirst({
+      where: {
+        OR: [{ id: callId }, { roomKey: callId }],
+        tenantId,
+      },
+      include: {
+        participants: true,
+      },
+    });
+
+    if (!call) {
+      return res.status(404).json({
+        success: false,
+        error: "Call session not found or unauthorized.",
+        code: "CALL_NOT_FOUND",
+      });
+    }
+
+    if (call.status !== "ACTIVE" && call.status !== "RINGING") {
+      return res.status(409).json({
+        success: false,
+        error: "Call session is not active.",
+        code: "CALL_INACTIVE",
+      });
+    }
+
+    // 2. Verify requesting user is an active participant or invitee
+    const participant = call.participants.find((p: any) => p.userId === userId);
+    if (!participant || !["JOINED", "INVITED", "RINGING"].includes(participant.state)) {
+      return res.status(403).json({
+        success: false,
+        error: "Access denied. You are not an active participant in this call.",
+        code: "CALL_FORBIDDEN",
+      });
+    }
+
+    // 3. Check if SFU is configured
+    const sfuConfig = MeetingSfuService.getConfig();
+    if (!sfuConfig.configured) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          configured: false,
+          provider: "livekit",
+          message: "LiveKit SFU credentials are not configured on this server.",
+          iceServers: MeetingSfuService.getIceServers(userId),
+        },
+      });
+    }
+
+    // 4. Resolve user display name and avatar
+    const userRecord = await db.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+    const displayName = userRecord?.profile?.fullName || (req.user as any)?.name || (req.user as any)?.email || "Colleague";
+    const avatarUrl = userRecord?.profile?.avatarUrl;
+
+    // 5. Generate short-lived scoped LiveKit token (15-min TTL)
+    const tokenResult = MeetingSfuService.generateCallToken({
+      tenantId,
+      callId: call.id,
+      userId,
+      name: displayName,
+      avatarUrl,
+      isHost: call.startedBy === userId || participant.role === "HOST",
+      ttlSeconds: 900,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        configured: true,
+        ...tokenResult,
+      },
+    });
+  } catch (error: any) {
+    console.error("[CallRoutes] SFU token generation error:", error);
+    return res.status(500).json({ success: false, error: error.message || "Failed to generate SFU token" });
+  }
+});
+
+/**
+ * GET /api/calls/ice-servers
+ * Returns server-authoritative ICE servers (STUN + RFC 7635 ephemeral Coturn TURN credentials)
+ * Scoped to the authenticated user for P2P direct calls and NAT traversal.
+ */
+callRouter.get(
+  "/ice-servers",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = req.user!.userId || (req.user as any).id || "anonymous";
+      const iceServers = MeetingSfuService.getIceServers(userId);
+
+      return res.json({
+        success: true,
+        data: {
+          iceServers,
+        },
+      });
+    } catch (error: any) {
+      console.error("[CallRoutes] Error resolving ICE servers:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Failed to resolve ICE servers",
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/calls/sfu-status
+ * Safe diagnostics endpoint for administrators and frontends to verify
+ * whether LiveKit SFU (self-hosted or LiveKit Cloud) is configured.
+ * Strictly never exposes API keys or secrets.
+ */
+callRouter.get(
+  "/sfu-status",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const diagnosticInfo = MeetingSfuService.getDiagnosticInfo();
+      return res.json({
+        success: true,
+        data: diagnosticInfo,
+      });
+    } catch (error: any) {
+      console.error("[CallRoutes] Error fetching SFU status:", error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || "Failed to fetch SFU status",
+      });
+    }
+  }
+);

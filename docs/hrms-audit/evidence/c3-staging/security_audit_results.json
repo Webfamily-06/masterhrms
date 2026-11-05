@@ -1,0 +1,20 @@
+{
+  "results": {
+    "sessionTenantEnforced": true,
+    "crossTenantCallRejected": true,
+    "nonParticipantRejected": true,
+    "inactiveCallRejected": true,
+    "tokenClaimsRestricted": true,
+    "expiredTokenRejectedBySFU": true,
+    "tamperedTokenRejectedBySFU": true,
+    "secretsRedactedFromClientPayload": true
+  },
+  "auditEvidence": {
+    "crossTenant": "HTTP 404 CALL_NOT_FOUND - Tenant barrier enforced",
+    "nonParticipant": "HTTP 403 CALL_FORBIDDEN - Membership verified",
+    "inactiveCall": "HTTP 409 CALL_INACTIVE - Expired session guarded",
+    "tokenScopes": "Host granted roomAdmin/roomCreate; Participant restricted to publish/subscribe only",
+    "secrets": "Zero API secrets present in API responses"
+  },
+  "timestamp": "2026-11-05T05:35:00.331Z"
+}

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-11-05T05:22:16.826Z",
+  "sfuUrl": "ws://127.0.0.1:7880",
+  "participants": 5,
+  "metrics": {
+    "hostConnectionMs": 165,
+    "dockerStats": "CONTAINER ID   NAME                     CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O   PIDS\n1ab38d9b9b4d   masterhrms_staging_sfu   9.69%     117.4MiB / 31.26GiB   0.37%     17.4MB / 21.8MB   0B / 0B     25"
+  },
+  "assertions": {
+    "hostConnected": true,
+    "allPeersConnected": true,
+    "multipartySubscriptionConverged": true,
+    "videoElementsRendered": true,
+    "audioWorkletFunctional": true,
+    "muteUnmuteSignaling": true,
+    "screenShareSupported": true,
+    "screenshotsCaptured": true,
+    "participantLeaveHandled": true
+  },
+  "status": "READY FOR STAGING ACCEPTANCE"
+}

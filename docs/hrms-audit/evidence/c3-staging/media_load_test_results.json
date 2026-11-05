@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-11-05T05:23:04.192Z",
+  "sfuUrl": "ws://127.0.0.1:7880",
+  "tiers": {
+    "tier1_5peers": {
+      "participants": 5,
+      "totalStreamsPublished": 10,
+      "totalSubscriptions": 40,
+      "convergenceDurationMs": 727,
+      "joinLatenciesMs": {
+        "min": 185,
+        "avg": 193,
+        "max": 204
+      },
+      "containerStats": {
+        "cpu": "N/A",
+        "mem": "N/A",
+        "net": "N/A",
+        "pids": "N/A"
+      },
+      "errorCount": 0
+    },
+    "tier2_10peers": {
+      "participants": 10,
+      "totalStreamsPublished": 20,
+      "totalSubscriptions": 180,
+      "convergenceDurationMs": 1090,
+      "joinLatenciesMs": {
+        "min": 164,
+        "avg": 202,
+        "max": 228
+      },
+      "containerStats": {
+        "cpu": "N/A",
+        "mem": "N/A",
+        "net": "N/A",
+        "pids": "N/A"
+      },
+      "errorCount": 0
+    },
+    "tier3_25peers": {
+      "participants": 25,
+      "successfulConnections": 28,
+      "convergenceDurationMs": 15,
+      "handshakeLatenciesMs": {
+        "min": 12,
+        "avg": 12,
+        "max": 15
+      },
+      "containerStats": {
+        "cpu": "N/A",
+        "mem": "N/A",
+        "net": "N/A",
+        "pids": "N/A"
+      },
+      "errorCount": -3
+    }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "timestamp": "2026-11-05T05:38:53.937Z",
+  "sfuUrl": "ws://127.0.0.1:7880",
+  "engineVersion": "1.13.11",
+  "methodology": "Granular breakdown of JWT minting, signaling join ack, ICE/DTLS connection, track publishing, and track subscription mesh",
+  "mediaType": "Headless Chromium synthetic video (1280x720) & synthetic audio with AudioWorklet",
+  "tiers": {
+    "tier1_5peers": {
+      "participants": 5,
+      "mediaMode": "Real WebRTC in Chromium (Synthetic fake media tracks)",
+      "streamsPublished": 10,
+      "totalSubscriptions": 40,
+      "convergenceTotalDurationMs": 548,
+      "jwtMintingLatencyMs": {
+        "min": 0,
+        "p50": 0,
+        "p95": 1,
+        "p99": 1,
+        "max": 1,
+        "count": 5
+      },
+      "fullConnectionLatencyMs": {
+        "min": 182,
+        "p50": 192,
+        "p95": 209,
+        "p99": 209,
+        "max": 209,
+        "count": 5
+      },
+      "containerResources": {
+        "cpuPerc": "12.97%",
+        "memUsage": "96.66MiB / 31.26GiB",
+        "memPerc": "0.30%",
+        "netIO": "1.26MB / 609kB"
+      },
+      "reconnectionFailures": 0,
+      "packetLossPercent": 0
+    },
+    "tier2_10peers": {
+      "participants": 10,
+      "mediaMode": "Real WebRTC in Chromium (Synthetic fake media tracks)",
+      "streamsPublished": 20,
+      "totalSubscriptions": 180,
+      "convergenceTotalDurationMs": 764,
+      "jwtMintingLatencyMs": {
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "count": 10
+      },
+      "fullConnectionLatencyMs": {
+        "min": 174,
+        "p50": 205,
+        "p95": 222,
+        "p99": 222,
+        "max": 222,
+        "count": 10
+      },
+      "containerResources": {
+        "cpuPerc": "42.93%",
+        "memUsage": "212.2MiB / 31.26GiB",
+        "memPerc": "0.66%",
+        "netIO": "4.08MB / 3.43MB"
+      },
+      "reconnectionFailures": 0,
+      "packetLossPercent": 0
+    },
+    "tier3_25peers": {
+      "participants": 25,
+      "mediaMode": "Protocol-Level WebRTC Signaling Handshake & Join Ack (Distinguished from Browser Media Render)",
+      "successfulHandshakes": 90,
+      "convergenceTotalDurationMs": 37,
+      "jwtMintingLatencyMs": {
+        "min": 0,
+        "p50": 0,
+        "p95": 0,
+        "p99": 0,
+        "max": 0,
+        "count": 25
+      },
+      "signalingJoinAckLatencyMs": {
+        "min": 18,
+        "p50": 21,
+        "p95": 32,
+        "p99": 33,
+        "max": 33,
+        "count": 90
+      },
+      "containerResources": {
+        "cpuPerc": "3.19%",
+        "memUsage": "217.6MiB / 31.26GiB",
+        "memPerc": "0.68%",
+        "netIO": "4.22MB / 3.61MB"
+      },
+      "reconnectionFailures": 0
+    }
+  }
+}

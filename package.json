@@ -97,6 +97,7 @@
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
+    "livekit-client": "^2.23.0",
     "lucide-react": "^0.575.0",
     "pusher-js": "^8.6.0",
     "react": "^19.2.0",

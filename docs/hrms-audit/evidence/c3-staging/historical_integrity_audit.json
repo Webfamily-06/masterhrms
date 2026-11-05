@@ -1,0 +1,70 @@
+{
+  "cutoff": "2026-11-04T14:00:00.000Z",
+  "expectedBaselineCount": 119,
+  "actualBaselineCount": 119,
+  "expectedMasterHash": "0a98ae9b0f186860a1fc99a1287f740b24b783a5b408d10a1f655f8d7c71dd3a",
+  "computedMasterHash": "0a98ae9b0f186860a1fc99a1287f740b24b783a5b408d10a1f655f8d7c71dd3a",
+  "isHashIdentical": true,
+  "baselineModifiedCount": 0,
+  "baselineDeletedCount": 0,
+  "additiveTestRecordsCount": 7,
+  "testRecords": [
+    {
+      "id": "0e832160-0b94-4e33-b4f7-06dfb95a1a9d",
+      "createdAt": "2026-11-05T01:37:45.559Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "cancelled",
+      "callType": "video"
+    },
+    {
+      "id": "12020122-01bd-443e-b390-2634dbd295c4",
+      "createdAt": "2026-11-05T04:18:01.916Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "1e29af84-aa83-4666-9d31-034a05b888b1",
+      "createdAt": "2026-11-05T04:19:13.793Z",
+      "caller": "Alex Rivera",
+      "receiver": "Sarah HR Lead",
+      "status": "ringing",
+      "callType": "video"
+    },
+    {
+      "id": "32563439-febf-4414-82f8-537f90ea12aa",
+      "createdAt": "2026-11-05T01:40:45.330Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "82ee88d5-170c-4a36-80b3-4a4fb0d7adf0",
+      "createdAt": "2026-11-05T04:20:23.421Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "ringing",
+      "callType": "video"
+    },
+    {
+      "id": "c70372e4-74e3-45fd-871d-c0c77a844bbd",
+      "createdAt": "2026-11-05T02:10:36.042Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "eda49b56-a346-4615-909c-e7b23260b598",
+      "createdAt": "2026-11-05T01:39:41.475Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "completed",
+      "callType": "video"
+    }
+  ],
+  "timestamp": "2026-11-05T07:06:40.947Z"
+}

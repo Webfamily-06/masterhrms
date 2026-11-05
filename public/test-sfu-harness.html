@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MASTERHRMS LiveKit SFU Test Harness</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; }
+    h1 { font-size: 1.25rem; margin-bottom: 10px; }
+    .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; background: #334155; font-size: 0.85rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 16px; }
+    .video-card { background: #1e293b; border-radius: 8px; overflow: hidden; position: relative; aspect-ratio: 16/9; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    .video-label { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+  </style>
+  <script src="/livekit-client.umd.js"></script>
+</head>
+<body>
+  <h1>MASTERHRMS SFU Media Participant: <span id="participant-name">Connecting...</span></h1>
+  <div class="status-badge" id="status-badge">Initializing...</div>
+  <div id="active-speaker" style="margin-top: 8px; font-size: 0.85rem; color: #38bdf8;"></div>
+
+  <div class="grid" id="remote-videos">
+    <div class="video-card" id="local-card">
+      <video id="local-video" autoplay playsinline muted></video>
+      <div class="video-label" id="local-label">Local Preview</div>
+    </div>
+  </div>
+
+  <script>
+    window.__mediaStatus = {
+      connected: false,
+      joinedAt: null,
+      connectionTimeMs: null,
+      publishedTracks: [],
+      remoteParticipantsCount: 0,
+      subscribedTracksCount: 0,
+      subscribedTracks: [],
+      audioWorkletActive: false,
+      audioWorkletVolume: 0,
+      activeSpeakers: [],
+      screenShareSubscribed: false,
+      lastMuteState: { audio: false, video: false },
+      error: null
+    };
+
+    let currentRoom = null;
+    let localTracks = [];
+    let audioWorkletNode = null;
+    let screenTrack = null;
+
+    async function initHarness() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        const livekitUrl = params.get('url') || 'ws://127.0.0.1:7880';
+        const name = params.get('name') || 'Participant';
+
+        document.getElementById('participant-name').textContent = name;
+        document.getElementById('local-label').textContent = `${name} (Local)`;
+
+        if (!token) {
+          throw new Error("Missing token query parameter");
+        }
+
+        const LK = window.LivekitClient;
+        const startTime = performance.now();
+
+        const room = new LK.Room({
+          adaptiveStream: true,
+          dynacast: true,
+          videoCaptureDefaults: {
+            resolution: LK.VideoPresets.h720.resolution
+          }
+        });
+        currentRoom = room;
+
+        room.on(LK.RoomEvent.ParticipantConnected, (p) => {
+          console.log('[SFU Harness] ParticipantConnected:', p.identity);
+          window.__mediaStatus.remoteParticipantsCount = room.remoteParticipants.size;
+        });
+
+        room.on(LK.RoomEvent.ParticipantDisconnected, (p) => {
+          console.log('[SFU Harness] ParticipantDisconnected:', p.identity);
+          window.__mediaStatus.remoteParticipantsCount = room.remoteParticipants.size;
+          const card = document.getElementById(`card-${p.identity}`);
+          if (card) card.remove();
+        });
+
+        room.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          console.log('[SFU Harness] TrackSubscribed:', track.kind, 'from', participant.identity);
+          window.__mediaStatus.subscribedTracksCount++;
+          window.__mediaStatus.remoteParticipantsCount = room.remoteParticipants.size;
+          
+          if (track.source === LK.Track.Source.ScreenShare) {
+            window.__mediaStatus.screenShareSubscribed = true;
+          }
+
+          let card = document.getElementById(`card-${participant.identity}`);
+          if (!card) {
+            card = document.createElement('div');
+            card.className = 'video-card';
+            card.id = `card-${participant.identity}`;
+            
+            const videoElem = document.createElement('video');
+            videoElem.autoplay = true;
+            videoElem.playsInline = true;
+            videoElem.id = `video-${participant.identity}`;
+            
+            const label = document.createElement('div');
+            label.className = 'video-label';
+            label.textContent = participant.name || participant.identity;
+            
+            card.appendChild(videoElem);
+            card.appendChild(label);
+            document.getElementById('remote-videos').appendChild(card);
+          }
+
+          const mediaElem = track.kind === 'video' 
+            ? document.getElementById(`video-${participant.identity}`)
+            : document.createElement('audio');
+
+          if (track.kind === 'audio') {
+            mediaElem.autoplay = true;
+            document.body.appendChild(mediaElem);
+          }
+
+          track.attach(mediaElem);
+
+          window.__mediaStatus.subscribedTracks.push({
+            identity: participant.identity,
+            kind: track.kind,
+            sid: track.sid,
+            elementAttached: true
+          });
+        });
+
+        room.on(LK.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          const names = speakers.map(s => s.name || s.identity);
+          window.__mediaStatus.activeSpeakers = names;
+          document.getElementById('active-speaker').textContent = names.length > 0
+            ? `Speaking: ${names.join(', ')}`
+            : '';
+        });
+
+        room.on(LK.RoomEvent.TrackMuted, (pub, participant) => {
+          console.log('[SFU Harness] TrackMuted:', pub.kind, 'from', participant?.identity || 'local');
+          if (participant === room.localParticipant) {
+            window.__mediaStatus.lastMuteState[pub.kind] = true;
+          }
+        });
+
+        room.on(LK.RoomEvent.TrackUnmuted, (pub, participant) => {
+          console.log('[SFU Harness] TrackUnmuted:', pub.kind, 'from', participant?.identity || 'local');
+          if (participant === room.localParticipant) {
+            window.__mediaStatus.lastMuteState[pub.kind] = false;
+          }
+        });
+
+        room.on(LK.RoomEvent.Disconnected, (reason) => {
+          console.log('[SFU Harness] Disconnected from SFU room:', reason);
+          window.__mediaStatus.connected = false;
+          window.__mediaStatus.roomState = 'disconnected';
+          const badge = document.getElementById('status-badge');
+          if (badge) {
+            badge.textContent = `Disconnected: ${reason || 'Server offline'}`;
+            badge.style.background = '#dc2626';
+          }
+        });
+
+        // Connect room
+        console.log('[SFU Harness] Connecting to LiveKit SFU...');
+        await room.connect(livekitUrl, token);
+        const connectionTime = performance.now() - startTime;
+
+        window.__mediaStatus.connected = true;
+        window.__mediaStatus.joinedAt = Date.now();
+        window.__mediaStatus.connectionTimeMs = Math.round(connectionTime);
+        window.__mediaStatus.remoteParticipantsCount = room.remoteParticipants.size;
+        document.getElementById('status-badge').textContent = `Connected (${Math.round(connectionTime)}ms)`;
+        document.getElementById('status-badge').style.background = '#15803d';
+
+        // Publish local audio and video
+        localTracks = await LK.createLocalTracks({
+          audio: true,
+          video: true
+        });
+
+        for (const track of localTracks) {
+          await room.localParticipant.publishTrack(track);
+          window.__mediaStatus.publishedTracks.push(track.kind);
+          if (track.kind === 'video') {
+            track.attach(document.getElementById('local-video'));
+          } else if (track.kind === 'audio') {
+            // Setup AudioWorklet Volume Meter
+            setupAudioWorklet(track.mediaStreamTrack);
+          }
+        }
+
+      } catch (err) {
+        console.error('[SFU Harness] Error:', err);
+        window.__mediaStatus.error = err.message;
+        document.getElementById('status-badge').textContent = `Error: ${err.message}`;
+        document.getElementById('status-badge').style.background = '#b91c1c';
+      }
+    }
+
+    async function setupAudioWorklet(mediaStreamTrack) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.audioWorklet.addModule('/audio-processors/volume-meter-processor.js');
+        const source = audioCtx.createMediaStreamSource(new MediaStream([mediaStreamTrack]));
+        const workletNode = new AudioWorkletNode(audioCtx, 'volume-meter-processor');
+        
+        workletNode.port.onmessage = (event) => {
+          if (event.data && typeof event.data.volume === 'number') {
+            window.__mediaStatus.audioWorkletActive = true;
+            window.__mediaStatus.audioWorkletVolume = event.data.volume;
+          }
+        };
+
+        source.connect(workletNode);
+        audioWorkletNode = workletNode;
+      } catch (e) {
+        console.warn('[SFU Harness] AudioWorklet init fallback:', e);
+      }
+    }
+
+    window.toggleMute = async function(kind) {
+      const track = localTracks.find(t => t.kind === kind);
+      if (track) {
+        if (track.isMuted) {
+          await track.unmute();
+        } else {
+          await track.mute();
+        }
+        return track.isMuted;
+      }
+      return false;
+    };
+
+    window.startScreenShare = async function() {
+      if (currentRoom) {
+        screenTrack = await currentRoom.localParticipant.setScreenShareEnabled(true);
+        return true;
+      }
+      return false;
+    };
+
+    window.stopScreenShare = async function() {
+      if (currentRoom) {
+        await currentRoom.localParticipant.setScreenShareEnabled(false);
+        screenTrack = null;
+        return true;
+      }
+      return false;
+    };
+
+    window.leaveRoom = async function() {
+      if (currentRoom) {
+        await currentRoom.disconnect();
+        window.__mediaStatus.connected = false;
+        return true;
+      }
+      return false;
+    };
+
+    window.addEventListener('DOMContentLoaded', initHarness);
+  </script>
+</body>
+</html>
+

@@ -61,6 +61,8 @@ import {
   getDeterministicAvatarColor,
 } from "@/components/calling/adaptive-video-grid";
 import { ScreenShareStage } from "@/components/calling/screen-share-stage";
+import { DreamsVideoCallScreen } from "@/components/calling/dreams-video-call-screen";
+import { DreamsVoiceCallScreen } from "@/components/calling/dreams-voice-call-screen";
 import { InCallInviteModal } from "@/components/calling/in-call-invite-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1999,85 +2001,130 @@ export function UnifiedChatApp({
     if (!isMeetingOpen || !meetingLocalStreamRef.current || meetingIsMuted) return;
 
     let audioContext: AudioContext | null = null;
+    let workletNode: AudioWorkletNode | null = null;
     let analyser: AnalyserNode | null = null;
     let microphone: MediaStreamAudioSourceNode | null = null;
     let javascriptNode: ScriptProcessorNode | null = null;
     let speakingTimer: NodeJS.Timeout | null = null;
     let isCurrentlySpeaking = false;
+    let isCleanedUp = false;
 
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      audioContext = new AudioCtx();
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-
-      const audioTrack = meetingLocalStreamRef.current.getAudioTracks()[0];
-      if (!audioTrack || !audioTrack.enabled) return;
-
-      const audioStream = new MediaStream([audioTrack]);
-      microphone = audioContext.createMediaStreamSource(audioStream);
-      javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
-
-      microphone.connect(analyser);
-      analyser.connect(javascriptNode);
-      javascriptNode.connect(audioContext.destination);
-
-      javascriptNode.onaudioprocess = () => {
-        if (!analyser || meetingIsMuted) return;
-        const array = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(array);
-        let values = 0;
-        const length = array.length;
-        for (let i = 0; i < length; i++) {
-          values += array[i];
+    const onSpeakingDetected = () => {
+      if (isCleanedUp) return;
+      if (!isCurrentlySpeaking) {
+        isCurrentlySpeaking = true;
+        setMeetingParticipants((prev) =>
+          prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: true } : p))
+        );
+        const socket = getSocketClient();
+        if (socket && activeMeeting?.callId) {
+          socket.emit("group-call:media-state", {
+            callId: activeMeeting.callId,
+            isMuted: meetingIsMuted,
+            isCameraOff: meetingIsVideoOff,
+            isScreenSharing: meetingIsScreenSharing,
+            isSpeaking: true,
+          });
         }
-        const average = values / length;
+      }
+      if (speakingTimer) clearTimeout(speakingTimer);
+      speakingTimer = setTimeout(() => {
+        if (isCleanedUp) return;
+        isCurrentlySpeaking = false;
+        setMeetingParticipants((prev) =>
+          prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: false } : p))
+        );
+        const socket = getSocketClient();
+        if (socket && activeMeeting?.callId) {
+          socket.emit("group-call:media-state", {
+            callId: activeMeeting.callId,
+            isMuted: meetingIsMuted,
+            isCameraOff: meetingIsVideoOff,
+            isScreenSharing: meetingIsScreenSharing,
+            isSpeaking: false,
+          });
+        }
+      }, 800);
+    };
 
-        if (average > 15) {
-          if (!isCurrentlySpeaking) {
-            isCurrentlySpeaking = true;
-            setMeetingParticipants((prev) =>
-              prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: true } : p))
-            );
-            const socket = getSocketClient();
-            if (socket && activeMeeting?.callId) {
-              socket.emit("group-call:media-state", {
-                callId: activeMeeting.callId,
-                isMuted: meetingIsMuted,
-                isCameraOff: meetingIsVideoOff,
-                isScreenSharing: meetingIsScreenSharing,
-                isSpeaking: true,
-              });
-            }
+    (async () => {
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!AudioCtx) return;
+        audioContext = new AudioCtx();
+
+        const audioTrack = meetingLocalStreamRef.current?.getAudioTracks()[0];
+        if (!audioTrack || !audioTrack.enabled) return;
+
+        const audioStream = new MediaStream([audioTrack]);
+        microphone = audioContext.createMediaStreamSource(audioStream);
+
+        // Phase C3: AudioWorklet-based volume meter off the main UI thread
+        let workletLoaded = false;
+        if (audioContext.audioWorklet && typeof audioContext.audioWorklet.addModule === "function") {
+          try {
+            await audioContext.audioWorklet.addModule("/audio-processors/volume-meter-processor.js");
+            if (isCleanedUp) return;
+            workletNode = new AudioWorkletNode(audioContext, "volume-meter-processor");
+            workletNode.port.onmessage = (event) => {
+              if (meetingIsMuted || isCleanedUp) return;
+              const { isSpeaking } = event.data || {};
+              if (isSpeaking) {
+                onSpeakingDetected();
+              }
+            };
+            microphone.connect(workletNode);
+            const silentGain = audioContext.createGain();
+            silentGain.gain.value = 0;
+            workletNode.connect(silentGain);
+            silentGain.connect(audioContext.destination);
+            workletLoaded = true;
+          } catch (workletErr) {
+            console.warn("[AudioWorklet] Fallback to AnalyserNode:", workletErr);
           }
-          if (speakingTimer) clearTimeout(speakingTimer);
-          speakingTimer = setTimeout(() => {
-            isCurrentlySpeaking = false;
-            setMeetingParticipants((prev) =>
-              prev.map((p) => (p.isLocal || p.userId === currentUserId ? { ...p, isSpeaking: false } : p))
-            );
-            const socket = getSocketClient();
-            if (socket && activeMeeting?.callId) {
-              socket.emit("group-call:media-state", {
-                callId: activeMeeting.callId,
-                isMuted: meetingIsMuted,
-                isCameraOff: meetingIsVideoOff,
-                isScreenSharing: meetingIsScreenSharing,
-                isSpeaking: false,
-              });
-            }
-          }, 800);
         }
-      };
-    } catch (err) {
-      console.warn("Speaking activity detection initialization:", err);
-    }
+
+        // Safe Fallback for legacy browsers without AudioWorklet
+        if (!workletLoaded && !isCleanedUp) {
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+          microphone.connect(analyser);
+          analyser.connect(javascriptNode);
+          javascriptNode.connect(audioContext.destination);
+
+          javascriptNode.onaudioprocess = () => {
+            if (!analyser || meetingIsMuted || isCleanedUp) return;
+            const array = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(array);
+            let values = 0;
+            const length = array.length;
+            for (let i = 0; i < length; i++) {
+              values += array[i];
+            }
+            const average = values / length;
+            if (average > 15) {
+              onSpeakingDetected();
+            }
+          };
+        }
+      } catch (err) {
+        console.warn("Speaking activity detection initialization:", err);
+      }
+    })();
 
     return () => {
+      isCleanedUp = true;
       if (speakingTimer) clearTimeout(speakingTimer);
-      if (javascriptNode) javascriptNode.disconnect();
-      if (microphone) microphone.disconnect();
+      if (workletNode) {
+        try { workletNode.disconnect(); workletNode.port.close(); } catch {}
+      }
+      if (javascriptNode) {
+        try { javascriptNode.disconnect(); } catch {}
+      }
+      if (microphone) {
+        try { microphone.disconnect(); } catch {}
+      }
       if (audioContext && audioContext.state !== "closed") {
         audioContext.close().catch(() => {});
       }
@@ -9176,8 +9223,8 @@ export function UnifiedChatApp({
             callSummary
               ? "sm:max-w-md bg-card text-foreground p-6 shadow-2xl rounded-2xl border border-border"
               : activeCallType === "video"
-              ? "w-screen max-w-none h-[100dvh] sm:max-w-none rounded-none border-0 p-3 sm:p-5 bg-background text-foreground flex flex-col justify-between"
-              : "sm:max-w-md bg-card text-foreground"
+              ? "max-w-6xl w-[96vw] h-[92vh] sm:max-w-6xl p-2 sm:p-4 rounded-xl border border-border-color bg-white dark:bg-card text-foreground shadow-2xl flex flex-col justify-between overflow-hidden"
+              : "max-w-3xl w-[94vw] h-[86vh] sm:max-w-3xl p-2 sm:p-4 rounded-xl border border-border-color bg-white dark:bg-card text-foreground shadow-2xl flex flex-col justify-between overflow-hidden"
           )}
           style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
         >
@@ -9291,304 +9338,60 @@ export function UnifiedChatApp({
               </div>
             </div>
           ) : (
-            <>
-          {/* Header Bar */}
-          <div className="w-full flex items-center justify-between px-1 py-1 border-b border-border/40 shrink-0">
-            <div className="flex items-center gap-2 text-left min-w-0">
-              <div className="p-1 rounded bg-primary/20 text-primary shrink-0">
-                <LockIcon className="size-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold truncate leading-none max-w-[150px] sm:max-w-xs">
-                  {activeCallTargetName || "Direct Meeting"}
-                </p>
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
-                  <span className="size-1.5 rounded-full bg-success animate-pulse" />
-                  <span className="font-mono text-success font-medium">{formatDuration(callDurationSeconds)}</span>
-                  <span>&bull;</span>
-                  <span className="capitalize">{activeCallType} Call &bull; Encrypted</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quality & Meeting Controls */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              {/* Network Signal Indicator */}
-              <div
-                className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded bg-muted/60 text-[10px] font-mono cursor-help"
-                title={`Connection Round Trip: ${networkRttMs}ms (${networkQuality})`}
-              >
-                <div className="flex items-end gap-0.5 h-3">
-                  <div className={cn("w-1 rounded-[1px] h-1.5", networkQuality !== "poor" ? "bg-success" : "bg-destructive")} />
-                  <div className={cn("w-1 rounded-[1px] h-2.5", networkQuality !== "poor" ? "bg-success" : "bg-destructive")} />
-                  <div className={cn("w-1 rounded-[1px] h-3", networkQuality === "excellent" ? "bg-success" : "bg-muted-foreground/30")} />
-                </div>
-                <span>{networkRttMs}ms</span>
-              </div>
-
-              {activeCallType === "video" && (
-                <>
-                  {/* View Mode Toggle: Speaker vs Grid */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    data-testid="call-btn-viewmode"
-                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                    title={viewMode === "speaker" ? "Switch to Grid View" : "Switch to Speaker View"}
-                    onClick={() => setViewMode(viewMode === "speaker" ? "grid" : "speaker")}
-                  >
-                    <Sliders className="size-3.5" />
-                  </Button>
-
-                  {/* Picture-in-Picture */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    data-testid="call-btn-pip"
-                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                    title="Picture-in-Picture"
-                    onClick={togglePictureInPicture}
-                  >
-                    <Tv className="size-3.5" />
-                  </Button>
-
-                  {/* Fullscreen Toggle */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    data-testid="call-btn-fullscreen"
-                    className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                    title="Toggle Fullscreen"
-                    onClick={toggleFullscreenCall}
-                  >
-                    {isCallFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-                  </Button>
-                </>
-              )}
-
-              {/* Minimize Call to Floating PiP */}
-              <Button
-                variant="ghost"
-                size="icon"
-                data-testid="call-btn-minimize"
-                className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                title="Minimize Call to Widget"
-                onClick={() => setIsCallMinimized(true)}
-              >
-                <ChevronDown className="size-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Reconnecting State Alert */}
-          {isReconnecting && (
-            <div className="w-full bg-warning/90 text-foreground px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold animate-pulse shadow-md my-1.5 shrink-0">
-              <RefreshCw className="size-3.5 animate-spin" />
-              <span>Reconnecting WebRTC media stream... Network transition detected</span>
-            </div>
-          )}
-
-          {/* Peer Reconnecting (30-second Grace Period) Banner */}
-          {peerReconnecting && (
-            <div
-              data-testid="peer-reconnecting-banner"
-              className="w-full bg-amber-500/20 border border-amber-500/40 text-amber-900 dark:text-amber-200 px-3.5 py-2 rounded-lg flex items-center justify-between text-xs font-semibold shadow-md my-1.5 shrink-0 animate-in fade-in"
-            >
-              <div className="flex items-center gap-2">
-                <RefreshCw className="size-3.5 animate-spin text-amber-600 dark:text-amber-400" />
-                <span>{activeCallTargetName || "Peer"} disconnected. Reconnecting...</span>
-              </div>
-              <span className="font-mono bg-amber-500/30 px-2 py-0.5 rounded text-[11px] font-bold">
-                {peerReconnecting.graceSecondsRemaining}s grace period
-              </span>
-            </div>
-          )}
-
-          {/* Remote Screen Sharing Alert Banner */}
-          {remoteIsScreenSharing && !isScreenSharing && (
-            <div className="w-full bg-primary/90 text-primary-foreground px-3 py-1.5 rounded-lg flex items-center justify-center gap-2 text-xs font-semibold shadow-md my-1 shrink-0 animate-in fade-in">
-              <Tv className="size-3.5 animate-pulse" />
-              <span>{activeCallTargetName || "Colleague"} is sharing their screen</span>
-            </div>
-          )}
-
-          {/* Media Stage */}
-          <div className={cn("w-full flex-1 min-h-0 my-2 relative overflow-hidden flex items-center justify-center", activeCallType === "video" ? "bg-background rounded-xl border border-border" : "py-6")}>
-            {activeCallType === "video" ? (
-              isScreenSharing || remoteIsScreenSharing ? (
-                /* SCREEN SHARE PRESENTATION STAGE */
-                <ScreenShareStage
-                  presenter={
-                    isScreenSharing
-                      ? activeCallParticipants.find((p) => p.isLocal) || activeCallParticipants[0]
-                      : activeCallParticipants.find((p) => !p.isLocal) || activeCallParticipants[0]
-                  }
-                  participants={activeCallParticipants}
-                  screenStream={isScreenSharing ? (screenStreamRef.current || localStreamRef.current) : remoteStreamRef.current}
-                  isLocalPresenter={isScreenSharing}
-                  onStopScreenShare={toggleScreenShare}
-                />
-              ) : (
-                /* ADAPTIVE PARTICIPANT GRID (1, 2, 3-4, 5+ layouts) */
-                <AdaptiveVideoGrid
-                  participants={activeCallParticipants}
-                  activeSpeakerId={
-                    activeCallParticipants.find((p) => p.isSpeaking)?.userId || null
-                  }
-                />
-              )
+            activeCallType === "video" ? (
+              <DreamsVideoCallScreen
+                targetName={activeCallTargetName}
+                targetAvatar={activeCallTargetAvatar}
+                targetPhone={activeCallTargetPhone}
+                targetEmail={activeCallTargetEmail}
+                callDurationSeconds={callDurationSeconds}
+                callStatus={callStatus}
+                networkQuality={networkQuality}
+                networkRttMs={networkRttMs}
+                localStream={localStreamRef.current}
+                remoteStream={remoteStreamRef.current}
+                localVideoRef={localVideoRef}
+                remoteVideoRef={remoteVideoRef}
+                participants={activeCallParticipants}
+                isMuted={isMuted}
+                isVideoOff={isVideoOff}
+                isScreenSharing={isScreenSharing}
+                isCallFullscreen={isCallFullscreen}
+                isReconnecting={isReconnecting}
+                peerReconnecting={peerReconnecting}
+                onToggleMute={toggleMute}
+                onToggleVideo={toggleVideo}
+                onToggleScreenShare={toggleScreenShare}
+                onToggleFullscreen={toggleFullscreenCall}
+                onMinimize={() => setIsCallMinimized(true)}
+                onEndCall={handleEndCall}
+                onAddParticipant={() => setInCallAddParticipantOpen(true)}
+                onOpenSettings={() => setInCallSettingsOpen(true)}
+                onSwitchCamera={switchCamera}
+              />
             ) : (
-              /* VOICE CALL DISPLAY */
-              <div className="flex flex-col items-center justify-center text-center space-y-3">
-                <audio ref={remoteAudioRef} autoPlay />
-                <div className="relative">
-                  {activeCallTargetAvatar ? (
-                    <img
-                      src={activeCallTargetAvatar}
-                      alt={activeCallTargetName || "Caller"}
-                      className={cn(
-                        "size-24 rounded-full object-cover shadow-xl transition-all",
-                        remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
-                      )}
-                    />
-                  ) : (
-                    <div
-                      className={cn(
-                        "size-24 rounded-full text-foreground flex items-center justify-center font-bold text-3xl shadow-xl transition-all",
-                        getAvatarColor(activeCallTargetName),
-                        remoteIsSpeaking ? "ring-8 ring-success/40 scale-105" : callStatus === "connected" ? "ring-4 ring-primary/20" : "animate-pulse"
-                      )}
-                    >
-                      {(activeCallTargetName || "C").charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  {remoteIsSpeaking && (
-                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-success text-success-foreground text-[9px] font-semibold animate-pulse shadow-md flex items-center gap-1">
-                      <Activity className="size-2.5" /> Speaking
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <h4 className="font-bold text-lg text-foreground">{activeCallTargetName}</h4>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {callStatus === "connected" ? "Voice Call Connected" : "Connecting Call..."}
-                  </p>
-                </div>
-
-                {/* Audio Wave Visualizer */}
-                <div className="flex items-center gap-1 h-5 py-1">
-                  {Array.from({ length: 9 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={cn(
-                        "w-1 rounded-full transition-all duration-150",
-                        remoteIsSpeaking || localIsSpeaking
-                          ? "bg-primary animate-pulse"
-                          : "bg-muted-foreground/30 h-1.5"
-                      )}
-                      style={{
-                        height: remoteIsSpeaking || localIsSpeaking ? `${Math.max(6, (i % 3 + 1) * 6)}px` : "6px",
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* In-Call Controls Toolbar */}
-          <div className="w-full flex items-center justify-center gap-2 sm:gap-3 py-2 shrink-0 z-30 pb-safe">
-            {/* Mic Toggle */}
-            <Button
-              variant={isMuted ? "destructive" : "outline"}
-              size="icon"
-              data-testid="call-btn-mute"
-              className={cn("rounded-full size-10 sm:size-11 cursor-pointer transition-all", !isMuted && localIsSpeaking && "ring-2 ring-success")}
-              title={isMuted ? "Unmute Mic" : "Mute Mic"}
-              onClick={toggleMute}
-            >
-              {isMuted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-            </Button>
-
-            {/* Video Controls if video call */}
-            {activeCallType === "video" && (
-              <>
-                <Button
-                  variant={isVideoOff ? "destructive" : "outline"}
-                  size="icon"
-                  data-testid="call-btn-video"
-                  className="rounded-full size-10 sm:size-11 cursor-pointer"
-                  title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
-                  onClick={toggleVideo}
-                >
-                  {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
-                </Button>
-
-                <Button
-                  variant={isScreenSharing ? "default" : "outline"}
-                  size="icon"
-                  data-testid="call-btn-screenshare"
-                  className={cn(
-                    "rounded-full size-10 sm:size-11 cursor-pointer",
-                    isScreenSharing && "bg-primary text-primary-foreground hover:bg-primary ring-2 ring-primary"
-                  )}
-                  title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
-                  onClick={toggleScreenShare}
-                >
-                  <ScreenShare className="size-4" />
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="icon"
-                  data-testid="call-btn-switch-camera"
-                  className="rounded-full size-10 sm:size-11 cursor-pointer"
-                  title="Switch Camera (Front/Rear)"
-                  onClick={switchCamera}
-                >
-                  <FlipHorizontal className="size-4" />
-                </Button>
-              </>
-            )}
-
-            {/* In-Call Add Participant */}
-            <Button
-              variant="outline"
-              size="icon"
-              data-testid="call-btn-add-participant"
-              className="rounded-full size-10 sm:size-11 cursor-pointer"
-              title="Add Colleague to Call"
-              onClick={() => setInCallAddParticipantOpen(true)}
-            >
-              <UserPlus className="size-4" />
-            </Button>
-
-            {/* In-Call Settings */}
-            <Button
-              variant="outline"
-              size="icon"
-              data-testid="call-btn-settings"
-              className="rounded-full size-10 sm:size-11 cursor-pointer"
-              title="Device Settings"
-              onClick={() => setInCallSettingsOpen(true)}
-            >
-              <Settings className="size-4" />
-            </Button>
-
-            {/* Hang Up Button */}
-            <Button
-              variant="destructive"
-              size="icon"
-              data-testid="call-btn-hangup"
-              className="rounded-full size-11 sm:size-12 cursor-pointer shadow-xl bg-destructive hover:bg-destructive text-destructive-foreground ml-1 sm:ml-2"
-              title="End Call"
-              onClick={handleEndCall}
-            >
-              <PhoneOff className="size-5" />
-            </Button>
-          </div>
-          </>
+              <DreamsVoiceCallScreen
+                targetName={activeCallTargetName}
+                targetAvatar={activeCallTargetAvatar}
+                targetPhone={activeCallTargetPhone}
+                targetEmail={activeCallTargetEmail}
+                callDurationSeconds={callDurationSeconds}
+                callStatus={callStatus}
+                currentUserAvatar={(currentUser as any)?.profile?.avatarUrl || (currentUser as any)?.avatarUrl || null}
+                currentUserName={(currentUser as any)?.profile?.fullName || (currentUser as any)?.name || "You"}
+                remoteAudioRef={remoteAudioRef}
+                remoteIsSpeaking={remoteIsSpeaking}
+                localIsSpeaking={localIsSpeaking}
+                isMuted={isMuted}
+                onToggleMute={toggleMute}
+                onToggleVideo={toggleVideo}
+                onMinimize={() => setIsCallMinimized(true)}
+                onEndCall={handleEndCall}
+                onAddParticipant={() => setInCallAddParticipantOpen(true)}
+                onOpenSettings={() => setInCallSettingsOpen(true)}
+                onToggleScreenShare={toggleScreenShare}
+              />
+            )
           )}
         </DialogContent>
       </Dialog>

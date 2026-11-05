@@ -1,0 +1,15 @@
+{
+  "name": "dreamserp-tailwind",
+  "version": "1.0.0",
+  "description": "Dreams ERP - Tailwind CSS ERP Admin Dashboard Template",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "erp",
+    "dashboard",
+    "tailwind"
+  ],
+  "author": "",
+  "license": "ISC"
+}

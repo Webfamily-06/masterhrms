@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/pos.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:46 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+	
+	<meta charset="utf-8">
+
+    <title>POS | Dreams ERP - Tailwind CSS ERP Admin Dashboard Template</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dreams ERP is a professional Tailwind CSS ERP Admin Dashboard Template featuring CRM, HRM, Inventory, Finance, Sales, Procurement, Project Management dashboards, reusable UI components, and responsive layouts.">
+    <meta name="author" content="Dreams Technologies">
+
+	<!-- Favicon -->
+    <link rel="shortcut icon" type="image/x-icon" href="assets/img/favicon.png">
+
+    <!-- Apple Touch Icon -->
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-icon.png">
+
+    <!-- Theme Script -->
+    <script src="assets/js/theme-script.js"></script>
+
+    <!-- Phosphor CSS -->
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/duotone/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/regular/style.css">
+    <link rel="stylesheet" href="assets/libs/%40phosphor-icons/web/fill/style.css">
+
+    <!-- Lucide CSS -->
+    <link rel="stylesheet" href="assets/libs/lucide-static/font/lucide.css">
+
+    <!-- Simplebar CSS -->
+    <link rel="stylesheet" href="assets/libs/simplebar/simplebar.min.css">
+
+    <!-- Prism CSS -->
+    <link rel="stylesheet" href="assets/libs/prismjs/themes/prism.min.css">
+
+    <!-- Fontawesome CSS -->
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/fontawesome.min.css">
+    <link rel="stylesheet" href="assets/libs/%40fortawesome/fontawesome-free/css/all.min.css">
+
+    <!-- Main CSS -->
+
+  <script type="module" crossorigin src="assets/js/script.js"></script>
+  <link rel="stylesheet" crossorigin href="assets/css/style.css">
+</head>
+
+<body class="bg-light min-h-screen">   
+
+    <!-- Header Start -->
+	<header class="px-4 py-3 flex items-center justify-between gap-4 flex-wrap border-b border-border-color">
+		<div class="flex items-center gap-3">
+			<a href="index.html" class="flex items-center justify-center size-9 rounded-md border border-border-color bg-white text-default hover:bg-light focus:outline-hidden focus:bg-light">
+				<i class="ph-duotone ph-arrow-left"></i>
+			</a>
+			<div class="relative w-64 search-input"> 
+				<i class="ph ph-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-default text-sm"></i>
+				<input type="text" class="w-full px-3 pe-8 py-2 h-9 text-[12px]! border border-border-color rounded-lg bg-white focus:outline-none focus:ring-0 placeholder:text-sm" placeholder="Search"> 
+			</div>
+		</div>
+		<div class="flex items-center gap-2">
+            <!-- Light/Dark Mode Button -->
+            <div class="header-item">
+                <button class="topbar-link items-center justify-center bg-white border border-border-color rounded-md light-dark-mode" type="button">
+                    <i class="ph-duotone ph-moon"></i>
+                </button>
+            </div>
+            <!-- Language Dropdown -->
+            <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden lg:flex">
+                <button type="button" class="topbar-link items-center justify-center bg-white border border-border-color rounded-md">
+                    <i class="ph-duotone ph-translate"></i>
+                </button>
+                <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-30 p-3 bg-white border border-border-color shadow rounded-md mt-[-8px]! z-1 space-y-1" role="menu" aria-orientation="vertical">
+                    <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                        <img src="assets/img/icons/us.svg" class="size-4 rounded-full" alt="flag">ENG
+                    </a>
+                    <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                        <img src="assets/img/icons/arab.svg" class="size-4 rounded-full" alt="flag">ARB
+                    </a>
+                    <a href="#" class="flex items-center gap-2 px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                        <img src="assets/img/icons/germany.svg" class="size-4 rounded-full" alt="flag">GER
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Notification Dropdown -->
+            <div class="header-item hs-dropdown [--placement:bottom-right] [--auto-close:inside] hidden relative sm:flex" id="notification-dropdown">
+                <button class="bg-white border border-border-color rounded-md size-8 flex items-center justify-center relative cursor-pointer">
+                    <i class="ph-duotone ph-bell"></i>
+                    <span class="absolute top-1 end-1 size-2 bg-danger-transparent rounded-full flex items-center justify-center">
+                        <span class="size-1 bg-danger rounded-full"></span>
+                    </span>
+                </button>
+                <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-102 p-5 mt-[-8px]! bg-white border border-border-color shadow rounded-lg z-1 notification-dropdown" role="menu" aria-orientation="vertical">
+
+                    <div class="flex items-center justify-between border-b border-border-color pb-3">
+                        <p class="text-base font-bold text-title">Notifications</p>
+                        <div class="flex items-center gap-3">
+                            <!-- The Toggle -->
+                            <div class="flex items-center gap-1">
+                                <label for="read" class="relative inline-block w-7 h-4 cursor-pointer">
+                                    <input type="checkbox" id="read" class="sr-only">
+                                    <span id="switch-track" class="absolute inset-0 bg-gray-200 rounded-full transition-colors duration-200"></span>
+                                    <span id="switch-thumb" class="absolute top-1/2 start-1 -translate-y-1/2 size-2.5 bg-white rounded-full transition-transform duration-200"></span>
+                                </label>
+                                <label for="read" class="cursor-pointer">Only Unread</label>
+                            </div>
+                            <button type="button" class="size-8 inline-flex justify-center items-center rounded-md border border-border-color bg-white text-gray-900 text-base hover:bg-danger hover:border-danger hover:text-white dark:hover:text-dark focus:outline-hidden focus:bg-danger cursor-pointer" aria-label="Close" id="close-notification">
+                                <i class="icon-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div data-simplebar>
+                        <div id="all-notifications">
+                            <div class="py-5 space-y-3">
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 shrink-0 me-2">
+                                            <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                            <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">30 min</p>
+                                </div>
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                            AD
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                            <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">25 min</p>
+                                </div>
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 shrink-0 me-2">
+                                            <img src="assets/img/avatar/avatar-07.jpg" class="rounded-full border border-border-color" alt="user">
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">Quotation Sent</p>
+                                            <p class="text-[13px] mb-0">Quotation <span class="text-primary font-medium">#QT-451</span> sent to Hendy Jade.</p>
+                                            <div class="flex items-center gap-2 mt-2">
+                                                <a href="#" class="inline-flex items-center btn-xsmall bg-dark border border-dark text-white  hover:bg-primary hover:border-primary hover:text-white">View Quotation</a>
+                                                <a href="#" class="inline-flex items-center btn-xsmall bg-white border border-border-color text-gray-900  hover:bg-primary hover:border-primary hover:text-white dark:hover:text-white">Edit Quotation</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">30 min</p>
+                                </div>                                        
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 font-semibold shrink-0 bg-warning text-white rounded-full flex items-center justify-center me-2">
+                                            <i class="icon icon-pc-case"></i>
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">Low Stock Alert</p>
+                                            <p class="text-[13px] mb-0">Stock for Product A has dropped below the minimum threshold  <span class="text-primary font-medium">(15 units left).</span></p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">30 min</p>
+                                </div>
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 font-semibold shrink-0 bg-primary-transparent text-primary rounded-full flex items-center justify-center me-2">
+                                            SJ
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">Expense Added</p>
+                                            <p class="text-[13px] mb-0">New expense entry <span class="text-primary font-medium">‘Office Supplies’</span> worth $250 has been recorded.</p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">2 hrs ago</p>
+                                </div>
+
+                            </div>
+
+                        </div>
+                        <div class="hidden" id="unread-only">
+                            <div class="py-5 space-y-3">
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 shrink-0 me-2">
+                                            <img src="assets/img/avatar/avatar-03.jpg" class="rounded-full border border-border-color" alt="user">
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">Project Deadline<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                            <p class="text-[13px] mb-0">Project <span class="text-primary font-medium">‘ERP Upgrade’</span> is due in 3 days.</p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">30 min</p>
+                                </div>
+
+                                <!-- Item-->
+                                <div class="notification-item relative flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer hover:bg-light">
+                                    <div class="flex items-center">
+                                        <div class="relative size-10 font-semibold shrink-0 bg-secondary-transparent text-secondary rounded-full flex items-center justify-center me-2">
+                                            AD
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="font-semibold text-title inline-flex items-center mb-1">New Order Placed<i class="fa-solid fa-circle ms-1 text-[8px] text-danger"></i></p>
+                                            <p class="text-[13px] mb-0">Order <span class="text-primary font-medium">#SO-2345</span> has been placed by Adrian.</p>
+                                        </div>
+                                    </div>
+                                    <p class="shrink-0">25 min</p>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-border-color flex items-center justify-between">
+                        <a href="#" class="text-default fw-medium">Mark all as read</a>
+                        <a href="#" class="text-primary font-medium hover:text-primary-hover">
+                           View all Notifications
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Dropdown -->
+            <div class="profile-dropdown hs-dropdown [--placement:bottom-right] [--auto-close:inside] relative">
+                <a href="#" class="hs-dropdown-toggle relative flex items-center justify-center rounded-full lg:ms-2" aria-haspopup="menu" aria-expanded="false" aria-label="Dropdown">
+                    <div class="size-8 rounded-full overflow-hidden border border-border-color">
+                        <img src="assets/img/avatar/avatar-01.jpg" class="size-full object-cover" alt="user-image">
+                    </div>
+                </a>
+                <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-50 p-5 bg-white border border-border-color shadow rounded-md mt-2 z-1 divide-y divide-border-color" role="menu" aria-orientation="vertical">
+                    <div class="flex items-center pb-3">
+                        <div class="size-10 rounded-full relative me-2">
+                            <img src="assets/img/avatar/avatar-01.jpg" class="rounded-full border border-border-color" alt="user-image">
+                        </div>
+                        <div>
+                            <p class="font-semibold text-title mb-1">Jamie Anderson</p>
+                            <p class="text-[13px] mb-0">Administrator</p>
+                        </div>
+                    </div>
+                    <div class="py-3 space-y-1">
+                        <a href="profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-user-round text-base me-2"></i>View Profile
+                        </a>
+                        <a href="edit-profile.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-user-pen text-base me-2"></i>Edit Profile
+                        </a>
+                        <a href="general-settings.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-cog text-base me-2"></i>Settings
+                        </a>
+                        <a href="tickets.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-align-start-horizontal text-base me-2"></i>Support Tickets
+                        </a>
+                    </div>
+                    <div class="pt-3">
+                        <a href="lock-screen.html" class="flex items-center px-2 py-[6px] rounded-md text-gray-900 hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-user-cog text-base me-2"></i>Lock Screen
+                        </a>
+                        <a href="login.html" class="flex items-center px-2 py-[6px] rounded-md text-danger hover:bg-light focus:outline-hidden focus:bg-white">
+                            <i class="icon icon-log-out text-base me-2"></i>Log Out
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+	</header>
+	<!-- Header End -->
+
+	<!-- Start Main -->
+	<main class="mx-4 my-4 p-5 bg-white rounded-lg border border-border-color">
+		<div class="grid grid-cols-12 gap-6" id="pos-product-grid">
+
+			<!-- Left Side -->
+			<div class="col-span-12 lg:col-span-8">
+
+				<!-- Start Categories -->
+				<div class="border-b border-border-color mb-5 pb-5">
+					<h1 class="text-lg font-bold text-title mb-3">Categories</h1>
+
+					<!-- Start Tab -->
+					<div class="flex items-center gap-2 overflow-x-auto pb-0.5">
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-primary bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition active" data-category="all">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"> <i class="ph-duotone ph-squares-four text-sm"></i> </span>  
+							<span>All Categories</span>
+						</button>
+
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="headphones">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"> <i class="ph-duotone ph-headphones text-purple text-sm"></i> </span> 
+							<span>Headphones</span>
+						</button>
+						
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="footwear">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"> <i class="ph-duotone ph-sneaker text-orange text-sm"></i> </span>
+							<span>Footwear</span>
+						</button>
+
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="smartphones">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"><i class="ph-duotone ph-device-mobile text-pink text-sm"></i> </span>
+							<span>Smartphones</span>
+						</button>
+
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="watches">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"><i class="ph-duotone ph-watch text-info text-sm"></i> </span>
+							<span>Watches</span>
+						</button>
+
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="computers">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"><i class="ph-duotone ph-laptop text-primary text-sm"></i> </span>
+							<span>Computers</span>
+						</button>
+						
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="appliances">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"><i class="ph-duotone ph-storefront text-success text-sm"></i> </span>
+							<span>Appliances</span>
+						</button>
+					
+						<button class="category-filter shrink-0 inline-flex items-center gap-2 pl-2 pr-3 py-1 rounded-full border border-border-color bg-white text-gray-900 text-sm font-medium cursor-pointer hover:border-primary hover:text-primary transition" data-category="lighting">
+							<span class="bg-light size-7 rounded-full border border-border-color flex items-center justify-center"><i class="ph-duotone ph-lightbulb text-yellow text-sm"></i> </span>
+							<span>Lighting</span>
+						</button>
+					</div>
+				</div>
+							
+				<!-- Start Products -->
+				<div class="overflow-y-auto max-h-[calc(100vh-284px)] scrollbar-hide"> 
+					<div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+						<h2 class="text-lg font-bold text-title mb-0">Products</h2>
+						<div class="relative w-64 search-input"> 
+							<i class="ph ph-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-default text-sm"></i>
+							<input type="text" class="w-full px-3 pe-8 py-2 h-8 text-[12px]! border border-border-color rounded-lg bg-white focus:outline-none focus:ring-0 placeholder:text-sm" placeholder="Search"> 
+						</div>
+					</div>
+					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+						<!-- MacBook Pro -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4 selected">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-1.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-info bg-info-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Computers</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">MacBook Pro</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$1800</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- IPhone 14 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-2.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-pink bg-pink-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Smartphones</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">IPhone 14</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$800</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Nike Angelo Red -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-3.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-orange bg-orange-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Footwear</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Nike Angelo Red</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$300</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Airpod 2 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-4.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-purple bg-purple-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Headphones</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Airpod 2</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$150</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Adidas IX Blue -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-5.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-orange bg-orange-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Footwear</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Adidas IX Blue</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$280</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- IdeaPad Slim 5 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-6.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-info bg-info-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Computers</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">IdeaPad Slim 5</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$1200</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Beats Pro -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-7.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-purple bg-purple-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Headphones</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Beats Pro</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$450</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Tablet 1.02 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-8.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-pink bg-pink-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Smartphones</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Tablet 1.02</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$600</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Yoga Book 9i -->        
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-9.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-info bg-info-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Computers</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Yoga Book 9i</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$1000</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Fossil Pair Of 3 In 1 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-10.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-warning bg-warning-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Watches</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Fossil Pair 3 In 1</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$300</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Iphone 11 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4 selected">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-11.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-pink bg-pink-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Smartphones</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Iphone 11</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$600</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Nike Neo Green -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-12.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-orange bg-orange-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Footwear</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Nike Neo Green</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$320</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Titan Classic -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-13.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-warning bg-warning-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Watches</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Titan Classic</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$150</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Office Shoes -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4 selected">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-14.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-orange bg-orange-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Footwear</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Office Shoes</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$400</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- IdeaPad Slim 3i -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-15.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-info bg-info-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Computers</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">IdeaPad Slim 3i</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$1200</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<!-- Rolex Tribute V3 -->
+						<div class="col-span-1">
+							<div class="pos-product-card bg-white border border-border-color rounded-lg p-4">
+								<div class="bg-light p-4 rounded-lg flex items-center justify-center">
+									<img src="assets/img/product/product-16.png" alt="product" class="img-fluid">
+								</div>
+								<div class="pt-5">
+									<span class="inline-block text-[9px] sm:text-[10px] text-warning bg-warning-transparent px-1 sm:px-1.5 py-0.5 rounded mb-0.5 sm:mb-1">Watches</span>
+									<h2 class="text-base font-bold text-title mt-1 mb-4">Rolex Tribute V3</h2>
+									<div class="flex items-center justify-between gap-1">
+										<span class="text-sm font-medium text-primary">$200</span>
+										<div class="flex items-center gap-1 text-default">
+											<i class="ph ph-minus-circle qty-btn qty-minus text-sm cursor-pointer hover:text-danger transition"></i>
+											<span class="qty-value text-sm font-medium text-gray-900 min-w-4 text-center">0</span>
+											<i class="ph ph-plus-circle qty-btn qty-plus text-sm cursor-pointer hover:text-success transition"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				<!-- End Products -->
+			</div>
+
+			<!-- Right Side -->
+			<div class="col-span-12 lg:col-span-4">
+				<div class="ml-0 lg:ml-3 lg:pl-5 pl-0 border-0 lg:border-l border-border-color overflow-y-auto h-full lg:max-h-[calc(100vh-170px)] scrollbar-hide">
+					<!-- Order List -->
+					<div class="flex items-center justify-between p-4 rounded-lg bg-light mb-6">
+						<div>
+							<p class="text-base font-bold text-title mb-1">Order List</p>
+							<p class="text-sm text-default mb-0">Id : #ORD0020</p>
+						</div>
+						<button class="size-8 rounded-md border border-border-color flex items-center justify-center bg-white text-gray-900 hover:bg-danger hover:text-white cursor-pointer transition">
+							<i class="ph ph-trash text-sm sm:text-base"></i>
+						</button>
+					</div>
+					<!-- Customer Information -->
+					<div class="mb-5 pb-5 border-b border-border-color">
+						<h2 class="text-lg font-bold text-title mb-4">Customer Information</h2>
+						<div class="mb-3">
+							<div class="flex items-center justify-between mb-1">
+								<label class="text-sm text-gray-900 font-semibold">Customer <span class="text-danger">*</span></label>
+								<a href="#" class="text-sm font-medium text-danger inline-flex items-center gap-1">
+									<i class="ph ph-plus text-sm"></i> <span class="hidden sm:inline">Add New</span>
+								</a>
+							</div>
+							<select class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0">
+								<option>Select</option>
+								<option>Alexander Kenn</option>
+								<option>Gabriella White</option>
+								<option>Christopher Rey</option>
+								<option>Penelope Ton</option>
+							</select>
+						</div>
+						<div class="mb-0">
+							<div class="flex items-center justify-between mb-1">
+								<label class="text-sm text-gray-900 font-semibold">Product <span class="text-danger">*</span></label>
+							</div>
+							<select class="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0">
+								<option>Select</option>
+								<option>Apple MacBook Pro 14</option>
+								<option>HP Laptop 15s</option>
+								<option>Dell Inspiron 15</option>
+								<option>Asus Vivobook 14</option>
+							</select>
+						</div>
+					</div>
+					<!-- Product Added -->
+					<div class="mb-5 pb-5 border-b border-border-color">
+						<div class="flex items-center justify-between gap-3 mb-4">
+							<h2 class="text-lg font-bold text-title inline-flex items-center gap-1 mb-0">
+								Product Added
+								<span class="inline-flex items-center justify-center size-4 bg-success text-white text-[9px] sm:text-[10px] font-medium rounded-full">4</span>
+							</h2>
+							<a href="#" class="text-sm font-medium text-danger inline-flex items-center gap-1">
+								<i class="ph ph-x text-sm"></i> <span>Clear All</span>
+							</a>
+						</div>
+
+						<!-- Cart Empty State -->
+						<div id="cart-empty-state" class="hidden text-center p-6 rounded-lg bg-white border border-border-color mb-4">
+							<i class="ph-duotone ph-shopping-cart text-3xl text-default mb-2 inline-block"></i>
+							<p class="text-sm font-semibold text-title mb-1">No Products Selected</p>
+							<p class="text-sm text-default mb-0">Scan or select products to get started</p>
+						</div>
+
+						<div class="space-y-3 mb-4">
+							<div class="pos-product-card-1 flex items-center justify-between flex-wrap gap-3 p-3 rounded-lg bg-white border border-border-color">
+							<div class="flex items-center gap-3 min-w-0">
+								<div class="size-14 rounded-md bg-light p-2 flex items-center justify-center overflow-hidden">
+									<img src="assets/img/product/product-3.png" alt="Nike Angelo Red" class="w-10 h-10 object-contain">
+								</div>
+								<div class="min-w-0">
+									<span class="inline-flex items-center justify-center px-2 py-1 text-[10px] font-medium text-primary bg-primary-transparent rounded-md mb-1">PRO0014</span>
+									<h3 class="text-sm font-semibold text-title truncate">Nike Angelo Red</h3>
+								</div>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-medium text-success">$300</span>
+								<div class="inline-flex items-center gap-2 rounded-lg border border-border-color bg-white px-2 py-1">
+									<button class="cursor-pointer text-sm text-default qty-btn qty-minus"><i class="ph ph-minus-circle"></i></button>
+									<span class="qty-value text-sm font-semibold">01</span>
+									<button class="cursor-pointer text-sm text-default qty-btn qty-plus"><i class="ph ph-plus-circle"></i></button>
+										</div>
+										<button class="cursor-pointer size-9 rounded-lg border border-border-color bg-white text-default hover:bg-danger hover:text-white transition">
+											<i class="ph ph-trash text-sm"></i>
+										</button>
+									</div>
+								</div>
+
+							<div class="pos-product-card-1 flex items-center justify-between flex-wrap gap-3 p-3 rounded-lg bg-white border border-border-color">
+							<div class="flex items-center gap-3 min-w-0">
+								<div class="size-14 rounded-md bg-light p-2 flex items-center justify-center overflow-hidden">
+									<img src="assets/img/product/product-5.png" alt="Adidas IX Blue" class="w-10 h-10 object-contain">
+								</div>
+								<div class="min-w-0">
+									<span class="inline-flex items-center justify-center px-2 py-1 text-[10px] font-medium text-primary bg-primary-transparent rounded-md mb-1">PRO0016</span>
+									<h3 class="text-sm font-semibold text-title truncate">Adidas IX Blue</h3>
+								</div>
+							</div>
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-medium text-success">$280</span>
+								<div class="inline-flex items-center gap-2 rounded-lg border border-border-color bg-light px-2 py-1">
+									<button class="cursor-pointer text-sm text-default qty-btn qty-minus"><i class="ph ph-minus-circle"></i></button>
+									<span class="qty-value text-sm font-medium text-gray-900">01</span>
+									<button class="cursor-pointer text-sm text-default qty-btn qty-plus"><i class="ph ph-plus-circle"></i></button>
+										</div>
+										<button class="cursor-pointer size-8 rounded-lg border border-border-color bg-white text-default hover:bg-danger hover:text-white transition">
+											<i class="ph ph-trash text-sm"></i>
+										</button>
+									</div>
+								</div>
+
+							<div class="pos-product-card-1 flex items-center justify-between flex-wrap gap-3 p-3 rounded-lg bg-white border border-border-color">
+								<div class="flex items-center gap-3 min-w-0">
+									<div class="size-14 rounded-md bg-light p-2 flex items-center justify-center overflow-hidden">
+										<img src="assets/img/product/product-12.png" alt="Nike Neo Green" class="w-10 h-10 object-contain">
+									</div>
+									<div class="min-w-0">
+										<span class="inline-flex items-center justify-center px-2 py-1 text-[10px] font-medium text-primary bg-primary-transparent rounded-md mb-1">PRO0023</span>
+										<h3 class="text-sm font-semibold text-title truncate">Nike Neo Green</h3>
+									</div>
+								</div>
+									<div class="flex items-center gap-2">
+										<span class="text-sm font-medium text-success">$320</span>
+										<div class="inline-flex items-center gap-2 rounded-lg border border-border-color bg-light px-2 py-1">
+											<button class="cursor-pointer text-sm text-default qty-btn qty-minus"><i class="ph ph-minus-circle"></i></button>
+											<span class="qty-value text-sm font-medium text-gray-900">01</span>
+											<button class="cursor-pointer text-sm text-default qty-btn qty-plus"><i class="ph ph-plus-circle"></i></button>
+										</div>
+										<button class="cursor-pointer size-8 rounded-lg border border-border-color bg-white text-default hover:bg-danger hover:text-white transition">
+											<i class="ph ph-trash text-sm"></i>
+										</button>
+									</div>
+								</div>
+
+							<div class="pos-product-card-1 flex items-center justify-between flex-wrap gap-3 p-3 rounded-lg bg-white border border-border-color">
+								<div class="flex items-center gap-3 min-w-0 flex-wrap">
+									<div class="size-14 rounded-md bg-light p-2 flex items-center justify-center overflow-hidden">
+										<img src="assets/img/product/product-14.png" alt="Office Shoes" class="w-10 h-10 object-contain">
+									</div>
+									<div class="min-w-0">
+										<span class="inline-flex items-center justify-center px-2 py-1 text-[10px] font-medium text-primary bg-primary-transparent rounded-md mb-1">PRO0025</span>
+										<h3 class="text-sm font-semibold text-title truncate">Office Shoes</h3>
+									</div>
+								</div>
+								<div class="flex items-center gap-2 flex-wrap">
+									<span class="text-sm font-medium text-success">$400</span>
+									<div class="inline-flex items-center gap-2 rounded-lg border border-border-color bg-light px-2 py-1">
+										<button class="cursor-pointer text-sm text-default qty-btn qty-minus"><i class="ph ph-minus-circle"></i></button>
+											<span class="qty-value text-sm font-medium text-gray-900">01</span>
+										<button class="cursor-pointer text-sm text-default qty-btn qty-plus"><i class="ph ph-plus-circle"></i></button>
+									</div>
+									<button class="cursor-pointer size-8 rounded-lg border border-border-color bg-white text-default hover:bg-danger hover:text-white transition">
+										<i class="ph ph-trash text-sm"></i>
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<div class="grid lg:grid-cols-3 grid-cols-1 md:grid-cols-3 gap-1 sm:gap-2 mb-0 gap-4">
+							<div class="lg:col-span-1 md:col-span-1 col-span-3">
+								<label class="text-sm font-semibold text-gray-900 mb-1 block">
+									Order Tax 
+									<span class="text-danger">*</span>
+								</label>
+								<select class="w-full px-1.5 sm:px-2 py-1.5 sm:py-2 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0">
+									<option>Select</option>
+									<option>9%</option>
+									<option>12%</option>
+									<option>18%</option>
+								</select>
+							</div>
+							<div class="lg:col-span-1 md:col-span-1 col-span-3">
+								<label class="text-sm font-semibold text-gray-900 mb-1 block">
+									Shipping 
+									<span class="text-danger">*</span>
+								</label>
+								<select class="w-full px-1.5 sm:px-2 py-1.5 sm:py-2 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0">
+									<option>0</option>
+									<option>5</option>
+									<option>10</option>
+									<option>20</option>
+								</select>
+							</div>
+							<div class="lg:col-span-1 md:col-span-1 col-span-3">
+								<label class="text-sm font-semibold text-gray-900 mb-1 block">
+									Discount(%) 
+									<span class="text-danger">*</span>
+								</label>
+								<select class="w-full px-1.5 sm:px-2 py-1.5 sm:py-2 text-sm border border-border-color rounded-md bg-white focus:outline-none focus:ring-0">
+									<option>0</option>
+									<option>10%</option>
+									<option>20%</option>
+									<option>30%</option>
+								</select>
+							</div>
+						</div>
+					</div>
+					<!-- Sub Total -->
+					<div class="bg-light rounded-lg p-5 mb-5">
+						<p class="flex items-center justify-between text-default text-sm mb-2"> Sub Total <span class="text-sm font-semibold">$1300.00</span></p>
+						<p class="flex items-center justify-between text-default text-sm mb-2"> Tax <span class="text-sm font-semibold">$65.00</span></p>
+						<p class="flex items-center justify-between text-default text-sm mb-2"> Shipping <span class="text-sm font-semibold">$40.00</span></p>
+						<p class="flex items-center justify-between text-danger text-sm mb-4"> Discount <span class="text-sm font-semibold">$130.00</span></p>
+						<p class="flex items-center justify-between text-gray-900 font-semibold text-sm mb-0"> Grand Total <span class="text-sm font-semibold">$1275.00</span></p>
+					</div>
+					<!-- Order Notes -->
+					<div>
+						<h2 class="text-lg font-bold text-title mb-3">Payment Method</h2>
+						<div class="grid grid-cols-3 gap-1 sm:gap-2 mb-2 sm:mb-3">
+							<button class="px-1.5 sm:px-2 py-2 sm:py-3 rounded-md border border-border-color text-gray-900 flex flex-col items-center gap-0.5 cursor-pointer hover:border-primary transition">
+								<i class="ph-duotone ph-money text-base sm:text-lg text-default"></i>
+								<span class="text-[10px] sm:text-sm font-medium">Cash</span>
+							</button>
+							<button class="px-1.5 sm:px-2 py-2 sm:py-3 rounded-md border border-border-color text-gray-900 flex flex-col items-center gap-0.5 cursor-pointer hover:border-primary transition">
+								<i class="ph-duotone ph-credit-card text-base sm:text-lg text-default"></i>
+								<span class="text-[10px] sm:text-sm">Debit Card</span>
+							</button>
+							<button class="px-1.5 sm:px-2 py-2 sm:py-3 rounded-md border border-border-color text-gray-900 flex flex-col items-center gap-0.5 cursor-pointer hover:border-primary transition">
+								<i class="ph-duotone ph-qr-code text-base sm:text-lg text-default"></i>
+								<span class="text-[10px] sm:text-sm">Scan</span>
+							</button>
+						</div>
+						<div class="bg-dark text-white text-center py-2 sm:py-3 rounded-md mb-2 sm:mb-2">
+							<span class="text-sm sm:text-sm font-semibold">Grand Total : $0.00</span>
+						</div>
+						<div class="grid grid-cols-3 gap-1 sm:gap-2">
+							<button class="py-2 sm:py-2.5 rounded-md bg-info text-white text-[10px] sm:text-sm font-medium inline-flex items-center justify-center gap-1 cursor-pointer hover:bg-info-600 transition">
+								<i class="ph-duotone ph-pause-circle text-sm sm:text-base"></i> 
+								<span class="hidden sm:inline">Hold</span>
+							</button>
+							<button class="py-2 sm:py-2.5 rounded-md bg-danger text-white text-[10px] sm:text-sm font-medium inline-flex items-center justify-center gap-1 cursor-pointer hover:bg-danger-600 transition">
+								<i class="ph-duotone ph-x-circle text-sm sm:text-base"></i> 
+								<span class="hidden sm:inline">Void</span>
+							</button>
+							<button class="py-2 sm:py-2.5 rounded-md bg-success text-white text-[10px] sm:text-sm font-medium inline-flex items-center justify-center gap-1 cursor-pointer hover:bg-success-600 transition">
+								<i class="ph-duotone ph-credit-card text-sm sm:text-base"></i> 
+								<span class="hidden sm:inline">Payment</span>
+							</button>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+		<!-- End Grid -->
+		 
+	</main>
+
+	<div class="text-center text-sm text-default my-4">2026 © Dreams ERP. All Rights Reserved</div>
+
+	<!-- Simplebar JS -->
+    <script  src="assets/libs/simplebar/simplebar.min.js"></script>
+
+    <!-- Preline JS -->
+    <script src="assets/libs/preline/preline.js"></script>
+
+    <!-- Custom JS -->
+</body>
+
+
+<!-- Mirrored from https://dreamserp.dreamstechnologies.com/tailwind/pos.html by HTTrack Website Copier/3.x [XR&CO], Wed, 16 Sep 2026 09:17:49 GMT -->
+</html>
