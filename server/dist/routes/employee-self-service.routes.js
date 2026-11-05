@@ -1656,17 +1656,24 @@ exports.employeeSelfServiceRouter.get("/organization/holidays", async (req, res)
     const db = prisma_1.rawPrisma || prisma_1.prisma;
     const tenantId = req.user.tenantId;
     const year = Number(req.query.year) || new Date().getFullYear();
+    const branchId = req.employee?.branchId;
     try {
         const holidays = await db.holiday.findMany({
             where: {
                 tenantId,
                 year,
+                status: "active",
             },
             orderBy: { date: "asc" },
         });
+        const applicableHolidays = holidays.filter((h) => {
+            if (!Array.isArray(h.branchIds) || h.branchIds.length === 0)
+                return true;
+            return branchId ? h.branchIds.includes(branchId) : false;
+        });
         return res.json({
             success: true,
-            data: holidays,
+            data: applicableHolidays,
         });
     }
     catch (err) {

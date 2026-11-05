@@ -149,6 +149,7 @@ model Tenant {
   heldOrders                   HeldOrder[]
   helpdeskTickets              HelpdeskTicket[]
   holidays                     Holiday[]
+  holidayTypes                 HolidayType[]
   indicatorCategories          IndicatorCategory[]
   interviewRoundMasters        InterviewRoundMaster[]
   interviewTypeMasters         InterviewTypeMaster[]
@@ -5698,12 +5699,34 @@ model Holiday {
   description String?
   branchIds   String[] @default([]) @map("branch_ids")
   stateCodes  String[] @default([]) @map("state_codes")
+  status      String   @default("active") @db.VarChar(30)
+  createdBy   String?  @map("created_by") @db.VarChar(36)
+  updatedBy   String?  @map("updated_by") @db.VarChar(36)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, year])
+  @@index([tenantId, status])
   @@map("holidays")
+}
+
+model HolidayType {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  description String?
+  color       String   @default("#10b981") @db.VarChar(30)
+  status      String   @default("active") @db.VarChar(20)
+  createdBy   String?  @map("created_by") @db.VarChar(36)
+  updatedBy   String?  @map("updated_by") @db.VarChar(36)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+  @@map("holiday_types")
 }
 
 model EmployeeEvent {

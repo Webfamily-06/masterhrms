@@ -97,6 +97,7 @@ import { fbpRouter } from "./routes/fbp.routes";
 import { helpdeskRouter } from "./routes/helpdesk.routes";
 import { platformSupportRouter } from "./routes/platform-support.routes";
 import { announcementsRouter } from "./routes/announcements.routes";
+import { organizationRouter } from "./routes/organization.routes";
 import { formsRouter } from "./routes/forms.routes";
 import { complianceRouter } from "./routes/compliance.routes";
 import { biometricRouter, publicBiometricRouter, iclockRouter } from "./routes/biometric.routes";
@@ -581,6 +582,10 @@ app.use("/api/user/email-accounts", userEmailAccountsRouter);
 app.use("/api/smart-dashboard", smartDashboardRouter);
 app.use("/api/smart-reports", smartReportsRouter);
 app.use("/api/ai-business-advisor", aiBusinessAdvisorRouter);
+app.use("/api/organization", organizationRouter);
+app.use("/api/v1/organization", organizationRouter);
+app.use("/api/hr/organization", organizationRouter);
+app.use("/api/v1/hr/organization", organizationRouter);
 
 // Platform Foundation APIs (v1 & unversioned alias)
 app.use("/api/v1", platformFoundationRouter);

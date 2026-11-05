@@ -43,6 +43,7 @@ export function useMasterList<T = any>({
     total: number;
     totalPages: number;
     statusCounts?: Record<string, number>;
+    counts?: { total: number; active: number; inactive: number };
   }>({
     queryKey: [queryKey, params],
     queryFn: async () => {
@@ -88,6 +89,7 @@ export function useMasterList<T = any>({
         total: totalCount,
         totalPages: totalPagesCount,
         statusCounts: res?.statusCounts || res?.data?.statusCounts,
+        counts: res?.counts || res?.data?.counts,
       };
     },
   });
@@ -98,6 +100,11 @@ export function useMasterList<T = any>({
     total: data?.total || 0,
     totalPages: data?.totalPages || 1,
     statusCounts: data?.statusCounts,
+    counts: data?.counts || {
+      total: data?.total || 0,
+      active: (data?.data || []).filter((x: any) => x.status === "active").length,
+      inactive: (data?.data || []).filter((x: any) => x.status === "inactive").length,
+    },
     page,
     limit,
     search,

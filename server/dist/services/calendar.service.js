@@ -163,15 +163,44 @@ class CalendarService {
         // 4. OFFICIAL HOLIDAYS PROJECTION
         if (!category || category === "all" || category === "holiday") {
             try {
+                // Resolve employee branch if employee context
+                let employeeBranchId = null;
+                if (!isHR && employeeId) {
+                    const emp = await db.employee.findUnique({
+                        where: { id: employeeId },
+                        select: { branchId: true },
+                    });
+                    employeeBranchId = emp?.branchId || null;
+                }
+                const holidayWhere = {
+                    tenantId,
+                    status: "active",
+                    date: { gte: startFilter, lte: endFilter },
+                };
                 const holidays = await db.holiday.findMany({
-                    where: {
-                        tenantId,
-                        date: { gte: startFilter, lte: endFilter },
-                    },
-                    take: 50,
+                    where: holidayWhere,
+                    orderBy: { date: "asc" },
+                    take: 200,
                 });
+                // Load holiday types for badge colors if available
+                const holidayTypes = await db.holidayType.findMany({
+                    where: { tenantId },
+                    select: { name: true, color: true },
+                }).catch(() => []);
+                const colorMap = new Map();
+                for (const t of holidayTypes) {
+                    if (t?.name)
+                        colorMap.set(String(t.name).toLowerCase(), t.color || "#10b981");
+                }
                 for (const h of holidays) {
+                    // If branch-restricted, check if applicable to this employee
+                    if (!isHR && h.branchIds && h.branchIds.length > 0) {
+                        if (!employeeBranchId || !h.branchIds.includes(employeeBranchId)) {
+                            continue; // Skip holiday not applicable to employee's branch
+                        }
+                    }
                     const hDate = new Date(h.date);
+                    const typeColor = colorMap.get((h.type || "").toLowerCase()) || "#10b981";
                     events.push({
                         id: `holiday-${h.id}`,
                         title: `Holiday: ${h.name}`,
@@ -183,7 +212,7 @@ class CalendarService {
                         sourceDomain: "organization",
                         sourceId: h.id,
                         linkTo: isHR ? `/hr/organization/holidays` : `/me/organization/holidays`,
-                        status: "active",
+                        status: h.status || "active",
                         badgeColor: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
                     });
                 }

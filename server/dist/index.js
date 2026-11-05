@@ -97,6 +97,7 @@ const fbp_routes_1 = require("./routes/fbp.routes");
 const helpdesk_routes_1 = require("./routes/helpdesk.routes");
 const platform_support_routes_1 = require("./routes/platform-support.routes");
 const announcements_routes_1 = require("./routes/announcements.routes");
+const organization_routes_1 = require("./routes/organization.routes");
 const forms_routes_1 = require("./routes/forms.routes");
 const compliance_routes_1 = require("./routes/compliance.routes");
 const biometric_routes_1 = require("./routes/biometric.routes");
@@ -548,6 +549,10 @@ app.use("/api/user/email-accounts", user_email_accounts_routes_1.userEmailAccoun
 app.use("/api/smart-dashboard", smart_dashboard_routes_1.smartDashboardRouter);
 app.use("/api/smart-reports", smart_reports_routes_1.smartReportsRouter);
 app.use("/api/ai-business-advisor", ai_business_advisor_routes_1.aiBusinessAdvisorRouter);
+app.use("/api/organization", organization_routes_1.organizationRouter);
+app.use("/api/v1/organization", organization_routes_1.organizationRouter);
+app.use("/api/hr/organization", organization_routes_1.organizationRouter);
+app.use("/api/v1/hr/organization", organization_routes_1.organizationRouter);
 // Platform Foundation APIs (v1 & unversioned alias)
 app.use("/api/v1", platform_foundation_routes_1.platformFoundationRouter);
 app.use("/api", platform_foundation_routes_1.platformFoundationRouter);
