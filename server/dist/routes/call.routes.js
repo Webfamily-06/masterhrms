@@ -7,6 +7,7 @@ const socket_1 = require("../socket");
 const prisma_1 = require("../prisma");
 const incoming_call_push_service_1 = require("../services/incoming-call-push.service");
 const pusher_service_1 = require("../services/pusher.service");
+const meeting_sfu_service_1 = require("../services/meeting-sfu.service");
 const call_lifecycle_service_1 = require("../services/call-lifecycle.service");
 exports.callRouter = (0, express_1.Router)();
 // Target user ID resolution helper (supports direct user.id or employee.id)
@@ -940,6 +941,12 @@ exports.callRouter.post("/:callId/invite-colleague", auth_1.requireAuth, async (
         if (session) {
             const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
             io?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+            // Phase C3: Broadcast SFU upgrade for 3+ participant calls
+            const sfuRoom = meeting_sfu_service_1.MeetingSfuService.formatCallRoomName(tenantId, callId);
+            io?.to(`user:${userId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+            if (session) {
+                io?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+            }
         }
         return res.json({
             success: true,
@@ -1004,5 +1011,134 @@ exports.callRouter.post("/:callId/accept-invitation", auth_1.requireAuth, async 
     catch (error) {
         console.error("[CallRoutes] Accept invitation error:", error);
         return res.status(500).json({ success: false, error: error.message || "Failed to accept invitation" });
+    }
+});
+// POST /api/calls/:callId/sfu-token - Phase C3 Scoped LiveKit SFU Token for Active Calls
+exports.callRouter.post("/:callId/sfu-token", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { callId } = req.params;
+        const userId = req.user.userId || req.user.id;
+        const tenantId = req.user.tenantId;
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        // 1. Verify Call exists and belongs to user's tenant
+        const call = await db.call.findFirst({
+            where: {
+                OR: [{ id: callId }, { roomKey: callId }],
+                tenantId,
+            },
+            include: {
+                participants: true,
+            },
+        });
+        if (!call) {
+            return res.status(404).json({
+                success: false,
+                error: "Call session not found or unauthorized.",
+                code: "CALL_NOT_FOUND",
+            });
+        }
+        if (call.status !== "ACTIVE" && call.status !== "RINGING") {
+            return res.status(409).json({
+                success: false,
+                error: "Call session is not active.",
+                code: "CALL_INACTIVE",
+            });
+        }
+        // 2. Verify requesting user is an active participant or invitee
+        const participant = call.participants.find((p) => p.userId === userId);
+        if (!participant || !["JOINED", "INVITED", "RINGING"].includes(participant.state)) {
+            return res.status(403).json({
+                success: false,
+                error: "Access denied. You are not an active participant in this call.",
+                code: "CALL_FORBIDDEN",
+            });
+        }
+        // 3. Check if SFU is configured
+        const sfuConfig = meeting_sfu_service_1.MeetingSfuService.getConfig();
+        if (!sfuConfig.configured) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    configured: false,
+                    provider: "livekit",
+                    message: "LiveKit SFU credentials are not configured on this server.",
+                    iceServers: meeting_sfu_service_1.MeetingSfuService.getIceServers(userId),
+                },
+            });
+        }
+        // 4. Resolve user display name and avatar
+        const userRecord = await db.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
+        const displayName = userRecord?.profile?.fullName || req.user?.name || req.user?.email || "Colleague";
+        const avatarUrl = userRecord?.profile?.avatarUrl;
+        // 5. Generate short-lived scoped LiveKit token (15-min TTL)
+        const tokenResult = meeting_sfu_service_1.MeetingSfuService.generateCallToken({
+            tenantId,
+            callId: call.id,
+            userId,
+            name: displayName,
+            avatarUrl,
+            isHost: call.startedBy === userId || participant.role === "HOST",
+            ttlSeconds: 900,
+        });
+        return res.json({
+            success: true,
+            data: {
+                configured: true,
+                ...tokenResult,
+            },
+        });
+    }
+    catch (error) {
+        console.error("[CallRoutes] SFU token generation error:", error);
+        return res.status(500).json({ success: false, error: error.message || "Failed to generate SFU token" });
+    }
+});
+/**
+ * GET /api/calls/ice-servers
+ * Returns server-authoritative ICE servers (STUN + RFC 7635 ephemeral Coturn TURN credentials)
+ * Scoped to the authenticated user for P2P direct calls and NAT traversal.
+ */
+exports.callRouter.get("/ice-servers", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.userId || req.user.id || "anonymous";
+        const iceServers = meeting_sfu_service_1.MeetingSfuService.getIceServers(userId);
+        return res.json({
+            success: true,
+            data: {
+                iceServers,
+            },
+        });
+    }
+    catch (error) {
+        console.error("[CallRoutes] Error resolving ICE servers:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || "Failed to resolve ICE servers",
+        });
+    }
+});
+/**
+ * GET /api/calls/sfu-status
+ * Safe diagnostics endpoint for administrators and frontends to verify
+ * whether LiveKit SFU (self-hosted or LiveKit Cloud) is configured.
+ * Strictly never exposes API keys or secrets.
+ */
+exports.callRouter.get("/sfu-status", auth_1.requireAuth, async (req, res) => {
+    try {
+        const diagnosticInfo = meeting_sfu_service_1.MeetingSfuService.getDiagnosticInfo();
+        return res.json({
+            success: true,
+            data: diagnosticInfo,
+        });
+    }
+    catch (error) {
+        console.error("[CallRoutes] Error fetching SFU status:", error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || "Failed to fetch SFU status",
+        });
     }
 });

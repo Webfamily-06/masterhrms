@@ -18,6 +18,7 @@ const notification_service_1 = require("./services/notification.service");
 const pusher_service_1 = require("./services/pusher.service");
 const incoming_call_push_service_1 = require("./services/incoming-call-push.service");
 const call_lifecycle_service_1 = require("./services/call-lifecycle.service");
+const meeting_sfu_service_1 = require("./services/meeting-sfu.service");
 let ioInstance = null;
 const tenantPresence = new Map();
 exports.activeCalls = new Map();
@@ -1141,6 +1142,13 @@ function initSocket(server, allowedOrigins) {
                     const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
                     ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
                 }
+                // Phase C3: Broadcast SFU upgrade for 3+ participant calls
+                const sfuRoom = meeting_sfu_service_1.MeetingSfuService.formatCallRoomName(tenantId, callId);
+                socket.emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+                if (session) {
+                    const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
+                    ioInstance?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+                }
                 acknowledge?.({ success: true, data: result });
             }
             catch (err) {
@@ -1192,109 +1200,116 @@ function initSocket(server, allowedOrigins) {
         socket.on("call.accept_invitation", handleAcceptInvitation);
         // 7. GROUP AUDIO & VIDEO CALLS & MULTI-PARTY MEETINGS
         socket.on("group-call:start", async (payload, acknowledge) => {
-            const { groupId, callId, callType } = payload;
-            const tenantId = socket.data.tenantId;
-            if (!groupId || !callId || !tenantId) {
-                acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "Invalid meeting request." });
-                emitCallForbidden(socket);
-                return;
-            }
-            if (exports.activeGroupCalls.has(callId)) {
-                acknowledge?.({ success: false, code: "CALL_CONFLICT", message: "This meeting ID is already active." });
-                emitCallForbidden(socket);
-                return;
-            }
-            // Verify group existence and membership within tenant
-            const group = await (prisma_1.rawPrisma || prisma_1.prisma).chatGroup.findFirst({
-                where: { id: groupId, tenantId },
-                include: { members: true },
-            });
-            if (!group || !group.members.some((m) => m.userId === socket.data.userId)) {
-                acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "You cannot start a meeting for this group." });
-                emitCallForbidden(socket);
-                return;
-            }
-            // Check if host is already on an active 1-to-1 call
-            for (const [, call] of exports.activeCalls) {
-                if (call.tenantId === tenantId &&
-                    (call.status === "ringing" || call.status === "connected") &&
-                    (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
-                    socket.emit("call:busy", {
-                        callId,
-                        message: "You are already in an active call. Please end your current call first.",
-                        busyUserId: socket.data.userId,
-                    });
-                    acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in an active call." });
+            // TRY_WRAPPER_GROUP_CALL_START
+            try {
+                const { groupId, callId, callType } = payload;
+                const tenantId = socket.data.tenantId;
+                if (!groupId || !callId || !tenantId) {
+                    acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "Invalid meeting request." });
+                    emitCallForbidden(socket);
                     return;
                 }
-            }
-            for (const [, meeting] of exports.activeGroupCalls) {
-                if (meeting.tenantId === tenantId && meeting.participants.has(socket.data.userId)) {
-                    socket.emit("call:busy", {
-                        callId,
-                        message: "You are already in another meeting. Leave it before starting a new one.",
-                        busyUserId: socket.data.userId,
-                    });
-                    acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in another meeting." });
+                if (exports.activeGroupCalls.has(callId)) {
+                    acknowledge?.({ success: false, code: "CALL_CONFLICT", message: "This meeting ID is already active." });
+                    emitCallForbidden(socket);
                     return;
                 }
-            }
-            const participants = new Map();
-            participants.set(socket.data.userId, {
-                userId: socket.data.userId,
-                name: socket.data.name || "Host",
-                avatar: socket.data.avatar || null,
-                role: "host",
-                joinedAt: new Date(),
-                isMuted: false,
-                isCameraOff: false,
-                isScreenSharing: false,
-                isSpeaking: false,
-                socketIds: new Set([socket.id]),
-            });
-            const invitedUserIds = new Set();
-            for (const m of group.members) {
-                if (m.userId !== socket.data.userId) {
-                    invitedUserIds.add(m.userId);
+                // Verify group existence and membership within tenant
+                const group = await (prisma_1.rawPrisma || prisma_1.prisma).chatGroup.findFirst({
+                    where: { id: groupId, tenantId },
+                    include: { members: true },
+                });
+                if (!group || !group.members.some((m) => m.userId === socket.data.userId)) {
+                    acknowledge?.({ success: false, code: "CALL_FORBIDDEN", message: "You cannot start a meeting for this group." });
+                    emitCallForbidden(socket);
+                    return;
                 }
-            }
-            exports.activeGroupCalls.set(callId, {
-                callId,
-                groupId,
-                groupName: group.name,
-                groupAvatarUrl: group.avatarUrl,
-                tenantId,
-                creatorId: socket.data.userId,
-                callType: callType || "audio",
-                startedAt: new Date(),
-                participants,
-                invitedUserIds,
-                historyPersisted: false,
-            });
-            socket.join(`group_call_${callId}`);
-            acknowledge?.({ success: true, callId });
-            // Broadcast incoming group call to all group members with Pusher fallback
-            for (const m of group.members) {
-                if (m.userId !== socket.data.userId) {
-                    const invitePayload = {
-                        groupId,
-                        groupName: group.name,
-                        groupAvatarUrl: group.avatarUrl,
-                        callId,
-                        callType: callType || "audio",
-                        callerId: socket.data.userId,
-                        callerName: socket.data.name,
-                        callerAvatar: socket.data.avatar,
-                        eventId: `group_call_${callId}_${m.userId}`,
-                    };
-                    // Primary: Socket.IO
-                    ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
-                    // Fallback: Pusher
-                    pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
+                // Check if host is already on an active 1-to-1 call
+                for (const [, call] of exports.activeCalls) {
+                    if (call.tenantId === tenantId &&
+                        (call.status === "ringing" || call.status === "connected") &&
+                        (call.callerId === socket.data.userId || call.targetUserId === socket.data.userId)) {
+                        socket.emit("call:busy", {
+                            callId,
+                            message: "You are already in an active call. Please end your current call first.",
+                            busyUserId: socket.data.userId,
+                        });
+                        acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in an active call." });
+                        return;
+                    }
                 }
+                for (const [, meeting] of exports.activeGroupCalls) {
+                    if (meeting.tenantId === tenantId && meeting.participants.has(socket.data.userId)) {
+                        socket.emit("call:busy", {
+                            callId,
+                            message: "You are already in another meeting. Leave it before starting a new one.",
+                            busyUserId: socket.data.userId,
+                        });
+                        acknowledge?.({ success: false, code: "CALL_BUSY", message: "You are already in another meeting." });
+                        return;
+                    }
+                }
+                const participants = new Map();
+                participants.set(socket.data.userId, {
+                    userId: socket.data.userId,
+                    name: socket.data.name || "Host",
+                    avatar: socket.data.avatar || null,
+                    role: "host",
+                    joinedAt: new Date(),
+                    isMuted: false,
+                    isCameraOff: false,
+                    isScreenSharing: false,
+                    isSpeaking: false,
+                    socketIds: new Set([socket.id]),
+                });
+                const invitedUserIds = new Set();
+                for (const m of group.members) {
+                    if (m.userId !== socket.data.userId) {
+                        invitedUserIds.add(m.userId);
+                    }
+                }
+                exports.activeGroupCalls.set(callId, {
+                    callId,
+                    groupId,
+                    groupName: group.name,
+                    groupAvatarUrl: group.avatarUrl,
+                    tenantId,
+                    creatorId: socket.data.userId,
+                    callType: callType || "audio",
+                    startedAt: new Date(),
+                    participants,
+                    invitedUserIds,
+                    historyPersisted: false,
+                });
+                socket.join(`group_call_${callId}`);
+                acknowledge?.({ success: true, callId });
+                // Broadcast incoming group call to all group members with Pusher fallback
+                for (const m of group.members) {
+                    if (m.userId !== socket.data.userId) {
+                        const invitePayload = {
+                            groupId,
+                            groupName: group.name,
+                            groupAvatarUrl: group.avatarUrl,
+                            callId,
+                            callType: callType || "audio",
+                            callerId: socket.data.userId,
+                            callerName: socket.data.name,
+                            callerAvatar: socket.data.avatar,
+                            eventId: `group_call_${callId}_${m.userId}`,
+                        };
+                        // Primary: Socket.IO
+                        ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
+                        // Fallback: Pusher
+                        pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
+                    }
+                }
+                // Record system event in group conversation
+                await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, socket.data.userId, "group_call_started", `${socket.data.name} started a group ${callType} meeting.`, { groupId, callId, callType });
             }
-            // Record system event in group conversation
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, socket.data.userId, "group_call_started", `${socket.data.name} started a group ${callType} meeting.`, { groupId, callId, callType });
+            catch (err) {
+                console.error("[Socket] group-call:start error:", err);
+                acknowledge?.({ success: false, code: "CALL_ERROR", message: err?.message || "Failed to start meeting." });
+            }
         });
         socket.on("group-call:join", async (payload) => {
             const { callId } = payload;

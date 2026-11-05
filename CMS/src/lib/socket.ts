@@ -437,6 +437,44 @@ export function useRealtimeSocket() {
       toast(title, {
         description,
       });
+
+      // Desktop OS Notification when window is backgrounded, minimized, or in another tab
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        (document.visibilityState === "hidden" || !document.hasFocus())
+      ) {
+        try {
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then((reg) => {
+              reg.showNotification(title, {
+                body: description,
+                icon: "/assets/img/logo-small.svg",
+                badge: "/assets/img/favicon.png",
+                tag: finalId,
+                data: {
+                  actionUrl: linkTo || "/",
+                  url: linkTo || "/",
+                  linkTo: linkTo || "/",
+                },
+              });
+            }).catch(() => {
+              new Notification(title, {
+                body: description,
+                icon: "/assets/img/logo-small.svg",
+                tag: finalId,
+              });
+            });
+          } else {
+            new Notification(title, {
+              body: description,
+              icon: "/assets/img/logo-small.svg",
+              tag: finalId,
+            });
+          }
+        } catch {}
+      }
     }
 
     socket.on("connect", onConnect);

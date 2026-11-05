@@ -36,7 +36,7 @@ interface IncomingCallContextValue {
   enablePushNotifications: () => Promise<boolean>;
 }
 
-const IncomingCallContext = createContext<IncomingCallContextValue | null>(null);
+export const IncomingCallContext = createContext<IncomingCallContextValue | null>(null);
 
 // Pure Web Audio API synthesized dual-tone telephone ring (440Hz + 480Hz)
 class RingtonePlayer {
@@ -252,11 +252,39 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         if (reg) {
           const sub = await reg.pushManager.getSubscription();
           setIsSubscribedToPush(!!sub);
+
+          // Automatic Device Registration Sync:
+          // If the user has granted notification permission and is authenticated,
+          // ensure their Web Push subscription exists and is synchronized with the backend.
+          const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
+          if (token && "Notification" in window && Notification.permission === "granted") {
+            if (!sub) {
+              enablePushNotifications().catch(() => {});
+            } else {
+              const subJson = sub.toJSON();
+              fetch("/api/notifications/push/subscribe", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                  endpoint: subJson.endpoint,
+                  keys: subJson.keys,
+                  deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop",
+                }),
+              }).then((r) => r.json()).then((d) => {
+                if (d?.success) setIsSubscribedToPush(true);
+              }).catch(() => {});
+            }
+          }
         }
-      } catch {}
+      } catch (err) {
+        console.warn("[IncomingCallContext] Background subscription check:", err);
+      }
     };
     checkSub();
-  }, []);
+  }, [enablePushNotifications]);
 
   const stopCallAlert = useCallback(() => {
     ringtoneRef.current?.stop();

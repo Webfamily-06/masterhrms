@@ -2882,6 +2882,112 @@ exports.chatRouter.get("/meetings/config", auth_1.requireAuth, async (_req, res)
         return res.status(500).json({ error: err.message || "Failed to resolve meetings config" });
     }
 });
+// POST /api/chat/meetings/start - Server-authoritative meeting start with explicit confirmation
+exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId || req.user?.id;
+        const { groupId, callId, callType = "video", groupName } = req.body;
+        if (!groupId || !callId || !tenantId) {
+            return res.status(400).json({ success: false, error: "groupId, callId and tenantId are required." });
+        }
+        if (socket_1.activeGroupCalls.has(callId)) {
+            return res.json({ success: true, callId, status: "connected", message: "Meeting already active." });
+        }
+        // 1. Verify group exists and belongs to user's tenant
+        const group = await prisma_1.prisma.chatGroup.findFirst({
+            where: { id: groupId, tenantId },
+            include: { members: true },
+        });
+        if (!group || !group.members.some((m) => m.userId === userId)) {
+            return res.status(403).json({ success: false, error: "You cannot start a meeting for this group." });
+        }
+        // 2. Check if organizer is already on an active 1-to-1 call
+        for (const [, call] of socket_1.activeCalls) {
+            if (call.tenantId === tenantId &&
+                (call.status === "ringing" || call.status === "connected") &&
+                (call.callerId === userId || call.targetUserId === userId)) {
+                return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in an active call." });
+            }
+        }
+        // 3. Check if organizer is in another group meeting
+        for (const [, meeting] of socket_1.activeGroupCalls) {
+            if (meeting.tenantId === tenantId && meeting.participants.has(userId)) {
+                return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in another meeting." });
+            }
+        }
+        // 4. Resolve organizer name and avatar
+        const userProfile = await prisma_1.prisma.userProfile.findUnique({
+            where: { userId },
+            select: { fullName: true, avatarUrl: true },
+        });
+        const hostName = userProfile?.fullName || req.user?.email || "Host";
+        const hostAvatar = userProfile?.avatarUrl || null;
+        const participants = new Map();
+        participants.set(userId, {
+            userId,
+            name: hostName,
+            avatar: hostAvatar,
+            role: "host",
+            joinedAt: new Date(),
+            isMuted: false,
+            isCameraOff: callType === "audio",
+            isScreenSharing: false,
+            isSpeaking: false,
+            socketIds: new Set(),
+        });
+        const invitedUserIds = new Set();
+        for (const m of group.members) {
+            if (m.userId !== userId) {
+                invitedUserIds.add(m.userId);
+            }
+        }
+        socket_1.activeGroupCalls.set(callId, {
+            callId,
+            groupId,
+            groupName: group.name,
+            groupAvatarUrl: group.avatarUrl,
+            tenantId,
+            creatorId: userId,
+            callType: callType || "audio",
+            startedAt: new Date(),
+            participants,
+            invitedUserIds,
+            historyPersisted: false,
+        });
+        // 5. Broadcast incoming group call to invitees via Socket.IO & Pusher
+        const ioInstance = (0, socket_1.getIO)();
+        for (const m of group.members) {
+            if (m.userId !== userId) {
+                const invitePayload = {
+                    groupId,
+                    groupName: group.name,
+                    groupAvatarUrl: group.avatarUrl,
+                    callId,
+                    callType: callType || "audio",
+                    callerId: userId,
+                    callerName: hostName,
+                    callerAvatar: hostAvatar,
+                    eventId: `group_call_${callId}_${m.userId}`,
+                };
+                ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
+                pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
+            }
+        }
+        // Record system event
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, userId, "group_call_started", `${hostName} started a group ${callType} meeting.`, { groupId, callId, callType }).catch(() => { });
+        return res.json({
+            success: true,
+            callId,
+            status: "connected",
+            message: "Meeting session confirmed and started successfully",
+        });
+    }
+    catch (err) {
+        console.error("[Meetings API] Start meeting error:", err);
+        return res.status(500).json({ success: false, error: err.message || "Failed to start meeting" });
+    }
+});
 // POST /api/chat/meetings/:callId/token - Issues short-lived, scoped SFU room token
 exports.chatRouter.post("/meetings/:callId/token", auth_1.requireAuth, async (req, res) => {
     try {

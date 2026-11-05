@@ -841,6 +841,9 @@ export function UnifiedChatApp({
   const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const [localStreamState, setLocalStreamState] = useState<MediaStream | null>(null);
+  const [remoteStreamState, setRemoteStreamState] = useState<MediaStream | null>(null);
+  const [screenStreamState, setScreenStreamState] = useState<MediaStream | null>(null);
 
   // Web Audio API Ringtone Refs
   const ringtoneContextRef = useRef<AudioContext | null>(null);
@@ -1873,6 +1876,9 @@ export function UnifiedChatApp({
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     setIsScreenSharing(false);
+    setScreenStreamState(null);
+    setLocalStreamState(null);
+    setRemoteStreamState(null);
     setAdditionalParticipants([]);
   }, [stopRingtone, preCallStream]);
 
@@ -3837,6 +3843,7 @@ export function UnifiedChatApp({
       }
 
       localStreamRef.current = stream;
+      setLocalStreamState(stream);
       setActiveCallType(type);
       setActiveCallTargetName(name);
       setActiveCallTargetPhone(phone);
@@ -3890,8 +3897,10 @@ export function UnifiedChatApp({
             remoteStreamRef.current!.addTrack(track);
           }
         });
+        setRemoteStreamState(remoteStreamRef.current);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = remoteStreamRef.current;
@@ -4017,6 +4026,7 @@ export function UnifiedChatApp({
         if (!screenTrack) return;
 
         screenStreamRef.current = screenStream;
+        setScreenStreamState(screenStream);
         const senders = pc.getSenders();
         const vs = senders.find((s) => s.track?.kind === "video");
         if (vs) {
@@ -4153,6 +4163,7 @@ export function UnifiedChatApp({
       }
 
       localStreamRef.current = stream;
+      setLocalStreamState(stream);
       setActiveCallType(targetCall.type);
       setActiveCallTargetName(targetCall.callerName);
       setActiveCallTargetPhone(targetCall.callerPhone || "");
@@ -4201,8 +4212,10 @@ export function UnifiedChatApp({
             remoteStreamRef.current!.addTrack(t);
           }
         });
+        setRemoteStreamState(remoteStreamRef.current);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStreamRef.current;
+          remoteVideoRef.current.play().catch(() => {});
         }
         if (remoteAudioRef.current) {
           remoteAudioRef.current.srcObject = remoteStreamRef.current;
@@ -9435,14 +9448,17 @@ export function UnifiedChatApp({
                 callStatus={callStatus}
                 networkQuality={networkQuality}
                 networkRttMs={networkRttMs}
-                localStream={localStreamRef.current}
-                remoteStream={remoteStreamRef.current}
+                localStream={localStreamState || localStreamRef.current}
+                remoteStream={remoteStreamState || remoteStreamRef.current}
+                screenStream={screenStreamState || screenStreamRef.current}
                 localVideoRef={localVideoRef}
                 remoteVideoRef={remoteVideoRef}
                 participants={activeCallParticipants}
                 isMuted={isMuted}
                 isVideoOff={isVideoOff}
+                remoteIsVideoOff={remoteIsVideoOff}
                 isScreenSharing={isScreenSharing}
+                remoteIsScreenSharing={remoteIsScreenSharing}
                 isCallFullscreen={isCallFullscreen}
                 isReconnecting={isReconnecting}
                 peerReconnecting={peerReconnecting}

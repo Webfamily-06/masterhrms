@@ -7,8 +7,16 @@
   "isHashIdentical": true,
   "baselineModifiedCount": 0,
   "baselineDeletedCount": 0,
-  "additiveTestRecordsCount": 13,
+  "additiveTestRecordsCount": 16,
   "testRecords": [
+    {
+      "id": "0e674bbe-8f66-4618-b264-8d2a10a41edc",
+      "createdAt": "2026-11-05T08:44:52.205Z",
+      "caller": "Alex Rivera",
+      "receiver": "Sarah HR Lead",
+      "status": "rejected",
+      "callType": "video"
+    },
     {
       "id": "0e832160-0b94-4e33-b4f7-06dfb95a1a9d",
       "createdAt": "2026-11-05T01:37:45.559Z",
@@ -23,6 +31,14 @@
       "caller": "Sarah HR Lead",
       "receiver": "Alex Rivera",
       "status": "completed",
+      "callType": "video"
+    },
+    {
+      "id": "1921f9c8-1a2e-4f16-b99b-5a8cbdf56422",
+      "createdAt": "2026-11-05T08:45:51.970Z",
+      "caller": "Alex Rivera",
+      "receiver": "Sarah HR Lead",
+      "status": "missed",
       "callType": "video"
     },
     {
@@ -74,6 +90,14 @@
       "callType": "video"
     },
     {
+      "id": "c1acea35-679e-4a0e-a196-bf89997fcd3e",
+      "createdAt": "2026-11-05T08:47:22.469Z",
+      "caller": "Sarah HR Lead",
+      "receiver": "Alex Rivera",
+      "status": "missed",
+      "callType": "video"
+    },
+    {
       "id": "c70372e4-74e3-45fd-871d-c0c77a844bbd",
       "createdAt": "2026-11-05T02:10:36.042Z",
       "caller": "Sarah HR Lead",
@@ -114,5 +138,5 @@
       "callType": "video"
     }
   ],
-  "timestamp": "2026-11-05T08:05:58.102Z"
+  "timestamp": "2026-11-05T10:10:20.817Z"
 }

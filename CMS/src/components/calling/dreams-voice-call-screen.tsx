@@ -60,7 +60,7 @@ export function DreamsVoiceCallScreen({
       {/* Hidden WebRTC Audio Output */}
       {remoteAudioRef && <audio ref={remoteAudioRef as any} autoPlay />}
 
-      {/* Header Master HRMS Voice Call */}
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-4 px-1 shrink-0">
         <div className="flex items-center gap-2">
           <h1 className="text-gray-900 dark:text-white text-lg sm:text-xl font-bold mb-0">Voice Call</h1>
@@ -71,13 +71,14 @@ export function DreamsVoiceCallScreen({
         <button
           type="button"
           onClick={onAddParticipant}
+          data-testid="call-btn-add-new-header"
           className="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-1.5 hover:bg-primary-hover hover:border-primary-hover cursor-pointer px-3 py-1.5 rounded-md text-xs font-semibold shadow-xs transition-colors"
         >
           <i className="ph ph-plus"></i> Add New
         </button>
       </div>
 
-      {/* Main voice call card wrapper Master HRMS Voice Call */}
+      {/* Main voice call card wrapper */}
       <div className="bg-white dark:bg-card border border-border-color rounded-md p-3 sm:p-4 flex flex-col justify-between flex-1 min-h-0 overflow-hidden shadow-xs">
         {/* Caller bar */}
         <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4 shrink-0">
@@ -158,7 +159,7 @@ export function DreamsVoiceCallScreen({
           </div>
         </div>
 
-        {/* Voice call canvas Master HRMS Voice Call */}
+        {/* Voice call canvas */}
         <div className="relative rounded-md overflow-hidden bg-light dark:bg-slate-800/40 flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] my-1">
           {/* Centered Caller Avatar */}
           <div
@@ -208,7 +209,7 @@ export function DreamsVoiceCallScreen({
           </div>
         </div>
 
-        {/* Control bar Master HRMS Voice Call */}
+        {/* Control bar */}
         <div className="border-t border-border-color pt-3 sm:pt-4 mt-2 sm:mt-4 flex items-center justify-center gap-2 sm:gap-3 shrink-0">
           {/* Mute Mic */}
           <button
@@ -275,7 +276,7 @@ export function DreamsVoiceCallScreen({
             <i className="ph-duotone ph-speaker-high text-base sm:text-lg"></i>
           </button>
 
-          {/* In-Call Add Participant / Colleague */}
+          {/* In-Call Add Participant */}
           <button
             type="button"
             data-testid="call-btn-add-participant"

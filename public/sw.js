@@ -232,15 +232,52 @@ self.addEventListener("push", (event) => {
     return;
   }
 
-  // Case 3: Standard generic notifications
-  const standardTitle = payload.title || "MasterHRMS Notification";
+  // Case 3: Standard generic platform notifications (Leave, Attendance, Calendar, Todo, Payroll, Chat, System)
+  const standardTitle = payload.title || "MasterHRMS Alert";
+  const targetUrl = payload.actionUrl || payload.linkTo || payload.url || (payload.data?.actionUrl) || (payload.data?.linkTo) || (payload.data?.url) || "/";
+  const notifId = payload.id || payload.notificationId || (payload.data?.id);
+  const tag = payload.tag || (notifId ? `notif_${notifId}` : "masterhrms-alert");
+
   const standardOptions = {
     body: payload.body || payload.message || "",
     icon: payload.icon || "/assets/img/logo-small.svg",
     badge: "/assets/img/favicon.png",
-    data: payload.data || payload,
+    tag,
+    renotify: true,
+    data: {
+      type: payload.type || payload.module || "SYSTEM",
+      id: notifId,
+      tenantId: payload.tenantId,
+      actionUrl: targetUrl,
+      url: targetUrl,
+      linkTo: targetUrl,
+      receivedAt: Date.now(),
+      ...(payload.data || {}),
+    },
   };
-  event.waitUntil(self.registration.showNotification(standardTitle, standardOptions));
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      // Broadcast payload to all open clients so in-app drawer updates immediately
+      clients.forEach((c) => {
+        c.postMessage({
+          type: "PUSH_NOTIFICATION_RECEIVED",
+          payload,
+        });
+      });
+
+      // Deduplication: If a client window is currently visible and focused,
+      // the in-app notification drawer & toast already display the alert.
+      // Suppress duplicate OS notification popup.
+      const hasFocusedClient = clients.some((c) => c.focused);
+      if (hasFocusedClient) {
+        return Promise.resolve();
+      }
+
+      // Display native OS notification when app is in another tab, minimized, or closed
+      return self.registration.showNotification(standardTitle, standardOptions);
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -256,11 +293,9 @@ self.addEventListener("notificationclick", (event) => {
       self.clients
         .matchAll({ type: "window", includeUncontrolled: true })
         .then((clients) => {
-          // Notify any open clients
           clients.forEach((c) => {
             c.postMessage({ type: "CALL_ACTION_REJECT", callId });
           });
-          // Also invoke REST rejection endpoint if client is in background
           return fetch(`/api/calls/${encodeURIComponent(callId)}/reject`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -271,11 +306,13 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  // If user clicked notification or notification action (Accept or body click)
-  // SECURITY & USABILITY REQUIREMENT: Never auto-accept calls via URL parameter.
-  // The notification click only focuses or opens the application and displays the pending incoming call interface.
-  // User must explicitly click "Accept" on the client interface.
-  const targetPath = (data.actionUrl || `/chat?callId=${encodeURIComponent(callId || "")}`).replace(/([?&])autoAccept=true&?/, "$1").replace(/[?&]$/, "");
+  // Resolve target application route (supporting role-aware routes: /hr/*, /me/*, /tenant/*, /super/*, /chat)
+  let targetPath = callId
+    ? `/chat?callId=${encodeURIComponent(callId)}`
+    : (data.actionUrl || data.url || data.linkTo || "/");
+
+  // Sanitize any accidental autoAccept parameter
+  targetPath = targetPath.replace(/([?&])autoAccept=true&?/, "$1").replace(/[?&]$/, "");
 
   event.waitUntil(
     self.clients
@@ -286,13 +323,16 @@ self.addEventListener("notificationclick", (event) => {
           if ("focus" in client) {
             client.focus();
             client.postMessage({
-              type: "CALL_ACTION_NAVIGATE",
+              type: "NOTIFICATION_CLICK_NAVIGATE",
               callId,
+              targetPath,
               actionUrl: targetPath,
+              data,
             });
-            // If the client is not currently on /chat, navigate to targetPath
+
+            // If the client is not currently on targetPath, navigate
             const clientUrl = new URL(client.url);
-            if (!clientUrl.pathname.includes("/chat")) {
+            if (targetPath && targetPath !== "/" && !clientUrl.pathname.includes(targetPath.split("?")[0])) {
               if ("navigate" in client) {
                 return client.navigate(targetPath);
               }
@@ -300,7 +340,7 @@ self.addEventListener("notificationclick", (event) => {
             return;
           }
         }
-        // If no open client exists, open a new window
+        // If no open client exists, open a new window to the target route
         if (self.clients.openWindow) {
           return self.clients.openWindow(targetPath);
         }

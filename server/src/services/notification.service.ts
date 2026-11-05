@@ -1,7 +1,9 @@
-import { getTenantDb } from "../context/tenant-context";
+import { getTenantDb, getTenantContext } from "../context/tenant-context";
 import { rawPrisma } from "../prisma";
 import { getIO } from "../socket";
 import { PusherService } from "./pusher.service";
+import { VapidService } from "./vapid.service";
+import { PushSubscriptionStore } from "./push-subscription.store";
 
 export interface CreateNotificationParams {
   tenantId: string;
@@ -21,12 +23,8 @@ export class NotificationService {
    * Includes idempotency check to prevent duplicate dispatches for the same event and reminder.
    */
   public static async createNotification(params: CreateNotificationParams): Promise<any> {
-    let db: any;
-    try {
-      db = getTenantDb();
-    } catch {
-      db = rawPrisma;
-    }
+    const tenantCtx = getTenantContext();
+    const db: any = tenantCtx?.db || rawPrisma;
     const targetUserId = params.userId || params.recipientUserId || "system";
 
     // 1. Idempotency check for event reminders to prevent duplicate DB records
@@ -124,11 +122,82 @@ export class NotificationService {
     void PusherService.triggerUserEvent(params.tenantId, targetUserId, "notification:new", payload)
       .catch(() => {});
 
+    // Web Push (RFC 8291 / RFC 8292) delivery to user's registered browser/device subscriptions
+    void this.dispatchWebPush(params.tenantId, targetUserId, {
+      id: notification.id,
+      title: notification.title,
+      body: notification.body,
+      type: notification.module,
+      module: notification.module,
+      linkTo: notification.linkTo,
+      actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
+      metadata: notification.metadataJson,
+      createdAt: notification.createdAt,
+    }).catch((err) => {
+      console.warn("[NotificationService] Web Push dispatch failed:", err?.message || err);
+    });
+
     return notification;
   }
 
   public static async sendNotification(params: CreateNotificationParams): Promise<any> {
     return this.createNotification(params);
+  }
+
+  /**
+   * Dispatches standard RFC 8291 Web Push notifications to all active device subscriptions of recipient.
+   */
+  public static async dispatchWebPush(tenantId: string, userId: string, payload: any): Promise<{ sent: number; failed: number }> {
+    try {
+      const subscriptions = await PushSubscriptionStore.getActiveSubscriptions(tenantId, userId);
+      if (!subscriptions || subscriptions.length === 0) {
+        return { sent: 0, failed: 0 };
+      }
+
+      const pushPayload = {
+        type: "NOTIFICATION_NEW",
+        eventType: "NOTIFICATION_NEW",
+        schemaVersion: "1.0",
+        id: payload.id,
+        notificationId: payload.id,
+        tenantId,
+        title: payload.title || "MasterHRMS Alert",
+        body: payload.body || "",
+        message: payload.body || "",
+        module: payload.module || "SYSTEM",
+        linkTo: payload.linkTo || "/",
+        actionUrl: payload.actionUrl || payload.linkTo || "/",
+        icon: "/assets/img/logo-small.svg",
+        badge: "/assets/img/favicon.png",
+        tag: `notif_${payload.id}`,
+        timestamp: payload.createdAt || new Date().toISOString(),
+        metadata: payload.metadata || null,
+      };
+
+      let sent = 0;
+      let failed = 0;
+      await Promise.allSettled(
+        subscriptions.map(async (sub) => {
+          const res = await VapidService.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            pushPayload,
+            { ttl: 86400, urgency: "normal", topic: `notif_${payload.module?.toLowerCase() || "system"}` }
+          );
+          if (res.success) {
+            sent++;
+          } else {
+            failed++;
+            if (res.isExpired) {
+              await PushSubscriptionStore.markExpired(userId, sub.endpoint);
+            }
+          }
+        })
+      );
+      return { sent, failed };
+    } catch (err: any) {
+      console.warn(`[NotificationService] Web Push delivery error for user ${userId}:`, err?.message);
+      return { sent: 0, failed: 0 };
+    }
   }
 
   /**

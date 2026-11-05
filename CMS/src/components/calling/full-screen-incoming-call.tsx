@@ -96,7 +96,7 @@ export function FullScreenIncomingCall() {
       aria-modal="true"
       aria-labelledby="incoming-call-caller"
       onClick={unlockAudio}
-      className="fixed inset-0 z-[99999] flex flex-col items-center justify-between py-8 sm:py-12 px-6 bg-slate-950/95 backdrop-blur-2xl text-white select-none animate-in fade-in duration-300"
+      className="fixed inset-0 z-[99999] flex flex-col items-center justify-between py-6 sm:py-12 px-4 sm:px-6 bg-slate-950/95 backdrop-blur-2xl text-white select-none animate-in fade-in duration-300 min-h-[100dvh] max-h-[100dvh] overflow-hidden"
       style={{ touchAction: "none" }}
     >
       {/* Top Banner / Call Type Tag & Autoplay indicator */}
@@ -176,7 +176,10 @@ export function FullScreenIncomingCall() {
       </div>
 
       {/* Bottom Controls Area: Mobile Swipe + Tap Buttons */}
-      <div className="w-full max-w-md flex flex-col items-center gap-6 pb-6 pt-2">
+      <div
+        className="w-full max-w-md flex flex-col items-center gap-5 sm:gap-6 pt-2"
+        style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom, 24px))" }}
+      >
         {/* Mobile Dedicated Swipe-to-Answer Slider (Visible on small screens) */}
         <div className="w-full max-w-xs flex flex-col items-center sm:hidden">
           <div

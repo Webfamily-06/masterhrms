@@ -1,0 +1,86 @@
+[
+  {
+    "suite": "SUITE 1",
+    "testName": "VAPID Keypair Validation",
+    "pass": true,
+    "details": "Public key length: 87",
+    "timestamp": "2026-11-05T10:09:47.945Z"
+  },
+  {
+    "suite": "SUITE 1",
+    "testName": "RFC 8292 ES256 JWT Generation",
+    "pass": true,
+    "details": "Valid 3-part signed JWT generated",
+    "timestamp": "2026-11-05T10:09:47.945Z"
+  },
+  {
+    "suite": "SUITE 2",
+    "testName": "Multi-Device Persistence for Single User",
+    "pass": true,
+    "details": "Found 2 active devices (Windows & Android)",
+    "timestamp": "2026-11-05T10:09:48.408Z"
+  },
+  {
+    "suite": "SUITE 2",
+    "testName": "Cross-Tenant Subscription Isolation",
+    "pass": true,
+    "details": "Tenant A cannot access Tenant B subscriptions",
+    "timestamp": "2026-11-05T10:09:48.515Z"
+  },
+  {
+    "suite": "SUITE 2",
+    "testName": "Single-Device Revocation on Logout",
+    "pass": true,
+    "details": "Device 1 revoked while Device 2 remains active",
+    "timestamp": "2026-11-05T10:09:48.620Z"
+  },
+  {
+    "suite": "SUITE 3",
+    "testName": "NotificationService Web Push Pipeline Integration",
+    "pass": true,
+    "details": "Dispatched 4 distinct event categories (CALENDAR, LEAVE, TODO, CHAT)",
+    "timestamp": "2026-11-05T10:09:49.787Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Root-Scoped Service Worker Registration",
+    "pass": true,
+    "details": "Scope: http://localhost:8990/",
+    "timestamp": "2026-11-05T10:09:50.208Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Browser Notification Permission Check",
+    "pass": true,
+    "details": "Permission: granted",
+    "timestamp": "2026-11-05T10:09:50.209Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Service Worker Notification Presentation",
+    "pass": true,
+    "details": "Title: \"Background Test Alert\"",
+    "timestamp": "2026-11-05T10:09:50.217Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Notification Click Role-Aware Route Resolution",
+    "pass": true,
+    "details": "Target: /hr/leave-requests",
+    "timestamp": "2026-11-05T10:09:50.218Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Background Tab Inactivity Detection",
+    "pass": true,
+    "details": "Primary tab visibilityState === 'hidden'",
+    "timestamp": "2026-11-05T10:09:50.220Z"
+  },
+  {
+    "suite": "SUITE 4",
+    "testName": "Background Inactivity Desktop Alert Delivery",
+    "pass": true,
+    "details": "Delivered: \"Time-Off Request Escalation\"",
+    "timestamp": "2026-11-05T10:09:50.222Z"
+  }
+]

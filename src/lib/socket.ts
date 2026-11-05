@@ -368,6 +368,44 @@ export function useRealtimeSocket() {
       toast(title, {
         description,
       });
+
+      // Desktop OS Notification when window is backgrounded, minimized, or in another tab
+      if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        (document.visibilityState === "hidden" || !document.hasFocus())
+      ) {
+        try {
+          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then((reg) => {
+              reg.showNotification(title, {
+                body: description,
+                icon: "/assets/img/logo-small.svg",
+                badge: "/assets/img/favicon.png",
+                tag: finalId,
+                data: {
+                  actionUrl: linkTo || "/",
+                  url: linkTo || "/",
+                  linkTo: linkTo || "/",
+                },
+              });
+            }).catch(() => {
+              new Notification(title, {
+                body: description,
+                icon: "/assets/img/logo-small.svg",
+                tag: finalId,
+              });
+            });
+          } else {
+            new Notification(title, {
+              body: description,
+              icon: "/assets/img/logo-small.svg",
+              tag: finalId,
+            });
+          }
+        } catch {}
+      }
     }
 
     socket.on("connect", onConnect);
@@ -420,7 +458,14 @@ export function useRealtimeSocket() {
             userChannel = pusherClient.subscribe(`private-user-${currentUserId}`);
             userChannel.bind("notification:new", onNotification);
             userChannel.bind("call:incoming", dispatchPusherEvent("call:incoming"));
+            userChannel.bind("call:accepted", dispatchPusherEvent("call:accepted"));
+            userChannel.bind("call:rejected", dispatchPusherEvent("call:rejected"));
+            userChannel.bind("call:cancelled", dispatchPusherEvent("call:cancelled"));
+            userChannel.bind("call:timeout", dispatchPusherEvent("call:timeout"));
+            userChannel.bind("call:signal", dispatchPusherEvent("call:signal"));
+            userChannel.bind("call:ended", dispatchPusherEvent("call:ended"));
             userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
+            userChannel.bind("call:media-state", dispatchPusherEvent("call:media-state"));
             userChannel.bind("calendar:reminder-due", (data: any) => {
               onNotification({
                 id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,

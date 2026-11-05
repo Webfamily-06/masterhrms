@@ -1,0 +1,107 @@
+[
+  {
+    "id": "SCENARIO-01",
+    "title": "Harness Initialization & User Mount",
+    "pass": true,
+    "details": "Sarah and Alex mounted in idle state",
+    "timestamp": "2026-11-05T09:28:03.684Z"
+  },
+  {
+    "id": "SCENARIO-02",
+    "title": "Caller State Transition",
+    "pass": true,
+    "details": "Sarah entered video calling screen",
+    "timestamp": "2026-11-05T09:28:03.759Z"
+  },
+  {
+    "id": "SCENARIO-03",
+    "title": "Incoming Call Notification Dialog",
+    "pass": true,
+    "details": "Caller name: Sarah HR Lead",
+    "timestamp": "2026-11-05T09:28:03.853Z"
+  },
+  {
+    "id": "SCENARIO-04",
+    "title": "Callee Accept Call Execution",
+    "pass": true,
+    "details": "Alex accepted call and entered call screen",
+    "timestamp": "2026-11-05T09:28:03.962Z"
+  },
+  {
+    "id": "SCENARIO-05",
+    "title": "Caller Main Stage Hero Video Rendering",
+    "pass": true,
+    "details": "videoWidth: 320, readyState: 4, avatarVisible: false",
+    "timestamp": "2026-11-05T09:28:09.985Z"
+  },
+  {
+    "id": "SCENARIO-06",
+    "title": "Callee Main Stage Hero Video Rendering",
+    "pass": true,
+    "details": "videoWidth: 320, readyState: 4, avatarVisible: false",
+    "timestamp": "2026-11-05T09:28:09.987Z"
+  },
+  {
+    "id": "SCENARIO-07",
+    "title": "Bottom Participant Filmstrip Rendering",
+    "pass": true,
+    "details": "tiles found: 2",
+    "timestamp": "2026-11-05T09:28:09.988Z"
+  },
+  {
+    "id": "SCENARIO-08",
+    "title": "Camera Mute Avatar Fallback Display",
+    "pass": true,
+    "details": "Avatar visible on callee: true",
+    "timestamp": "2026-11-05T09:28:12.103Z"
+  },
+  {
+    "id": "SCENARIO-09",
+    "title": "Camera Unmute Live Video Immediate Restoration",
+    "pass": true,
+    "details": "Video width: 640, avatar hidden: true",
+    "timestamp": "2026-11-05T09:28:14.733Z"
+  },
+  {
+    "id": "SCENARIO-10",
+    "title": "Screen Sharing Presentation Canvas & Remote Reception",
+    "pass": true,
+    "details": "Presenter canvas: true, Viewer canvas: true",
+    "timestamp": "2026-11-05T09:28:19.900Z"
+  },
+  {
+    "id": "SCENARIO-11",
+    "title": "Screen Sharing Stop & Clean Camera Restoration",
+    "pass": true,
+    "details": "Canvas dismissed: true, Camera video playing: true",
+    "timestamp": "2026-11-05T09:28:25.028Z"
+  },
+  {
+    "id": "SCENARIO-12",
+    "title": "Microphone Mute Toggle",
+    "pass": true,
+    "details": "Button styled danger when muted",
+    "timestamp": "2026-11-05T09:28:25.590Z"
+  },
+  {
+    "id": "SCENARIO-13",
+    "title": "Call Termination & Hardware Cleanup",
+    "pass": true,
+    "details": "Caller UI reset: true, Callee UI reset: true",
+    "timestamp": "2026-11-05T09:28:28.709Z"
+  },
+  {
+    "id": "SCENARIO-14",
+    "title": "Mobile Safe Area Insets Verification",
+    "pass": true,
+    "details": "Style: padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 24px));",
+    "timestamp": "2026-11-05T09:28:29.348Z"
+  },
+  {
+    "id": "SCENARIO-15",
+    "title": "Mobile Incoming Call Acceptance & Responsiveness",
+    "pass": true,
+    "details": "Mobile incoming call correctly received, safe-area padded, and accepted",
+    "timestamp": "2026-11-05T09:28:31.546Z"
+  }
+]

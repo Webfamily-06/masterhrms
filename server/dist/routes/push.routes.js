@@ -19,6 +19,7 @@ exports.pushRouter.get("/status", auth_1.requireAuth, async (req, res) => {
                 vapidPublicKey: keys.publicKey,
                 hasActiveSubscription: activeSubs.length > 0,
                 subscriptionCount: activeSubs.length,
+                serviceWorker: { path: "/sw.js", scope: "/" },
             },
         });
     }
@@ -88,6 +89,39 @@ const handleUnsubscribe = async (req, res) => {
 };
 exports.pushRouter.delete("/unsubscribe", auth_1.requireAuth, handleUnsubscribe);
 exports.pushRouter.post("/unsubscribe", auth_1.requireAuth, handleUnsubscribe);
+// GET /api/notifications/push/diagnostics - Secure, sanitized diagnostic status
+exports.pushRouter.get("/diagnostics", auth_1.requireAuth, async (req, res) => {
+    try {
+        const keys = vapid_service_1.VapidService.getVapidKeys();
+        const userId = req.user.userId || req.user.id;
+        const tenantId = req.user.tenantId;
+        const activeSubs = await push_subscription_store_1.PushSubscriptionStore.getActiveSubscriptions(tenantId, userId);
+        return res.json({
+            success: true,
+            data: {
+                provider: "VAPID_WEB_PUSH",
+                vapidConfigured: Boolean(keys.publicKey && keys.privateKey),
+                vapidSubject: keys.subject,
+                vapidPublicKey: keys.publicKey,
+                hasActiveSubscription: activeSubs.length > 0,
+                subscriptionCount: activeSubs.length,
+                serviceWorker: { path: "/sw.js", scope: "/" },
+                subscriptions: activeSubs.map((s) => ({
+                    id: s.id,
+                    deviceId: s.deviceId,
+                    platform: s.platform,
+                    userAgent: s.userAgent,
+                    createdAt: s.createdAt,
+                    lastSeenAt: s.lastSeenAt,
+                    status: s.status,
+                })),
+            },
+        });
+    }
+    catch (error) {
+        return res.status(500).json({ success: false, error: error.message || "Failed to load push diagnostics" });
+    }
+});
 // POST /api/notifications/push/test - Dispatch test push to verify browser delivery
 exports.pushRouter.post("/test", auth_1.requireAuth, async (req, res) => {
     try {
@@ -100,20 +134,54 @@ exports.pushRouter.post("/test", auth_1.requireAuth, async (req, res) => {
                 error: "No active push subscriptions found for current user. Please enable notifications in the browser first.",
             });
         }
-        const testPayload = {
-            eventType: "CALL_INCOMING",
-            schemaVersion: "1.0",
-            callId: `test_call_${Date.now()}`,
-            tenantId,
-            callerId: "system",
-            callerName: "MasterHRMS Test",
-            callerAvatar: null,
-            callType: "audio",
-            issuedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 60000).toISOString(),
-            actionRoute: "/apps/chat/chats",
-        };
-        const results = await Promise.all(activeSubs.map((sub) => vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, testPayload, { ttl: 45, urgency: "high", topic: "test_call" })));
+        const notifType = req.body?.type || "general";
+        const customTitle = req.body?.title || "MasterHRMS Platform Notification";
+        const customBody = req.body?.body || req.body?.message || "This is a verified background Web Push notification from MasterHRMS.";
+        const customUrl = req.body?.actionUrl || req.body?.url || req.body?.linkTo || "/hr/notifications";
+        let testPayload;
+        let ttl = 86400;
+        let urgency = "normal";
+        let topic = "test_notification";
+        if (notifType === "call") {
+            testPayload = {
+                type: "CALL_INCOMING",
+                eventType: "CALL_INCOMING",
+                schemaVersion: "1.0",
+                callId: `test_call_${Date.now()}`,
+                tenantId,
+                callerId: "system",
+                callerName: "MasterHRMS Test",
+                callerAvatar: null,
+                callType: "audio",
+                issuedAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 60000).toISOString(),
+                actionRoute: "/chat",
+            };
+            ttl = 45;
+            urgency = "high";
+            topic = "test_call";
+        }
+        else {
+            testPayload = {
+                type: "NOTIFICATION_NEW",
+                eventType: "NOTIFICATION_NEW",
+                schemaVersion: "1.0",
+                id: `test_notif_${Date.now()}`,
+                notificationId: `test_notif_${Date.now()}`,
+                tenantId,
+                title: customTitle,
+                body: customBody,
+                message: customBody,
+                module: req.body?.module || "SYSTEM",
+                linkTo: customUrl,
+                actionUrl: customUrl,
+                icon: "/assets/img/logo-small.svg",
+                badge: "/assets/img/favicon.png",
+                tag: `notif_test_${Date.now()}`,
+                timestamp: new Date().toISOString(),
+            };
+        }
+        const results = await Promise.all(activeSubs.map((sub) => vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, testPayload, { ttl, urgency, topic })));
         const successful = results.filter((r) => r.success).length;
         return res.json({
             success: true,

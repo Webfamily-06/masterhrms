@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRealtimeSocket, RealtimeNotification, NotificationCategory } from "@/lib/socket";
+import { useIncomingCall } from "@/context/incoming-call-context";
 import {
   Popover,
   PopoverContent,
@@ -32,6 +33,8 @@ const CATEGORIES: Array<{ key: "all" | NotificationCategory; label: string }> = 
 export function RealtimeNotificationDrawer() {
   const { notifications, unreadCount, markAllAsRead, markAsRead, clearAllNotifications } =
     useRealtimeSocket();
+  const { isPushSupported, pushPermission, isSubscribedToPush, enablePushNotifications } =
+    useIncomingCall();
   const [filter, setFilter] = useState<"all" | NotificationCategory>("all");
   const [open, setOpen] = useState(false);
 
@@ -90,6 +93,23 @@ export function RealtimeNotificationDrawer() {
         <div className="p-3.5 bg-secondary/50 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h4 className="font-bold text-xs tracking-tight">Real-Time Alerts</h4>
+            {isPushSupported && pushPermission === "granted" && isSubscribedToPush && (
+              <span className="text-[10px] text-emerald-500 font-medium flex items-center gap-1" title="Web Push Active">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Push
+              </span>
+            )}
+            {isPushSupported && pushPermission !== "granted" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={enablePushNotifications}
+                className="h-5 text-[9px] px-1.5 text-indigo-400 border-indigo-500/30 hover:bg-indigo-500/10 cursor-pointer"
+                title="Enable background desktop notifications"
+              >
+                Enable Push
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-1">

@@ -5,19 +5,16 @@ const tenant_context_1 = require("../context/tenant-context");
 const prisma_1 = require("../prisma");
 const socket_1 = require("../socket");
 const pusher_service_1 = require("./pusher.service");
+const vapid_service_1 = require("./vapid.service");
+const push_subscription_store_1 = require("./push-subscription.store");
 class NotificationService {
     /**
      * Creates an in-app notification record and emits realtime event to user's authorized room.
      * Includes idempotency check to prevent duplicate dispatches for the same event and reminder.
      */
     static async createNotification(params) {
-        let db;
-        try {
-            db = (0, tenant_context_1.getTenantDb)();
-        }
-        catch {
-            db = prisma_1.rawPrisma;
-        }
+        const tenantCtx = (0, tenant_context_1.getTenantContext)();
+        const db = tenantCtx?.db || prisma_1.rawPrisma;
         const targetUserId = params.userId || params.recipientUserId || "system";
         // 1. Idempotency check for event reminders to prevent duplicate DB records
         if (params.metadata?.eventId && params.metadata?.reminderId) {
@@ -106,10 +103,73 @@ class NotificationService {
         // Delivery must never make notification persistence fail.
         void pusher_service_1.PusherService.triggerUserEvent(params.tenantId, targetUserId, "notification:new", payload)
             .catch(() => { });
+        // Web Push (RFC 8291 / RFC 8292) delivery to user's registered browser/device subscriptions
+        void this.dispatchWebPush(params.tenantId, targetUserId, {
+            id: notification.id,
+            title: notification.title,
+            body: notification.body,
+            type: notification.module,
+            module: notification.module,
+            linkTo: notification.linkTo,
+            actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
+            metadata: notification.metadataJson,
+            createdAt: notification.createdAt,
+        }).catch((err) => {
+            console.warn("[NotificationService] Web Push dispatch failed:", err?.message || err);
+        });
         return notification;
     }
     static async sendNotification(params) {
         return this.createNotification(params);
+    }
+    /**
+     * Dispatches standard RFC 8291 Web Push notifications to all active device subscriptions of recipient.
+     */
+    static async dispatchWebPush(tenantId, userId, payload) {
+        try {
+            const subscriptions = await push_subscription_store_1.PushSubscriptionStore.getActiveSubscriptions(tenantId, userId);
+            if (!subscriptions || subscriptions.length === 0) {
+                return { sent: 0, failed: 0 };
+            }
+            const pushPayload = {
+                type: "NOTIFICATION_NEW",
+                eventType: "NOTIFICATION_NEW",
+                schemaVersion: "1.0",
+                id: payload.id,
+                notificationId: payload.id,
+                tenantId,
+                title: payload.title || "MasterHRMS Alert",
+                body: payload.body || "",
+                message: payload.body || "",
+                module: payload.module || "SYSTEM",
+                linkTo: payload.linkTo || "/",
+                actionUrl: payload.actionUrl || payload.linkTo || "/",
+                icon: "/assets/img/logo-small.svg",
+                badge: "/assets/img/favicon.png",
+                tag: `notif_${payload.id}`,
+                timestamp: payload.createdAt || new Date().toISOString(),
+                metadata: payload.metadata || null,
+            };
+            let sent = 0;
+            let failed = 0;
+            await Promise.allSettled(subscriptions.map(async (sub) => {
+                const res = await vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, pushPayload, { ttl: 86400, urgency: "normal", topic: `notif_${payload.module?.toLowerCase() || "system"}` });
+                if (res.success) {
+                    sent++;
+                }
+                else {
+                    failed++;
+                    if (res.isExpired) {
+                        await push_subscription_store_1.PushSubscriptionStore.markExpired(userId, sub.endpoint);
+                    }
+                }
+            }));
+            return { sent, failed };
+        }
+        catch (err) {
+            console.warn(`[NotificationService] Web Push delivery error for user ${userId}:`, err?.message);
+            return { sent: 0, failed: 0 };
+        }
     }
     /**
      * Retrieves paginated notifications for an authenticated user with category/module filtering.

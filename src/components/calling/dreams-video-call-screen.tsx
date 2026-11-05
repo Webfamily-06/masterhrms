@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import type { GridParticipant } from "./adaptive-video-grid";
 
@@ -16,6 +16,7 @@ export interface DreamsVideoCallScreenProps {
 
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  screenStream?: MediaStream | null;
   localVideoRef?: React.RefObject<HTMLVideoElement | null>;
   remoteVideoRef?: React.RefObject<HTMLVideoElement | null>;
   participants?: GridParticipant[];
@@ -23,7 +24,9 @@ export interface DreamsVideoCallScreenProps {
 
   isMuted: boolean;
   isVideoOff: boolean;
+  remoteIsVideoOff?: boolean;
   isScreenSharing: boolean;
+  remoteIsScreenSharing?: boolean;
   isCallFullscreen: boolean;
   isReconnecting?: boolean;
   peerReconnecting?: { graceSecondsRemaining: number } | null;
@@ -50,12 +53,17 @@ export function DreamsVideoCallScreen({
   targetAvatar,
   callDurationSeconds,
   callStatus,
+  localStream,
+  remoteStream,
+  screenStream,
   localVideoRef,
   remoteVideoRef,
   participants = [],
   isMuted,
   isVideoOff,
+  remoteIsVideoOff = false,
   isScreenSharing,
+  remoteIsScreenSharing = false,
   isReconnecting,
   peerReconnecting,
   onToggleMute,
@@ -68,21 +76,88 @@ export function DreamsVideoCallScreen({
   onOpenSettings,
 }: DreamsVideoCallScreenProps) {
   const [selectedHeroUserId, setSelectedHeroUserId] = useState<string | null>(null);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const presentationVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Filter participants for bottom filmstrip (remote participants + self)
-  const filmstripList = participants.length > 0 ? participants : [
+  // Assemble full participants list
+  const fullList: GridParticipant[] = participants.length > 0 ? participants : [
     {
       userId: "local-user",
       name: "You",
       avatarUrl: null,
+      stream: localStream,
       isLocal: true,
       isCameraOff: isVideoOff,
       isMuted,
     },
+    {
+      userId: "remote-user",
+      name: targetName || "Colleague",
+      avatarUrl: targetAvatar || null,
+      stream: remoteStream,
+      isLocal: false,
+      isCameraOff: remoteIsVideoOff,
+      isMuted: false,
+    },
   ];
 
+  // Determine which participant is in the hero stage
+  // Default: Primary remote participant is hero; local user is in strip
+  const defaultHero = fullList.find((p) => !p.isLocal) || fullList[0];
+  const currentHero = selectedHeroUserId
+    ? (fullList.find((p) => p.userId === selectedHeroUserId) || defaultHero)
+    : defaultHero;
+
+  const isHeroLocal = !!currentHero?.isLocal;
+  const heroName = currentHero ? (isHeroLocal ? "You" : currentHero.name) : targetName || "Colleague";
+  const heroAvatar = currentHero?.avatarUrl || (isHeroLocal ? null : targetAvatar);
+
+  // Determine whether Hero camera video is actively streaming
+  const activeHeroStream = isHeroLocal ? localStream : (currentHero?.stream || remoteStream);
+  const hasLiveVideoTrack = !!activeHeroStream && activeHeroStream.getVideoTracks().some(
+    (t) => t.enabled && t.readyState === "live"
+  );
+  const isHeroVideoActive = isHeroLocal
+    ? (!isVideoOff && hasLiveVideoTrack)
+    : (!remoteIsVideoOff && !currentHero?.isCameraOff && hasLiveVideoTrack);
+
+  const isPresentationActive = isScreenSharing || remoteIsScreenSharing;
+
+  // Keep Hero video element synchronized with live stream
+  useEffect(() => {
+    const videoEl = heroVideoRef.current;
+    if (!videoEl || isPresentationActive) return;
+    if (activeHeroStream) {
+      if (videoEl.srcObject !== activeHeroStream) {
+        videoEl.srcObject = activeHeroStream;
+      }
+      videoEl.play().catch(() => {});
+    } else {
+      videoEl.srcObject = null;
+    }
+  }, [activeHeroStream, isHeroLocal, isHeroVideoActive, isPresentationActive]);
+
+  // Keep Presentation video element synchronized
+  useEffect(() => {
+    const presEl = presentationVideoRef.current;
+    if (!presEl || !isPresentationActive) return;
+    const streamToPresent = isScreenSharing ? (screenStream || localStream) : remoteStream;
+    if (streamToPresent) {
+      if (presEl.srcObject !== streamToPresent) {
+        presEl.srcObject = streamToPresent;
+      }
+      presEl.play().catch(() => {});
+    }
+  }, [isPresentationActive, isScreenSharing, screenStream, localStream, remoteStream]);
+
+  // Filmstrip shows all participants who are NOT currently displayed as hero (or all if > 2)
+  const filmstripList = fullList;
+
   return (
-    <div className="w-full h-full flex flex-col font-sans select-none text-gray-900 dark:text-white bg-white dark:bg-card">
+    <div
+      data-testid="dreams-video-call-screen"
+      className="w-full h-full flex flex-col font-sans select-none text-gray-900 dark:text-white bg-white dark:bg-card"
+    >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-4 px-1 shrink-0">
         <div className="flex items-center gap-2">
@@ -94,144 +169,275 @@ export function DreamsVideoCallScreen({
         <button
           type="button"
           onClick={onAddParticipant}
+          data-testid="call-btn-add-new-header"
           className="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-1.5 hover:bg-primary-hover hover:border-primary-hover cursor-pointer px-3 py-1.5 rounded-md text-xs font-semibold shadow-xs transition-colors"
         >
           <i className="ph ph-plus"></i> Add New
         </button>
       </div>
 
-      {/* Main video call wrapper Master HRMS Video Call */}
+      {/* Main video call wrapper */}
       <div className="bg-white dark:bg-card border border-border-color rounded-md p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 flex-1 min-h-0 overflow-hidden shadow-xs">
-        {/* Main speaker tile */}
-        <div className="relative rounded-md overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300 dark:from-slate-800 dark:to-slate-900 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px]">
-          {/* Real WebRTC/LiveKit Video Element */}
-          <video
-            ref={remoteVideoRef as any}
-            autoPlay
-            playsInline
-            className="w-full h-full object-cover"
-          />
-
-          {/* Background portrait placeholder when video stream is absent/disabled */}
-          <div className="absolute inset-0 bg-gradient-to-br from-warning-transparent via-orange-transparent to-warning-transparent pointer-events-none opacity-50" />
-          
+        {/* Main Stage: Either Presentation Canvas OR Hero Speaker Tile */}
+        {isPresentationActive ? (
+          /* 1. HIGH-DEFINITION SCREEN SHARE PRESENTATION CANVAS */
           <div
-            id="video-call-hero-avatar"
-            className="relative size-28 sm:size-36 rounded-full bg-gradient-to-br from-warning to-orange flex items-center justify-center text-white shadow-xl overflow-hidden z-10"
+            id="call-presentation-canvas"
+            data-testid="screen-share-presentation-stage"
+            className="relative rounded-md overflow-hidden bg-slate-950 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] border border-border-color/40 shadow-inner"
           >
-            {targetAvatar ? (
-              <img
-                src={targetAvatar}
-                alt={targetName}
-                className="size-full object-cover"
-                onError={(e) => {
-                  (e.currentTarget as HTMLElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <i className="ph-duotone ph-user text-5xl sm:text-7xl"></i>
+            <video
+              ref={(el) => {
+                presentationVideoRef.current = el;
+                const streamToPresent = isScreenSharing ? (screenStream || localStream) : remoteStream;
+                if (el && streamToPresent && el.srcObject !== streamToPresent) {
+                  el.srcObject = streamToPresent;
+                  el.play().catch(() => {});
+                }
+              }}
+              autoPlay
+              playsInline
+              muted={isScreenSharing}
+              className="w-full h-full object-contain"
+            />
+
+            {/* Top Presenter Status Banner */}
+            <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
+              <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-md shadow-md flex items-center gap-1.5">
+                <i className="ph-duotone ph-monitor-arrow-up text-sm animate-pulse"></i>
+                <span>{isScreenSharing ? "You are presenting" : `${targetName || "Colleague"} is presenting`}</span>
+              </span>
+              <span className="bg-slate-900/90 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-sm border border-white/10 font-mono">
+                {formatDuration(callDurationSeconds)}
+              </span>
+            </div>
+
+            {/* Local Presenter Quick Stop Button */}
+            {isScreenSharing && (
+              <div className="absolute top-3 right-20 z-20">
+                <button
+                  type="button"
+                  id="btn-stop-sharing-top"
+                  data-testid="btn-stop-presentation"
+                  onClick={onToggleScreenShare}
+                  className="bg-danger text-white text-xs font-semibold px-3 py-1 rounded-md shadow-md hover:bg-danger-hover cursor-pointer flex items-center gap-1.5 transition-colors"
+                >
+                  <i className="ph ph-stop-circle text-sm"></i>
+                  <span>Stop Sharing</span>
+                </button>
+              </div>
+            )}
+
+            {/* Top-right controls */}
+            <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="size-8 rounded-md bg-slate-900/90 text-white inline-flex items-center justify-center shadow-sm hover:bg-slate-800 cursor-pointer border border-white/10 transition-colors"
+                title="Minimize to widget"
+                aria-label="Minimize"
+              >
+                <i className="ph ph-caret-down text-base"></i>
+              </button>
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className="size-8 rounded-md bg-slate-900/90 text-white inline-flex items-center justify-center shadow-sm hover:bg-slate-800 cursor-pointer border border-white/10 transition-colors"
+                title="Toggle fullscreen"
+                aria-label="Fullscreen"
+              >
+                <i className="ph ph-arrows-out text-base"></i>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* 2. HERO SPEAKER VIDEO TILE */
+          <div
+            data-testid="hero-video-stage"
+            className="relative rounded-md overflow-hidden bg-slate-900 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] border border-border-color/40 shadow-inner"
+          >
+            {/* Live Camera Video Element */}
+            <video
+              id="video-call-hero-video"
+              ref={(el) => {
+                heroVideoRef.current = el;
+                if (!isHeroLocal && remoteVideoRef) {
+                  (remoteVideoRef as any).current = el;
+                }
+                if (isHeroLocal && localVideoRef) {
+                  (localVideoRef as any).current = el;
+                }
+                if (el && activeHeroStream && el.srcObject !== activeHeroStream) {
+                  el.srcObject = activeHeroStream;
+                  el.play().catch(() => {});
+                }
+              }}
+              autoPlay
+              playsInline
+              muted={isHeroLocal}
+              className={cn(
+                "w-full h-full object-cover absolute inset-0 z-0",
+                !isHeroVideoActive && "hidden"
+              )}
+            />
+
+            {/* Avatar & Camera Off Fallback (Only shown when hero camera is off/inactive) */}
+            {!isHeroVideoActive && (
+              <div className="flex flex-col items-center justify-center gap-3 z-10 p-4">
+                <div
+                  id="video-call-hero-avatar"
+                  className="size-24 sm:size-32 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-xl overflow-hidden border-2 border-white/20"
+                >
+                  {heroAvatar ? (
+                    <img
+                      src={heroAvatar}
+                      alt={heroName}
+                      className="size-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <i className="ph-duotone ph-user text-5xl sm:text-6xl text-white"></i>
+                  )}
+                </div>
+                <div className="text-center">
+                  <p className="text-white text-sm font-semibold mb-0.5">{heroName}</p>
+                  <p className="text-xs text-slate-400 mb-0 flex items-center justify-center gap-1.5">
+                    <i className="ph ph-video-camera-slash text-danger"></i>
+                    <span>Camera is turned off</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Top-left badges (Name + Timer) */}
+            <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
+              <span className="bg-slate-900/90 text-white text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-md shadow-sm border border-white/10 flex items-center gap-1.5 backdrop-blur-xs">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="truncate max-w-[140px] sm:max-w-[200px]">{heroName}</span>
+              </span>
+              <span className="bg-slate-900/90 text-white text-xs sm:text-sm font-semibold px-2 py-1 rounded-md shadow-sm border border-white/10 font-mono backdrop-blur-xs">
+                {formatDuration(callDurationSeconds)}
+              </span>
+            </div>
+
+            {/* Top-right fullscreen & minimize */}
+            <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
+              <button
+                type="button"
+                onClick={onMinimize}
+                className="size-8 rounded-md bg-slate-900/90 text-white inline-flex items-center justify-center shadow-sm hover:bg-slate-800 cursor-pointer border border-white/10 transition-colors backdrop-blur-xs"
+                title="Minimize to widget"
+                aria-label="Minimize"
+              >
+                <i className="ph ph-caret-down text-base"></i>
+              </button>
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className="size-8 rounded-md bg-slate-900/90 text-white inline-flex items-center justify-center shadow-sm hover:bg-slate-800 cursor-pointer border border-white/10 transition-colors backdrop-blur-xs"
+                title="Toggle fullscreen"
+                aria-label="Fullscreen"
+              >
+                <i className="ph ph-arrows-out text-base"></i>
+              </button>
+            </div>
+
+            {/* Reconnecting Alert Banner */}
+            {isReconnecting && (
+              <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
+                <i className="ph ph-arrows-clockwise animate-spin"></i>
+                <span>Reconnecting WebRTC media stream...</span>
+              </div>
+            )}
+
+            {/* Peer Reconnecting (Grace Period) */}
+            {peerReconnecting && (
+              <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
+                <i className="ph ph-arrows-clockwise animate-spin"></i>
+                <span>{targetName} disconnected. Grace period: {peerReconnecting.graceSecondsRemaining}s</span>
+              </div>
             )}
           </div>
+        )}
 
-          {/* Top-left badges (Name + Timer) */}
-          <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
-            <span className="bg-white/95 dark:bg-slate-900/95 text-gray-900 dark:text-white text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-md shadow-sm border border-border-color/40 flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="truncate max-w-[140px] sm:max-w-[200px]">{targetName || "Participant"}</span>
-            </span>
-            <span className="bg-white/95 dark:bg-slate-900/95 text-gray-900 dark:text-white text-xs sm:text-sm font-semibold px-2 py-1 rounded-md shadow-sm border border-border-color/40 font-mono">
-              {formatDuration(callDurationSeconds)}
-            </span>
-          </div>
-
-          {/* Top-right fullscreen & minimize */}
-          <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-            <button
-              type="button"
-              onClick={onMinimize}
-              className="size-8 rounded-md bg-white/95 dark:bg-slate-900/95 text-gray-900 dark:text-white inline-flex items-center justify-center shadow-sm hover:bg-light dark:hover:bg-slate-800 cursor-pointer border border-border-color/40 transition-colors"
-              title="Minimize to widget"
-            >
-              <i className="ph ph-caret-down text-base"></i>
-            </button>
-            <button
-              type="button"
-              onClick={onToggleFullscreen}
-              className="size-8 rounded-md bg-white/95 dark:bg-slate-900/95 text-gray-900 dark:text-white inline-flex items-center justify-center shadow-sm hover:bg-light dark:hover:bg-slate-800 cursor-pointer border border-border-color/40 transition-colors"
-              title="Toggle fullscreen"
-            >
-              <i className="ph ph-arrows-out text-base"></i>
-            </button>
-          </div>
-
-          {/* Reconnecting Alert Banner */}
-          {isReconnecting && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
-              <i className="ph ph-arrows-clockwise animate-spin"></i>
-              <span>Reconnecting WebRTC media stream...</span>
-            </div>
-          )}
-
-          {/* Peer Reconnecting (Grace Period) */}
-          {peerReconnecting && (
-            <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
-              <i className="ph ph-arrows-clockwise animate-spin"></i>
-              <span>{targetName} disconnected. Grace period: {peerReconnecting.graceSecondsRemaining}s</span>
-            </div>
-          )}
-        </div>
-
-        {/* Participant strip Master HRMS Video Call */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-5 gap-2 sm:gap-3 shrink-0">
+        {/* Participant Strip (Filmstrip) */}
+        <div
+          id="video-call-filmstrip"
+          data-testid="call-participant-filmstrip"
+          className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 shrink-0"
+        >
           {filmstripList.map((participant, index) => {
             const isLocal = participant.isLocal;
+            const isCurrentHero = currentHero?.userId === participant.userId;
+            const pStream = isLocal ? localStream : (participant.stream || remoteStream);
+            const pHasVideo = !!pStream && pStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live");
+            const pVideoActive = isLocal ? (!isVideoOff && pHasVideo) : (!remoteIsVideoOff && !participant.isCameraOff && pHasVideo);
+
             const gradients = [
-              "from-gray-200 to-gray-400 dark:from-slate-700 dark:to-slate-800",
-              "from-purple to-purple-hover",
-              "from-gray-300 to-gray-500",
-              "from-pink to-pink-hover",
-              "from-danger to-danger-hover",
+              "from-slate-700 to-slate-800",
+              "from-purple-900 to-slate-900",
+              "from-indigo-900 to-slate-900",
+              "from-pink-900 to-slate-900",
+              "from-slate-800 to-slate-950",
             ];
             const gradientClass = gradients[index % gradients.length];
 
             return (
               <div
                 key={participant.userId || index}
+                id={`filmstrip-tile-${participant.userId || index}`}
+                data-testid={`filmstrip-tile-${participant.userId || index}`}
                 onClick={() => setSelectedHeroUserId(participant.userId)}
                 className={cn(
-                  "relative lg:aspect-4/2 aspect-[4/3] rounded-md overflow-hidden bg-gradient-to-br flex items-center justify-center cursor-pointer transition-transform hover:scale-[1.02] border border-border-color/40 shadow-xs",
+                  "relative lg:aspect-4/2 aspect-[4/3] rounded-md overflow-hidden bg-gradient-to-br flex items-center justify-center cursor-pointer transition-all border shadow-xs",
+                  isCurrentHero ? "border-primary ring-2 ring-primary/60 scale-[1.02]" : "border-border-color/40 hover:scale-[1.02]",
                   gradientClass
                 )}
+                title={`Click to focus on ${participant.name}`}
               >
-                {/* If local user and camera is ON, render local preview video */}
-                {isLocal && !isVideoOff && (
+                {/* Live Video for participant in filmstrip */}
+                {pVideoActive && (
                   <video
-                    ref={localVideoRef as any}
+                    ref={(el) => {
+                      if (el && pStream && el.srcObject !== pStream) {
+                        el.srcObject = pStream;
+                        el.play().catch(() => {});
+                      }
+                      if (isLocal && localVideoRef) {
+                        (localVideoRef as any).current = el;
+                      }
+                    }}
                     autoPlay
                     playsInline
-                    muted
-                    className="w-full h-full object-cover"
+                    muted={isLocal}
+                    className="w-full h-full object-cover absolute inset-0 z-0"
                   />
                 )}
 
-                {/* Avatar Icon */}
-                {(isLocal && isVideoOff) || (!isLocal && participant.isCameraOff) || (!isLocal && !participant.stream) ? (
+                {/* Avatar Fallback */}
+                {!pVideoActive && (
                   participant.avatarUrl ? (
-                    <img src={participant.avatarUrl} alt={participant.name} className="size-10 sm:size-12 rounded-full object-cover border-2 border-white/80 shadow" />
+                    <img
+                      src={participant.avatarUrl}
+                      alt={participant.name}
+                      className="size-10 sm:size-12 rounded-full object-cover border-2 border-white/80 shadow z-10"
+                    />
                   ) : (
-                    <i className="ph-duotone ph-user text-white text-3xl sm:text-4xl opacity-80"></i>
+                    <i className="ph-duotone ph-user text-white text-3xl sm:text-4xl opacity-80 z-10"></i>
                   )
-                ) : null}
+                )}
 
                 {/* Speaking Waveform Badge */}
                 {participant.isSpeaking && (
-                  <span className="absolute top-2 left-2 size-6 rounded-full bg-white/90 dark:bg-slate-900/90 flex items-center justify-center shadow-xs">
+                  <span className="absolute top-2 left-2 size-6 rounded-full bg-slate-900/90 flex items-center justify-center shadow-xs z-20">
                     <i className="ph-fill ph-waveform text-purple animate-pulse text-xs"></i>
                   </span>
                 )}
 
                 {/* Participant Name Badge */}
-                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-white/95 dark:bg-slate-900/95 text-gray-900 dark:text-white text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap border border-border-color/30">
+                <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap border border-white/20 z-20">
                   {participant.name} {isLocal && "(You)"}
                 </span>
               </div>
@@ -239,7 +445,7 @@ export function DreamsVideoCallScreen({
           })}
         </div>
 
-        {/* Control bar Master HRMS Video Call */}
+        {/* Control bar */}
         <div className="border-t border-border-color pt-3 sm:pt-4 flex items-center justify-center gap-2 sm:gap-3 shrink-0">
           {/* Mute Mic */}
           <button
@@ -311,7 +517,7 @@ export function DreamsVideoCallScreen({
             <i className="ph-duotone ph-speaker-high text-base sm:text-lg"></i>
           </button>
 
-          {/* In-Call Add Participant / Emoji */}
+          {/* In-Call Add Participant */}
           <button
             type="button"
             data-testid="call-btn-add-participant"
