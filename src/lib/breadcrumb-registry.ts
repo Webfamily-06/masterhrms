@@ -148,6 +148,8 @@ export const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   "/employee-transfers": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Employee Transfers" }],
   "/warnings": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Disciplinary Warnings" }],
   "/awards": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Awards & Recognitions" }],
+  "/hr/awards": [{ label: "Dashboard", href: "/hr/dashboard" }, { label: "Lifecycle", href: "/hr/lifecycle" }, { label: "Awards & Recognition" }],
+  "/me/awards": [{ label: "Dashboard", href: "/me/dashboard" }, { label: "My Awards & Recognition" }],
   "/probation": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Probation Tracking" }],
   "/notice-period-tracker": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Notice Period Tracker" }],
   "/offboarding": [{ label: "Dashboard", href: "/hrm-dashboard" }, { label: "HRM Suite", href: "/hr/dashboard" }, { label: "Offboarding Workflow" }],

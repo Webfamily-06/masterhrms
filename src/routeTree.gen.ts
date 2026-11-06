@@ -32,6 +32,7 @@ import { Route as SessionExpiredRouteImport } from './routes/session-expired'
 import { Route as SuperLoginRouteImport } from './routes/super-login'
 import { Route as Super06RouteImport } from './routes/super06'
 import { Route as Verify2faRouteImport } from './routes/verify-2fa'
+import { Route as VerifyCertificateRouteImport } from './routes/verify-certificate'
 import { Route as AuthenticatedAppRouteRouteImport } from './routes/_authenticated/_app/route'
 import { Route as AuthenticatedHrRouteImport } from './routes/_authenticated/hr'
 import { Route as AuthenticatedMeRouteImport } from './routes/_authenticated/me'
@@ -199,9 +200,11 @@ import { Route as AuthenticatedEmployeeIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedEmployeeDashboardRouteImport } from './routes/_authenticated/employee/dashboard'
 import { Route as AuthenticatedHrIndexRouteImport } from './routes/_authenticated/hr/index'
 import { Route as AuthenticatedHrApprovalsRouteImport } from './routes/_authenticated/hr/approvals'
+import { Route as AuthenticatedHrAwardsRouteImport } from './routes/_authenticated/hr/awards'
 import { Route as AuthenticatedHrCalendarRouteImport } from './routes/_authenticated/hr/calendar'
 import { Route as AuthenticatedHrChatRouteImport } from './routes/_authenticated/hr/chat'
 import { Route as AuthenticatedHrDashboardRouteImport } from './routes/_authenticated/hr/dashboard'
+import { Route as AuthenticatedHrFilesRouteImport } from './routes/_authenticated/hr/files'
 import { Route as AuthenticatedHrMediaRouteImport } from './routes/_authenticated/hr/media'
 import { Route as AuthenticatedHrNotificationsRouteImport } from './routes/_authenticated/hr/notifications'
 import { Route as AuthenticatedHrProfileRouteImport } from './routes/_authenticated/hr/profile'
@@ -210,10 +213,12 @@ import { Route as AuthenticatedHrTodoRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedMeIndexRouteImport } from './routes/_authenticated/me/index'
 import { Route as AuthenticatedMeAccountRouteImport } from './routes/_authenticated/me/account'
 import { Route as AuthenticatedMeApprovalsRouteImport } from './routes/_authenticated/me/approvals'
+import { Route as AuthenticatedMeAwardsRouteImport } from './routes/_authenticated/me/awards'
 import { Route as AuthenticatedMeCalendarRouteImport } from './routes/_authenticated/me/calendar'
 import { Route as AuthenticatedMeChatRouteImport } from './routes/_authenticated/me/chat'
 import { Route as AuthenticatedMeDashboardRouteImport } from './routes/_authenticated/me/dashboard'
 import { Route as AuthenticatedMeEmployeesRouteImport } from './routes/_authenticated/me/employees'
+import { Route as AuthenticatedMeFilesRouteImport } from './routes/_authenticated/me/files'
 import { Route as AuthenticatedMeHelpdeskRouteImport } from './routes/_authenticated/me/helpdesk'
 import { Route as AuthenticatedMeMediaRouteImport } from './routes/_authenticated/me/media'
 import { Route as AuthenticatedMeNotificationsRouteImport } from './routes/_authenticated/me/notifications'
@@ -355,6 +360,8 @@ import { Route as AuthenticatedHrOrganizationIndexRouteImport } from './routes/_
 import { Route as AuthenticatedHrOrganizationAnnouncementsRouteImport } from './routes/_authenticated/hr/organization/announcements'
 import { Route as AuthenticatedHrOrganizationAwardTypesRouteImport } from './routes/_authenticated/hr/organization/award-types'
 import { Route as AuthenticatedHrOrganizationBranchesRouteImport } from './routes/_authenticated/hr/organization/branches'
+import { Route as AuthenticatedHrOrganizationCertificateBrandingRouteImport } from './routes/_authenticated/hr/organization/certificate-branding'
+import { Route as AuthenticatedHrOrganizationCertificateTemplatesRouteImport } from './routes/_authenticated/hr/organization/certificate-templates'
 import { Route as AuthenticatedHrOrganizationDepartmentsRouteImport } from './routes/_authenticated/hr/organization/departments'
 import { Route as AuthenticatedHrOrganizationDesignationsRouteImport } from './routes/_authenticated/hr/organization/designations'
 import { Route as AuthenticatedHrOrganizationDocumentTypesRouteImport } from './routes/_authenticated/hr/organization/document-types'
@@ -513,6 +520,7 @@ import { Route as AuthenticatedAppAppsTodoGanttRouteImport } from './routes/_aut
 import { Route as AuthenticatedAppAppsTodoTaskListRouteImport } from './routes/_authenticated/_app/apps.todo.task-list'
 import { Route as AuthenticatedAppInvoiceIdPrintRouteImport } from './routes/_authenticated/_app/invoice.$id.print'
 import { Route as AuthenticatedHrEmployeesIdEditRouteImport } from './routes/_authenticated/hr/employees/$id.edit'
+import { Route as AuthenticatedHrOrganizationCertificateDesignerTemplateIdRouteImport } from './routes/_authenticated/hr/organization/certificate-designer/$templateId'
 import { Route as AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/index'
 import { Route as AuthenticatedAppAddonsAiAssistantHistoryIdRouteImport } from './routes/_authenticated/_app/addons/ai-assistant/history/$id'
 import { Route as AuthenticatedAppAddonsAiDocumentHistoryIndexRouteImport } from './routes/_authenticated/_app/addons/ai-document/history/index'
@@ -651,6 +659,11 @@ const Super06Route = Super06RouteImport.update({
 const Verify2faRoute = Verify2faRouteImport.update({
   id: '/verify-2fa',
   path: '/verify-2fa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyCertificateRoute = VerifyCertificateRouteImport.update({
+  id: '/verify-certificate',
+  path: '/verify-certificate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRouteRoute = AuthenticatedAppRouteRouteImport.update({
@@ -1611,6 +1624,11 @@ const AuthenticatedHrApprovalsRoute =
     path: '/approvals',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
+const AuthenticatedHrAwardsRoute = AuthenticatedHrAwardsRouteImport.update({
+  id: '/awards',
+  path: '/awards',
+  getParentRoute: () => AuthenticatedHrRoute,
+} as any)
 const AuthenticatedHrCalendarRoute = AuthenticatedHrCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -1627,6 +1645,11 @@ const AuthenticatedHrDashboardRoute =
     path: '/dashboard',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
+const AuthenticatedHrFilesRoute = AuthenticatedHrFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AuthenticatedHrRoute,
+} as any)
 const AuthenticatedHrMediaRoute = AuthenticatedHrMediaRouteImport.update({
   id: '/media',
   path: '/media',
@@ -1669,6 +1692,11 @@ const AuthenticatedMeApprovalsRoute =
     path: '/approvals',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedMeAwardsRoute = AuthenticatedMeAwardsRouteImport.update({
+  id: '/awards',
+  path: '/awards',
+  getParentRoute: () => AuthenticatedMeRoute,
+} as any)
 const AuthenticatedMeCalendarRoute = AuthenticatedMeCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
@@ -1691,6 +1719,11 @@ const AuthenticatedMeEmployeesRoute =
     path: '/employees',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedMeFilesRoute = AuthenticatedMeFilesRouteImport.update({
+  id: '/files',
+  path: '/files',
+  getParentRoute: () => AuthenticatedMeRoute,
+} as any)
 const AuthenticatedMeHelpdeskRoute = AuthenticatedMeHelpdeskRouteImport.update({
   id: '/helpdesk',
   path: '/helpdesk',
@@ -2515,6 +2548,18 @@ const AuthenticatedHrOrganizationBranchesRoute =
   AuthenticatedHrOrganizationBranchesRouteImport.update({
     id: '/organization/branches',
     path: '/organization/branches',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrOrganizationCertificateBrandingRoute =
+  AuthenticatedHrOrganizationCertificateBrandingRouteImport.update({
+    id: '/organization/certificate-branding',
+    path: '/organization/certificate-branding',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrOrganizationCertificateTemplatesRoute =
+  AuthenticatedHrOrganizationCertificateTemplatesRouteImport.update({
+    id: '/organization/certificate-templates',
+    path: '/organization/certificate-templates',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
 const AuthenticatedHrOrganizationDepartmentsRoute =
@@ -3465,6 +3510,12 @@ const AuthenticatedHrEmployeesIdEditRoute =
     path: '/edit',
     getParentRoute: () => AuthenticatedHrEmployeesIdRoute,
   } as any)
+const AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute =
+  AuthenticatedHrOrganizationCertificateDesignerTemplateIdRouteImport.update({
+    id: '/organization/certificate-designer/$templateId',
+    path: '/organization/certificate-designer/$templateId',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
 const AuthenticatedAppAddonsAiAssistantHistoryIndexRoute =
   AuthenticatedAppAddonsAiAssistantHistoryIndexRouteImport.update({
     id: '/addons/ai-assistant/history/',
@@ -3639,6 +3690,7 @@ export interface FileRoutesByFullPath {
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/super': typeof AuthenticatedSuperRouteRouteWithChildren
   '/hr': typeof AuthenticatedHrRouteWithChildren
   '/me': typeof AuthenticatedMeRouteWithChildren
@@ -3802,9 +3854,11 @@ export interface FileRoutesByFullPath {
   '/client/dashboard': typeof AuthenticatedClientDashboardRoute
   '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/hr/approvals': typeof AuthenticatedHrApprovalsRoute
+  '/hr/awards': typeof AuthenticatedHrAwardsRoute
   '/hr/calendar': typeof AuthenticatedHrCalendarRoute
   '/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/hr/dashboard': typeof AuthenticatedHrDashboardRoute
+  '/hr/files': typeof AuthenticatedHrFilesRoute
   '/hr/media': typeof AuthenticatedHrMediaRoute
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/hr/profile': typeof AuthenticatedHrProfileRoute
@@ -3812,10 +3866,12 @@ export interface FileRoutesByFullPath {
   '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
+  '/me/awards': typeof AuthenticatedMeAwardsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
   '/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/me/employees': typeof AuthenticatedMeEmployeesRoute
+  '/me/files': typeof AuthenticatedMeFilesRoute
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
@@ -3953,6 +4009,8 @@ export interface FileRoutesByFullPath {
   '/hr/organization/announcements': typeof AuthenticatedHrOrganizationAnnouncementsRoute
   '/hr/organization/award-types': typeof AuthenticatedHrOrganizationAwardTypesRoute
   '/hr/organization/branches': typeof AuthenticatedHrOrganizationBranchesRoute
+  '/hr/organization/certificate-branding': typeof AuthenticatedHrOrganizationCertificateBrandingRoute
+  '/hr/organization/certificate-templates': typeof AuthenticatedHrOrganizationCertificateTemplatesRoute
   '/hr/organization/departments': typeof AuthenticatedHrOrganizationDepartmentsRoute
   '/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
@@ -4119,6 +4177,7 @@ export interface FileRoutesByFullPath {
   '/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
+  '/hr/organization/certificate-designer/$templateId': typeof AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -4168,6 +4227,7 @@ export interface FileRoutesByTo {
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/tenet': typeof AuthenticatedTenetRouteWithChildren
   '/a/$tag': typeof ATagRoute
@@ -4327,9 +4387,11 @@ export interface FileRoutesByTo {
   '/client/dashboard': typeof AuthenticatedClientDashboardRoute
   '/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/hr/approvals': typeof AuthenticatedHrApprovalsRoute
+  '/hr/awards': typeof AuthenticatedHrAwardsRoute
   '/hr/calendar': typeof AuthenticatedHrCalendarRoute
   '/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/hr/dashboard': typeof AuthenticatedHrDashboardRoute
+  '/hr/files': typeof AuthenticatedHrFilesRoute
   '/hr/media': typeof AuthenticatedHrMediaRoute
   '/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/hr/profile': typeof AuthenticatedHrProfileRoute
@@ -4337,10 +4399,12 @@ export interface FileRoutesByTo {
   '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
+  '/me/awards': typeof AuthenticatedMeAwardsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
   '/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/me/employees': typeof AuthenticatedMeEmployeesRoute
+  '/me/files': typeof AuthenticatedMeFilesRoute
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
@@ -4478,6 +4542,8 @@ export interface FileRoutesByTo {
   '/hr/organization/announcements': typeof AuthenticatedHrOrganizationAnnouncementsRoute
   '/hr/organization/award-types': typeof AuthenticatedHrOrganizationAwardTypesRoute
   '/hr/organization/branches': typeof AuthenticatedHrOrganizationBranchesRoute
+  '/hr/organization/certificate-branding': typeof AuthenticatedHrOrganizationCertificateBrandingRoute
+  '/hr/organization/certificate-templates': typeof AuthenticatedHrOrganizationCertificateTemplatesRoute
   '/hr/organization/departments': typeof AuthenticatedHrOrganizationDepartmentsRoute
   '/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
@@ -4644,6 +4710,7 @@ export interface FileRoutesByTo {
   '/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
+  '/hr/organization/certificate-designer/$templateId': typeof AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute
   '/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -4695,6 +4762,7 @@ export interface FileRoutesById {
   '/super-login': typeof SuperLoginRoute
   '/super06': typeof Super06Route
   '/verify-2fa': typeof Verify2faRoute
+  '/verify-certificate': typeof VerifyCertificateRoute
   '/_authenticated/_app': typeof AuthenticatedAppRouteRouteWithChildren
   '/_authenticated/super': typeof AuthenticatedSuperRouteRouteWithChildren
   '/_authenticated/hr': typeof AuthenticatedHrRouteWithChildren
@@ -4859,9 +4927,11 @@ export interface FileRoutesById {
   '/_authenticated/client/dashboard': typeof AuthenticatedClientDashboardRoute
   '/_authenticated/employee/dashboard': typeof AuthenticatedEmployeeDashboardRoute
   '/_authenticated/hr/approvals': typeof AuthenticatedHrApprovalsRoute
+  '/_authenticated/hr/awards': typeof AuthenticatedHrAwardsRoute
   '/_authenticated/hr/calendar': typeof AuthenticatedHrCalendarRoute
   '/_authenticated/hr/chat': typeof AuthenticatedHrChatRouteWithChildren
   '/_authenticated/hr/dashboard': typeof AuthenticatedHrDashboardRoute
+  '/_authenticated/hr/files': typeof AuthenticatedHrFilesRoute
   '/_authenticated/hr/media': typeof AuthenticatedHrMediaRoute
   '/_authenticated/hr/notifications': typeof AuthenticatedHrNotificationsRoute
   '/_authenticated/hr/profile': typeof AuthenticatedHrProfileRoute
@@ -4869,10 +4939,12 @@ export interface FileRoutesById {
   '/_authenticated/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/_authenticated/me/account': typeof AuthenticatedMeAccountRoute
   '/_authenticated/me/approvals': typeof AuthenticatedMeApprovalsRoute
+  '/_authenticated/me/awards': typeof AuthenticatedMeAwardsRoute
   '/_authenticated/me/calendar': typeof AuthenticatedMeCalendarRoute
   '/_authenticated/me/chat': typeof AuthenticatedMeChatRouteWithChildren
   '/_authenticated/me/dashboard': typeof AuthenticatedMeDashboardRoute
   '/_authenticated/me/employees': typeof AuthenticatedMeEmployeesRoute
+  '/_authenticated/me/files': typeof AuthenticatedMeFilesRoute
   '/_authenticated/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/_authenticated/me/media': typeof AuthenticatedMeMediaRoute
   '/_authenticated/me/notifications': typeof AuthenticatedMeNotificationsRoute
@@ -5010,6 +5082,8 @@ export interface FileRoutesById {
   '/_authenticated/hr/organization/announcements': typeof AuthenticatedHrOrganizationAnnouncementsRoute
   '/_authenticated/hr/organization/award-types': typeof AuthenticatedHrOrganizationAwardTypesRoute
   '/_authenticated/hr/organization/branches': typeof AuthenticatedHrOrganizationBranchesRoute
+  '/_authenticated/hr/organization/certificate-branding': typeof AuthenticatedHrOrganizationCertificateBrandingRoute
+  '/_authenticated/hr/organization/certificate-templates': typeof AuthenticatedHrOrganizationCertificateTemplatesRoute
   '/_authenticated/hr/organization/departments': typeof AuthenticatedHrOrganizationDepartmentsRoute
   '/_authenticated/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/_authenticated/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
@@ -5176,6 +5250,7 @@ export interface FileRoutesById {
   '/_authenticated/_app/apps/todo/task-list': typeof AuthenticatedAppAppsTodoTaskListRoute
   '/_authenticated/_app/invoice/$id/print': typeof AuthenticatedAppInvoiceIdPrintRoute
   '/_authenticated/hr/employees/$id/edit': typeof AuthenticatedHrEmployeesIdEditRoute
+  '/_authenticated/hr/organization/certificate-designer/$templateId': typeof AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute
   '/_authenticated/_app/addons/ai-assistant/history/$id': typeof AuthenticatedAppAddonsAiAssistantHistoryIdRoute
   '/_authenticated/_app/addons/ai-document/history/$id': typeof AuthenticatedAppAddonsAiDocumentHistoryIdRoute
   '/_authenticated/_app/addons/ai-document/templates/new': typeof AuthenticatedAppAddonsAiDocumentTemplatesNewRoute
@@ -5227,6 +5302,7 @@ export interface FileRouteTypes {
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
+    | '/verify-certificate'
     | '/super'
     | '/hr'
     | '/me'
@@ -5390,9 +5466,11 @@ export interface FileRouteTypes {
     | '/client/dashboard'
     | '/employee/dashboard'
     | '/hr/approvals'
+    | '/hr/awards'
     | '/hr/calendar'
     | '/hr/chat'
     | '/hr/dashboard'
+    | '/hr/files'
     | '/hr/media'
     | '/hr/notifications'
     | '/hr/profile'
@@ -5400,10 +5478,12 @@ export interface FileRouteTypes {
     | '/hr/todo'
     | '/me/account'
     | '/me/approvals'
+    | '/me/awards'
     | '/me/calendar'
     | '/me/chat'
     | '/me/dashboard'
     | '/me/employees'
+    | '/me/files'
     | '/me/helpdesk'
     | '/me/media'
     | '/me/notifications'
@@ -5541,6 +5621,8 @@ export interface FileRouteTypes {
     | '/hr/organization/announcements'
     | '/hr/organization/award-types'
     | '/hr/organization/branches'
+    | '/hr/organization/certificate-branding'
+    | '/hr/organization/certificate-templates'
     | '/hr/organization/departments'
     | '/hr/organization/designations'
     | '/hr/organization/document-types'
@@ -5707,6 +5789,7 @@ export interface FileRouteTypes {
     | '/apps/todo/task-list'
     | '/invoice/$id/print'
     | '/hr/employees/$id/edit'
+    | '/hr/organization/certificate-designer/$templateId'
     | '/addons/ai-assistant/history/$id'
     | '/addons/ai-document/history/$id'
     | '/addons/ai-document/templates/new'
@@ -5756,6 +5839,7 @@ export interface FileRouteTypes {
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
+    | '/verify-certificate'
     | '/onboarding'
     | '/tenet'
     | '/a/$tag'
@@ -5915,9 +5999,11 @@ export interface FileRouteTypes {
     | '/client/dashboard'
     | '/employee/dashboard'
     | '/hr/approvals'
+    | '/hr/awards'
     | '/hr/calendar'
     | '/hr/chat'
     | '/hr/dashboard'
+    | '/hr/files'
     | '/hr/media'
     | '/hr/notifications'
     | '/hr/profile'
@@ -5925,10 +6011,12 @@ export interface FileRouteTypes {
     | '/hr/todo'
     | '/me/account'
     | '/me/approvals'
+    | '/me/awards'
     | '/me/calendar'
     | '/me/chat'
     | '/me/dashboard'
     | '/me/employees'
+    | '/me/files'
     | '/me/helpdesk'
     | '/me/media'
     | '/me/notifications'
@@ -6066,6 +6154,8 @@ export interface FileRouteTypes {
     | '/hr/organization/announcements'
     | '/hr/organization/award-types'
     | '/hr/organization/branches'
+    | '/hr/organization/certificate-branding'
+    | '/hr/organization/certificate-templates'
     | '/hr/organization/departments'
     | '/hr/organization/designations'
     | '/hr/organization/document-types'
@@ -6232,6 +6322,7 @@ export interface FileRouteTypes {
     | '/apps/todo/task-list'
     | '/invoice/$id/print'
     | '/hr/employees/$id/edit'
+    | '/hr/organization/certificate-designer/$templateId'
     | '/addons/ai-assistant/history/$id'
     | '/addons/ai-document/history/$id'
     | '/addons/ai-document/templates/new'
@@ -6282,6 +6373,7 @@ export interface FileRouteTypes {
     | '/super-login'
     | '/super06'
     | '/verify-2fa'
+    | '/verify-certificate'
     | '/_authenticated/_app'
     | '/_authenticated/super'
     | '/_authenticated/hr'
@@ -6446,9 +6538,11 @@ export interface FileRouteTypes {
     | '/_authenticated/client/dashboard'
     | '/_authenticated/employee/dashboard'
     | '/_authenticated/hr/approvals'
+    | '/_authenticated/hr/awards'
     | '/_authenticated/hr/calendar'
     | '/_authenticated/hr/chat'
     | '/_authenticated/hr/dashboard'
+    | '/_authenticated/hr/files'
     | '/_authenticated/hr/media'
     | '/_authenticated/hr/notifications'
     | '/_authenticated/hr/profile'
@@ -6456,10 +6550,12 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/todo'
     | '/_authenticated/me/account'
     | '/_authenticated/me/approvals'
+    | '/_authenticated/me/awards'
     | '/_authenticated/me/calendar'
     | '/_authenticated/me/chat'
     | '/_authenticated/me/dashboard'
     | '/_authenticated/me/employees'
+    | '/_authenticated/me/files'
     | '/_authenticated/me/helpdesk'
     | '/_authenticated/me/media'
     | '/_authenticated/me/notifications'
@@ -6597,6 +6693,8 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/organization/announcements'
     | '/_authenticated/hr/organization/award-types'
     | '/_authenticated/hr/organization/branches'
+    | '/_authenticated/hr/organization/certificate-branding'
+    | '/_authenticated/hr/organization/certificate-templates'
     | '/_authenticated/hr/organization/departments'
     | '/_authenticated/hr/organization/designations'
     | '/_authenticated/hr/organization/document-types'
@@ -6763,6 +6861,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/apps/todo/task-list'
     | '/_authenticated/_app/invoice/$id/print'
     | '/_authenticated/hr/employees/$id/edit'
+    | '/_authenticated/hr/organization/certificate-designer/$templateId'
     | '/_authenticated/_app/addons/ai-assistant/history/$id'
     | '/_authenticated/_app/addons/ai-document/history/$id'
     | '/_authenticated/_app/addons/ai-document/templates/new'
@@ -6814,6 +6913,7 @@ export interface RootRouteChildren {
   SuperLoginRoute: typeof SuperLoginRoute
   Super06Route: typeof Super06Route
   Verify2faRoute: typeof Verify2faRoute
+  VerifyCertificateRoute: typeof VerifyCertificateRoute
   ATagRoute: typeof ATagRoute
   AddonsSlugRoute: typeof AddonsSlugRoute
   LegalSlugRoute: typeof LegalSlugRoute
@@ -6985,6 +7085,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-2fa'
       fullPath: '/verify-2fa'
       preLoaderRoute: typeof Verify2faRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-certificate': {
+      id: '/verify-certificate'
+      path: '/verify-certificate'
+      fullPath: '/verify-certificate'
+      preLoaderRoute: typeof VerifyCertificateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/_app': {
@@ -8156,6 +8263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrApprovalsRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
+    '/_authenticated/hr/awards': {
+      id: '/_authenticated/hr/awards'
+      path: '/awards'
+      fullPath: '/hr/awards'
+      preLoaderRoute: typeof AuthenticatedHrAwardsRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
     '/_authenticated/hr/calendar': {
       id: '/_authenticated/hr/calendar'
       path: '/calendar'
@@ -8175,6 +8289,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/hr/dashboard'
       preLoaderRoute: typeof AuthenticatedHrDashboardRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/files': {
+      id: '/_authenticated/hr/files'
+      path: '/files'
+      fullPath: '/hr/files'
+      preLoaderRoute: typeof AuthenticatedHrFilesRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
     '/_authenticated/hr/media': {
@@ -8233,6 +8354,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeApprovalsRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
+    '/_authenticated/me/awards': {
+      id: '/_authenticated/me/awards'
+      path: '/awards'
+      fullPath: '/me/awards'
+      preLoaderRoute: typeof AuthenticatedMeAwardsRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
     '/_authenticated/me/calendar': {
       id: '/_authenticated/me/calendar'
       path: '/calendar'
@@ -8259,6 +8387,13 @@ declare module '@tanstack/react-router' {
       path: '/employees'
       fullPath: '/me/employees'
       preLoaderRoute: typeof AuthenticatedMeEmployeesRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
+    '/_authenticated/me/files': {
+      id: '/_authenticated/me/files'
+      path: '/files'
+      fullPath: '/me/files'
+      preLoaderRoute: typeof AuthenticatedMeFilesRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
     '/_authenticated/me/helpdesk': {
@@ -9246,6 +9381,20 @@ declare module '@tanstack/react-router' {
       path: '/organization/branches'
       fullPath: '/hr/organization/branches'
       preLoaderRoute: typeof AuthenticatedHrOrganizationBranchesRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/organization/certificate-branding': {
+      id: '/_authenticated/hr/organization/certificate-branding'
+      path: '/organization/certificate-branding'
+      fullPath: '/hr/organization/certificate-branding'
+      preLoaderRoute: typeof AuthenticatedHrOrganizationCertificateBrandingRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/organization/certificate-templates': {
+      id: '/_authenticated/hr/organization/certificate-templates'
+      path: '/organization/certificate-templates'
+      fullPath: '/hr/organization/certificate-templates'
+      preLoaderRoute: typeof AuthenticatedHrOrganizationCertificateTemplatesRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
     '/_authenticated/hr/organization/departments': {
@@ -10354,6 +10503,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrEmployeesIdEditRouteImport
       parentRoute: typeof AuthenticatedHrEmployeesIdRoute
     }
+    '/_authenticated/hr/organization/certificate-designer/$templateId': {
+      id: '/_authenticated/hr/organization/certificate-designer/$templateId'
+      path: '/organization/certificate-designer/$templateId'
+      fullPath: '/hr/organization/certificate-designer/$templateId'
+      preLoaderRoute: typeof AuthenticatedHrOrganizationCertificateDesignerTemplateIdRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
     '/_authenticated/_app/addons/ai-assistant/history/': {
       id: '/_authenticated/_app/addons/ai-assistant/history/'
       path: '/addons/ai-assistant/history'
@@ -11250,9 +11406,11 @@ const AuthenticatedHrEmployeesIdRouteWithChildren =
 
 interface AuthenticatedHrRouteChildren {
   AuthenticatedHrApprovalsRoute: typeof AuthenticatedHrApprovalsRoute
+  AuthenticatedHrAwardsRoute: typeof AuthenticatedHrAwardsRoute
   AuthenticatedHrCalendarRoute: typeof AuthenticatedHrCalendarRoute
   AuthenticatedHrChatRoute: typeof AuthenticatedHrChatRouteWithChildren
   AuthenticatedHrDashboardRoute: typeof AuthenticatedHrDashboardRoute
+  AuthenticatedHrFilesRoute: typeof AuthenticatedHrFilesRoute
   AuthenticatedHrMediaRoute: typeof AuthenticatedHrMediaRoute
   AuthenticatedHrNotificationsRoute: typeof AuthenticatedHrNotificationsRoute
   AuthenticatedHrProfileRoute: typeof AuthenticatedHrProfileRoute
@@ -11311,6 +11469,8 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrOrganizationAnnouncementsRoute: typeof AuthenticatedHrOrganizationAnnouncementsRoute
   AuthenticatedHrOrganizationAwardTypesRoute: typeof AuthenticatedHrOrganizationAwardTypesRoute
   AuthenticatedHrOrganizationBranchesRoute: typeof AuthenticatedHrOrganizationBranchesRoute
+  AuthenticatedHrOrganizationCertificateBrandingRoute: typeof AuthenticatedHrOrganizationCertificateBrandingRoute
+  AuthenticatedHrOrganizationCertificateTemplatesRoute: typeof AuthenticatedHrOrganizationCertificateTemplatesRoute
   AuthenticatedHrOrganizationDepartmentsRoute: typeof AuthenticatedHrOrganizationDepartmentsRoute
   AuthenticatedHrOrganizationDesignationsRoute: typeof AuthenticatedHrOrganizationDesignationsRoute
   AuthenticatedHrOrganizationDocumentTypesRoute: typeof AuthenticatedHrOrganizationDocumentTypesRoute
@@ -11382,13 +11542,16 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrPerformanceIndexRoute: typeof AuthenticatedHrPerformanceIndexRoute
   AuthenticatedHrRecruitmentIndexRoute: typeof AuthenticatedHrRecruitmentIndexRoute
   AuthenticatedHrTrainingIndexRoute: typeof AuthenticatedHrTrainingIndexRoute
+  AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute: typeof AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute
 }
 
 const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
   AuthenticatedHrApprovalsRoute: AuthenticatedHrApprovalsRoute,
+  AuthenticatedHrAwardsRoute: AuthenticatedHrAwardsRoute,
   AuthenticatedHrCalendarRoute: AuthenticatedHrCalendarRoute,
   AuthenticatedHrChatRoute: AuthenticatedHrChatRouteWithChildren,
   AuthenticatedHrDashboardRoute: AuthenticatedHrDashboardRoute,
+  AuthenticatedHrFilesRoute: AuthenticatedHrFilesRoute,
   AuthenticatedHrMediaRoute: AuthenticatedHrMediaRoute,
   AuthenticatedHrNotificationsRoute: AuthenticatedHrNotificationsRoute,
   AuthenticatedHrProfileRoute: AuthenticatedHrProfileRoute,
@@ -11475,6 +11638,10 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
     AuthenticatedHrOrganizationAwardTypesRoute,
   AuthenticatedHrOrganizationBranchesRoute:
     AuthenticatedHrOrganizationBranchesRoute,
+  AuthenticatedHrOrganizationCertificateBrandingRoute:
+    AuthenticatedHrOrganizationCertificateBrandingRoute,
+  AuthenticatedHrOrganizationCertificateTemplatesRoute:
+    AuthenticatedHrOrganizationCertificateTemplatesRoute,
   AuthenticatedHrOrganizationDepartmentsRoute:
     AuthenticatedHrOrganizationDepartmentsRoute,
   AuthenticatedHrOrganizationDesignationsRoute:
@@ -11579,6 +11746,8 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
   AuthenticatedHrPerformanceIndexRoute: AuthenticatedHrPerformanceIndexRoute,
   AuthenticatedHrRecruitmentIndexRoute: AuthenticatedHrRecruitmentIndexRoute,
   AuthenticatedHrTrainingIndexRoute: AuthenticatedHrTrainingIndexRoute,
+  AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute:
+    AuthenticatedHrOrganizationCertificateDesignerTemplateIdRoute,
 }
 
 const AuthenticatedHrRouteWithChildren = AuthenticatedHrRoute._addFileChildren(
@@ -11614,10 +11783,12 @@ const AuthenticatedMeTodoRouteWithChildren =
 interface AuthenticatedMeRouteChildren {
   AuthenticatedMeAccountRoute: typeof AuthenticatedMeAccountRoute
   AuthenticatedMeApprovalsRoute: typeof AuthenticatedMeApprovalsRoute
+  AuthenticatedMeAwardsRoute: typeof AuthenticatedMeAwardsRoute
   AuthenticatedMeCalendarRoute: typeof AuthenticatedMeCalendarRoute
   AuthenticatedMeChatRoute: typeof AuthenticatedMeChatRouteWithChildren
   AuthenticatedMeDashboardRoute: typeof AuthenticatedMeDashboardRoute
   AuthenticatedMeEmployeesRoute: typeof AuthenticatedMeEmployeesRoute
+  AuthenticatedMeFilesRoute: typeof AuthenticatedMeFilesRoute
   AuthenticatedMeHelpdeskRoute: typeof AuthenticatedMeHelpdeskRoute
   AuthenticatedMeMediaRoute: typeof AuthenticatedMeMediaRoute
   AuthenticatedMeNotificationsRoute: typeof AuthenticatedMeNotificationsRoute
@@ -11689,10 +11860,12 @@ interface AuthenticatedMeRouteChildren {
 const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeAccountRoute: AuthenticatedMeAccountRoute,
   AuthenticatedMeApprovalsRoute: AuthenticatedMeApprovalsRoute,
+  AuthenticatedMeAwardsRoute: AuthenticatedMeAwardsRoute,
   AuthenticatedMeCalendarRoute: AuthenticatedMeCalendarRoute,
   AuthenticatedMeChatRoute: AuthenticatedMeChatRouteWithChildren,
   AuthenticatedMeDashboardRoute: AuthenticatedMeDashboardRoute,
   AuthenticatedMeEmployeesRoute: AuthenticatedMeEmployeesRoute,
+  AuthenticatedMeFilesRoute: AuthenticatedMeFilesRoute,
   AuthenticatedMeHelpdeskRoute: AuthenticatedMeHelpdeskRoute,
   AuthenticatedMeMediaRoute: AuthenticatedMeMediaRoute,
   AuthenticatedMeNotificationsRoute: AuthenticatedMeNotificationsRoute,
@@ -11948,6 +12121,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuperLoginRoute: SuperLoginRoute,
   Super06Route: Super06Route,
   Verify2faRoute: Verify2faRoute,
+  VerifyCertificateRoute: VerifyCertificateRoute,
   ATagRoute: ATagRoute,
   AddonsSlugRoute: AddonsSlugRoute,
   LegalSlugRoute: LegalSlugRoute,
@@ -11960,13 +12134,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -1,13 +1,82 @@
+import fs from "fs";
 import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { broadcastToTenant } from "../socket";
+import { AuditService } from "../services/audit.service";
+import { AwardNominationService } from "../services/award-nomination.service";
+import { AwardCertificateService } from "../services/award-certificate.service";
 
 export const awardsRouter = Router();
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUBLIC UNPROTECTED VERIFICATION ENDPOINT
+// ─────────────────────────────────────────────────────────────────────────────
+awardsRouter.get("/certificates/verify/:verificationCode", async (req, res) => {
+  try {
+    const code = req.params.verificationCode;
+    const result = await AwardCertificateService.verifyPublicly(code);
+    if (!result.valid && !result.status) {
+      return res.status(404).json({ success: false, ...result });
+    }
+    return res.json({ success: true, data: result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Certificate verification failed." });
+  }
+});
+
 awardsRouter.use(requireAuth, resolveTenantContext);
+
+async function resolveCallerEmployee(userId: string, tenantId: string, email?: string) {
+  return await prisma.employee.findFirst({
+    where: {
+      tenantId,
+      OR: [
+        { userId },
+        ...(email ? [{ email }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      employeeCode: true,
+      managerId: true,
+      status: true,
+      department: { select: { id: true, name: true } },
+    },
+  });
+}
+
+export function isHRAwardAuthorized(req: AuthRequest): boolean {
+  const user = req.user;
+  if (!user) return false;
+  const roles = user.roles || [];
+  const permissions = user.permissions || [];
+
+  if (
+    permissions.includes("*") ||
+    permissions.includes("hrm.awards.manage") ||
+    permissions.includes("hrm.awards.view") ||
+    permissions.includes("hrm.employees.view") ||
+    permissions.includes("hr_admin")
+  ) {
+    return true;
+  }
+
+  const authorizedRoles = [
+    "super_admin",
+    "tenant_admin",
+    "hr_admin",
+    "hr_manager",
+    "admin",
+    "manager",
+    "Workspace Admin",
+  ];
+  return roles.some((r: string) => authorizedRoles.includes(r));
+}
 
 const DEFAULT_AWARD_TYPES = [
   { name: "Employee of the Month", icon: "Trophy", description: "Recognizing outstanding all-around contribution" },
@@ -49,6 +118,7 @@ awardsRouter.get("/types", async (req: AuthRequest, res: Response) => {
       orderBy: { name: "asc" },
       include: {
         _count: { select: { awards: true } },
+        workflow: { select: { id: true, name: true, entityType: true, isActive: true } },
       },
     });
 
@@ -58,13 +128,54 @@ awardsRouter.get("/types", async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /api/awards/workflows (List active workflows available for awards)
+awardsRouter.get("/workflows", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const workflows = await prisma.workflowDefinition.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+      },
+      include: {
+        steps: { orderBy: { stepOrder: "asc" } },
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return res.json({ success: true, data: workflows });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch workflows." });
+  }
+});
+
 // POST /api/awards/types (Create custom award type)
 awardsRouter.post("/types", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
-    const { name, icon, description } = req.body;
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can create award types.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const {
+      name,
+      icon,
+      description,
+      imageUrl,
+      imageStoragePath,
+      requiresApproval,
+      allowPeerNomination,
+      allowSelfNomination,
+      workflowId,
+      status,
+    } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: "Award type name is required." });
     }
@@ -75,6 +186,16 @@ awardsRouter.post("/types", async (req: AuthRequest, res: Response) => {
         name: name.trim(),
         icon: icon || "Trophy",
         description: description?.trim() || null,
+        imageUrl: imageUrl || null,
+        imageStoragePath: imageStoragePath || null,
+        requiresApproval: requiresApproval !== undefined ? Boolean(requiresApproval) : true,
+        allowPeerNomination: allowPeerNomination !== undefined ? Boolean(allowPeerNomination) : true,
+        allowSelfNomination: allowSelfNomination !== undefined ? Boolean(allowSelfNomination) : false,
+        workflowId: workflowId || null,
+        status: status || "active",
+      },
+      include: {
+        workflow: { select: { id: true, name: true, entityType: true, isActive: true } },
       },
     });
 
@@ -84,11 +205,127 @@ awardsRouter.post("/types", async (req: AuthRequest, res: Response) => {
   }
 });
 
+// PUT /api/awards/types/:id (Update custom award type)
+awardsRouter.put("/types/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can update award types.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const { id } = req.params;
+    const existing = await prisma.awardType.findFirst({ where: { id, tenantId } });
+    if (!existing) {
+      return res.status(404).json({ error: "Award type not found." });
+    }
+
+    const {
+      name,
+      icon,
+      description,
+      imageUrl,
+      imageStoragePath,
+      requiresApproval,
+      allowPeerNomination,
+      allowSelfNomination,
+      workflowId,
+      status,
+    } = req.body;
+
+    const updated = await prisma.awardType.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name: name.trim() } : {}),
+        ...(icon !== undefined ? { icon } : {}),
+        ...(description !== undefined ? { description: description?.trim() || null } : {}),
+        ...(imageUrl !== undefined ? { imageUrl } : {}),
+        ...(imageStoragePath !== undefined ? { imageStoragePath } : {}),
+        ...(requiresApproval !== undefined ? { requiresApproval: Boolean(requiresApproval) } : {}),
+        ...(allowPeerNomination !== undefined ? { allowPeerNomination: Boolean(allowPeerNomination) } : {}),
+        ...(allowSelfNomination !== undefined ? { allowSelfNomination: Boolean(allowSelfNomination) } : {}),
+        ...(workflowId !== undefined ? { workflowId: workflowId || null } : {}),
+        ...(status !== undefined ? { status } : {}),
+      },
+      include: {
+        workflow: { select: { id: true, name: true, entityType: true, isActive: true } },
+      },
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update award type." });
+  }
+});
+
+// GET /api/awards/my (Employee self-service personal awards)
+awardsRouter.get("/my", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const userId = req.user?.userId;
+    const employee = await prisma.employee.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { userId },
+          ...(req.user?.email ? [{ email: req.user.email }] : []),
+        ],
+      },
+      select: { id: true, firstName: true, lastName: true, employeeCode: true },
+    });
+
+    if (!employee) {
+      return res.status(403).json({
+        error: "No employee profile is linked to this account in the current workspace.",
+        code: "EMPLOYEE_PROFILE_REQUIRED",
+      });
+    }
+
+    const awards = await prisma.award.findMany({
+      where: { tenantId, employeeId: employee.id },
+      include: {
+        awardType: true,
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+        certificates: {
+          where: { status: "ACTIVE" },
+          take: 1,
+        },
+      },
+      orderBy: { awardDate: "desc" },
+    });
+
+    return res.json({ success: true, data: awards });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch your awards." });
+  }
+});
+
 // GET /api/awards (List awards with pagination & filters)
 awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. HR Administrator or Manager privileges required to view tenant-wide awards.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
 
     const { employeeId, awardTypeId, search, month } = req.query;
 
@@ -118,9 +355,19 @@ awardsRouter.get("/", async (req: AuthRequest, res: Response) => {
         where,
         include: {
           employee: {
-            include: { department: true },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              department: { select: { id: true, name: true } },
+            },
           },
           awardType: true,
+          certificates: {
+            where: { status: "ACTIVE" },
+            take: 1,
+          },
         },
         orderBy: { awardDate: "desc" },
         ...(pagination.isPaginated ? { skip: pagination.skip, take: pagination.limit } : {}),
@@ -155,6 +402,13 @@ awardsRouter.post("/", async (req: AuthRequest, res: Response) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can issue awards.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
     const {
       employeeId,
       awardTypeId,
@@ -170,16 +424,70 @@ awardsRouter.post("/", async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: "Employee is required." });
     }
 
+    // 1. Validate employee exists in current tenant
+    const employee = await prisma.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        employeeCode: true,
+        department: { select: { id: true, name: true } },
+      },
+    });
+    if (!employee) {
+      return res.status(404).json({ error: "Employee not found in the current tenant organization." });
+    }
+
+    // 2. Validate award type if specified
+    let awardTypeRecord = null;
+    if (awardTypeId) {
+      awardTypeRecord = await prisma.awardType.findFirst({
+        where: { id: awardTypeId, tenantId },
+      });
+      if (!awardTypeRecord) {
+        return res.status(404).json({ error: "Award Type not found in the current tenant organization." });
+      }
+      if (awardTypeRecord.status === "inactive") {
+        return res.status(400).json({
+          error: "Cannot issue award: This Award Type is inactive/deactivated.",
+          code: "AWARD_TYPE_INACTIVE",
+        });
+      }
+
+      if (awardTypeRecord.requiresApproval) {
+        const isSuperOrAdmin =
+          (req.user?.permissions || []).includes("*") ||
+          ["super_admin", "tenant_admin", "hr_admin"].some((r: string) =>
+            (req.user?.roles || []).includes(r)
+          );
+        if (!isSuperOrAdmin) {
+          return res.status(400).json({
+            error:
+              "This Award Type requires an employee nomination and approval workflow. Please submit a nomination instead of direct granting.",
+            code: "NOMINATION_REQUIRED",
+          });
+        }
+      }
+    }
+
+    // 3. Validate award date
+    const parsedAwardDate = awardDate ? new Date(awardDate) : new Date();
+    if (isNaN(parsedAwardDate.getTime())) {
+      return res.status(400).json({ error: "Invalid award date provided." });
+    }
+
     const certSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const certificateNo = `AWD-${new Date().getFullYear()}-${certSuffix}`;
+    const certificateNo = `AWD-${parsedAwardDate.getFullYear()}-${certSuffix}`;
+    const defaultTitle = awardTypeRecord?.name || "Recognition Trophy";
 
     const award = await prisma.award.create({
       data: {
         tenantId,
         employeeId,
         awardTypeId: awardTypeId || null,
-        awardDate: awardDate ? new Date(awardDate) : new Date(),
-        giftItem: giftItem?.trim() || "Recognition Trophy",
+        awardDate: parsedAwardDate,
+        giftItem: giftItem?.trim() || defaultTitle,
         giftAmount: giftAmount ? Number(giftAmount) : 0,
         description: description?.trim() || null,
         certificateUrl: certificateUrl || null,
@@ -189,21 +497,37 @@ awardsRouter.post("/", async (req: AuthRequest, res: Response) => {
       },
       include: {
         employee: {
-          include: { department: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { id: true, name: true } },
+          },
         },
         awardType: true,
       },
     });
 
+    // 4. Audit logging
+    await AuditService.logMutation({
+      tenantId,
+      actorId: req.user?.userId,
+      action: "EMPLOYEE_AWARD_CONFERRED",
+      entityType: "Award",
+      entityId: award.id,
+      newState: award,
+    }).catch((err) => console.warn("Could not log mutation:", err.message));
+
     broadcastToTenant(tenantId, "award:created", award);
     broadcastToTenant(tenantId, "notification:new", {
       title: "Award Presented",
-      description: `${award.employee.firstName} ${award.employee.lastName} received ${award.awardType?.name || "an Award"}!`,
+      description: `${award.employee.firstName} ${award.employee.lastName} received ${award.awardType?.name || award.giftItem || "an Award"}!`,
       type: "award",
       timestamp: new Date().toISOString(),
     });
 
-    return res.status(201).json(award);
+    return res.status(201).json({ success: true, data: award });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to issue award." });
   }
@@ -214,6 +538,13 @@ awardsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can update awards.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
 
     const { id } = req.params;
     const {
@@ -243,12 +574,20 @@ awardsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
         status: status || existing.status,
       },
       include: {
-        employee: { include: { department: true } },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
         awardType: true,
       },
     });
 
-    return res.json(updated);
+    return res.json({ success: true, data: updated });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to update award." });
   }
@@ -260,13 +599,478 @@ awardsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can revoke awards.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
     const { id } = req.params;
     const existing = await prisma.award.findFirst({ where: { id, tenantId } });
     if (!existing) return res.status(404).json({ error: "Award not found." });
 
     await prisma.award.delete({ where: { id } });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: req.user?.userId,
+      action: "EMPLOYEE_AWARD_REVOKED",
+      entityType: "Award",
+      entityId: id,
+      oldState: existing,
+    }).catch((err) => console.warn("Could not log mutation:", err.message));
+
+    broadcastToTenant(tenantId, "award:deleted", { id });
+
     return res.json({ success: true, message: "Award deleted successfully." });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete award." });
+  }
+});
+
+// =========================================================================
+// AWARD NOMINATION & APPROVAL WORKFLOW ENDPOINTS (STEP 3)
+// =========================================================================
+
+// GET /api/awards/nominations (List nominations with role/scope filtering)
+awardsRouter.get("/nominations", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const userId = req.user?.userId!;
+    const callerEmp = await resolveCallerEmployee(userId, tenantId, req.user?.email);
+
+    const {
+      page = "1",
+      limit = "20",
+      status,
+      awardTypeId,
+      nominationSource,
+      search,
+      myOnly,
+    } = req.query;
+
+    const result = await AwardNominationService.getNominations({
+      tenantId,
+      userId,
+      employeeId: callerEmp?.id,
+      isHRAuthorized: isHR,
+      myOnly: myOnly === "true",
+      status: status as string,
+      awardTypeId: awardTypeId as string,
+      nominationSource: nominationSource as string,
+      search: search as string,
+      page: parseInt(page as string, 10) || 1,
+      limit: parseInt(limit as string, 10) || 20,
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch nominations." });
+  }
+});
+
+// POST /api/awards/nominations (Submit nomination)
+awardsRouter.post("/nominations", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const userId = req.user?.userId!;
+    const callerEmp = await resolveCallerEmployee(userId, tenantId, req.user?.email);
+
+    const employeeId = req.body.employeeId || req.body.nomineeId;
+    const awardTypeId = req.body.awardTypeId;
+    const reason = req.body.reason || req.body.justification;
+    const achievementDescription = req.body.achievementDescription || req.body.impactStatement;
+    const supportingDocUrl = req.body.supportingDocUrl;
+    const nominationSource = req.body.nominationSource;
+
+    const nomination = await AwardNominationService.submitNomination({
+      tenantId,
+      nomineeEmployeeId: employeeId,
+      awardTypeId,
+      nominatorUserId: userId,
+      nominatorEmployeeId: callerEmp?.id,
+      nominationSource,
+      reason,
+      achievementDescription,
+      supportingDocUrl,
+      isHRAuthorized: isHR,
+    });
+
+    return res.status(201).json({ success: true, data: nomination });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to submit nomination." });
+  }
+});
+
+// POST /api/awards/nominations/:id/approve (Approve nomination step)
+awardsRouter.post("/nominations/:id/approve", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const userId = req.user?.userId!;
+    const callerEmp = await resolveCallerEmployee(userId, tenantId, req.user?.email);
+    const { comment } = req.body;
+
+    const updated = await AwardNominationService.approveNomination({
+      tenantId,
+      nominationId: req.params.id,
+      actorUserId: userId,
+      actorEmployeeId: callerEmp?.id,
+      actorRoles: req.user?.roles || [],
+      isHRAuthorized: isHR,
+      comment,
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (err: any) {
+    if (err.message === "Nomination not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message, code: "NOT_FOUND" });
+    }
+    if (err.message?.includes("Access denied") || err.message?.includes("not authorized")) {
+      return res.status(403).json({ error: err.message, code: "FORBIDDEN" });
+    }
+    return res.status(400).json({ error: err.message || "Failed to approve nomination." });
+  }
+});
+
+// POST /api/awards/nominations/:id/reject (Reject nomination)
+awardsRouter.post("/nominations/:id/reject", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const userId = req.user?.userId!;
+    const callerEmp = await resolveCallerEmployee(userId, tenantId, req.user?.email);
+    const { comment } = req.body;
+
+    const updated = await AwardNominationService.rejectNomination({
+      tenantId,
+      nominationId: req.params.id,
+      actorUserId: userId,
+      actorEmployeeId: callerEmp?.id,
+      actorRoles: req.user?.roles || [],
+      isHRAuthorized: isHR,
+      comment,
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (err: any) {
+    if (err.message === "Nomination not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message, code: "NOT_FOUND" });
+    }
+    if (err.message?.includes("Access denied") || err.message?.includes("not authorized")) {
+      return res.status(403).json({ error: err.message, code: "FORBIDDEN" });
+    }
+    return res.status(400).json({ error: err.message || "Failed to reject nomination." });
+  }
+});
+
+// POST /api/awards/nominations/:id/request-changes (Request changes)
+awardsRouter.post("/nominations/:id/request-changes", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const userId = req.user?.userId!;
+    const callerEmp = await resolveCallerEmployee(userId, tenantId, req.user?.email);
+    const { comment } = req.body;
+
+    const updated = await AwardNominationService.requestChanges({
+      tenantId,
+      nominationId: req.params.id,
+      actorUserId: userId,
+      actorEmployeeId: callerEmp?.id,
+      actorRoles: req.user?.roles || [],
+      isHRAuthorized: isHR,
+      comment,
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (err: any) {
+    if (err.message === "Nomination not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message, code: "NOT_FOUND" });
+    }
+    if (err.message?.includes("Access denied") || err.message?.includes("not authorized")) {
+      return res.status(403).json({ error: err.message, code: "FORBIDDEN" });
+    }
+    return res.status(400).json({ error: err.message || "Failed to request changes." });
+  }
+});
+
+// POST /api/awards/nominations/:id/issue (Official Award Issuance)
+awardsRouter.post("/nominations/:id/issue", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    if (!isHRAwardAuthorized(req)) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can issue official awards.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const { giftItem, giftAmount, presentedBy } = req.body;
+
+    const award = await AwardNominationService.issueOfficialAward({
+      tenantId,
+      nominationId: req.params.id,
+      issuerUserId: req.user?.userId!,
+      issuerName: (req.user as any)?.name || (req.user as any)?.email,
+      giftItem,
+      giftAmount,
+      presentedBy,
+    });
+
+    return res.status(201).json({ success: true, data: award });
+  } catch (err: any) {
+    if (err.message === "Nomination not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to issue award from nomination." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4: CERTIFICATE GENERATION, DISTRIBUTION & GOVERNANCE ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// POST /api/awards/:id/certificate/generate (Generate official certificate)
+awardsRouter.post("/:id/certificate/generate", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    if (!isHR) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can generate award certificates.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const result = await AwardCertificateService.generateCertificate({
+      tenantId,
+      awardId: req.params.id,
+      actorUserId: req.user?.userId!,
+      isHRAuthorized: true,
+      forceReissue: false,
+    });
+
+    return res.status(result.reused ? 200 : 201).json({
+      success: true,
+      data: result.certificate,
+      reused: result.reused,
+      message: result.message,
+    });
+  } catch (err: any) {
+    if (err.message === "Award not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to generate award certificate." });
+  }
+});
+
+// POST /api/awards/:id/certificate/reissue (Reissue certificate with reasons)
+awardsRouter.post("/:id/certificate/reissue", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    if (!isHR) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can reissue award certificates.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const { reason } = req.body;
+    if (!reason || String(reason).trim().length < 3) {
+      return res.status(400).json({ error: "A valid reissue reason (at least 3 characters) is required." });
+    }
+
+    const result = await AwardCertificateService.reissueCertificate({
+      tenantId,
+      awardId: req.params.id,
+      actorUserId: req.user?.userId!,
+      reason: String(reason).trim(),
+      isHRAuthorized: true,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: result.certificate,
+      message: result.message,
+    });
+  } catch (err: any) {
+    if (err.message === "Award not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to reissue award certificate." });
+  }
+});
+
+// POST /api/awards/certificates/:id/revoke (Revoke certificate)
+awardsRouter.post("/certificates/:id/revoke", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    if (!isHR) {
+      return res.status(403).json({
+        error: "Access denied. Only authorized HR administrators or managers can revoke award certificates.",
+        code: "HR_ROLE_REQUIRED",
+      });
+    }
+
+    const { reason } = req.body;
+    if (!reason || String(reason).trim().length < 3) {
+      return res.status(400).json({ error: "A valid revocation reason (at least 3 characters) is required." });
+    }
+
+    const revoked = await AwardCertificateService.revokeCertificate({
+      tenantId,
+      certificateId: req.params.id,
+      actorUserId: req.user?.userId!,
+      reason: String(reason).trim(),
+      isHRAuthorized: true,
+    });
+
+    return res.json({ success: true, data: revoked });
+  } catch (err: any) {
+    if (err.message === "Certificate not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to revoke certificate." });
+  }
+});
+
+// GET /api/awards/certificates/:id (View certificate details)
+awardsRouter.get("/certificates/:id", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const callerEmp = await resolveCallerEmployee(req.user?.userId!, tenantId, req.user?.email);
+
+    const cert = await prisma.employeeAwardCertificate.findFirst({
+      where: { id: req.params.id, tenantId },
+      include: {
+        award: {
+          include: {
+            awardType: true,
+            employee: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeCode: true,
+                department: { select: { id: true, name: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!cert) {
+      return res.status(404).json({ error: "Certificate not found." });
+    }
+
+    const isOwner = callerEmp && cert.employeeId === callerEmp.id;
+    if (!isHR && !isOwner) {
+      return res.status(403).json({ error: "Access denied: You cannot view this certificate." });
+    }
+
+    return res.json({ success: true, data: cert });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve certificate details." });
+  }
+});
+
+// GET /api/awards/certificates/:id/download (Stream verified PDF binary)
+awardsRouter.get("/certificates/:id/download", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const callerEmp = await resolveCallerEmployee(req.user?.userId!, tenantId, req.user?.email);
+
+    const fileResult = await AwardCertificateService.getCertificateFile({
+      certificateId: req.params.id,
+      tenantId,
+      actorUserId: req.user?.userId,
+      callerEmployeeId: callerEmp?.id,
+      isHRAuthorized: isHR,
+    });
+
+    res.setHeader("Content-Type", fileResult.mimeType || "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileResult.fileName}"`);
+    res.setHeader("Content-Length", fileResult.fileSize);
+
+    const stream = fs.createReadStream(fileResult.absolutePath);
+    stream.pipe(res);
+  } catch (err: any) {
+    if (err.message === "Certificate not found." || err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message?.includes("Access denied")) {
+      return res.status(403).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to download certificate." });
+  }
+});
+
+// GET /api/awards/:id/certificate (Get active certificate for award)
+awardsRouter.get("/:id/certificate", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const isHR = isHRAwardAuthorized(req);
+    const callerEmp = await resolveCallerEmployee(req.user?.userId!, tenantId, req.user?.email);
+
+    const cert = await prisma.employeeAwardCertificate.findFirst({
+      where: {
+        tenantId,
+        awardId: req.params.id,
+        status: "ACTIVE",
+      },
+      include: {
+        award: {
+          include: {
+            awardType: true,
+          },
+        },
+      },
+    });
+
+    if (!cert) {
+      return res.status(404).json({ error: "No active certificate found for this award." });
+    }
+
+    const isOwner = callerEmp && cert.employeeId === callerEmp.id;
+    if (!isHR && !isOwner) {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    return res.json({ success: true, data: cert });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch certificate." });
   }
 });

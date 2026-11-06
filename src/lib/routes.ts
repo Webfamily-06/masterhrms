@@ -117,7 +117,7 @@ export const ROUTES = {
     },
     lifecycle: {
       root: "/hr/lifecycle",
-      awards: "/hr/lifecycle/awards",
+      awards: "/hr/awards",
       promotions: "/hr/lifecycle/promotions",
       transfers: "/hr/lifecycle/transfers",
       warnings: "/hr/lifecycle/warnings",
@@ -236,7 +236,7 @@ export const ROUTES = {
     },
     lifecycle: {
       root: "/me/lifecycle",
-      awards: "/me/lifecycle/awards",
+      awards: "/me/awards",
       promotions: "/me/lifecycle/promotions",
       transfers: "/me/lifecycle/transfers",
       warnings: "/me/lifecycle/warnings",

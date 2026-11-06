@@ -55,6 +55,13 @@ export const MASTER_DATA_ALLOWED_FIELDS: Record<string, string[]> = {
     "name",
     "icon",
     "description",
+    "imageUrl",
+    "imageStoragePath",
+    "status",
+    "requiresApproval",
+    "allowPeerNomination",
+    "allowSelfNomination",
+    "workflowId",
   ],
   holiday: [
     "name",

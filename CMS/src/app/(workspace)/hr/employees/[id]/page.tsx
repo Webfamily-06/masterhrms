@@ -1,14 +1,24 @@
 'use client';
 import { useState } from "react";
-import {   createFileRoute, Link, Outlet, useChildMatches  , Route } from "@/src/lib/router-compat";
+import { createFileRoute, Link, Outlet, useChildMatches, Route } from "@/src/lib/router-compat";
 import { format } from "date-fns";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api, unwrapArray } from "@/lib/api";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
@@ -42,7 +52,35 @@ import {
   AlertCircle,
   FileSpreadsheet,
   Edit,
+  Plus,
+  Trophy,
+  Star,
+  Gift,
+  UserCheck,
+  Loader2,
+  Zap,
+  Heart,
+  Users,
+  Medal,
+  Crown,
+  Sparkles,
 } from "lucide-react";
+
+function renderProfileAwardIcon(iconName?: string | null, className = "size-4") {
+  switch ((iconName || "").toLowerCase()) {
+    case "star": return <Star className={className} />;
+    case "zap": return <Zap className={className} />;
+    case "heart": return <Heart className={className} />;
+    case "users": return <Users className={className} />;
+    case "medal": return <Medal className={className} />;
+    case "crown": return <Crown className={className} />;
+    case "sparkles": return <Sparkles className={className} />;
+    case "trophy": return <Trophy className={className} />;
+    case "award":
+    default:
+      return <Award className={className} />;
+  }
+}
 
 function EmployeeRouteWrapper() {
   const childMatches = useChildMatches();
@@ -97,6 +135,74 @@ function Employee360Page() {
   const [docToDelete, setDocToDelete] = useState<any | null>(null);
   const [isDeletingDoc, setIsDeletingDoc] = useState(false);
   const [isVerifyingDoc, setIsVerifyingDoc] = useState<string | null>(null);
+
+  // Award actions & conferring state
+  const [isAwardModalOpen, setIsAwardModalOpen] = useState(false);
+  const [awardToDelete, setAwardToDelete] = useState<any | null>(null);
+  const [awardFormData, setAwardFormData] = useState({
+    awardTypeId: "",
+    awardDate: new Date().toISOString().split("T")[0],
+    giftItem: "",
+    giftAmount: "0",
+    description: "",
+    presentedBy: "Executive Committee",
+  });
+
+  const { data: activeAwardTypes = [] } = useQuery({
+    queryKey: ["active-award-types-profile"],
+    queryFn: async () => {
+      const res = await api.get("/hr/organization/award-types?status=active&limit=100");
+      return res.data?.data || res.data || [];
+    },
+    staleTime: 60000,
+  });
+
+  const assignAwardMutation = useMutation({
+    mutationFn: async () => {
+      if (!awardFormData.awardTypeId) {
+        throw new Error("Please select an Award Type.");
+      }
+      return await api.post("/api/awards", {
+        employeeId: id,
+        awardTypeId: awardFormData.awardTypeId,
+        awardDate: awardFormData.awardDate,
+        giftItem: awardFormData.giftItem || "Recognition Award",
+        giftAmount: Number(awardFormData.giftAmount) || 0,
+        description: awardFormData.description.trim() || null,
+        presentedBy: awardFormData.presentedBy.trim() || "Management",
+      });
+    },
+    onSuccess: () => {
+      toast.success("Award conferred successfully!");
+      setIsAwardModalOpen(false);
+      setAwardFormData({
+        awardTypeId: "",
+        awardDate: new Date().toISOString().split("T")[0],
+        giftItem: "",
+        giftAmount: "0",
+        description: "",
+        presentedBy: "Executive Committee",
+      });
+      queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to grant award.");
+    },
+  });
+
+  const revokeAwardMutation = useMutation({
+    mutationFn: async (awardId: string) => {
+      return await api.delete(`/api/awards/${awardId}`);
+    },
+    onSuccess: () => {
+      toast.success("Award record removed successfully.");
+      setAwardToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["employee-360", id] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Failed to revoke award.");
+    },
+  });
 
   const { data: responseData, isLoading, error, refetch } = useQuery({
     queryKey: ["employee-360", id],
@@ -904,12 +1010,37 @@ function Employee360Page() {
 
                   {/* Company Awards List */}
                   <div className="space-y-3 pt-2">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Corporate Awards & Recognitions ({awards.length})
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Corporate Awards & Recognitions
+                        </h3>
+                        <Badge variant="secondary" className="text-[10px] font-mono">
+                          {awards.length}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          to="/hr/awards"
+                          className="text-xs text-primary hover:underline font-medium flex items-center gap-1 mr-1"
+                        >
+                          Nomination Queue
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsAwardModalOpen(true)}
+                          className="h-7 text-xs gap-1.5 font-medium"
+                        >
+                          <Plus className="size-3.5 text-primary" />
+                          Award Employee
+                        </Button>
+                      </div>
+                    </div>
+
                     {awards.length === 0 ? (
                       <div className="flex flex-col items-center justify-center p-8 rounded-lg border border-dashed text-center">
-                        <Award className="size-8 text-muted-foreground/60 mb-2" />
+                        <Trophy className="size-8 text-muted-foreground/60 mb-2" />
                         <p className="text-xs font-medium text-foreground">No Corporate Awards Conferred</p>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
                           Recognitions, quarterly excellence honors, and company awards will appear here once conferred.
@@ -918,20 +1049,125 @@ function Employee360Page() {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {awards.map((award: any) => (
-                          <div key={award.id} className="p-3.5 rounded-lg border bg-card/60 flex items-start gap-3">
-                            <div className="p-2 rounded-full bg-amber-500/10 text-amber-600 shrink-0">
-                              <Award className="size-4" />
-                            </div>
-                            <div className="space-y-0.5">
-                              <div className="font-semibold text-xs text-foreground">
-                                {award.awardType?.name || award.title || "Recognition Award"}
-                              </div>
-                              <p className="text-[11px] text-muted-foreground">
-                                Conferred on {award.awardDate ? format(new Date(award.awardDate), "dd MMMM yyyy") : "—"}
-                              </p>
-                              {award.description && (
-                                <p className="text-[11px] text-muted-foreground/80 pt-1">{award.description}</p>
+                          <div
+                            key={award.id}
+                            className="p-3.5 rounded-lg border bg-card/60 flex items-start justify-between gap-3 transition-colors hover:bg-card"
+                          >
+                            <div className="flex items-start gap-3 min-w-0">
+                              {award.awardType?.imageUrl ? (
+                                <div className="size-11 rounded-lg border bg-muted/30 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                                  <img
+                                    src={award.awardType.imageUrl}
+                                    alt={award.awardType.name || "Award"}
+                                    className="size-full object-contain"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = "none";
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="size-11 rounded-lg bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0">
+                                  {renderProfileAwardIcon(award.awardType?.icon, "size-5")}
+                                </div>
                               )}
+
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-xs text-foreground truncate">
+                                    {award.awardType?.name || award.giftItem || "Recognition Award"}
+                                  </span>
+                                  {award.certificateNo && (
+                                    <Badge variant="outline" className="text-[9px] font-mono px-1.5 py-0 h-4">
+                                      {award.certificateNo}
+                                    </Badge>
+                                  )}
+                                  {award.nominationId && (
+                                    <Badge variant="secondary" className="text-[9px] font-sans px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                      <CheckCircle2 className="size-2.5" /> Approved Nomination
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                                  <Calendar className="size-3 text-muted-foreground/70" />
+                                  <span>
+                                    Conferred on{" "}
+                                    {award.awardDate ? format(new Date(award.awardDate), "dd MMMM yyyy") : "—"}
+                                  </span>
+                                </p>
+
+                                {award.description && (
+                                  <p className="text-[11px] text-muted-foreground/90 line-clamp-2 pt-0.5">
+                                    {award.description}
+                                  </p>
+                                )}
+
+                                <div className="flex items-center gap-3 pt-1 text-[10px] text-muted-foreground">
+                                  {award.presentedBy && (
+                                    <span>
+                                      Presented by: <strong className="text-foreground/80">{award.presentedBy}</strong>
+                                    </span>
+                                  )}
+                                  {Number(award.giftAmount) > 0 && (
+                                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                      ₹{Number(award.giftAmount).toLocaleString()} Reward
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    let downloadUrl = award.certificateUrl;
+                                    if (!downloadUrl && award.id) {
+                                      toast.info("Generating verified vector certificate...");
+                                      const genRes = await api.post(`/api/awards/${award.id}/certificate/generate`);
+                                      downloadUrl = `/api/awards/certificates/${genRes.data?.data?.id}/download`;
+                                    }
+                                    if (downloadUrl) {
+                                      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
+                                      const res = await fetch(downloadUrl, {
+                                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                                      });
+                                      if (res.ok) {
+                                        const blob = await res.blob();
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement("a");
+                                        a.href = url;
+                                        a.download = `certificate-${award.certificateNo || award.id}.pdf`;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        a.remove();
+                                        window.URL.revokeObjectURL(url);
+                                        toast.success("Certificate downloaded.");
+                                        return;
+                                      }
+                                    }
+                                    throw new Error("Unable to download certificate.");
+                                  } catch (e: any) {
+                                    toast.error(e.message || "Failed to download certificate.");
+                                  }
+                                }}
+                                className="h-7 text-[11px] gap-1 px-2 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                                title="Download Official Vector PDF Certificate"
+                              >
+                                <Download className="size-3" />
+                                <span>PDF</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAwardToDelete(award)}
+                                className="size-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                title="Revoke Award"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -1209,8 +1445,142 @@ function Employee360Page() {
         isLoading={isDeletingDoc}
         onConfirm={handleDeleteDocument}
       />
+
+      {/* Award Employee Modal */}
+      <Dialog open={isAwardModalOpen} onOpenChange={setIsAwardModalOpen}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold flex items-center gap-2">
+              <Award className="size-4 text-amber-500" />
+              Award Employee
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Confer corporate recognition and an excellence certificate to {emp?.firstName} {emp?.lastName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              assignAwardMutation.mutate();
+            }}
+            className="space-y-4 pt-2"
+          >
+            {/* Select Award Type */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Award Type *</Label>
+              <Select
+                value={awardFormData.awardTypeId}
+                onValueChange={(val) => {
+                  const selected = activeAwardTypes.find((t: any) => t.id === val);
+                  setAwardFormData((prev) => ({
+                    ...prev,
+                    awardTypeId: val,
+                    giftItem: selected?.name || prev.giftItem,
+                  }));
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Choose award category..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {activeAwardTypes.map((at: any) => (
+                    <SelectItem key={at.id} value={at.id} className="text-xs">
+                      <div className="flex items-center gap-2">
+                        {renderProfileAwardIcon(at.icon, "size-3.5 text-amber-500")}
+                        <span>{at.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Award Date */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Conferred Date *</Label>
+              <Input
+                type="date"
+                value={awardFormData.awardDate}
+                onChange={(e) => setAwardFormData((prev) => ({ ...prev, awardDate: e.target.value }))}
+                required
+                className="h-9 text-xs"
+              />
+            </div>
+
+            {/* Citation */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Recognition Citation / Reason</Label>
+              <Textarea
+                value={awardFormData.description}
+                onChange={(e) => setAwardFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Reason for honor, project delivered, or performance milestone..."
+                rows={2}
+                className="text-xs resize-none"
+              />
+            </div>
+
+            {/* Issuer & Reward */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Presented By</Label>
+                <Input
+                  value={awardFormData.presentedBy}
+                  onChange={(e) => setAwardFormData((prev) => ({ ...prev, presentedBy: e.target.value }))}
+                  className="h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Reward Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={awardFormData.giftAmount}
+                  onChange={(e) => setAwardFormData((prev) => ({ ...prev, giftAmount: e.target.value }))}
+                  className="h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAwardModalOpen(false)}
+                className="h-9 text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={assignAwardMutation.isPending}
+                className="h-9 text-xs gap-1.5"
+              >
+                {assignAwardMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                Confer Award
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for Award Revocation */}
+      <ConfirmationDialog
+        open={Boolean(awardToDelete)}
+        onOpenChange={(open) => !open && setAwardToDelete(null)}
+        title="Revoke Corporate Award?"
+        description={`Are you sure you want to revoke and delete '${awardToDelete?.awardType?.name || awardToDelete?.giftItem || "this award"}' from ${emp?.firstName} ${emp?.lastName}'s profile? This audit action cannot be undone.`}
+        confirmLabel={revokeAwardMutation.isPending ? "Revoking..." : "Revoke Award"}
+        variant="destructive"
+        isLoading={revokeAwardMutation.isPending}
+        onConfirm={() => {
+          if (awardToDelete?.id) {
+            revokeAwardMutation.mutate(awardToDelete.id);
+          }
+        }}
+      />
     </div>
   );
 }
 
-export default EmployeeRouteWrapper;
+export default Employee360Page;

@@ -305,6 +305,12 @@ employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create")
 
     return res.status(201).json(employee);
   } catch (err: any) {
+    if (err.code === "P2002" || err.message?.includes("uq_employees_tenant_user_id")) {
+      return res.status(409).json({
+        error: "This user account is already assigned to another employee in this workspace.",
+        code: "EMPLOYEE_USER_CONFLICT",
+      });
+    }
     return res.status(err.status || 500).json({
       error: err.message || "Internal server error",
       code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
@@ -531,6 +537,12 @@ employeesRouter.put("/:id", requireAuth, requirePermission("hrm.employees.edit")
 
     return res.json(employee);
   } catch (err: any) {
+    if (err.code === "P2002" || err.message?.includes("uq_employees_tenant_user_id")) {
+      return res.status(409).json({
+        error: "This user account is already assigned to another employee in this workspace.",
+        code: "EMPLOYEE_USER_CONFLICT",
+      });
+    }
     return res.status(err.status || 500).json({
       error: err.message || "Internal server error",
       code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
@@ -579,23 +591,27 @@ employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
         data: { status: "cancelled" },
       });
 
-      // 3. Statutory Soft Delete: Mark employee status as "archived"
+      // 3. Statutory Soft Delete: Mark employee status as "terminated"
       // Preserves historical attendance, leaveRequests, payslips, employeeExit, and tax audit records
-      await (tx.employee as any).update({
+      await tx.employee.update({
         where: { id },
         data: {
-          status: "archived",
+          status: "terminated",
           userId: null,
         },
         select: { id: true },
       });
 
-      // 4. Revoke user authentication and access roles
+      // 4. Revoke user authentication, active sessions, and access roles
       if (employee.userId) {
         const otherLinked = await tx.employee.count({
           where: { userId: employee.userId, id: { not: id } },
         });
         if (otherLinked === 0) {
+          await tx.deviceSession.updateMany({
+            where: { userId: employee.userId, revoked: false },
+            data: { revoked: true, revokedAt: new Date() },
+          });
           await tx.userRole.deleteMany({ where: { userId: employee.userId } });
           await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
 
@@ -603,6 +619,20 @@ employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Respon
         }
       }
     });
+
+    // 5. Emit security & compliance audit log
+    try {
+      await AuditService.logMutation({
+        tenantId: employee.tenantId,
+        actorId: req.user?.userId || (req.user as any)?.id,
+        action: "EMPLOYEE_ARCHIVED",
+        entityType: "Employee",
+        entityId: employee.id,
+        metadata: {
+          details: `Employee ${employee.firstName} ${employee.lastName} was archived. Active sessions revoked and statutory records preserved.`,
+        },
+      });
+    } catch {}
 
     console.log("[DELETE /employees/" + id + "] Employee " + employee.firstName + " " + employee.lastName + " successfully deleted from database.");
     return res.json({
@@ -890,6 +920,15 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
 
     const employee = await prisma.employee.findUnique({
       where: { id },
+      select: {
+        id: true,
+        tenantId: true,
+        userId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+      },
     });
 
     if (!employee || (tenantId && employee.tenantId !== tenantId)) {
@@ -903,8 +942,13 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
       const userId = await provisionEmployeeUser(tx, {
         tenantId: employee.tenantId, email, firstName: employee.firstName,
         lastName: employee.lastName, phone: employee.phone, password: newPassword,
+        employeeId: employee.id,
       });
-      await tx.employee.update({ where: { id: employee.id }, data: { userId } });
+      await tx.employee.update({
+        where: { id: employee.id },
+        data: { userId },
+        select: { id: true, userId: true },
+      });
     });
 
     // Log audit

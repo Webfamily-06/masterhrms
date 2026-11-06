@@ -203,6 +203,7 @@ superRouter.post("/impersonate/:tenantId", requireAuth, requireSuperAdmin, async
       email: req.user!.email,
       tenantId: tenant.id,
       roles,
+      sessionId: req.user?.sessionId,
       isImpersonating: true,
       impersonatorUserId: req.user!.userId,
       impersonatorEmail: req.user!.email,
@@ -295,6 +296,7 @@ superRouter.post("/leave-impersonation", requireAuth, requireSuperAdmin, async (
       email: superAdminUser.email,
       tenantId: null,
       roles: roles.length ? roles : ["super_admin"],
+      sessionId: req.user?.sessionId,
     });
 
     // Record explicit audit log

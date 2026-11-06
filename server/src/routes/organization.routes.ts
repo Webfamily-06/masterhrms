@@ -1,4 +1,8 @@
 import { Router, Response } from "express";
+import multer from "multer";
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
@@ -7,6 +11,9 @@ import { announcementsRouter } from "./announcements.routes";
 import { resolveUserSecurityContext, buildDataScopePrismaFilter } from "../lib/data-scope";
 import { applyFieldSecurityMask } from "../lib/field-security";
 import { OrganizationTreeService } from "../services/organization-tree.service";
+import { prisma } from "../prisma";
+import { MediaService, getUploadsRoot } from "../services/media/media.service";
+import { computeSha256 } from "../services/storage/integrity-hasher";
 
 export const organizationRouter = Router();
 
@@ -110,13 +117,139 @@ organizationRouter.use(
 // =========================================================================
 // 4. AWARD TYPES MASTER (/award-types)
 // =========================================================================
+const awardTypeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max for badges/icons
+});
+
+// Dedicated Award Type Image / Badge Upload Route
+organizationRouter.post(
+  "/award-types/upload",
+  requireAuth,
+  resolveTenantContext,
+  awardTypeUpload.single("file"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "No image file provided in 'file' field" });
+      }
+
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) {
+        return res.status(403).json({ error: "Tenant context required for upload" });
+      }
+
+      // Authoritative magic bytes validation (PNG, JPEG, WebP, SVG)
+      const validation = MediaService.validateImageBuffer(file.buffer, file.mimetype, file.originalname);
+      if (!validation.isValid) {
+        return res.status(400).json({ error: validation.error || "Invalid file" });
+      }
+
+      const allowedImageMimes = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+      if (!allowedImageMimes.includes(validation.mimeType)) {
+        return res.status(400).json({
+          error: `Unsupported image format (${validation.mimeType}). Only PNG, JPG, WEBP, and SVG formats are permitted.`,
+        });
+      }
+
+      const awardTypeId = req.body.awardTypeId
+        ? String(req.body.awardTypeId).replace(/[^a-zA-Z0-9_-]/g, "")
+        : "general";
+
+      const uniqueFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${validation.extension}`;
+      const folder = `tenants/${tenantId}/award-types/${awardTypeId}`;
+      const relativeFilePath = `uploads/${folder}/${uniqueFileName}`;
+      const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
+
+      const uploadsRoot = getUploadsRoot();
+      const targetDir = path.join(uploadsRoot, folder);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      const fullDiskPath = path.join(targetDir, uniqueFileName);
+      await fs.promises.writeFile(fullDiskPath, file.buffer);
+
+      // Audit and track in mediaFiles
+      const checksumSha = computeSha256(file.buffer);
+      await prisma.mediaFile
+        .create({
+          data: {
+            tenantId,
+            storageDisk: "LOCAL",
+            filePath: relativeFilePath,
+            url: publicUrl,
+            fileName: file.originalname,
+            mimeType: validation.mimeType,
+            fileSize: file.buffer.length,
+            checksumSha,
+            folder,
+            tags: ["award-types", "badge"],
+            uploadedBy: req.user?.userId || "system",
+          },
+        })
+        .catch((err) => {
+          console.warn("⚠️ Could not persist mediaFile record:", err.message);
+        });
+
+      return res.status(201).json({
+        url: publicUrl,
+        imageStoragePath: relativeFilePath,
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: validation.mimeType,
+      });
+    } catch (err: any) {
+      console.error("[Award Type Image Upload Error]:", err);
+      return res.status(500).json({ error: err.message || "Failed to upload award type image" });
+    }
+  }
+);
+
+const awardTypeNormalizer = async (req: any, _res: any, next: any) => {
+  if (req.method === "POST" || req.method === "PUT") {
+    if (req.body && req.body.title) {
+      if (!req.body.name) {
+        req.body.name = req.body.title;
+      }
+      delete req.body.title;
+    }
+  }
+  next();
+};
+
 organizationRouter.use(
   "/award-types",
+  awardTypeNormalizer,
   createMasterDataRouter({
     modelName: "awardType",
     entityName: "AwardType",
     searchFields: ["name", "description"],
     uniqueFields: ["name"],
+    include: {
+      _count: { select: { awards: true } },
+      workflow: { select: { id: true, name: true, entityType: true, isActive: true } },
+    },
+    customCounts: async (db, tenantId) => {
+      const [totalAwardsIssued, activeTypes] = await Promise.all([
+        db.award.count({ where: { tenantId } }),
+        db.awardType.count({ where: { tenantId, status: "active" } }),
+      ]);
+      return {
+        totalAwardsIssued,
+        activeTypes,
+      };
+    },
+    dependencyCheck: async (db, id, tenantId) => {
+      const count = await db.award.count({ where: { awardTypeId: id, tenantId } });
+      if (count > 0) {
+        return {
+          canDelete: false,
+          message: `Cannot delete Award Type because ${count} employee award(s) are linked to it. Please deactivate it instead to preserve recognition history.`,
+        };
+      }
+      return { canDelete: true };
+    },
   })
 );
 

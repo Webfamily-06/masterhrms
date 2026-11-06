@@ -10,6 +10,7 @@ import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/dat
 import { EmployeeSystemIdService } from "./employee-system-id.service";
 import { normalizePhoneE164 } from "../schemas/employee.schema";
 import { validateReportingHierarchy } from "../lib/reporting-hierarchy-validator";
+import { invalidateAuthCache } from "../middleware/auth";
 
 export const EMPLOYEE_PHYSICAL_COLUMNS_SELECT = {
   id: true,
@@ -1401,11 +1402,13 @@ export class EmployeeService {
           lastName: employee.lastName,
           phone: employee.phone,
           password: newPassword.trim(),
+          employeeId: employee.id,
         });
 
         await tx.employee.update({
           where: { id: employeeId },
           data: { userId: targetUserId },
+          select: { id: true, userId: true },
         });
       } else {
         // Update existing user's passwordHash
@@ -1531,6 +1534,10 @@ export class EmployeeService {
       if (targetStatus === "inactive") {
         // Deactivate: remove tenant roles & role assignments, and unlink userId
         if (employee.userId) {
+          await tx.deviceSession.updateMany({
+            where: { userId: employee.userId, revoked: false },
+            data: { revoked: true, revokedAt: new Date() },
+          });
           await tx.userRole.deleteMany({
             where: {
               userId: employee.userId,
@@ -1546,7 +1553,9 @@ export class EmployeeService {
           await tx.employee.update({
             where: { id: employeeId },
             data: { userId: null },
+            select: { id: true, userId: true },
           });
+          invalidateAuthCache(employee.userId, tenantId);
         }
       } else {
         // Activate: provision if missing or restore userRole
@@ -1557,6 +1566,22 @@ export class EmployeeService {
           });
 
           if (existingUser) {
+            const linkedOther = await tx.employee.findFirst({
+              where: {
+                tenantId,
+                userId: existingUser.id,
+                id: { not: employeeId },
+              },
+              select: { id: true, firstName: true, lastName: true, employeeCode: true },
+            });
+            if (linkedOther) {
+              const err: any = new Error(
+                `This user account (${existingUser.email}) is already assigned to employee ${linkedOther.firstName} ${linkedOther.lastName} (${linkedOther.employeeCode}). Each employee must have an independent login account.`
+              );
+              err.statusCode = 409;
+              err.code = "EMPLOYEE_USER_CONFLICT";
+              throw err;
+            }
             targetUserId = existingUser.id;
           } else {
             targetUserId = await provisionEmployeeUser(tx, {
@@ -1565,12 +1590,14 @@ export class EmployeeService {
               firstName: employee.firstName,
               lastName: employee.lastName,
               phone: employee.phone,
+              employeeId: employee.id,
             });
           }
 
           await tx.employee.update({
             where: { id: employeeId },
             data: { userId: targetUserId },
+            select: { id: true, userId: true },
           });
         }
 

@@ -303,7 +303,7 @@ export function UnifiedFileManager({
       }
 
       // Role scoped views
-      if (role === "tenant") {
+      if (role === "tenant" || role === "hr" || role === "admin") {
         params.append("view", "org");
       } else if (role === "me") {
         params.append("view", "my");
@@ -1449,7 +1449,7 @@ export function UnifiedFileManager({
       {/* ----------------------------------------------------------------------- */}
       <div
         
-        className="flex items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans"
+        className="flex flex-wrap sm:flex-nowrap items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/20 text-xs font-sans min-h-[42px]"
       >
         {/* Navigation History Buttons */}
         <div className="flex items-center gap-0.5">
@@ -1515,7 +1515,7 @@ export function UnifiedFileManager({
         </div>
 
         {/* Search Box on Right */}
-        <div className="relative w-44 sm:w-60 shrink-0">
+        <div className="relative w-28 xs:w-36 sm:w-48 md:w-60 shrink-0 transition-all focus-within:w-40 sm:focus-within:w-60">
           <img
             src="/FILE-MANAGER/Search.ico"
             alt=""
@@ -1886,7 +1886,7 @@ export function UnifiedFileManager({
                         <div
                           key={folder.id}
                           onDoubleClick={() => handleOpenFolder(folder)}
-                          onClick={(e) => handleSelectItem(folder, e)}
+                          onClick={() => handleOpenFolder(folder)}
                           onContextMenu={(e) => handleContextMenu(e, folder)}
                           className={cn(
                             "group relative flex items-center gap-3 p-2.5 rounded-xl border border-border/80 bg-card hover:bg-accent/40 transition-all cursor-pointer shadow-2xs",
@@ -1904,7 +1904,7 @@ export function UnifiedFileManager({
                           </div>
                           {/* Checkbox indicator */}
                           <div
-                            onClick={(e) => handleSelectItem(folder, e, true)}
+                            onClick={(e) => { e.stopPropagation(); handleSelectItem(folder, e, true); }}
                             className={cn(
                               "size-4 rounded border border-muted-foreground/30 flex items-center justify-center transition-opacity shrink-0",
                               isSelected ? "bg-primary border-primary text-primary-foreground opacity-100" : "opacity-0 group-hover:opacity-100"
@@ -1993,7 +1993,7 @@ export function UnifiedFileManager({
                           return (
                             <tr
                               key={item.id}
-                              onClick={(e) => handleSelectItem(item, e)}
+                              onClick={(e) => { if (item.isFolder) handleOpenFolder(item); else handleSelectItem(item, e); }}
                               onDoubleClick={() => {
                                 if (item.isFolder) handleOpenFolder(item);
                                 else {
@@ -2234,7 +2234,7 @@ export function UnifiedFileManager({
                     return (
                       <div
                         key={item.id}
-                        onClick={(e) => handleSelectItem(item, e)}
+                        onClick={(e) => { if (item.isFolder) handleOpenFolder(item); else handleSelectItem(item, e); }}
                         onDoubleClick={() => {
                           if (item.isFolder) handleOpenFolder(item);
                           else {
@@ -2260,7 +2260,7 @@ export function UnifiedFileManager({
                           </div>
                         </div>
                         <div
-                          onClick={(e) => handleSelectItem(item, e, true)}
+                          onClick={(e) => { e.stopPropagation(); handleSelectItem(item, e, true); }}
                           className={cn(
                             "size-4 rounded border border-muted-foreground/30 flex items-center justify-center shrink-0 transition-opacity",
                             isSelected ? "bg-primary border-primary text-primary-foreground opacity-100" : "opacity-0 group-hover:opacity-100"

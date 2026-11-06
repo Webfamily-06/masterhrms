@@ -126,7 +126,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
     label: "Employee Lifecycle",
     icon: "ph-arrows-clockwise",
     children: [
-      { label: "My Awards", path: "/me/lifecycle/awards", icon: "ph-trophy" },
+      { label: "My Awards", path: "/me/awards", icon: "ph-trophy" },
       { label: "Promotions & Career Progression", path: "/me/lifecycle/promotions", icon: "ph-trend-up" },
       { label: "Transfer Requests", path: "/me/lifecycle/transfers", icon: "ph-arrows-left-right" },
       { label: "Warning Acknowledgements", path: "/me/lifecycle/warnings", icon: "ph-warning" },
@@ -205,7 +205,6 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       { label: "Document Acknowledgements", path: "/me/documents/acknowledgements", icon: "ph-seal-check" },
       { label: "Document Requests", path: "/me/documents/requests", icon: "ph-file-arrow-up" },
       { label: "File Manager", path: "/me/files", icon: "ph-folder-open" },
-      { label: "Shared Files & My Files", path: "/me/media", icon: "ph-hard-drives" },
     ],
   },
 ];

@@ -123,6 +123,8 @@ model Tenant {
   documentRequests             DocumentRequest[]
   documentTemplates            DocumentTemplate[]
   awards                       Award[]
+  awardNominations             AwardNomination[]
+  awardCertificates            EmployeeAwardCertificate[]
   employeeChangeRequests       EmployeeChangeRequest[]
   employeeComplaints           EmployeeComplaint[]
   employeeContracts            EmployeeContract[]
@@ -389,6 +391,8 @@ model Employee {
   documentAcknowledgements     DocumentAcknowledgement[]
   documentRequests             DocumentRequest[]
   awards                       Award[]
+  awardNominations             AwardNomination[]
+  awardCertificates            EmployeeAwardCertificate[]
   changeRequests               EmployeeChangeRequest[]
   employeeContracts            EmployeeContract[]
   events                       EmployeeEvent[]
@@ -3931,43 +3935,129 @@ model DebitNote {
 }
 
 model AwardType {
-  id          String   @id @default(uuid()) @db.VarChar(36)
-  tenantId    String   @map("tenant_id") @db.VarChar(36)
-  name        String   @db.VarChar(150)
-  icon        String?  @default("Trophy") @db.VarChar(50)
-  description String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  awards      Award[]
+  id                   String            @id @default(uuid()) @db.VarChar(36)
+  tenantId             String            @map("tenant_id") @db.VarChar(36)
+  name                 String            @db.VarChar(150)
+  icon                 String?           @default("Trophy") @db.VarChar(50)
+  description          String?
+  status               String            @default("active") @db.VarChar(30)
+  imageUrl             String?           @map("image_url") @db.VarChar(500)
+  imageStoragePath     String?           @map("image_storage_path") @db.VarChar(500)
+  requiresApproval     Boolean           @default(true) @map("requires_approval")
+  allowPeerNomination  Boolean           @default(true) @map("allow_peer_nomination")
+  allowSelfNomination  Boolean           @default(false) @map("allow_self_nomination")
+  workflowId           String?           @map("workflow_id") @db.VarChar(36)
+  workflow             WorkflowDefinition? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  createdBy            String?           @map("created_by") @db.VarChar(36)
+  updatedBy            String?           @map("updated_by") @db.VarChar(36)
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+  tenant               Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  awards               Award[]
+  nominations          AwardNomination[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, workflowId])
   @@map("award_types")
 }
 
 model Award {
-  id             String     @id @default(uuid()) @db.VarChar(36)
-  tenantId       String     @map("tenant_id") @db.VarChar(36)
-  employeeId     String     @map("employee_id") @db.VarChar(36)
-  awardTypeId    String?    @map("award_type_id") @db.VarChar(36)
-  awardDate      DateTime   @map("award_date") @db.Date
-  giftItem       String?    @map("gift_item") @db.VarChar(200)
-  giftAmount     Decimal?   @default(0.00) @map("gift_amount") @db.Decimal(12, 2)
-  certificateUrl String?    @map("certificate_url") @db.VarChar(500)
-  certificateNo  String?    @map("certificate_no") @db.VarChar(100)
+  id             String           @id @default(uuid()) @db.VarChar(36)
+  tenantId       String           @map("tenant_id") @db.VarChar(36)
+  employeeId     String           @map("employee_id") @db.VarChar(36)
+  awardTypeId    String?          @map("award_type_id") @db.VarChar(36)
+  nominationId   String?          @map("nomination_id") @db.VarChar(36)
+  awardDate      DateTime         @map("award_date") @db.Date
+  giftItem       String?          @map("gift_item") @db.VarChar(200)
+  giftAmount     Decimal?         @default(0.00) @map("gift_amount") @db.Decimal(12, 2)
+  certificateUrl String?          @map("certificate_url") @db.VarChar(500)
+  certificateNo  String?          @map("certificate_no") @db.VarChar(100)
   description    String?
-  presentedBy    String?    @map("presented_by") @db.VarChar(150)
-  status         String     @default("awarded") @db.VarChar(50)
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
-  awardType      AwardType? @relation(fields: [awardTypeId], references: [id])
-  employee       Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  presentedBy    String?          @map("presented_by") @db.VarChar(150)
+  status         String           @default("awarded") @db.VarChar(50)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  awardType      AwardType?       @relation(fields: [awardTypeId], references: [id])
+  employee       Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nomination     AwardNomination? @relation(fields: [nominationId], references: [id])
+  certificates   EmployeeAwardCertificate[]
 
   @@index([tenantId, employeeId])
   @@index([tenantId, awardDate])
+  @@index([tenantId, nominationId])
   @@map("employee_awards")
+}
+
+model AwardNomination {
+  id                    String      @id @default(uuid()) @db.VarChar(36)
+  tenantId              String      @map("tenant_id") @db.VarChar(36)
+  nominationNumber      String      @map("nomination_number") @db.VarChar(36)
+  employeeId            String      @map("employee_id") @db.VarChar(36)
+  awardTypeId           String      @map("award_type_id") @db.VarChar(36)
+  nominatedByUserId     String      @map("nominated_by_user_id") @db.VarChar(36)
+  nominatedByEmployeeId String?     @map("nominated_by_employee_id") @db.VarChar(36)
+  nominationSource      String      @default("HR") @map("nomination_source") @db.VarChar(30)
+  reason                String
+  achievementDescription String?    @map("achievement_description")
+  supportingDocUrl      String?     @map("supporting_doc_url") @db.VarChar(500)
+  status                String      @default("PENDING") @db.VarChar(30)
+  currentStep           Int         @default(1) @map("current_step")
+  approvalRequestId     String?     @map("approval_request_id") @db.VarChar(36)
+  issuedAwardId         String?     @map("issued_award_id") @db.VarChar(36)
+  submittedAt           DateTime    @default(now()) @map("submitted_at")
+  approvedAt            DateTime?   @map("approved_at")
+  rejectedAt            DateTime?   @map("rejected_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  tenant                Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee              Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  awardType             AwardType   @relation(fields: [awardTypeId], references: [id], onDelete: Cascade)
+  awards                Award[]
+  certificates          EmployeeAwardCertificate[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, nominatedByUserId])
+  @@index([tenantId, approvalRequestId])
+  @@map("award_nominations")
+}
+
+model EmployeeAwardCertificate {
+  id                String           @id @default(uuid()) @db.VarChar(36)
+  tenantId          String           @map("tenant_id") @db.VarChar(36)
+  awardId           String           @map("award_id") @db.VarChar(36)
+  nominationId      String?          @map("nomination_id") @db.VarChar(36)
+  employeeId        String           @map("employee_id") @db.VarChar(36)
+  certificateNumber String           @unique @map("certificate_number") @db.VarChar(100)
+  verificationCode  String           @unique @map("verification_code") @db.VarChar(64)
+  storagePath       String           @map("storage_path") @db.VarChar(500)
+  fileName          String           @map("file_name") @db.VarChar(255)
+  mimeType          String           @default("application/pdf") @map("mime_type") @db.VarChar(100)
+  fileSize          Int              @default(0) @map("file_size")
+  status            String           @default("ACTIVE") @db.VarChar(30)
+  metadata          Json
+  issuedAt          DateTime         @default(now()) @map("issued_at")
+  generatedAt       DateTime         @default(now()) @map("generated_at")
+  revokedAt         DateTime?        @map("revoked_at")
+  revokedBy         String?          @map("revoked_by") @db.VarChar(36)
+  revocationReason  String?          @map("revocation_reason")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  award             Award            @relation(fields: [awardId], references: [id], onDelete: Cascade)
+  nomination        AwardNomination? @relation(fields: [nominationId], references: [id], onDelete: SetNull)
+  employee          Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, awardId])
+  @@index([tenantId, employeeId])
+  @@index([verificationCode])
+  @@index([certificateNumber])
+  @@map("employee_award_certificates")
 }
 
 model WarningType {
@@ -5542,6 +5632,7 @@ model WorkflowDefinition {
   requests       ApprovalRequest[]
   tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   steps          WorkflowStep[]
+  awardTypes     AwardType[]
 
   @@unique([tenantId, entityType, version])
   @@index([tenantId, entityType, isActive])

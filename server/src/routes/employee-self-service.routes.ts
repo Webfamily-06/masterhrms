@@ -1,5 +1,7 @@
+import fs from "fs";
 import { Router, Response } from "express";
 import { requireAuth } from "../middleware/auth";
+import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { requireEmployee, EmployeeAuthRequest } from "../middleware/employee-context.middleware";
 import { prisma, rawPrisma } from "../prisma";
 import { AuditService } from "../services/audit.service";
@@ -8,11 +10,14 @@ import { NotificationService } from "../services/notification.service";
 import { AttendanceService } from "../services/attendance.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { broadcastToTenant } from "../socket";
+import { AwardNominationService } from "../services/award-nomination.service";
+import { AwardCertificateService } from "../services/award-certificate.service";
 
 export const employeeSelfServiceRouter = Router();
 
-// Apply auth and employee resolution to all /api/v1/me/* endpoints
+// Apply auth, workspace tenant context, and employee resolution to all /api/v1/me/* endpoints
 employeeSelfServiceRouter.use(requireAuth);
+employeeSelfServiceRouter.use(resolveTenantContext);
 employeeSelfServiceRouter.use(requireEmployee as any);
 
 /**
@@ -1075,11 +1080,27 @@ employeeSelfServiceRouter.get("/okrs", async (req: EmployeeAuthRequest, res: Res
 employeeSelfServiceRouter.get("/awards", async (req: EmployeeAuthRequest, res: Response) => {
   const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
 
   try {
     const awards = await db.award.findMany({
-      where: { employeeId },
-      include: { awardType: true },
+      where: { employeeId, tenantId },
+      include: {
+        awardType: true,
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+        certificates: {
+          where: { status: "ACTIVE" },
+          take: 1,
+        },
+      },
       orderBy: { awardDate: "desc" },
     });
 
@@ -1087,6 +1108,115 @@ employeeSelfServiceRouter.get("/awards", async (req: EmployeeAuthRequest, res: R
   } catch (err: any) {
     console.error("[GET /me/awards] Error:", err);
     return res.status(500).json({ error: "Failed to fetch employee awards" });
+  }
+});
+
+/**
+ * GET /api/v1/me/awards/:id/certificate/download
+ * Securely stream certificate PDF for the authenticated employee
+ */
+employeeSelfServiceRouter.get("/awards/:id/certificate/download", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+
+  try {
+    const cert = await db.employeeAwardCertificate.findFirst({
+      where: {
+        awardId: req.params.id,
+        tenantId,
+        status: "ACTIVE",
+      },
+    });
+
+    if (!cert) {
+      return res.status(404).json({ error: "No active certificate found for this award." });
+    }
+
+    const fileResult = await AwardCertificateService.getCertificateFile({
+      certificateId: cert.id,
+      tenantId,
+      callerEmployeeId: employeeId,
+      isHRAuthorized: false,
+    });
+
+    res.setHeader("Content-Type", fileResult.mimeType || "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${fileResult.fileName}"`);
+    res.setHeader("Content-Length", fileResult.fileSize);
+
+    const stream = fs.createReadStream(fileResult.absolutePath);
+    stream.pipe(res);
+  } catch (err: any) {
+    if (err.message?.includes("not found")) {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.message?.includes("Access denied") || err.message?.includes("not authorized")) {
+      return res.status(403).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message || "Failed to download certificate." });
+  }
+});
+
+/**
+ * GET /api/v1/me/awards/nominations
+ * Returns nominations submitted by employee, nominations for employee, or team nominations
+ */
+employeeSelfServiceRouter.get("/awards/nominations", async (req: EmployeeAuthRequest, res: Response) => {
+  const employeeId = req.employee!.id;
+  const userId = req.user!.userId;
+  const tenantId = req.user!.tenantId!;
+
+  try {
+    const result = await AwardNominationService.getNominations({
+      tenantId,
+      userId,
+      employeeId,
+      isHRAuthorized: false,
+      myOnly: true,
+      status: req.query.status as string,
+      awardTypeId: req.query.awardTypeId as string,
+      search: req.query.search as string,
+      page: parseInt(req.query.page as string, 10) || 1,
+      limit: parseInt(req.query.limit as string, 10) || 20,
+    });
+
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error("[GET /me/awards/nominations] Error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch nominations" });
+  }
+});
+
+/**
+ * POST /api/v1/me/awards/nominations
+ * Allows employee to submit a nomination for a colleague, direct report, or self (if permitted)
+ */
+employeeSelfServiceRouter.post("/awards/nominations", async (req: EmployeeAuthRequest, res: Response) => {
+  const employeeId = req.employee!.id;
+  const userId = req.user!.userId;
+  const tenantId = req.user!.tenantId!;
+  const nomineeId = req.body.employeeId || req.body.nomineeId;
+  const awardTypeId = req.body.awardTypeId;
+  const reason = req.body.reason || req.body.justification;
+  const achievementDescription = req.body.achievementDescription || req.body.impactStatement;
+  const supportingDocUrl = req.body.supportingDocUrl;
+
+  try {
+    const nomination = await AwardNominationService.submitNomination({
+      tenantId,
+      nomineeEmployeeId: nomineeId,
+      awardTypeId,
+      nominatorUserId: userId,
+      nominatorEmployeeId: employeeId,
+      reason,
+      achievementDescription,
+      supportingDocUrl,
+      isHRAuthorized: false,
+    });
+
+    return res.status(201).json({ success: true, data: nomination });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to submit nomination" });
   }
 });
 

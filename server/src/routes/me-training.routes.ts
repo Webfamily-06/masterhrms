@@ -9,9 +9,14 @@ async function resolveEmployee(req: AuthRequest) {
   const tenantId = req.user?.tenantId!;
   const user = req.user!;
   const userId = user.userId || (user as any).id;
+  if (!tenantId || !userId) return null;
   const db = getTenantDb();
   return await db.employee.findFirst({
-    where: { tenantId, userId },
+    where: {
+      tenantId,
+      userId,
+      status: { notIn: ["terminated", "inactive"] },
+    },
   });
 }
 

@@ -192,6 +192,8 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "DebitNote",
   "AwardType",
   "Award",
+  "AwardNomination",
+  "EmployeeAwardCertificate",
   "WarningType",
   "DisciplinaryWarning",
   "CrmCompany",

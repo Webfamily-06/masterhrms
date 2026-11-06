@@ -26,17 +26,7 @@ export async function requireEmployee(
   res: Response,
   next: NextFunction
 ) {
-  // Delegate platform foundation sub-routers (e.g. /lifecycle, /meetings, /documents) to their dedicated handlers
-  if (
-    req.path.startsWith("/lifecycle") ||
-    req.path.startsWith("/meetings") ||
-    req.path.startsWith("/documents") ||
-    req.path.startsWith("/collaboration")
-  ) {
-    return next();
-  }
-
-  if (!req.user || !req.user.tenantId) {
+  if (!req.user || !req.user.tenantId || !req.user.userId) {
     return res.status(401).json({ error: "Unauthorized: Missing user authentication or tenant context" });
   }
 
@@ -48,10 +38,7 @@ export async function requireEmployee(
     const employee = await db.employee.findFirst({
       where: {
         tenantId,
-        OR: [
-          { userId },
-          ...(req.user.email ? [{ email: req.user.email }] : []),
-        ],
+        userId,
       },
       select: {
         id: true,
@@ -63,6 +50,8 @@ export async function requireEmployee(
         designationId: true,
         managerId: true,
         status: true,
+        userId: true,
+        tenantId: true,
       },
     });
 
@@ -70,6 +59,35 @@ export async function requireEmployee(
       return res.status(403).json({
         error: "Forbidden: No employee profile is linked to this account in the current workspace.",
         code: "EMPLOYEE_PROFILE_REQUIRED",
+      });
+    }
+
+    if (employee.userId !== userId) {
+      return res.status(403).json({
+        error: "Forbidden: Employee user identity mismatch.",
+        code: "EMPLOYEE_USER_MISMATCH",
+      });
+    }
+
+    if (employee.tenantId !== tenantId) {
+      return res.status(403).json({
+        error: "Forbidden: Cross-tenant employee access denied.",
+        code: "EMPLOYEE_TENANT_MISMATCH",
+      });
+    }
+
+    const normalizedStatus = (employee.status || "").toLowerCase().trim();
+    if (normalizedStatus === "terminated" || normalizedStatus === "archived") {
+      return res.status(403).json({
+        error: "Forbidden: Your employee profile has been terminated.",
+        code: "EMPLOYEE_TERMINATED",
+      });
+    }
+
+    if (normalizedStatus === "inactive" || normalizedStatus === "suspended") {
+      return res.status(403).json({
+        error: "Forbidden: Your employee profile is inactive.",
+        code: "EMPLOYEE_INACTIVE",
       });
     }
 

@@ -16,6 +16,7 @@ import { Request, Response, NextFunction } from "express";
 import { verifyToken, JwtPayload } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
 import { getWorkspacePolicy, assertWorkspaceActive } from "../services/workspace-policy.service";
+import { touchSession } from "../services/device-session.service";
 
 export interface AuthRequest extends Request {
   tenantId?: string;
@@ -39,7 +40,62 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   try {
     const decoded = verifyToken(token);
     if ((decoded as any).mfaPending) return res.status(401).json({ error: "Complete two-factor verification first." });
+    
+    // Authoritative session verification
+    if (!decoded.sessionId || typeof decoded.sessionId !== "string") {
+      return res.status(401).json({
+        error: "Unauthorized: Active session required",
+        code: "SESSION_REQUIRED",
+      });
+    }
+
     const userId = decoded.userId || (decoded as any).id;
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized: Invalid token payload" });
+    }
+
+    const db = rawPrisma || prisma;
+    const session = await db.deviceSession.findUnique({
+      where: { id: decoded.sessionId },
+      select: {
+        id: true,
+        userId: true,
+        tenantId: true,
+        revoked: true,
+        expiresAt: true,
+      },
+    });
+
+    if (!session) {
+      return res.status(401).json({
+        error: "Unauthorized: Session not found",
+        code: "SESSION_NOT_FOUND",
+      });
+    }
+
+    if (session.revoked) {
+      return res.status(401).json({
+        error: "Unauthorized: Session has been revoked",
+        code: "SESSION_REVOKED",
+      });
+    }
+
+    if (session.expiresAt && session.expiresAt < new Date()) {
+      return res.status(401).json({
+        error: "Unauthorized: Session expired",
+        code: "SESSION_EXPIRED",
+      });
+    }
+
+    if (session.userId !== userId) {
+      return res.status(401).json({
+        error: "Unauthorized: Session user mismatch",
+        code: "SESSION_USER_MISMATCH",
+      });
+    }
+
+    touchSession(session.id).catch(() => {});
+
     const cacheKey = `${userId}:${decoded.tenantId || "default"}`;
     const cachedEntry = authAccountCache.get(cacheKey);
     let account: any = null;
@@ -48,7 +104,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       account = cachedEntry.account;
       cachedPermissions = cachedEntry.userPermissions;
     } else {
-      account = await (rawPrisma || prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+      account = await db.user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
     }
     if (!account) return res.status(401).json({ error: "Account no longer exists." });
     const isSuper = account.roles.some((r: any) => r.role === "super_admin");
@@ -179,6 +235,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     authAccountCache.set(cacheKey, { account, userPermissions, expiresAt: Date.now() + 60000 });
     req.user = {
       ...decoded,
+      sessionId: session.id,
       userId,
       tenantId: tenantId ?? null,
       roles,
