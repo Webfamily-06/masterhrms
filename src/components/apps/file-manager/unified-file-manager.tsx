@@ -86,6 +86,7 @@ import {
   Clock,
   CornerDownRight,
   ShieldAlert,
+  Shield,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDialog } from "./share-dialog";
@@ -112,7 +113,23 @@ export type FileCategory =
   | "Teams"
   | "Chat";
 
+export const isProtectedFolder = (item?: FileItem | null) => {
+  if (!item) return false;
+  return Boolean(
+    item.isProtected ||
+    item.systemModule === "certificates" ||
+    item.nameKey === "certificates" ||
+    (item.isFolder && (
+      item.fileName === "Certificates" ||
+      (["Branding", "Signatures", "Templates", "Generated"].includes(item.fileName) && (item.folder?.includes("Certificates") || item.category === "Certificates"))
+    ))
+  );
+};
+
 export interface FileItem {
+  systemModule?: string;
+  nameKey?: string;
+  isProtected?: boolean;
   id: string;
   tenantId: string | null;
   name: string;
@@ -1190,7 +1207,7 @@ export function UnifiedFileManager({
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={selectedIds.size === 0}
+                disabled={selectedIds.size === 0 || selectedItems.some(isProtectedFolder)}
                 onClick={() => {
                   setMoveTargets(selectedItems);
                   setSelectedDestinationFolder("root");
@@ -1207,7 +1224,7 @@ export function UnifiedFileManager({
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={selectedItems.length !== 1}
+                disabled={selectedItems.length !== 1 || isProtectedFolder(selectedItems[0])}
                 onClick={() => {
                   if (selectedItems.length === 1) {
                     setShareTarget(selectedItems[0]);
@@ -1896,7 +1913,12 @@ export function UnifiedFileManager({
                           {getItemIcon(folder)}
                           <div className="truncate flex-1 min-w-0">
                             <div className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                              {folder.fileName}
+                              <span>{folder.fileName}</span>
+                              {isProtectedFolder(folder) && (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded border border-primary/20 shrink-0" title="Protected System Folder">
+                                  <Shield className="size-2.5" /> System
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-muted-foreground">
                               {folder.formattedSize}
@@ -2026,7 +2048,12 @@ export function UnifiedFileManager({
                                 <div className="flex items-center gap-2.5">
                                   {getItemIcon(item)}
                                   <span className="font-medium text-foreground truncate max-w-xs sm:max-w-md">
-                                    {item.fileName}
+                                    <span>{item.fileName}</span>
+                                    {isProtectedFolder(item) && (
+                                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 shrink-0" title="Protected System Folder">
+                                        <Shield className="size-2.5" /> System
+                                      </span>
+                                    )}
                                   </span>
                                   {!item.isFolder && (
                                     <button
@@ -2116,19 +2143,27 @@ export function UnifiedFileManager({
                                             </DropdownMenuItem>
                                           </>
                                         )}
-                                        <DropdownMenuItem onClick={() => { setRenameTarget(item); setRenameValue(item.fileName); setIsRenameOpen(true); }}>
-                                          <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Rename
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => { setMoveTargets([item]); setSelectedDestinationFolder("root"); setIsMoveOpen(true); }}>
-                                          <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Move
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-destructive focus:text-destructive"
-                                          onClick={() => { setDeleteTargets([item]); setIsDeleteOpen(true); }}
-                                        >
-                                          <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Delete
-                                        </DropdownMenuItem>
+                                        {!isProtectedFolder(item) ? (
+                                          <>
+                                            <DropdownMenuItem onClick={() => { setRenameTarget(item); setRenameValue(item.fileName); setIsRenameOpen(true); }}>
+                                              <img src="/FILE-MANAGER/Notes.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Rename
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => { setMoveTargets([item]); setSelectedDestinationFolder("root"); setIsMoveOpen(true); }}>
+                                              <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Move
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              className="text-destructive focus:text-destructive"
+                                              onClick={() => { setDeleteTargets([item]); setIsDeleteOpen(true); }}
+                                            >
+                                              <img src="/FILE-MANAGER/Trash%20Empty.ico" alt="" className="size-4 mr-2 object-contain" draggable={false} /> Delete
+                                            </DropdownMenuItem>
+                                          </>
+                                        ) : (
+                                          <div className="px-2 py-1.5 text-[11px] text-muted-foreground flex items-center gap-1.5 italic">
+                                            <Shield className="size-3 text-primary" /> Protected system folder
+                                          </div>
+                                        )}
                                       </>
                                     )}
                                   </DropdownMenuContent>

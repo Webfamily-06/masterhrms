@@ -1,3 +1,4 @@
+import { CertificateFolderService } from "./certificate-folder.service";
 import { FileAclService } from "./file-acl.service";
 import path from "path";
 import crypto from "crypto";
@@ -180,6 +181,34 @@ export class FilesService {
     }
 
     // 3. Parent Folder browsing & Folder/Chat filtering
+    // Ensure Certificates system folder exists for tenant when root is queried
+    if (options.tenantId && (options.parentId === null || options.parentId === undefined) && !options.trashed && view !== "trash") {
+      try {
+        await CertificateFolderService.ensureCertificatesFolders(options.tenantId, options.userId);
+      } catch (e: any) {
+        console.warn("[FilesService] Could not ensure certificates folder:", e?.message);
+      }
+    }
+
+    // Authorization guard for browsing Certificates folders
+    if (options.parentId && options.parentId !== "root") {
+      try {
+        const parentNode = await prisma.mediaFile.findUnique({ where: { id: options.parentId } });
+        if (parentNode && CertificateFolderService.isCertificatesSystemFolder(parentNode)) {
+          const isHR = options.isSuper || (options.userRoles || []).some((r: string) =>
+            ["admin", "tenant_admin", "hr_admin", "hr_manager", "hr_director"].includes(r.toLowerCase())
+          );
+          if (!isHR && parentNode.systemPage !== "generated") {
+            const err: any = new Error("Access denied: HR Manager or Administrator authorization required to view Certificate assets.");
+            err.status = 403;
+            throw err;
+          }
+        }
+      } catch (checkErr: any) {
+        if (checkErr.status === 403) throw checkErr;
+      }
+    }
+
     if (options.category === "Chat") {
       where.folder = { contains: "Organization Chat", mode: "insensitive" };
       where.isFolder = false;
@@ -295,6 +324,9 @@ export class FilesService {
         materializedPath: item.materializedPath,
         depth: item.depth,
         category: item.category,
+        systemModule: item.systemModule,
+        nameKey: item.nameKey,
+        isProtected: Boolean(item.systemModule === 'certificates' || item.nameKey === 'certificates' || (item.isFolder && (item.fileName === 'Certificates' || item.folder?.startsWith('Certificates')))),
         isStarred: item.stars.length > 0,
         tags: item.tags,
         status: item.status,
@@ -580,6 +612,13 @@ export class FilesService {
       throw err;
     }
 
+    if (CertificateFolderService.isCertificatesSystemFolder(item)) {
+      const err: any = new Error("Protected system folder 'Certificates' and its managed subfolders cannot be renamed.");
+      err.status = 403;
+      err.code = "PROTECTED_SYSTEM_FOLDER";
+      throw err;
+    }
+
     if (item.systemModule || item.systemPage || item.ownerType === "SYSTEM") {
       const err: any = new Error("System folders and files cannot be moved.");
       err.status = 403;
@@ -679,6 +718,13 @@ export class FilesService {
     if (!options.isSuper && item.tenantId !== options.tenantId) {
       const err: any = new Error("Forbidden: Access denied to asset in another workspace.");
       err.status = 403;
+      throw err;
+    }
+
+    if (CertificateFolderService.isCertificatesSystemFolder(item)) {
+      const err: any = new Error("Protected system folder 'Certificates' and its managed subfolders cannot be moved.");
+      err.status = 403;
+      err.code = "PROTECTED_SYSTEM_FOLDER";
       throw err;
     }
 
@@ -858,6 +904,23 @@ export class FilesService {
       if (!options.isSuper && file.tenantId !== options.tenantId) {
         const err: any = new Error("Forbidden: Access denied to asset in another workspace.");
         err.status = 403;
+        throw err;
+      }
+
+      if (CertificateFolderService.isCertificatesSystemFolder(file)) {
+        const err: any = new Error("Protected system folder 'Certificates' and its managed subfolders cannot be moved to trash.");
+        err.status = 403;
+        err.code = "PROTECTED_SYSTEM_FOLDER";
+        throw err;
+      }
+
+      // Check certificate asset reference protection
+      const certUsage = await CertificateFolderService.checkCertificateAssetUsage(file.tenantId, file.id, file.filePath);
+      if (certUsage.inUse && !options.force) {
+        const err: any = new Error(certUsage.reason);
+        err.status = 409;
+        err.code = "CERTIFICATE_ASSET_IN_USE";
+        err.references = certUsage.references;
         throw err;
       }
 
@@ -1094,6 +1157,24 @@ export class FilesService {
     if (!options.isSuper && file.tenantId !== options.tenantId) {
       const err: any = new Error("File not found.");
       err.status = 404;
+      throw err;
+    }
+
+    // Protection Guard: Block deletion of protected system folder
+    if (CertificateFolderService.isCertificatesSystemFolder(file)) {
+      const err: any = new Error("Protected system folder 'Certificates' and its managed subfolders cannot be deleted.");
+      err.status = 403;
+      err.code = "PROTECTED_SYSTEM_FOLDER";
+      throw err;
+    }
+
+    // Protection Guard: Block deletion if referenced by certificate branding, signatories, templates, or issued awards
+    const certUsage = await CertificateFolderService.checkCertificateAssetUsage(file.tenantId, file.id, file.filePath);
+    if (certUsage.inUse) {
+      const err: any = new Error(certUsage.reason);
+      err.status = 409;
+      err.code = "CERTIFICATE_ASSET_IN_USE";
+      err.references = certUsage.references;
       throw err;
     }
 

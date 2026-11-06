@@ -4,6 +4,8 @@ import crypto from "crypto";
 import { prisma } from "../prisma";
 import { getUploadsRoot } from "./media/media.service";
 import { AuditService } from "./audit.service";
+import { CertificateFolderService } from "./files/certificate-folder.service";
+import { FilesService } from "./files/files.service";
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
 
@@ -158,32 +160,92 @@ export class CertificateStudioService {
       finalBuffer = Buffer.from(sanitizedSvg, "utf-8");
     }
 
+    // 1. Ensure Certificates folder hierarchy in File Manager
+    const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, actorUserId || "system");
+
+    // Determine target subfolder based on assetType
+    let targetFolder = folders.brandingFolder;
+    let targetCategory = "Branding";
+    let targetFolderName = "Certificates/Branding";
+
+    if (assetType === "SIGNATURE") {
+      targetFolder = folders.signaturesFolder;
+      targetCategory = "Signatures";
+      targetFolderName = "Certificates/Signatures";
+    } else if (assetType === "BACKGROUND" || assetType === "TEMPLATE_ASSET") {
+      targetFolder = folders.templatesFolder;
+      targetCategory = "Templates";
+      targetFolderName = "Certificates/Templates";
+    }
+
+    // 2. Safe duplicate detection via content SHA-256 hash
+    const checksumSha = crypto.createHash("sha256").update(finalBuffer).digest("hex");
+
+    const existingMediaFile = await prisma.mediaFile.findFirst({
+      where: {
+        tenantId,
+        parentId: targetFolder.id,
+        checksumSha,
+        status: "ACTIVE",
+        deletedAt: null,
+      },
+    });
+
+    let mediaFile: any;
+    let isReused = false;
+
+    if (existingMediaFile) {
+      // Check if an active branding asset already references this exact file
+      const existingAsset = await (prisma.organizationBrandingAsset as any).findFirst({
+        where: {
+          tenantId,
+          fileId: existingMediaFile.id,
+          assetType,
+          isActive: true,
+        },
+      });
+
+      if (existingAsset) {
+        return { ...existingAsset, reused: true, file: existingMediaFile };
+      }
+
+      mediaFile = existingMediaFile;
+      isReused = true;
+    } else {
+      // 3. Upload file through canonical File Manager service
+      const safeExt = path.extname(fileName) || (mimeType === "image/svg+xml" ? ".svg" : ".png");
+      const cleanBase = assetName.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeFileName = `${cleanBase}-${Date.now()}${safeExt}`;
+
+      mediaFile = await FilesService.uploadFile({
+        buffer: finalBuffer,
+        originalFilename: safeFileName,
+        tenantId,
+        userId: actorUserId || "system",
+        parentId: targetFolder.id,
+        folder: targetFolderName,
+        category: targetCategory,
+        tags: ["certificates", targetCategory.toLowerCase(), assetType.toLowerCase()],
+      });
+    }
+
+    // 4. Create OrganizationBrandingAsset linked to canonical File Manager fileId
     const assetId = crypto.randomUUID();
-    const safeExt = path.extname(fileName) || ".png";
-    const storageRelDir = path.join("tenants", tenantId, "branding", assetId);
-    const storageAbsDir = path.join(getUploadsRoot(), storageRelDir);
-    fs.mkdirSync(storageAbsDir, { recursive: true });
-
-    const safeFileName = `asset-${Date.now()}${safeExt}`;
-    const storageAbsPath = path.join(storageAbsDir, safeFileName);
-    fs.writeFileSync(storageAbsPath, finalBuffer);
-
-    const storageRelPath = path.join(storageRelDir, safeFileName).replace(/\\/g, "/");
-
-    const asset = await prisma.organizationBrandingAsset.create({
+    const asset = await (prisma.organizationBrandingAsset as any).create({
       data: {
         id: assetId,
         tenantId,
         assetType,
         assetName,
-        storagePath: storageRelPath,
-        mimeType,
-        fileSize: finalBuffer.length,
+        fileId: mediaFile.id,
+        storagePath: mediaFile.filePath,
+        mimeType: mediaFile.mimeType || mimeType,
+        fileSize: Number(mediaFile.fileSize || finalBuffer.length),
         metadata: metadata || {},
         isActive: true,
         createdBy: actorUserId,
-        updatedBy: actorUserId
-      }
+        updatedBy: actorUserId,
+      },
     });
 
     if (actorUserId) {
@@ -193,23 +255,97 @@ export class CertificateStudioService {
         action: "BRANDING_ASSET_UPLOADED",
         resourceType: "OrganizationBrandingAsset",
         resourceId: asset.id,
-        details: { assetType, assetName, storagePath: storageRelPath }
+        details: {
+          assetType,
+          assetName,
+          fileId: mediaFile.id,
+          storagePath: mediaFile.filePath,
+          reused: isReused,
+        },
       });
     }
 
-    return asset;
+    return { ...asset, reused: isReused, file: mediaFile };
   }
 
   public static async deleteBrandingAsset(tenantId: string, assetId: string, actorUserId?: string) {
     const asset = await prisma.organizationBrandingAsset.findFirst({
-      where: { id: assetId, tenantId }
+      where: { id: assetId, tenantId },
     });
-    if (!asset) throw new Error("Branding asset not found.");
+    if (!asset) {
+      const err: any = new Error("Branding asset not found.");
+      err.status = 404;
+      throw err;
+    }
 
+    // Reference Protection Guard: Check active signatories
+    const activeSig = await prisma.organizationSignatory.findFirst({
+      where: { tenantId, signatureAssetId: assetId, isActive: true },
+    });
+    if (activeSig) {
+      const err: any = new Error(
+        `Cannot delete "${asset.assetName}": asset is actively assigned as the digital signature for signatory "${activeSig.name}" (${activeSig.designation}).`
+      );
+      err.status = 409;
+      err.code = "CERTIFICATE_ASSET_IN_USE";
+      err.references = { signatories: 1, templateVersions: 0, certificates: 0, brandingAssets: 1 };
+      throw err;
+    }
+
+    // Reference Protection Guard: Check active template versions
+    const activeTmpl = await prisma.certificateTemplateVersion.findFirst({
+      where: { backgroundAssetId: assetId },
+      include: { template: true },
+    });
+    if (activeTmpl) {
+      const err: any = new Error(
+        `Cannot delete "${asset.assetName}": asset is used as background artwork in template "${activeTmpl.template?.name || activeTmpl.templateId}" (v${activeTmpl.versionNumber}).`
+      );
+      err.status = 409;
+      err.code = "CERTIFICATE_ASSET_IN_USE";
+      err.references = { signatories: 0, templateVersions: 1, certificates: 0, brandingAssets: 1 };
+      throw err;
+    }
+
+    // Reference Protection Guard: Check overall certificate usage
+    const usage = await CertificateFolderService.checkCertificateAssetUsage(
+      tenantId,
+      (asset as any).fileId || asset.id,
+      asset.storagePath,
+      assetId
+    );
+    if (usage.inUse) {
+      const err: any = new Error(usage.reason);
+      err.status = 409;
+      err.code = "CERTIFICATE_ASSET_IN_USE";
+      err.references = usage.references;
+      throw err;
+    }
+
+    // Soft-deactivate branding record
     await prisma.organizationBrandingAsset.update({
       where: { id: assetId },
-      data: { isActive: false, updatedBy: actorUserId }
+      data: { isActive: false, updatedBy: actorUserId },
     });
+
+    // If fileId is present, check if other active branding records share this file
+    if ((asset as any).fileId) {
+      const otherUses = await prisma.organizationBrandingAsset.count({
+        where: { tenantId, fileId: (asset as any).fileId, isActive: true, id: { not: assetId } } as any,
+      });
+      if (otherUses === 0) {
+        try {
+          await FilesService.trashItems({
+            ids: [(asset as any).fileId],
+            tenantId,
+            userId: actorUserId || "system",
+            force: true,
+          });
+        } catch (trashErr: any) {
+          console.warn("[deleteBrandingAsset] Trash file warning:", trashErr.message);
+        }
+      }
+    }
 
     if (actorUserId) {
       await AuditService.log({
@@ -218,11 +354,28 @@ export class CertificateStudioService {
         action: "BRANDING_ASSET_DEACTIVATED",
         resourceType: "OrganizationBrandingAsset",
         resourceId: assetId,
-        details: { assetName: asset.assetName }
+        details: { assetName: asset.assetName },
       });
     }
 
     return { success: true };
+  }
+
+  public static async replaceBrandingAsset(dto: SaveBrandingAssetDto & { oldAssetId: string }) {
+    // 1. Upload new asset
+    const newAsset = await this.saveBrandingAsset(dto);
+
+    // 2. If replacement saved and old asset specified, attempt safe cleanup
+    if (dto.oldAssetId && dto.oldAssetId !== newAsset.id) {
+      try {
+        await this.deleteBrandingAsset(dto.tenantId, dto.oldAssetId, dto.actorUserId);
+      } catch (err: any) {
+        // If old asset cannot be deleted because of historical references, preserve it safely
+        console.info(`[replaceBrandingAsset] Preserving historical reference for old asset ${dto.oldAssetId}: ${err.message}`);
+      }
+    }
+
+    return newAsset;
   }
 
   /**
@@ -944,4 +1097,125 @@ export class CertificateStudioService {
       }
     });
   }
+
+  /**
+   * Streams a branding asset binary with verified tenant isolation, proper MIME type, and inline caching.
+   */
+  public static async streamBrandingAsset(tenantId: string, assetId: string, res: any) {
+    const asset: any = await prisma.organizationBrandingAsset.findFirst({
+      where: { id: assetId, tenantId }
+    });
+
+    if (!asset) {
+      return res.status(404).json({ error: "Branding asset not found." });
+    }
+
+    const uploadsRoot = getUploadsRoot();
+    const relativePath = asset.storagePath;
+    const absPath = path.resolve(uploadsRoot, relativePath);
+
+    // Guard path traversal
+    if (!absPath.startsWith(path.resolve(uploadsRoot))) {
+      return res.status(400).json({ error: "Invalid storage path: traversal detected." });
+    }
+
+    if (!fs.existsSync(absPath)) {
+      return res.status(404).json({ error: "Physical branding file not found on storage disk." });
+    }
+
+    const stat = fs.statSync(absPath);
+    const ext = path.extname(absPath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      ".svg": "image/svg+xml",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".webp": "image/webp",
+      ".pdf": "application/pdf"
+    };
+
+    const mime = asset.mimeType || mimeMap[ext] || "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Content-Length", stat.size);
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(asset.assetName)}"`);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+
+    const stream = fs.createReadStream(absPath);
+    return stream.pipe(res);
+  }
+
+  /**
+   * Streams an authorized signatory signature binary with verified tenant isolation.
+   */
+  public static async streamSignatorySignature(tenantId: string, signatoryId: string, res: any) {
+    const signatory = await prisma.organizationSignatory.findFirst({
+      where: { id: signatoryId, tenantId },
+      include: { signatureAsset: true }
+    });
+
+    if (!signatory || !signatory.signatureAsset) {
+      return res.status(404).json({ error: "Signatory signature asset not found." });
+    }
+
+    return this.streamBrandingAsset(tenantId, signatory.signatureAsset.id, res);
+  }
+
+  /**
+   * Reconciles legacy assets: Ensures all existing branding and certificate records have
+   * matching canonical MediaFile records inside the protected Certificates folder hierarchy.
+   */
+  public static async reconcileLegacyAssets(tenantId?: string) {
+    const where: any = { isActive: true };
+    if (tenantId) where.tenantId = tenantId;
+
+    const assets: any[] = await (prisma.organizationBrandingAsset as any).findMany({
+      where: { ...where, fileId: null },
+      take: 200
+    });
+
+    const uploadsRoot = getUploadsRoot();
+    let reconciledCount = 0;
+
+    for (const a of assets) {
+      try {
+        const absPath = path.resolve(uploadsRoot, a.storagePath);
+        if (!fs.existsSync(absPath)) continue;
+
+        const folders = await CertificateFolderService.ensureCertificatesFolders(a.tenantId, "system");
+        let targetFolder = folders.brandingFolder;
+        if (a.assetType === "SIGNATURE") targetFolder = folders.signaturesFolder;
+        else if (a.assetType === "BACKGROUND") targetFolder = folders.templatesFolder;
+
+        const fileBuffer = fs.readFileSync(absPath);
+        const checksumSha = crypto.createHash("sha256").update(fileBuffer).digest("hex");
+
+        let mediaFile = await prisma.mediaFile.findFirst({
+          where: { tenantId: a.tenantId, parentId: targetFolder.id, checksumSha, status: "ACTIVE" }
+        });
+
+        if (!mediaFile) {
+          mediaFile = await FilesService.uploadFile({
+            buffer: fileBuffer,
+            originalFilename: path.basename(a.storagePath),
+            tenantId: a.tenantId,
+            userId: a.createdBy || "system",
+            parentId: targetFolder.id,
+            category: targetFolder.nameKey === "signatures" ? "Signatures" : "Branding",
+            tags: ["certificates", "legacy-reconciled"]
+          });
+        }
+
+        await (prisma.organizationBrandingAsset as any).update({
+          where: { id: a.id },
+          data: { fileId: mediaFile.id, storagePath: mediaFile.filePath }
+        });
+        reconciledCount++;
+      } catch (err: any) {
+        console.warn(`[reconcileLegacyAssets] Warning for asset ${a.id}:`, err?.message);
+      }
+    }
+
+    return { reconciledCount };
+  }
+
 }

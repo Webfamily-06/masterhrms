@@ -30,12 +30,23 @@ export interface AuthRequest extends Request {
 
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
   if (req.user) return next();
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else if (req.query?.token && typeof req.query.token === "string") {
+    token = req.query.token;
+  } else if ((req as any).cookies?.hrms_auth_token) {
+    token = (req as any).cookies.hrms_auth_token;
+  } else if ((req as any).cookies?.auth_token) {
+    token = (req as any).cookies.auth_token;
+  } else if ((req as any).cookies?.token) {
+    token = (req as any).cookies.token;
   }
 
-  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
+  }
     console.log(`[PERF_AUTH] reached requireAuth: ${Date.now() - (req as any)._tStart}ms`);
   try {
     const decoded = verifyToken(token);

@@ -40,7 +40,11 @@ export function isPublicUploadPath(relativePath: string): boolean {
   return (
     PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix)) ||
     normalized.includes("/award-types/") ||
-    normalized.startsWith("award-types/")
+    normalized.startsWith("award-types/") ||
+    normalized.includes("/branding/") ||
+    normalized.startsWith("branding/") ||
+    normalized.includes("/Certificates/Branding/") ||
+    normalized.startsWith("Certificates/Branding/")
   );
 }
 

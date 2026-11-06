@@ -27,12 +27,16 @@ import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 
 import { SystemFolderService } from "../services/files/system-folder.service";
+import { CertificateFolderService } from "../services/files/certificate-folder.service";
 import { FileLinkService } from "../services/files/file-link.service";
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
 });
+
+
+
 
 export const filesRouter = Router();
 
@@ -51,6 +55,31 @@ function getAuthContext(req: any) {
 }
 
 // ============================================================================
+// ============================================================================
+// CERTIFICATES SYSTEM FOLDER MANAGEMENT
+// ============================================================================
+filesRouter.post("/certificates/ensure-folders", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+    const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, userId);
+    return res.json({ success: true, folders });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to ensure certificates folders." });
+  }
+});
+
+filesRouter.get("/certificates/folders", requireAuth, async (req: any, res: Response) => {
+  try {
+    const { tenantId, userId } = getAuthContext(req);
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+    const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, userId);
+    return res.json({ success: true, folders });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve certificates folders." });
+  }
+});
+
 // 1. STORAGE USAGE & STATS ENDPOINTS
 // ============================================================================
 
@@ -959,6 +988,7 @@ filesRouter.get("/stream", async (req: Request, res: Response) => {
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
         ".webp": "image/webp",
+        ".svg": "image/svg+xml",
         ".gif": "image/gif",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -8,6 +8,8 @@ import { getUploadsRoot } from "./media/media.service";
 import { NotificationService } from "./notification.service";
 import { OutboxService } from "./outbox.service";
 import { AuditService } from "./audit.service";
+import { CertificateFolderService } from "./files/certificate-folder.service";
+import { FilesService } from "./files/files.service";
 import { broadcastToTenant } from "../socket";
 import { CertificateStudioService } from "./certificate-studio.service";
 
@@ -568,23 +570,41 @@ export class AwardCertificateService {
       pdfBuffer = await this.renderCertificatePdf(metadata);
     }
 
-    // 7. Write to Tenant-Isolated Local Storage
-    const uploadsRoot = getUploadsRoot();
-    const relativeDir = path.join("tenants", tenantId, "awards", "certificates", certId);
-    const absoluteDir = path.join(uploadsRoot, relativeDir);
-
-    await fs.promises.mkdir(absoluteDir, { recursive: true });
-
+    // 7. Store to File Manager under Certificates/Generated
+    const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, actorUserId || "system");
     const fileName = `certificate-${certificateNumber}.pdf`;
-    const absoluteFilePath = path.join(absoluteDir, fileName);
-    await fs.promises.writeFile(absoluteFilePath, pdfBuffer);
 
-    const relativeStoragePath = path.join(relativeDir, fileName).replace(/\\/g, "/");
+    let mediaFile: any = null;
+    try {
+      mediaFile = await FilesService.uploadFile({
+        buffer: pdfBuffer,
+        originalFilename: fileName,
+        tenantId,
+        userId: actorUserId || "system",
+        parentId: folders.generatedFolder.id,
+        folder: "Certificates/Generated",
+        category: "Documents",
+        tags: ["certificates", "generated", certificateNumber],
+      });
+    } catch (uploadErr: any) {
+      console.warn("[AwardCertificateService] File Manager upload warning:", uploadErr?.message);
+    }
+
+    const uploadsRoot = getUploadsRoot();
+    const relativeStoragePath = mediaFile?.filePath || path.join("Certificates", "Generated", fileName).replace(/\\/g, "/");
+    const absoluteFilePath = path.resolve(uploadsRoot, relativeStoragePath);
+
+    if (!fs.existsSync(absoluteFilePath)) {
+      await fs.promises.mkdir(path.dirname(absoluteFilePath), { recursive: true });
+      await fs.promises.writeFile(absoluteFilePath, pdfBuffer);
+    }
+
+
 
     // 8. Persist Certificate record to Database (with concurrency race resolution)
     let certificate: any = null;
     try {
-      certificate = await db.employeeAwardCertificate.create({
+      certificate = await (db.employeeAwardCertificate as any).create({
         data: {
           id: certId,
           tenantId,
@@ -594,6 +614,7 @@ export class AwardCertificateService {
           certificateNumber,
           verificationCode,
           storagePath: relativeStoragePath,
+          fileId: mediaFile?.id || null,
           fileName,
           mimeType: "application/pdf",
           fileSize: pdfBuffer.length,
@@ -918,7 +939,7 @@ export class AwardCertificateService {
     if (!fs.existsSync(absolutePath)) {
       // Self-healing storage: re-render from historical snapshot data or metadata
       let freshBuffer: Buffer | null = null;
-      const snap: any = cert.snapshotData;
+      const snap: any = (cert as any).snapshotData;
       const meta: any = cert.metadata;
 
       if (snap && snap.designSnapshot && snap.designSnapshot.elements) {
@@ -948,6 +969,27 @@ export class AwardCertificateService {
       }
 
       if (freshBuffer) {
+        try {
+          const healFolders = await CertificateFolderService.ensureCertificatesFolders(cert.tenantId, "system");
+          const healMediaFile = await FilesService.uploadFile({
+            buffer: freshBuffer,
+            originalFilename: cert.fileName || path.basename(absolutePath),
+            tenantId: cert.tenantId,
+            userId: options.actorUserId || "system",
+            parentId: healFolders.generatedFolder.id,
+            folder: "Certificates/Generated",
+            category: "Documents",
+            tags: ["certificates", "self-healed", cert.certificateNumber],
+          });
+          if (healMediaFile) {
+            await db.employeeAwardCertificate.update({
+              where: { id: cert.id },
+              data: { fileId: healMediaFile.id, storagePath: healMediaFile.filePath }
+            });
+          }
+        } catch (healSyncErr: any) {
+          console.warn("[getCertificateFile] File Manager self-heal sync warning:", healSyncErr?.message);
+        }
         await fs.promises.mkdir(path.dirname(absolutePath), { recursive: true });
         await fs.promises.writeFile(absolutePath, freshBuffer);
 

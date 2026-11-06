@@ -292,7 +292,7 @@ try {
 }
 
 app.use(
-  "/uploads",
+  ["/uploads", "/api/uploads"],
   uploadsSecurityMiddleware,
   express.static(uploadsDir, {
     maxAge: "7d",

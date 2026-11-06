@@ -3,6 +3,7 @@ import multer from "multer";
 import { AuthRequest, requireAuth } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { CertificateStudioService, PLACEHOLDER_REGISTRY } from "../services/certificate-studio.service";
+import { CertificateFolderService } from "../services/files/certificate-folder.service";
 import { isHRAwardAuthorized } from "./awards.routes";
 import { prisma } from "../prisma";
 
@@ -88,6 +89,68 @@ certificateStudioRouter.post("/branding", upload.single("file"), async (req: Aut
   }
 });
 
+// Preview branding asset binary with inline disposition and proper MIME type
+certificateStudioRouter.get("/branding/:id/preview", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    return await CertificateStudioService.streamBrandingAsset(tenantId, req.params.id, res);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to stream branding asset preview." });
+  }
+});
+
+// Replace existing branding asset
+certificateStudioRouter.post("/branding/replace", upload.single("file"), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!assertHR(req, res)) return;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    if (!req.file) return res.status(400).json({ error: "No replacement asset file provided." });
+
+    const { oldAssetId, assetType, assetName, metadata } = req.body;
+    if (!oldAssetId || !assetType || !assetName) {
+      return res.status(400).json({ error: "oldAssetId, assetType, and assetName are required." });
+    }
+
+    let parsedMeta = {};
+    if (metadata) {
+      try { parsedMeta = typeof metadata === "string" ? JSON.parse(metadata) : metadata; } catch {}
+    }
+
+    const newAsset = await CertificateStudioService.replaceBrandingAsset({
+      tenantId,
+      oldAssetId,
+      assetType,
+      assetName,
+      buffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      fileName: req.file.originalname,
+      metadata: parsedMeta,
+      actorUserId: req.user?.userId
+    });
+
+    return res.status(201).json({ asset: newAsset });
+  } catch (err: any) {
+    return res.status(err.status || 400).json({ error: err.message || "Failed to replace branding asset." });
+  }
+});
+
+// Retrieve or ensure Certificates folder hierarchy
+certificateStudioRouter.get("/folders", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, req.user?.userId);
+    return res.json({ folders });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve certificates folders." });
+  }
+});
+
 certificateStudioRouter.delete("/branding/:id", async (req: AuthRequest, res: Response) => {
   try {
     if (!assertHR(req, res)) return;
@@ -97,13 +160,30 @@ certificateStudioRouter.delete("/branding/:id", async (req: AuthRequest, res: Re
     await CertificateStudioService.deleteBrandingAsset(tenantId, req.params.id, req.user?.userId);
     return res.json({ success: true, message: "Asset deactivated successfully." });
   } catch (err: any) {
-    return res.status(400).json({ error: err.message || "Failed to deactivate asset." });
+    const status = err.status || (err.code === "CERTIFICATE_ASSET_IN_USE" ? 409 : 400);
+    return res.status(status).json({
+      error: err.message || "Failed to deactivate asset.",
+      code: err.code || "DELETION_FAILED",
+      references: err.references
+    });
   }
 });
 
 // ============================================================================
 // 3. SIGNATORIES
 // ============================================================================
+// Preview signatory signature binary with verified tenant isolation
+certificateStudioRouter.get("/signatories/:id/signature-preview", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    return await CertificateStudioService.streamSignatorySignature(tenantId, req.params.id, res);
+  } catch (err: any) {
+    return res.status(err.status || 500).json({ error: err.message || "Failed to stream signature preview." });
+  }
+});
+
 certificateStudioRouter.get("/signatories", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
