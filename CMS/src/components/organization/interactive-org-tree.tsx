@@ -21,8 +21,8 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
-  Network,
   Users,
   Building2,
   Boxes,
@@ -125,9 +125,36 @@ export function InteractiveOrgTree() {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
+
+  // Touch and pointer gesture tracking refs
+  const hasMovedRef = useRef<boolean>(false);
+  const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number }>({ x: 0, y: 0, panX: 0, panY: 0 });
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef<number>(1);
+
+  // Mobile filter drawer state
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  // Active filter count for mobile badge
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedDept !== "all") count++;
+    if (selectedDesig !== "all") count++;
+    if (selectedBranch !== "all") count++;
+    if (statusFilter !== "all") count++;
+    return count;
+  }, [selectedDept, selectedDesig, selectedBranch, statusFilter]);
+
+  const clearFilters = useCallback(() => {
+    setSelectedDept("all");
+    setSelectedDesig("all");
+    setSelectedBranch("all");
+    setStatusFilter("all");
+    setSearch("");
+  }, []);
 
   // Collapse/Expand nodes tracking
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
@@ -135,6 +162,7 @@ export function InteractiveOrgTree() {
   // Slide-Over Drawer state
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<DepartmentTreeNode | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // 1. Fetch Summary KPI stats
   const { data: summaryData, refetch: refetchSummary } = useQuery({
@@ -229,26 +257,101 @@ export function InteractiveOrgTree() {
   };
 
   const handleFitToScreen = () => {
-    setScale(0.85);
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    setScale(isMobile ? 0.6 : 0.85);
     setPan({ x: 0, y: 0 });
   };
 
-  // Pan controls via mouse
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".interactive-node, button, input, select")) return;
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+  // Unified Pointer & Touch Pan & Pinch Controls
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // If tapping an interactive button or select, don't start canvas drag
+    if ((e.target as HTMLElement).closest("button, input, select, a, [role='button']")) {
+      return;
+    }
+
+    // Only allow primary mouse click (left button)
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.current.size === 1) {
+      dragStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        panX: pan.x,
+        panY: pan.y,
+      };
+      hasMovedRef.current = false;
+      // Do NOT set pointer capture here on down! Wait for movement > 6px so taps bubble naturally to cards.
+    } else if (activePointers.current.size === 2) {
+      const points = Array.from(activePointers.current.values());
+      pinchStartDistRef.current = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      pinchStartScaleRef.current = scale;
+      setIsDragging(false);
+    }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setPan({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y,
-    });
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!activePointers.current.has(e.pointerId)) return;
+    activePointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (activePointers.current.size === 1) {
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > 6) {
+        hasMovedRef.current = true;
+        if (!isDragging) {
+          setIsDragging(true);
+          // Drag confirmed: capture pointer so drag stays locked to canvas
+          try {
+            canvasRef.current?.setPointerCapture(e.pointerId);
+          } catch {}
+        }
+        setPan({
+          x: dragStartRef.current.panX + dx,
+          y: dragStartRef.current.panY + dy,
+        });
+      }
+    } else if (activePointers.current.size === 2 && pinchStartDistRef.current && pinchStartDistRef.current > 0) {
+      const points = Array.from(activePointers.current.values());
+      const currentDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+      const ratio = currentDist / pinchStartDistRef.current;
+      const targetScale = Math.min(Math.max(Number((pinchStartScaleRef.current * ratio).toFixed(2)), 0.3), 2.0);
+      setScale(targetScale);
+    }
   };
 
-  const handleMouseUp = () => setIsDragging(false);
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    activePointers.current.delete(e.pointerId);
+
+    try {
+      if (canvasRef.current?.hasPointerCapture(e.pointerId)) {
+        canvasRef.current.releasePointerCapture(e.pointerId);
+      }
+    } catch {}
+
+    if (activePointers.current.size === 0) {
+      setIsDragging(false);
+      pinchStartDistRef.current = null;
+      // Allow synthetic click event to see hasMovedRef before resetting it
+      if (hasMovedRef.current) {
+        setTimeout(() => {
+          hasMovedRef.current = false;
+        }, 120);
+      }
+    } else if (activePointers.current.size === 1) {
+      const remaining = Array.from(activePointers.current.values())[0];
+      dragStartRef.current = {
+        x: remaining.x,
+        y: remaining.y,
+        panX: pan.x,
+        panY: pan.y,
+      };
+      pinchStartDistRef.current = null;
+    }
+  };
 
   // Wheel zoom
   const handleWheel = (e: React.WheelEvent) => {
@@ -306,25 +409,24 @@ export function InteractiveOrgTree() {
   const departmentNodes: DepartmentTreeNode[] = departmentTreeData?.departments || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* 1. Header with Breadcrumb and View Switcher */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <PageHeader
             title="Organization Tree"
             description="Explore your organization's reporting structure and department hierarchy."
-            icon={Network}
           />
         </div>
 
         {/* View Switcher and Actions */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Segmented View Switcher */}
-          <div className="inline-flex items-center rounded-lg border bg-muted/60 p-1 text-muted-foreground shadow-sm">
+          <div className="inline-flex items-center rounded-lg border bg-muted/60 p-1 text-muted-foreground shadow-sm w-full sm:w-auto justify-between sm:justify-start">
             <button
               onClick={() => setViewMode("employee")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all",
+                "flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 sm:py-1.5 text-xs font-semibold transition-all min-h-[40px] sm:min-h-0 active:scale-[0.98]",
                 viewMode === "employee"
                   ? "bg-background text-foreground shadow-sm"
                   : "hover:text-foreground text-muted-foreground"
@@ -336,7 +438,7 @@ export function InteractiveOrgTree() {
             <button
               onClick={() => setViewMode("department")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all",
+                "flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 sm:py-1.5 text-xs font-semibold transition-all min-h-[40px] sm:min-h-0 active:scale-[0.98]",
                 viewMode === "department"
                   ? "bg-background text-foreground shadow-sm"
                   : "hover:text-foreground text-muted-foreground"
@@ -351,7 +453,7 @@ export function InteractiveOrgTree() {
             variant="outline"
             size="sm"
             onClick={handleRefresh}
-            className="gap-1.5 text-xs font-medium"
+            className="gap-1.5 text-xs font-medium h-10 sm:h-8"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
@@ -427,27 +529,60 @@ export function InteractiveOrgTree() {
       {/* 3. Search & Filter Toolbar */}
       <div className="rounded-xl border bg-card p-3.5 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Search box */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, employee code, or role..."
-              className="pl-9 text-xs h-9 bg-background"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+          {/* Search box & Mobile Filter Button */}
+          <div className="flex items-center gap-2 w-full lg:max-w-md">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, employee code, or role..."
+                className="pl-9 text-xs h-10 lg:h-9 bg-background w-full rounded-lg"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Mobile Filter Button (Visible on screens < lg) */}
+            <div className="lg:hidden flex items-center gap-1.5 shrink-0">
+              <Button
+                variant={activeFilterCount > 0 ? "default" : "outline"}
+                size="sm"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="h-10 px-3 text-xs font-semibold rounded-lg shrink-0 gap-1.5 min-h-[40px] active:scale-95"
+                title="Filters"
+                aria-label="Open Filters"
               >
-                Clear
-              </button>
-            )}
+                <Filter className="h-3.5 w-3.5" />
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 rounded-full bg-background text-foreground text-[10px] font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowResetConfirm(true)}
+                  className="h-10 px-2 text-xs text-muted-foreground hover:text-foreground min-h-[40px]"
+                  title="Clear all filters"
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Filter Dropdowns */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Desktop Filter Dropdowns (Visible on screens >= lg) */}
+          <div className="hidden lg:flex flex-wrap items-center gap-2">
             {/* Department */}
             <Select value={selectedDept} onValueChange={setSelectedDept}>
               <SelectTrigger className="h-9 text-xs w-[150px] bg-background">
@@ -505,11 +640,22 @@ export function InteractiveOrgTree() {
                 <SelectItem value="terminated">Terminated</SelectItem>
               </SelectContent>
             </Select>
+
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowResetConfirm(true)}
+                className="h-9 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0 font-medium"
+              >
+                Reset All
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Canvas Quick Controls Bar */}
-        <div className="flex items-center justify-between border-t pt-2.5 text-xs text-muted-foreground">
+        {/* Desktop Canvas Quick Controls Bar (Visible on screens >= md) */}
+        <div className="hidden md:flex items-center justify-between border-t pt-2.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-foreground">Canvas Controls:</span>
             <Button
@@ -578,20 +724,87 @@ export function InteractiveOrgTree() {
       {/* 4. Interactive Organization Chart Canvas Container */}
       <div
         ref={canvasRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onWheel={handleWheel}
         className={cn(
-          "relative min-h-[580px] h-[680px] w-full overflow-hidden rounded-xl border bg-muted/20 shadow-inner select-none",
+          "relative min-h-[480px] h-[65vh] max-h-[750px] w-full overflow-hidden rounded-xl border bg-muted/20 shadow-inner select-none touch-none",
           isDragging ? "cursor-grabbing" : "cursor-grab",
           // Dotted grid background
           "bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:24px_24px] dark:bg-[radial-gradient(#334155_1px,transparent_1px)]"
         )}
       >
+        {/* Mobile Floating Responsive Toolbar (Phase 2 - min 44x44px touch targets) */}
+        <div
+          data-testid="mobile-chart-toolbar"
+          className="md:hidden absolute bottom-3 inset-x-3 z-30 flex items-center justify-between p-1.5 sm:p-2 rounded-2xl bg-card/95 backdrop-blur-md border border-border/80 shadow-lg select-none pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]"
+        >
+          {/* Zoom controls with min 44x44px touch targets */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleZoomOut}
+              className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-foreground bg-background/80 active:scale-95 transition-transform"
+              title="Zoom Out"
+              aria-label="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetZoom}
+              className="h-11 min-h-[44px] px-2.5 sm:px-3 font-semibold text-xs rounded-xl text-foreground bg-background/80 active:scale-95 transition-transform"
+              title="Reset Zoom"
+              aria-label="Reset Zoom"
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              {Math.round(scale * 100)}%
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleZoomIn}
+              className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-foreground bg-background/80 active:scale-95 transition-transform"
+              title="Zoom In"
+              aria-label="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleFitToScreen}
+              className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-xl text-foreground bg-background/80 active:scale-95 transition-transform"
+              title="Fit to Screen"
+              aria-label="Fit to Screen"
+            >
+              <Maximize2 className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+            {viewMode === "employee" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={collapsedNodes.size > 0 ? expandAll : collapseAll}
+                className="h-11 min-h-[44px] px-2.5 sm:px-3 text-xs font-semibold rounded-xl text-foreground bg-background/80 active:scale-95 transition-transform"
+                title={collapsedNodes.size > 0 ? "Expand All" : "Collapse All"}
+                aria-label={collapsedNodes.size > 0 ? "Expand All" : "Collapse All"}
+              >
+                <Layers className="h-3.5 w-3.5 mr-1" />
+                {collapsedNodes.size > 0 ? "Expand" : "Collapse"}
+              </Button>
+            )}
+          </div>
+        </div>
         {/* Live Canvas Zoom/Pan Transform Canvas */}
         <div
+          data-testid="org-canvas-transform"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
             transformOrigin: "center 40px",
@@ -634,6 +847,7 @@ export function InteractiveOrgTree() {
                       collapsedNodes={collapsedNodes}
                       toggleCollapse={toggleNodeCollapse}
                       onSelectEmployee={setSelectedEmployeeId}
+                      hasMovedRef={hasMovedRef}
                     />
                   ))}
                 </div>
@@ -657,6 +871,7 @@ export function InteractiveOrgTree() {
                         isCollapsed={false}
                         hasSubordinates={false}
                         toggleCollapse={() => {}}
+                        hasMovedRef={hasMovedRef}
                       />
                     ))}
                   </div>
@@ -710,6 +925,7 @@ export function InteractiveOrgTree() {
                         key={dept.id}
                         department={dept}
                         onSelectDepartment={setSelectedDepartment}
+                        hasMovedRef={hasMovedRef}
                       />
                     ))}
                   </div>
@@ -725,7 +941,7 @@ export function InteractiveOrgTree() {
         open={Boolean(selectedEmployeeId)}
         onOpenChange={(open) => !open && setSelectedEmployeeId(null)}
       >
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-6">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-6 font-sans">
           <SheetHeader className="border-b pb-4">
             <SheetTitle className="text-base font-bold flex items-center gap-2">
               <User className="h-4 w-4 text-primary" />
@@ -737,12 +953,12 @@ export function InteractiveOrgTree() {
           </SheetHeader>
 
           {isDetailLoading || !employeeDetail ? (
-            <div className="py-20 text-center text-xs text-muted-foreground">
+            <div className="py-20 text-center text-xs text-muted-foreground font-sans">
               <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
               Loading profile details...
             </div>
           ) : (
-            <div className="space-y-6 pt-5 text-sm">
+            <div className="space-y-6 pt-5 text-sm font-sans">
               {/* Header Profile Badge */}
               <div className="flex items-start gap-3.5 p-4 rounded-xl border bg-muted/30">
                 <Avatar className="h-12 w-12 rounded-xl border border-border shadow-xs overflow-hidden shrink-0">
@@ -766,7 +982,7 @@ export function InteractiveOrgTree() {
                     {employeeDetail.position}
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    <Badge variant="outline" className="text-[10px] font-mono">
+                    <Badge variant="outline" className="text-[10px] font-medium tracking-tight">
                       {employeeDetail.employeeCode}
                     </Badge>
                     <Badge
@@ -919,9 +1135,9 @@ export function InteractiveOrgTree() {
               <div className="pt-2">
                 <a
                   href={`/hr/employees/${employeeDetail.id}`}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 h-11 min-h-[44px] rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 active:scale-[0.99] transition-all shadow-sm"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" />
+                  <ExternalLink className="h-4 w-4" />
                   Open Full Employee Master Profile
                 </a>
               </div>
@@ -935,7 +1151,7 @@ export function InteractiveOrgTree() {
         open={Boolean(selectedDepartment)}
         onOpenChange={(open) => !open && setSelectedDepartment(null)}
       >
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-6">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-6 font-sans">
           <SheetHeader className="border-b pb-4">
             <SheetTitle className="text-base font-bold flex items-center gap-2">
               <Boxes className="h-4 w-4 text-purple-600" />
@@ -1048,6 +1264,125 @@ export function InteractiveOrgTree() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* 7. Mobile Filter Bottom/Side Sheet (Phase 3) */}
+      <Sheet open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto p-4 sm:p-6 pb-20 sm:pb-6 font-sans">
+          <SheetHeader className="border-b pb-4">
+            <SheetTitle className="text-base font-bold flex items-center gap-2">
+              <Filter className="h-4 w-4 text-primary" />
+              Filter Organization Hierarchy
+            </SheetTitle>
+            <SheetDescription className="text-xs">
+              Filter employee nodes and reporting relationships across the workspace.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="space-y-4 py-5 text-xs">
+            {/* Department */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">Department</label>
+              <Select value={selectedDept} onValueChange={setSelectedDept}>
+                <SelectTrigger className="h-11 text-xs w-full bg-background min-h-[44px]">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {(filterOptions?.departments || []).map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Designation */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">Designation</label>
+              <Select value={selectedDesig} onValueChange={setSelectedDesig}>
+                <SelectTrigger className="h-11 text-xs w-full bg-background min-h-[44px]">
+                  <SelectValue placeholder="All Designations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Designations</SelectItem>
+                  {(filterOptions?.designations || []).map((des: any) => (
+                    <SelectItem key={des.id} value={des.id}>
+                      {des.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Branch */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">Branch</label>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="h-11 text-xs w-full bg-background min-h-[44px]">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {(filterOptions?.branches || []).map((b: any) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-11 text-xs w-full bg-background min-h-[44px]">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active Only</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="terminated">Terminated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowResetConfirm(true)}
+              className="flex-1 h-11 text-xs font-semibold rounded-xl min-h-[44px]"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => setIsMobileFilterOpen(false)}
+              className="flex-1 h-11 text-xs font-semibold rounded-xl min-h-[44px]"
+            >
+              Apply Filters
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* 8. Confirmation Dialog for Resetting Organization Filters */}
+      <ConfirmationDialog
+        open={showResetConfirm}
+        onOpenChange={setShowResetConfirm}
+        title="Reset Organization Filters"
+        description="Are you sure you want to reset all active filters? This will restore the complete organization hierarchy view."
+        confirmLabel="Reset Filters"
+        cancelLabel="Keep Filters"
+        onConfirm={() => {
+          clearFilters();
+          setShowResetConfirm(false);
+          setIsMobileFilterOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -1205,6 +1540,7 @@ interface EmployeeBranchProps {
   collapsedNodes: Set<string>;
   toggleCollapse: (id: string, e: React.MouseEvent) => void;
   onSelectEmployee: (id: string) => void;
+  hasMovedRef?: React.RefObject<boolean>;
 }
 
 function EmployeeHierarchyBranch({
@@ -1212,6 +1548,7 @@ function EmployeeHierarchyBranch({
   collapsedNodes,
   toggleCollapse,
   onSelectEmployee,
+  hasMovedRef,
 }: EmployeeBranchProps) {
   const isCollapsed = collapsedNodes.has(node.id);
   const hasSubordinates = node.subordinates && node.subordinates.length > 0;
@@ -1225,6 +1562,7 @@ function EmployeeHierarchyBranch({
         hasSubordinates={hasSubordinates}
         toggleCollapse={toggleCollapse}
         onSelectEmployee={onSelectEmployee}
+        hasMovedRef={hasMovedRef}
       />
 
       {/* Subordinates Row */}
@@ -1238,6 +1576,7 @@ function EmployeeHierarchyBranch({
                 collapsedNodes={collapsedNodes}
                 toggleCollapse={toggleCollapse}
                 onSelectEmployee={onSelectEmployee}
+                hasMovedRef={hasMovedRef}
               />
             ))}
           </div>
@@ -1256,6 +1595,7 @@ interface EmployeeCardProps {
   hasSubordinates: boolean;
   toggleCollapse: (id: string, e: React.MouseEvent) => void;
   onSelectEmployee: (id: string) => void;
+  hasMovedRef?: React.RefObject<boolean>;
 }
 
 function EmployeeCard({
@@ -1264,16 +1604,24 @@ function EmployeeCard({
   hasSubordinates,
   toggleCollapse,
   onSelectEmployee,
+  hasMovedRef,
 }: EmployeeCardProps) {
   const isMatch = node.isMatchingSearch;
 
   return (
     <div
       data-node-id={node.id}
-      onClick={() => onSelectEmployee(node.id)}
+      onClick={(e) => {
+        if (hasMovedRef?.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        onSelectEmployee(node.id);
+      }}
       className={cn(
-        "interactive-node group relative z-10 flex flex-col w-[250px] rounded-xl border bg-card p-3.5 shadow-sm transition-all duration-200 cursor-pointer",
-        "hover:shadow-md hover:border-indigo-500/60 hover:-translate-y-0.5",
+        "interactive-node group relative z-10 flex flex-col w-[250px] rounded-xl border bg-card p-3.5 shadow-sm transition-all duration-200 cursor-pointer select-none",
+        "hover:shadow-md hover:border-indigo-500/60 hover:-translate-y-0.5 active:scale-[0.99]",
         isMatch && "ring-2 ring-indigo-500 border-indigo-500 bg-indigo-500/5 shadow-md",
         node.depth === 0 ? "border-purple-500/40 bg-purple-500/[0.02]" : "border-border"
       )}
@@ -1316,7 +1664,7 @@ function EmployeeCard({
           </Avatar>
 
           <div>
-            <span className="text-[10px] font-mono text-muted-foreground block leading-tight">
+            <span className="text-[10px] font-medium tracking-tight text-muted-foreground block leading-tight">
               {node.employeeCode}
             </span>
             <span
@@ -1396,13 +1744,21 @@ function EmployeeCard({
 interface DepartmentCardProps {
   department: DepartmentTreeNode;
   onSelectDepartment: (dept: DepartmentTreeNode) => void;
+  hasMovedRef?: React.RefObject<boolean>;
 }
 
-function DepartmentCard({ department, onSelectDepartment }: DepartmentCardProps) {
+function DepartmentCard({ department, onSelectDepartment, hasMovedRef }: DepartmentCardProps) {
   return (
     <div
-      onClick={() => onSelectDepartment(department)}
-      className="group relative flex flex-col rounded-xl border bg-card p-5 shadow-xs hover:shadow-md hover:border-purple-500/50 transition-all cursor-pointer"
+      onClick={(e) => {
+        if (hasMovedRef?.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        onSelectDepartment(department);
+      }}
+      className="group relative flex flex-col rounded-xl border bg-card p-5 shadow-xs hover:shadow-md hover:border-purple-500/50 transition-all cursor-pointer select-none active:scale-[0.99]"
     >
       {/* Top Accent Strip */}
       <div className="absolute top-0 left-0 right-0 h-1 rounded-t-xl bg-gradient-to-r from-purple-500 to-indigo-500" />

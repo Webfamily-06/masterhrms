@@ -23,8 +23,9 @@ textarea,
 [role="dialog"],
 [role="menu"],
 [role="tooltip"],
-[role="listbox"] {
-  font-family: inherit;
+[role="listbox"],
+[data-radix-select-viewport] {
+  font-family: var(--font-sans);
 }
 
 @theme inline {
