@@ -12,9 +12,15 @@ async function resolveEmployee(req) {
     const tenantId = req.user?.tenantId;
     const user = req.user;
     const userId = user.userId || user.id;
+    if (!tenantId || !userId)
+        return null;
     const db = (0, tenant_context_1.getTenantDb)();
     return await db.employee.findFirst({
-        where: { tenantId, userId },
+        where: {
+            tenantId,
+            userId,
+            status: { notIn: ["terminated", "inactive"] },
+        },
     });
 }
 // =========================================================================
@@ -29,7 +35,18 @@ exports.meLifecycleRouter.get("/awards", auth_1.requireAuth, async (req, res) =>
         const db = (0, tenant_context_1.getTenantDb)();
         const awards = await db.award.findMany({
             where: { tenantId, employeeId: employee.id },
-            include: { awardType: true },
+            include: {
+                awardType: true,
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        employeeCode: true,
+                        department: { select: { id: true, name: true } },
+                    },
+                },
+            },
             orderBy: { awardDate: "desc" },
         });
         return res.json(awards);

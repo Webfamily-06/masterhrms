@@ -22,20 +22,82 @@ function invalidateAuthCache(userId, tenantId) {
 const jwt_1 = require("../lib/jwt");
 const prisma_1 = require("../prisma");
 const workspace_policy_service_1 = require("../services/workspace-policy.service");
+const device_session_service_1 = require("../services/device-session.service");
 async function requireAuth(req, res, next) {
     if (req.user)
         return next();
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+    }
+    else if (req.query?.token && typeof req.query.token === "string") {
+        token = req.query.token;
+    }
+    else if (req.cookies?.hrms_auth_token) {
+        token = req.cookies.hrms_auth_token;
+    }
+    else if (req.cookies?.auth_token) {
+        token = req.cookies.auth_token;
+    }
+    else if (req.cookies?.token) {
+        token = req.cookies.token;
+    }
+    if (!token) {
         return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
     }
-    const token = authHeader.split(" ")[1];
     console.log(`[PERF_AUTH] reached requireAuth: ${Date.now() - req._tStart}ms`);
     try {
         const decoded = (0, jwt_1.verifyToken)(token);
         if (decoded.mfaPending)
             return res.status(401).json({ error: "Complete two-factor verification first." });
+        // Authoritative session verification
+        if (!decoded.sessionId || typeof decoded.sessionId !== "string") {
+            return res.status(401).json({
+                error: "Unauthorized: Active session required",
+                code: "SESSION_REQUIRED",
+            });
+        }
         const userId = decoded.userId || decoded.id;
+        if (!userId) {
+            return res.status(401).json({ error: "Unauthorized: Invalid token payload" });
+        }
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const session = await db.deviceSession.findUnique({
+            where: { id: decoded.sessionId },
+            select: {
+                id: true,
+                userId: true,
+                tenantId: true,
+                revoked: true,
+                expiresAt: true,
+            },
+        });
+        if (!session) {
+            return res.status(401).json({
+                error: "Unauthorized: Session not found",
+                code: "SESSION_NOT_FOUND",
+            });
+        }
+        if (session.revoked) {
+            return res.status(401).json({
+                error: "Unauthorized: Session has been revoked",
+                code: "SESSION_REVOKED",
+            });
+        }
+        if (session.expiresAt && session.expiresAt < new Date()) {
+            return res.status(401).json({
+                error: "Unauthorized: Session expired",
+                code: "SESSION_EXPIRED",
+            });
+        }
+        if (session.userId !== userId) {
+            return res.status(401).json({
+                error: "Unauthorized: Session user mismatch",
+                code: "SESSION_USER_MISMATCH",
+            });
+        }
+        (0, device_session_service_1.touchSession)(session.id).catch(() => { });
         const cacheKey = `${userId}:${decoded.tenantId || "default"}`;
         const cachedEntry = exports.authAccountCache.get(cacheKey);
         let account = null;
@@ -45,7 +107,7 @@ async function requireAuth(req, res, next) {
             cachedPermissions = cachedEntry.userPermissions;
         }
         else {
-            account = await (prisma_1.rawPrisma || prisma_1.prisma).user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
+            account = await db.user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
         }
         if (!account)
             return res.status(401).json({ error: "Account no longer exists." });
@@ -174,6 +236,7 @@ async function requireAuth(req, res, next) {
         exports.authAccountCache.set(cacheKey, { account, userPermissions, expiresAt: Date.now() + 60000 });
         req.user = {
             ...decoded,
+            sessionId: session.id,
             userId,
             tenantId: tenantId ?? null,
             roles,

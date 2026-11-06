@@ -71,6 +71,12 @@ async function runSuite() {
     const testTenant = recipientEmp.tenant;
     const hrUser = recipientEmp.user || await prisma.user.findFirst();
 
+    await prisma.userRole.upsert({
+      where: { userId_role_tenantId: { userId: hrUser.id, role: 'hr_admin', tenantId: testTenant.id } },
+      create: { userId: hrUser.id, role: 'hr_admin', tenantId: testTenant.id },
+      update: {}
+    }).catch(() => {});
+
     hrSessionId = await createTestSession(hrUser.id, testTenant.id);
     const token = makeToken(
       {
@@ -152,7 +158,7 @@ async function runSuite() {
     assert(!fs.existsSync(pdfAbsPath), 'Physical PDF temporarily removed to test healing');
 
     // Call getCertificate endpoint (should detect missing physical file, re-render, and resync)
-    const healRes = await fetch(`${BASE_URL}/api/employee-awards/${testAward.id}/certificate`, {
+    const healRes = await fetch(`${BASE_URL}/api/awards/certificates/${testCert.id}/download`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     assert(healRes.status === 200, `Certificate query returns HTTP 200 during self-healing`);

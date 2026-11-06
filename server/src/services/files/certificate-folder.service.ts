@@ -173,7 +173,7 @@ export class CertificateFolderService {
               mimeType: "inode/directory",
               fileSize: 0,
               checksumSha: "",
-              folder: `Certificates/${sub.name}`,
+              folder: "Certificates",
               isFolder: true,
               parentId: rootFolder.id,
               ownerType: "SYSTEM",

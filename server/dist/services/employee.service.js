@@ -16,6 +16,7 @@ const data_scope_1 = require("../lib/data-scope");
 const employee_system_id_service_1 = require("./employee-system-id.service");
 const employee_schema_1 = require("../schemas/employee.schema");
 const reporting_hierarchy_validator_1 = require("../lib/reporting-hierarchy-validator");
+const auth_1 = require("../middleware/auth");
 exports.EMPLOYEE_PHYSICAL_COLUMNS_SELECT = {
     id: true,
     tenantId: true,
@@ -1142,10 +1143,12 @@ class EmployeeService {
                     lastName: employee.lastName,
                     phone: employee.phone,
                     password: newPassword.trim(),
+                    employeeId: employee.id,
                 });
                 await tx.employee.update({
                     where: { id: employeeId },
                     data: { userId: targetUserId },
+                    select: { id: true, userId: true },
                 });
             }
             else {
@@ -1252,6 +1255,10 @@ class EmployeeService {
             if (targetStatus === "inactive") {
                 // Deactivate: remove tenant roles & role assignments, and unlink userId
                 if (employee.userId) {
+                    await tx.deviceSession.updateMany({
+                        where: { userId: employee.userId, revoked: false },
+                        data: { revoked: true, revokedAt: new Date() },
+                    });
                     await tx.userRole.deleteMany({
                         where: {
                             userId: employee.userId,
@@ -1267,7 +1274,9 @@ class EmployeeService {
                     await tx.employee.update({
                         where: { id: employeeId },
                         data: { userId: null },
+                        select: { id: true, userId: true },
                     });
+                    (0, auth_1.invalidateAuthCache)(employee.userId, tenantId);
                 }
             }
             else {
@@ -1278,6 +1287,20 @@ class EmployeeService {
                         where: { email: employee.email.toLowerCase().trim() },
                     });
                     if (existingUser) {
+                        const linkedOther = await tx.employee.findFirst({
+                            where: {
+                                tenantId,
+                                userId: existingUser.id,
+                                id: { not: employeeId },
+                            },
+                            select: { id: true, firstName: true, lastName: true, employeeCode: true },
+                        });
+                        if (linkedOther) {
+                            const err = new Error(`This user account (${existingUser.email}) is already assigned to employee ${linkedOther.firstName} ${linkedOther.lastName} (${linkedOther.employeeCode}). Each employee must have an independent login account.`);
+                            err.statusCode = 409;
+                            err.code = "EMPLOYEE_USER_CONFLICT";
+                            throw err;
+                        }
                         targetUserId = existingUser.id;
                     }
                     else {
@@ -1287,11 +1310,13 @@ class EmployeeService {
                             firstName: employee.firstName,
                             lastName: employee.lastName,
                             phone: employee.phone,
+                            employeeId: employee.id,
                         });
                     }
                     await tx.employee.update({
                         where: { id: employeeId },
                         data: { userId: targetUserId },
+                        select: { id: true, userId: true },
                     });
                 }
                 await tx.userRole.upsert({

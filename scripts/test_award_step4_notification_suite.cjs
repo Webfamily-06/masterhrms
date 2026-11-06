@@ -69,6 +69,18 @@ async function runNotificationSuite() {
     where: { employees: { some: { tenantId } } }
   }) || await prisma.user.findFirst();
 
+  await prisma.profile.upsert({
+    where: { userId: hrUser.id },
+    create: { userId: hrUser.id, tenantId, fullName: 'HR Notification Auditor', email: hrUser.email },
+    update: { tenantId }
+  }).catch(() => {});
+
+  await prisma.userRole.upsert({
+    where: { userId_role_tenantId: { userId: hrUser.id, role: 'hr_admin', tenantId } },
+    create: { userId: hrUser.id, role: 'hr_admin', tenantId },
+    update: {}
+  }).catch(() => {});
+
   const hrSessionId = await createTestSession(hrUser.id, tenantId);
   const hrToken = makeToken({ ...hrUser, tenantId }, hrSessionId);
   const hrHeaders = {

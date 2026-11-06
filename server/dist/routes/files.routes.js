@@ -30,6 +30,7 @@ const media_service_1 = require("../services/media/media.service");
 const prisma_1 = require("../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const system_folder_service_1 = require("../services/files/system-folder.service");
+const certificate_folder_service_1 = require("../services/files/certificate-folder.service");
 const file_link_service_1 = require("../services/files/file-link.service");
 const upload = (0, multer_1.default)({
     storage: multer_1.default.memoryStorage(),
@@ -51,6 +52,33 @@ function getAuthContext(req) {
     return { isSuper, tenantId, userId, userRoles, userPermissions };
 }
 // ============================================================================
+// ============================================================================
+// CERTIFICATES SYSTEM FOLDER MANAGEMENT
+// ============================================================================
+exports.filesRouter.post("/certificates/ensure-folders", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { tenantId, userId } = getAuthContext(req);
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const folders = await certificate_folder_service_1.CertificateFolderService.ensureCertificatesFolders(tenantId, userId);
+        return res.json({ success: true, folders });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to ensure certificates folders." });
+    }
+});
+exports.filesRouter.get("/certificates/folders", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { tenantId, userId } = getAuthContext(req);
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const folders = await certificate_folder_service_1.CertificateFolderService.ensureCertificatesFolders(tenantId, userId);
+        return res.json({ success: true, folders });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to retrieve certificates folders." });
+    }
+});
 // 1. STORAGE USAGE & STATS ENDPOINTS
 // ============================================================================
 /**
@@ -875,6 +903,7 @@ exports.filesRouter.get("/stream", async (req, res) => {
                 ".jpg": "image/jpeg",
                 ".jpeg": "image/jpeg",
                 ".webp": "image/webp",
+                ".svg": "image/svg+xml",
                 ".gif": "image/gif",
                 ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

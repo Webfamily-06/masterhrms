@@ -406,7 +406,7 @@ export class AwardCertificateService {
     }
 
     // 1. Fetch award with relations
-    const award: any = await (db.award as any).findFirst({
+    const award = await db.award.findFirst({
       where: { id: awardId, tenantId },
       include: {
         awardType: true,
@@ -502,9 +502,9 @@ export class AwardCertificateService {
       awardCategory: award.awardType?.name || "Recognition",
       awardReason: award.description || "In recognition of outstanding dedication and exceptional performance.",
       awardDate: award.awardDate ? new Date(award.awardDate).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-      presentedBy: award.presentedBy || (award.tenant as any)?.name || "Executive Management",
-      issuingOrganization: (award.tenant as any)?.name || "MASTERHRMS Cloud",
-      tenantSlug: (award.tenant as any)?.slug || tenantId,
+      presentedBy: award.presentedBy || award.tenant?.name || "Executive Management",
+      issuingOrganization: award.tenant?.name || "MASTERHRMS Cloud",
+      tenantSlug: award.tenant?.slug || tenantId,
       issuedAt: new Date().toISOString(),
       verificationUrl,
     };
@@ -517,7 +517,7 @@ export class AwardCertificateService {
 
     if (award.awardTypeId) {
       try {
-        const assignment = await (db.certificateTemplateAssignment as any).findUnique({
+        const assignment = await db.certificateTemplateAssignment.findUnique({
           where: {
             tenantId_awardTypeId: { tenantId, awardTypeId: award.awardTypeId }
           },
@@ -528,7 +528,7 @@ export class AwardCertificateService {
         });
 
         if (assignment && assignment.template) {
-          const version = assignment.templateVersion || await (db.certificateTemplateVersion as any).findFirst({
+          const version = assignment.templateVersion ?? await db.certificateTemplateVersion.findFirst({
             where: { templateId: assignment.templateId },
             orderBy: { versionNumber: "desc" }
           });
@@ -570,7 +570,7 @@ export class AwardCertificateService {
       pdfBuffer = await this.renderCertificatePdf(metadata);
     }
 
-    // 7. Store to File Manager under Certificates/Generated
+    // 7. Store to File Manager and Tenant-Isolated Local Storage
     const folders = await CertificateFolderService.ensureCertificatesFolders(tenantId, actorUserId || "system");
     const fileName = `certificate-${certificateNumber}.pdf`;
 
@@ -591,38 +591,48 @@ export class AwardCertificateService {
     }
 
     const uploadsRoot = getUploadsRoot();
-    const relativeStoragePath = mediaFile?.filePath || path.join("Certificates", "Generated", fileName).replace(/\\/g, "/");
-    const absoluteFilePath = path.resolve(uploadsRoot, relativeStoragePath);
+    const relativeDir = path.join("tenants", tenantId, "awards", "certificates", certId);
+    const absoluteDir = path.join(uploadsRoot, relativeDir);
+    await fs.promises.mkdir(absoluteDir, { recursive: true });
 
-    if (!fs.existsSync(absoluteFilePath)) {
-      await fs.promises.mkdir(path.dirname(absoluteFilePath), { recursive: true });
-      await fs.promises.writeFile(absoluteFilePath, pdfBuffer);
+    const absoluteFilePath = path.join(absoluteDir, fileName);
+    await fs.promises.writeFile(absoluteFilePath, pdfBuffer);
+
+    const relativeStoragePath = path.join(relativeDir, fileName).replace(/\\/g, "/");
+
+    // Also mirror to File Manager physical path if distinct so file stream endpoints resolve
+    if (mediaFile?.filePath) {
+      const mediaAbsolute = path.resolve(uploadsRoot, mediaFile.filePath);
+      if (!fs.existsSync(mediaAbsolute)) {
+        await fs.promises.mkdir(path.dirname(mediaAbsolute), { recursive: true });
+        await fs.promises.writeFile(mediaAbsolute, pdfBuffer);
+      }
     }
 
 
 
     // 8. Persist Certificate record to Database (with concurrency race resolution)
-    let certificate: any = null;
+    let certificate = null;
     try {
-      certificate = await (db.employeeAwardCertificate as any).create({
+      certificate = await db.employeeAwardCertificate.create({
         data: {
           id: certId,
           tenantId,
           awardId: award.id,
-          nominationId: award.nominationId || null,
+          nominationId: award.nominationId ?? null,
           employeeId: award.employee.id,
           certificateNumber,
           verificationCode,
           storagePath: relativeStoragePath,
-          fileId: mediaFile?.id || null,
+          fileId: mediaFile?.id ?? null,
           fileName,
           mimeType: "application/pdf",
           fileSize: pdfBuffer.length,
           status: "ACTIVE",
           metadata: metadata as any,
-          templateId,
-          templateVersionId,
-          snapshotData: snapshotData || {},
+          templateId: templateId ?? null,
+          templateVersionId: templateVersionId ?? null,
+          snapshotData: (snapshotData ?? {}) as any,
           issuedAt: new Date(),
           generatedAt: new Date(),
         },
@@ -939,8 +949,8 @@ export class AwardCertificateService {
     if (!fs.existsSync(absolutePath)) {
       // Self-healing storage: re-render from historical snapshot data or metadata
       let freshBuffer: Buffer | null = null;
-      const snap: any = (cert as any).snapshotData;
-      const meta: any = cert.metadata;
+      const snap = cert.snapshotData as Record<string, any> | null;
+      const meta = cert.metadata as Record<string, any> | null;
 
       if (snap && snap.designSnapshot && snap.designSnapshot.elements) {
         try {
@@ -984,8 +994,13 @@ export class AwardCertificateService {
           if (healMediaFile) {
             await db.employeeAwardCertificate.update({
               where: { id: cert.id },
-              data: { fileId: healMediaFile.id, storagePath: healMediaFile.filePath }
+              data: { fileId: healMediaFile.id }
             });
+            const healMediaDisk = path.resolve(uploadsRoot, healMediaFile.filePath);
+            if (!fs.existsSync(healMediaDisk)) {
+              await fs.promises.mkdir(path.dirname(healMediaDisk), { recursive: true });
+              await fs.promises.writeFile(healMediaDisk, freshBuffer);
+            }
           }
         } catch (healSyncErr: any) {
           console.warn("[getCertificateFile] File Manager self-heal sync warning:", healSyncErr?.message);

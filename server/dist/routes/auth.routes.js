@@ -365,11 +365,26 @@ exports.authRouter.post("/register", (0, turnstile_middleware_1.requireTurnstile
             },
         });
         const roles = updatedUser?.roles.map((r) => r.role) || ["admin"];
+        let sessionResult = null;
+        try {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                userId: user.id,
+                tenantId: provisionResult.tenant.id,
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+        }
+        catch (err) {
+            console.warn("[Register] Device session create failure:", err?.message);
+        }
         const token = (0, jwt_1.generateToken)({
             userId: user.id,
             email: user.email,
             tenantId: provisionResult.tenant.id,
             roles,
+            sessionId: sessionResult?.sessionId,
         });
         return res.status(201).json({
             user: {
@@ -437,11 +452,26 @@ exports.authRouter.post("/unlock", async (req, res) => {
             return res.status(400).json({ error: "Incorrect password. Please try again." });
         }
         const roles = await resolveEffectiveUserRoles(user, user.profile?.tenantId);
+        let sessionResult = null;
+        try {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                userId: user.id,
+                tenantId: user.profile?.tenantId || null,
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+        }
+        catch (err) {
+            console.warn("[SuperLogin] Device session create failure:", err?.message);
+        }
         const token = (0, jwt_1.generateToken)({
             userId: user.id,
             email: user.email,
             tenantId: user.profile?.tenantId,
             roles,
+            sessionId: sessionResult?.sessionId,
         });
         await (0, login_history_service_1.recordLoginHistory)(req, user.id, user.id);
         return res.json({
@@ -1543,7 +1573,13 @@ exports.authRouter.post("/bootstrap-tenant", auth_1.requireAuth, async (req, res
             await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user.userId, roleId: role.id } });
             return created;
         });
-        const token = (0, jwt_1.generateToken)({ userId: req.user.userId, email: req.user.email, tenantId: tenant.id, roles: ["hr_admin"] });
+        const token = (0, jwt_1.generateToken)({
+            userId: req.user.userId,
+            email: req.user.email,
+            tenantId: tenant.id,
+            roles: ["hr_admin"],
+            sessionId: req.user?.sessionId,
+        });
         return res.json({ success: true, tenant, token });
     }
     catch (err) {
@@ -2066,11 +2102,26 @@ async function handleOAuthCallback(req, res) {
             throw new Error("Failed to create or retrieve user account.");
         }
         const roles = user.roles ? user.roles.map((r) => r.role) : ["employee"];
+        let sessionResult = null;
+        try {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                userId: user.id,
+                tenantId: user.profile?.tenantId || null,
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+        }
+        catch (err) {
+            console.warn("[OAuth] Device session create failure:", err?.message);
+        }
         const token = (0, jwt_1.generateToken)({
             userId: user.id,
             email: user.email,
             tenantId: user.profile?.tenantId || null,
             roles: roles.length > 0 ? roles : ["employee"],
+            sessionId: sessionResult?.sessionId,
         });
         return res.redirect(`${config.frontendBaseUrl}/auth?token=${token}&provider=${provider}`);
     }

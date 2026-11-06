@@ -1,8 +1,13 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.employeeSelfServiceRouter = void 0;
+const fs_1 = __importDefault(require("fs"));
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
+const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const employee_context_middleware_1 = require("../middleware/employee-context.middleware");
 const prisma_1 = require("../prisma");
 const audit_service_1 = require("../services/audit.service");
@@ -10,9 +15,12 @@ const outbox_service_1 = require("../services/outbox.service");
 const attendance_service_1 = require("../services/attendance.service");
 const pagination_1 = require("../lib/pagination");
 const socket_1 = require("../socket");
+const award_nomination_service_1 = require("../services/award-nomination.service");
+const award_certificate_service_1 = require("../services/award-certificate.service");
 exports.employeeSelfServiceRouter = (0, express_1.Router)();
-// Apply auth and employee resolution to all /api/v1/me/* endpoints
+// Apply auth, workspace tenant context, and employee resolution to all /api/v1/me/* endpoints
 exports.employeeSelfServiceRouter.use(auth_1.requireAuth);
+exports.employeeSelfServiceRouter.use(tenant_context_middleware_1.resolveTenantContext);
 exports.employeeSelfServiceRouter.use(employee_context_middleware_1.requireEmployee);
 /**
  * GET /api/v1/me/profile
@@ -978,10 +986,26 @@ exports.employeeSelfServiceRouter.get("/okrs", async (req, res) => {
 exports.employeeSelfServiceRouter.get("/awards", async (req, res) => {
     const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
     try {
         const awards = await db.award.findMany({
-            where: { employeeId },
-            include: { awardType: true },
+            where: { employeeId, tenantId },
+            include: {
+                awardType: true,
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        employeeCode: true,
+                        department: { select: { id: true, name: true } },
+                    },
+                },
+                certificates: {
+                    where: { status: "ACTIVE" },
+                    take: 1,
+                },
+            },
             orderBy: { awardDate: "desc" },
         });
         return res.json({ success: true, data: awards });
@@ -989,6 +1013,106 @@ exports.employeeSelfServiceRouter.get("/awards", async (req, res) => {
     catch (err) {
         console.error("[GET /me/awards] Error:", err);
         return res.status(500).json({ error: "Failed to fetch employee awards" });
+    }
+});
+/**
+ * GET /api/v1/me/awards/:id/certificate/download
+ * Securely stream certificate PDF for the authenticated employee
+ */
+exports.employeeSelfServiceRouter.get("/awards/:id/certificate/download", async (req, res) => {
+    const db = prisma_1.rawPrisma || prisma_1.prisma;
+    const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    try {
+        const cert = await db.employeeAwardCertificate.findFirst({
+            where: {
+                awardId: req.params.id,
+                tenantId,
+                status: "ACTIVE",
+            },
+        });
+        if (!cert) {
+            return res.status(404).json({ error: "No active certificate found for this award." });
+        }
+        const fileResult = await award_certificate_service_1.AwardCertificateService.getCertificateFile({
+            certificateId: cert.id,
+            tenantId,
+            callerEmployeeId: employeeId,
+            isHRAuthorized: false,
+        });
+        res.setHeader("Content-Type", fileResult.mimeType || "application/pdf");
+        res.setHeader("Content-Disposition", `inline; filename="${fileResult.fileName}"`);
+        res.setHeader("Content-Length", fileResult.fileSize);
+        const stream = fs_1.default.createReadStream(fileResult.absolutePath);
+        stream.pipe(res);
+    }
+    catch (err) {
+        if (err.message?.includes("not found")) {
+            return res.status(404).json({ error: err.message });
+        }
+        if (err.message?.includes("Access denied") || err.message?.includes("not authorized")) {
+            return res.status(403).json({ error: err.message });
+        }
+        return res.status(400).json({ error: err.message || "Failed to download certificate." });
+    }
+});
+/**
+ * GET /api/v1/me/awards/nominations
+ * Returns nominations submitted by employee, nominations for employee, or team nominations
+ */
+exports.employeeSelfServiceRouter.get("/awards/nominations", async (req, res) => {
+    const employeeId = req.employee.id;
+    const userId = req.user.userId;
+    const tenantId = req.user.tenantId;
+    try {
+        const result = await award_nomination_service_1.AwardNominationService.getNominations({
+            tenantId,
+            userId,
+            employeeId,
+            isHRAuthorized: false,
+            myOnly: true,
+            status: req.query.status,
+            awardTypeId: req.query.awardTypeId,
+            search: req.query.search,
+            page: parseInt(req.query.page, 10) || 1,
+            limit: parseInt(req.query.limit, 10) || 20,
+        });
+        return res.json({ success: true, ...result });
+    }
+    catch (err) {
+        console.error("[GET /me/awards/nominations] Error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch nominations" });
+    }
+});
+/**
+ * POST /api/v1/me/awards/nominations
+ * Allows employee to submit a nomination for a colleague, direct report, or self (if permitted)
+ */
+exports.employeeSelfServiceRouter.post("/awards/nominations", async (req, res) => {
+    const employeeId = req.employee.id;
+    const userId = req.user.userId;
+    const tenantId = req.user.tenantId;
+    const nomineeId = req.body.employeeId || req.body.nomineeId;
+    const awardTypeId = req.body.awardTypeId;
+    const reason = req.body.reason || req.body.justification;
+    const achievementDescription = req.body.achievementDescription || req.body.impactStatement;
+    const supportingDocUrl = req.body.supportingDocUrl;
+    try {
+        const nomination = await award_nomination_service_1.AwardNominationService.submitNomination({
+            tenantId,
+            nomineeEmployeeId: nomineeId,
+            awardTypeId,
+            nominatorUserId: userId,
+            nominatorEmployeeId: employeeId,
+            reason,
+            achievementDescription,
+            supportingDocUrl,
+            isHRAuthorized: false,
+        });
+        return res.status(201).json({ success: true, data: nomination });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to submit nomination" });
     }
 });
 /**

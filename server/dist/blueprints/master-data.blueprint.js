@@ -46,6 +46,13 @@ exports.MASTER_DATA_ALLOWED_FIELDS = {
         "name",
         "icon",
         "description",
+        "imageUrl",
+        "imageStoragePath",
+        "status",
+        "requiresApproval",
+        "allowPeerNomination",
+        "allowSelfNomination",
+        "workflowId",
     ],
     holiday: [
         "name",

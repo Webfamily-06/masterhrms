@@ -10,9 +10,15 @@ async function resolveEmployee(req) {
     const tenantId = req.user?.tenantId;
     const user = req.user;
     const userId = user.userId || user.id;
+    if (!tenantId || !userId)
+        return null;
     const db = (0, tenant_context_js_1.getTenantDb)();
     return await db.employee.findFirst({
-        where: { tenantId, userId },
+        where: {
+            tenantId,
+            userId,
+            status: { notIn: ["terminated", "inactive"] },
+        },
     });
 }
 // My Meetings

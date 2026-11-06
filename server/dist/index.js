@@ -127,6 +127,7 @@ const docs_routes_1 = require("./routes/docs.routes");
 const returns_routes_1 = require("./routes/returns.routes");
 const client_routes_1 = require("./routes/client.routes");
 const awards_routes_1 = require("./routes/awards.routes");
+const certificate_studio_routes_1 = require("./routes/certificate-studio.routes");
 const warnings_routes_1 = require("./routes/warnings.routes");
 const workflows_routes_1 = require("./routes/workflows.routes");
 const hrm_extensions_routes_1 = require("./routes/hrm-extensions.routes");
@@ -275,7 +276,7 @@ try {
 catch (e) {
     console.warn("⚠️ [UPLOADS] Read-only or inaccessible uploads directory:", e?.message);
 }
-app.use("/uploads", uploads_security_middleware_1.uploadsSecurityMiddleware, express_1.default.static(uploadsDir, {
+app.use(["/uploads", "/api/uploads"], uploads_security_middleware_1.uploadsSecurityMiddleware, express_1.default.static(uploadsDir, {
     maxAge: "7d",
     etag: true,
     lastModified: true,
@@ -441,7 +442,14 @@ app.use("/api/employees", employees_routes_1.employeesRouter);
 app.use("/api/attendance", attendance_routes_1.attendanceRouter);
 app.use("/api/leave", leave_routes_1.leaveRouter);
 app.use("/api/leaves", leave_routes_1.leaveRouter);
+app.use("/api/hr/awards", awards_routes_1.awardsRouter);
+app.use("/api/v1/hr/awards", awards_routes_1.awardsRouter);
 app.use("/api/awards", awards_routes_1.awardsRouter);
+app.use("/api/v1/awards", awards_routes_1.awardsRouter);
+app.use("/api/hr/lifecycle/awards", awards_routes_1.awardsRouter);
+app.use("/api/v1/hr/lifecycle/awards", awards_routes_1.awardsRouter);
+app.use("/api/certificate-studio", certificate_studio_routes_1.certificateStudioRouter);
+app.use("/api/v1/certificate-studio", certificate_studio_routes_1.certificateStudioRouter);
 app.use("/api/warnings", warnings_routes_1.warningsRouter);
 app.use("/api/payroll/cycles", payroll_cycles_routes_1.payrollCyclesRouter);
 app.use("/api/payroll-cycles", payroll_cycles_routes_1.payrollCyclesRouter);

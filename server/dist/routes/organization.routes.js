@@ -1,13 +1,23 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BRANCH_PHYSICAL_COLUMNS_SELECT = exports.organizationRouter = void 0;
 const express_1 = require("express");
+const multer_1 = __importDefault(require("multer"));
+const crypto_1 = __importDefault(require("crypto"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const tenant_context_1 = require("../context/tenant-context");
 const master_data_blueprint_1 = require("../blueprints/master-data.blueprint");
 const announcements_routes_1 = require("./announcements.routes");
 const organization_tree_service_1 = require("../services/organization-tree.service");
+const prisma_1 = require("../prisma");
+const media_service_1 = require("../services/media/media.service");
+const integrity_hasher_1 = require("../services/storage/integrity-hasher");
 exports.organizationRouter = (0, express_1.Router)();
 exports.organizationRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 exports.BRANCH_PHYSICAL_COLUMNS_SELECT = {
@@ -95,11 +105,120 @@ exports.organizationRouter.use("/designations", (0, master_data_blueprint_1.crea
 // =========================================================================
 // 4. AWARD TYPES MASTER (/award-types)
 // =========================================================================
-exports.organizationRouter.use("/award-types", (0, master_data_blueprint_1.createMasterDataRouter)({
+const awardTypeUpload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max for badges/icons
+});
+// Dedicated Award Type Image / Badge Upload Route
+exports.organizationRouter.post("/award-types/upload", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, awardTypeUpload.single("file"), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ error: "No image file provided in 'file' field" });
+        }
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Tenant context required for upload" });
+        }
+        // Authoritative magic bytes validation (PNG, JPEG, WebP, SVG)
+        const validation = media_service_1.MediaService.validateImageBuffer(file.buffer, file.mimetype, file.originalname);
+        if (!validation.isValid) {
+            return res.status(400).json({ error: validation.error || "Invalid file" });
+        }
+        const allowedImageMimes = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+        if (!allowedImageMimes.includes(validation.mimeType)) {
+            return res.status(400).json({
+                error: `Unsupported image format (${validation.mimeType}). Only PNG, JPG, WEBP, and SVG formats are permitted.`,
+            });
+        }
+        const awardTypeId = req.body.awardTypeId
+            ? String(req.body.awardTypeId).replace(/[^a-zA-Z0-9_-]/g, "")
+            : "general";
+        const uniqueFileName = `${Date.now()}-${crypto_1.default.randomBytes(4).toString("hex")}${validation.extension}`;
+        const folder = `tenants/${tenantId}/award-types/${awardTypeId}`;
+        const relativeFilePath = `uploads/${folder}/${uniqueFileName}`;
+        const publicUrl = `/uploads/${folder}/${uniqueFileName}`;
+        const uploadsRoot = (0, media_service_1.getUploadsRoot)();
+        const targetDir = path_1.default.join(uploadsRoot, folder);
+        if (!fs_1.default.existsSync(targetDir)) {
+            fs_1.default.mkdirSync(targetDir, { recursive: true });
+        }
+        const fullDiskPath = path_1.default.join(targetDir, uniqueFileName);
+        await fs_1.default.promises.writeFile(fullDiskPath, file.buffer);
+        // Audit and track in mediaFiles
+        const checksumSha = (0, integrity_hasher_1.computeSha256)(file.buffer);
+        await prisma_1.prisma.mediaFile
+            .create({
+            data: {
+                tenantId,
+                storageDisk: "LOCAL",
+                filePath: relativeFilePath,
+                url: publicUrl,
+                fileName: file.originalname,
+                mimeType: validation.mimeType,
+                fileSize: file.buffer.length,
+                checksumSha,
+                folder,
+                tags: ["award-types", "badge"],
+                uploadedBy: req.user?.userId || "system",
+            },
+        })
+            .catch((err) => {
+            console.warn("⚠️ Could not persist mediaFile record:", err.message);
+        });
+        return res.status(201).json({
+            url: publicUrl,
+            imageStoragePath: relativeFilePath,
+            fileName: file.originalname,
+            fileSize: file.size,
+            mimeType: validation.mimeType,
+        });
+    }
+    catch (err) {
+        console.error("[Award Type Image Upload Error]:", err);
+        return res.status(500).json({ error: err.message || "Failed to upload award type image" });
+    }
+});
+const awardTypeNormalizer = async (req, _res, next) => {
+    if (req.method === "POST" || req.method === "PUT") {
+        if (req.body && req.body.title) {
+            if (!req.body.name) {
+                req.body.name = req.body.title;
+            }
+            delete req.body.title;
+        }
+    }
+    next();
+};
+exports.organizationRouter.use("/award-types", awardTypeNormalizer, (0, master_data_blueprint_1.createMasterDataRouter)({
     modelName: "awardType",
     entityName: "AwardType",
     searchFields: ["name", "description"],
     uniqueFields: ["name"],
+    include: {
+        _count: { select: { awards: true } },
+        workflow: { select: { id: true, name: true, entityType: true, isActive: true } },
+    },
+    customCounts: async (db, tenantId) => {
+        const [totalAwardsIssued, activeTypes] = await Promise.all([
+            db.award.count({ where: { tenantId } }),
+            db.awardType.count({ where: { tenantId, status: "active" } }),
+        ]);
+        return {
+            totalAwardsIssued,
+            activeTypes,
+        };
+    },
+    dependencyCheck: async (db, id, tenantId) => {
+        const count = await db.award.count({ where: { awardTypeId: id, tenantId } });
+        if (count > 0) {
+            return {
+                canDelete: false,
+                message: `Cannot delete Award Type because ${count} employee award(s) are linked to it. Please deactivate it instead to preserve recognition history.`,
+            };
+        }
+        return { canDelete: true };
+    },
 }));
 // =========================================================================
 // 5. HOLIDAYS MASTER (/holidays)

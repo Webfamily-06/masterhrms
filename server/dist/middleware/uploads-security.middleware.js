@@ -16,6 +16,7 @@ const PUBLIC_UPLOAD_PREFIXES = [
     "addons/",
     "media/icons/",
     "media/screens/",
+    "award-types/",
 ];
 // Folders / categories that contain confidential PII or employee documents
 const SENSITIVE_DOCUMENT_FOLDERS = [
@@ -39,7 +40,13 @@ const SENSITIVE_DOCUMENT_FOLDERS = [
  */
 function isPublicUploadPath(relativePath) {
     const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
-    return PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+    return (PUBLIC_UPLOAD_PREFIXES.some((prefix) => normalized.startsWith(prefix)) ||
+        normalized.includes("/award-types/") ||
+        normalized.startsWith("award-types/") ||
+        normalized.includes("/branding/") ||
+        normalized.startsWith("branding/") ||
+        normalized.includes("/Certificates/Branding/") ||
+        normalized.startsWith("Certificates/Branding/"));
 }
 /**
  * Security triage middleware guarding `/uploads` static file mounts.

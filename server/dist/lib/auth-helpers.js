@@ -19,8 +19,20 @@ async function provisionEmployeeUser(prisma, options) {
         where: { email },
         include: { profile: true, roles: true },
     });
-    if (user && (user.profile?.tenantId !== options.tenantId || user.roles.some((r) => r.role === "super_admin"))) {
-        throw new workspace_policy_service_1.WorkspacePolicyError("This email belongs to another account and cannot be linked or reset from this workspace.", 409);
+    if (user) {
+        if (user.profile?.tenantId !== options.tenantId || user.roles.some((r) => r.role === "super_admin")) {
+            throw new workspace_policy_service_1.WorkspacePolicyError("This email belongs to another account and cannot be linked or reset from this workspace.", 409);
+        }
+        const existingLinkedEmployee = await prisma.employee.findFirst({
+            where: {
+                userId: user.id,
+                ...(options.employeeId ? { id: { not: options.employeeId } } : {}),
+            },
+            select: { id: true, firstName: true, lastName: true, employeeCode: true },
+        });
+        if (existingLinkedEmployee) {
+            throw new workspace_policy_service_1.WorkspacePolicyError(`This user account (${email}) is already assigned to employee ${existingLinkedEmployee.firstName} ${existingLinkedEmployee.lastName} (${existingLinkedEmployee.employeeCode}). Each employee must have an independent login account.`, 409);
+        }
     }
     if (!user)
         await (0, workspace_policy_service_1.lockWorkspaceCapacity)(prisma, options.tenantId, "users");

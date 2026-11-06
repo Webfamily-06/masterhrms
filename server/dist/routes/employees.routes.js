@@ -270,6 +270,12 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
         return res.status(201).json(employee);
     }
     catch (err) {
+        if (err.code === "P2002" || err.message?.includes("uq_employees_tenant_user_id")) {
+            return res.status(409).json({
+                error: "This user account is already assigned to another employee in this workspace.",
+                code: "EMPLOYEE_USER_CONFLICT",
+            });
+        }
         return res.status(err.status || 500).json({
             error: err.message || "Internal server error",
             code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
@@ -453,6 +459,12 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
         return res.json(employee);
     }
     catch (err) {
+        if (err.code === "P2002" || err.message?.includes("uq_employees_tenant_user_id")) {
+            return res.status(409).json({
+                error: "This user account is already assigned to another employee in this workspace.",
+                code: "EMPLOYEE_USER_CONFLICT",
+            });
+        }
         return res.status(err.status || 500).json({
             error: err.message || "Internal server error",
             code: err.code || (err.status === 409 ? "QUOTA_EXCEEDED" : "INTERNAL_ERROR"),
@@ -495,28 +507,46 @@ exports.employeesRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
                 where: { employeeId: id, status: "pending" },
                 data: { status: "cancelled" },
             });
-            // 3. Statutory Soft Delete: Mark employee status as "archived"
+            // 3. Statutory Soft Delete: Mark employee status as "terminated"
             // Preserves historical attendance, leaveRequests, payslips, employeeExit, and tax audit records
             await tx.employee.update({
                 where: { id },
                 data: {
-                    status: "archived",
+                    status: "terminated",
                     userId: null,
                 },
                 select: { id: true },
             });
-            // 4. Revoke user authentication and access roles
+            // 4. Revoke user authentication, active sessions, and access roles
             if (employee.userId) {
                 const otherLinked = await tx.employee.count({
                     where: { userId: employee.userId, id: { not: id } },
                 });
                 if (otherLinked === 0) {
+                    await tx.deviceSession.updateMany({
+                        where: { userId: employee.userId, revoked: false },
+                        data: { revoked: true, revokedAt: new Date() },
+                    });
                     await tx.userRole.deleteMany({ where: { userId: employee.userId } });
                     await tx.userRoleAssignment.deleteMany({ where: { userId: employee.userId } });
                     (0, auth_1.invalidateAuthCache)(employee.userId, employee.tenantId);
                 }
             }
         });
+        // 5. Emit security & compliance audit log
+        try {
+            await audit_service_1.AuditService.logMutation({
+                tenantId: employee.tenantId,
+                actorId: req.user?.userId || req.user?.id,
+                action: "EMPLOYEE_ARCHIVED",
+                entityType: "Employee",
+                entityId: employee.id,
+                metadata: {
+                    details: `Employee ${employee.firstName} ${employee.lastName} was archived. Active sessions revoked and statutory records preserved.`,
+                },
+            });
+        }
+        catch { }
         console.log("[DELETE /employees/" + id + "] Employee " + employee.firstName + " " + employee.lastName + " successfully deleted from database.");
         return res.json({
             success: true,
@@ -770,6 +800,15 @@ exports.employeesRouter.post("/:id/set-password", auth_1.requireAuth, async (req
         }
         const employee = await prisma_1.prisma.employee.findUnique({
             where: { id },
+            select: {
+                id: true,
+                tenantId: true,
+                userId: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+            },
         });
         if (!employee || (tenantId && employee.tenantId !== tenantId)) {
             return res.status(404).json({ error: "Employee record not found in this workspace." });
@@ -780,8 +819,13 @@ exports.employeesRouter.post("/:id/set-password", auth_1.requireAuth, async (req
             const userId = await (0, auth_helpers_1.provisionEmployeeUser)(tx, {
                 tenantId: employee.tenantId, email, firstName: employee.firstName,
                 lastName: employee.lastName, phone: employee.phone, password: newPassword,
+                employeeId: employee.id,
             });
-            await tx.employee.update({ where: { id: employee.id }, data: { userId } });
+            await tx.employee.update({
+                where: { id: employee.id },
+                data: { userId },
+                select: { id: true, userId: true },
+            });
         });
         // Log audit
         try {

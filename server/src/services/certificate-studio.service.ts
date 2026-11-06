@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { prisma } from "../prisma";
+import { prisma, rawPrisma } from "../prisma";
+const db = rawPrisma || prisma;
 import { getUploadsRoot } from "./media/media.service";
 import { AuditService } from "./audit.service";
 import { CertificateFolderService } from "./files/certificate-folder.service";
@@ -293,7 +294,7 @@ export class CertificateStudioService {
     }
 
     // Reference Protection Guard: Check active template versions
-    const activeTmpl = await prisma.certificateTemplateVersion.findFirst({
+    const activeTmpl = await db.certificateTemplateVersion.findFirst({
       where: { backgroundAssetId: assetId },
       include: { template: true },
     });
@@ -512,7 +513,7 @@ export class CertificateStudioService {
       ];
     }
 
-    const templates = await prisma.certificateTemplate.findMany({
+    const templates = await db.certificateTemplate.findMany({
       where,
       orderBy: [
         { isSystem: "desc" },
@@ -530,7 +531,7 @@ export class CertificateStudioService {
   }
 
   public static async getTemplateById(tenantId: string, templateId: string) {
-    const template = await prisma.certificateTemplate.findFirst({
+    const template = await db.certificateTemplate.findFirst({
       where: {
         id: templateId,
         OR: [
@@ -561,7 +562,7 @@ export class CertificateStudioService {
     const newVersionId = crypto.randomUUID();
     const activeVer = source.activeVersion;
 
-    const duplicated = await prisma.certificateTemplate.create({
+    const duplicated = await db.certificateTemplate.create({
       data: {
         id: newId,
         tenantId,
@@ -581,7 +582,7 @@ export class CertificateStudioService {
       }
     });
 
-    await prisma.certificateTemplateVersion.create({
+    await db.certificateTemplateVersion.create({
       data: {
         id: newVersionId,
         templateId: newId,
@@ -610,24 +611,24 @@ export class CertificateStudioService {
   }
 
   public static async publishTemplate(tenantId: string, templateId: string, actorUserId?: string) {
-    const template = await prisma.certificateTemplate.findFirst({
+    const template = await db.certificateTemplate.findFirst({
       where: { id: templateId, tenantId }
     });
     if (!template) throw new Error("Template not found or cannot publish system template.");
 
-    const latestVersion = await prisma.certificateTemplateVersion.findFirst({
+    const latestVersion = await db.certificateTemplateVersion.findFirst({
       where: { templateId },
       orderBy: { versionNumber: "desc" }
     });
 
     if (!latestVersion) throw new Error("No version exists to publish.");
 
-    await prisma.certificateTemplateVersion.update({
+    await db.certificateTemplateVersion.update({
       where: { id: latestVersion.id },
       data: { publishedAt: new Date() }
     });
 
-    const updated = await prisma.certificateTemplate.update({
+    const updated = await db.certificateTemplate.update({
       where: { id: templateId },
       data: {
         status: "PUBLISHED",
@@ -656,7 +657,7 @@ export class CertificateStudioService {
   public static async saveDesign(dto: SaveDesignDto) {
     const { tenantId, templateId, designJson, actorUserId } = dto;
 
-    const template = await prisma.certificateTemplate.findFirst({
+    const template = await db.certificateTemplate.findFirst({
       where: { id: templateId }
     });
     if (!template) throw new Error("Template not found.");
@@ -670,7 +671,7 @@ export class CertificateStudioService {
     }
 
     // Find latest draft or create next version
-    const latestVersion = await prisma.certificateTemplateVersion.findFirst({
+    const latestVersion = await db.certificateTemplateVersion.findFirst({
       where: { templateId },
       orderBy: { versionNumber: "desc" }
     });
@@ -680,7 +681,7 @@ export class CertificateStudioService {
     if (latestVersion && latestVersion.publishedAt) {
       // Create new draft version
       const nextVerNum = (latestVersion.versionNumber || 1) + 1;
-      const newVer = await prisma.certificateTemplateVersion.create({
+      const newVer = await db.certificateTemplateVersion.create({
         data: {
           templateId,
           versionNumber: nextVerNum,
@@ -692,7 +693,7 @@ export class CertificateStudioService {
       targetVersionId = newVer.id;
     } else if (latestVersion) {
       // Update existing draft version
-      await prisma.certificateTemplateVersion.update({
+      await db.certificateTemplateVersion.update({
         where: { id: latestVersion.id },
         data: {
           designJson,
@@ -700,7 +701,7 @@ export class CertificateStudioService {
         }
       });
     } else {
-      const firstVer = await prisma.certificateTemplateVersion.create({
+      const firstVer = await db.certificateTemplateVersion.create({
         data: {
           templateId,
           versionNumber: 1,
@@ -712,7 +713,7 @@ export class CertificateStudioService {
       targetVersionId = firstVer.id;
     }
 
-    await prisma.certificateTemplate.update({
+    await db.certificateTemplate.update({
       where: { id: templateId },
       data: { updatedBy: actorUserId }
     });
@@ -732,7 +733,7 @@ export class CertificateStudioService {
     const templateId = crypto.randomUUID();
     const versionId = crypto.randomUUID();
 
-    const template = await prisma.certificateTemplate.create({
+    const template = await db.certificateTemplate.create({
       data: {
         id: templateId,
         tenantId,
@@ -750,7 +751,7 @@ export class CertificateStudioService {
       }
     });
 
-    await prisma.certificateTemplateVersion.create({
+    await db.certificateTemplateVersion.create({
       data: {
         id: versionId,
         templateId,
@@ -884,7 +885,7 @@ export class CertificateStudioService {
     const templateId = crypto.randomUUID();
     const versionId = crypto.randomUUID();
 
-    const template = await prisma.certificateTemplate.create({
+    const template = await db.certificateTemplate.create({
       data: {
         id: templateId,
         tenantId,
@@ -903,7 +904,7 @@ export class CertificateStudioService {
       }
     });
 
-    await prisma.certificateTemplateVersion.create({
+    await db.certificateTemplateVersion.create({
       data: {
         id: versionId,
         templateId,
@@ -934,7 +935,7 @@ export class CertificateStudioService {
    * 7. AWARD TYPE ASSIGNMENT
    */
   public static async getAssignment(tenantId: string, awardTypeId: string) {
-    return prisma.certificateTemplateAssignment.findUnique({
+    return db.certificateTemplateAssignment.findUnique({
       where: {
         tenantId_awardTypeId: { tenantId, awardTypeId }
       },
@@ -946,7 +947,7 @@ export class CertificateStudioService {
   }
 
   public static async setAssignment(tenantId: string, awardTypeId: string, templateId: string, signatoryConfig?: Record<string, any>, isDefault: boolean = false) {
-    const template = await prisma.certificateTemplate.findFirst({
+    const template = await db.certificateTemplate.findFirst({
       where: {
         id: templateId,
         OR: [{ isSystem: true }, { tenantId }]
@@ -954,7 +955,7 @@ export class CertificateStudioService {
     });
     if (!template) throw new Error("Template not found.");
 
-    const assignment = await prisma.certificateTemplateAssignment.upsert({
+    const assignment = await db.certificateTemplateAssignment.upsert({
       where: {
         tenantId_awardTypeId: { tenantId, awardTypeId }
       },
