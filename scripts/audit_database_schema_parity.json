@@ -1,0 +1,781 @@
+{
+  "Branch": {
+    "tableName": "branches",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "tenant_id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "code",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "address",
+        "data_type": "text",
+        "udt_name": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "phone",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": "'active'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "latitude",
+        "data_type": "double precision",
+        "udt_name": "float8",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "longitude",
+        "data_type": "double precision",
+        "udt_name": "float8",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "geofence_radius",
+        "data_type": "integer",
+        "udt_name": "int4",
+        "is_nullable": "YES",
+        "column_default": "500"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "branches_pkey",
+        "constraint_type": "p",
+        "constraint_definition": "PRIMARY KEY (id)"
+      },
+      {
+        "constraint_name": "branches_tenant_id_fkey",
+        "constraint_type": "f",
+        "constraint_definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "branches_pkey",
+        "indexdef": "CREATE UNIQUE INDEX branches_pkey ON public.branches USING btree (id)"
+      },
+      {
+        "indexname": "branches_tenant_id_idx",
+        "indexdef": "CREATE INDEX branches_tenant_id_idx ON public.branches USING btree (tenant_id)"
+      }
+    ],
+    "dmmfScalarFields": [
+      {
+        "name": "id",
+        "type": "String",
+        "isId": true,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "id"
+      },
+      {
+        "name": "tenantId",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": true,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "tenant_id"
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "name"
+      },
+      {
+        "name": "code",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "code"
+      },
+      {
+        "name": "address",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "address"
+      },
+      {
+        "name": "phone",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "phone"
+      },
+      {
+        "name": "email",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "email"
+      },
+      {
+        "name": "latitude",
+        "type": "Float",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "latitude"
+      },
+      {
+        "name": "longitude",
+        "type": "Float",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "longitude"
+      },
+      {
+        "name": "geofenceRadius",
+        "type": "Int",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "geofence_radius"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "status"
+      },
+      {
+        "name": "createdAt",
+        "type": "DateTime",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "created_at"
+      },
+      {
+        "name": "updatedAt",
+        "type": "DateTime",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": true,
+        "dbName": "updated_at"
+      }
+    ],
+    "dmmfRelationFields": [
+      {
+        "name": "tenant",
+        "type": "Tenant",
+        "isList": false,
+        "relationFromFields": [
+          "tenantId"
+        ],
+        "relationToFields": [
+          "id"
+        ]
+      },
+      {
+        "name": "candidateOffers",
+        "type": "CandidateOffer",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "departments",
+        "type": "Department",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "employees",
+        "type": "Employee",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "jobPostings",
+        "type": "JobPosting",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainers",
+        "type": "Trainer",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainingSessions",
+        "type": "TrainingSession",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainingTypeMasters",
+        "type": "TrainingTypeMaster",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      }
+    ],
+    "parity": {
+      "inPrismaNotInDb": [],
+      "inDbNotInPrisma": [],
+      "hasStatusInDb": true,
+      "hasStatusInPrisma": true,
+      "hasUpdatedAtInDb": true,
+      "hasUpdatedAtInPrisma": true,
+      "hasUpdatedByInDb": false,
+      "hasUpdatedByInPrisma": false
+    }
+  },
+  "Department": {
+    "tableName": "departments",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "tenant_id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "branch_id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "udt_name": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": "'active'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "departments_branch_id_fkey",
+        "constraint_type": "f",
+        "constraint_definition": "FOREIGN KEY (branch_id) REFERENCES branches(id) ON UPDATE CASCADE ON DELETE SET NULL"
+      },
+      {
+        "constraint_name": "departments_pkey",
+        "constraint_type": "p",
+        "constraint_definition": "PRIMARY KEY (id)"
+      },
+      {
+        "constraint_name": "departments_tenant_id_fkey",
+        "constraint_type": "f",
+        "constraint_definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "departments_pkey",
+        "indexdef": "CREATE UNIQUE INDEX departments_pkey ON public.departments USING btree (id)"
+      }
+    ],
+    "dmmfScalarFields": [
+      {
+        "name": "id",
+        "type": "String",
+        "isId": true,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "id"
+      },
+      {
+        "name": "tenantId",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": true,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "tenant_id"
+      },
+      {
+        "name": "branchId",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": true,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "branch_id"
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "name"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "description"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "status"
+      },
+      {
+        "name": "createdAt",
+        "type": "DateTime",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "created_at"
+      }
+    ],
+    "dmmfRelationFields": [
+      {
+        "name": "announcements",
+        "type": "Announcement",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "budgetPlans",
+        "type": "BudgetPlan",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "candidateOffers",
+        "type": "CandidateOffer",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "customForms",
+        "type": "CustomForm",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "branch",
+        "type": "Branch",
+        "isList": false,
+        "relationFromFields": [
+          "branchId"
+        ],
+        "relationToFields": [
+          "id"
+        ]
+      },
+      {
+        "name": "tenant",
+        "type": "Tenant",
+        "isList": false,
+        "relationFromFields": [
+          "tenantId"
+        ],
+        "relationToFields": [
+          "id"
+        ]
+      },
+      {
+        "name": "designations",
+        "type": "Designation",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "employees",
+        "type": "Employee",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "jobPostings",
+        "type": "JobPosting",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "onboardingChecklistTemplates",
+        "type": "OnboardingChecklistTemplate",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainers",
+        "type": "Trainer",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainingSessions",
+        "type": "TrainingSession",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "trainingTypeMasters",
+        "type": "TrainingTypeMaster",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      }
+    ],
+    "parity": {
+      "inPrismaNotInDb": [],
+      "inDbNotInPrisma": [],
+      "hasStatusInDb": true,
+      "hasStatusInPrisma": true,
+      "hasUpdatedAtInDb": false,
+      "hasUpdatedAtInPrisma": false,
+      "hasUpdatedByInDb": false,
+      "hasUpdatedByInPrisma": false
+    }
+  },
+  "Designation": {
+    "tableName": "designations",
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "tenant_id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "department_id",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "description",
+        "data_type": "text",
+        "udt_name": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "udt_name": "varchar",
+        "is_nullable": "NO",
+        "column_default": "'active'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp without time zone",
+        "udt_name": "timestamp",
+        "is_nullable": "NO",
+        "column_default": null
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_name": "designations_department_id_fkey",
+        "constraint_type": "f",
+        "constraint_definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON UPDATE CASCADE ON DELETE SET NULL"
+      },
+      {
+        "constraint_name": "designations_pkey",
+        "constraint_type": "p",
+        "constraint_definition": "PRIMARY KEY (id)"
+      },
+      {
+        "constraint_name": "designations_tenant_id_fkey",
+        "constraint_type": "f",
+        "constraint_definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON UPDATE CASCADE ON DELETE CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "designations_pkey",
+        "indexdef": "CREATE UNIQUE INDEX designations_pkey ON public.designations USING btree (id)"
+      },
+      {
+        "indexname": "designations_tenant_id_idx",
+        "indexdef": "CREATE INDEX designations_tenant_id_idx ON public.designations USING btree (tenant_id)"
+      }
+    ],
+    "dmmfScalarFields": [
+      {
+        "name": "id",
+        "type": "String",
+        "isId": true,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "id"
+      },
+      {
+        "name": "tenantId",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": true,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "tenant_id"
+      },
+      {
+        "name": "departmentId",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": true,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "department_id"
+      },
+      {
+        "name": "name",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "name"
+      },
+      {
+        "name": "description",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": false,
+        "dbName": "description"
+      },
+      {
+        "name": "status",
+        "type": "String",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "status"
+      },
+      {
+        "name": "createdAt",
+        "type": "DateTime",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": true,
+        "isUpdatedAt": false,
+        "dbName": "created_at"
+      },
+      {
+        "name": "updatedAt",
+        "type": "DateTime",
+        "isId": false,
+        "isReadOnly": false,
+        "hasDefault": false,
+        "isUpdatedAt": true,
+        "dbName": "updated_at"
+      }
+    ],
+    "dmmfRelationFields": [
+      {
+        "name": "candidateOffers",
+        "type": "CandidateOffer",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "department",
+        "type": "Department",
+        "isList": false,
+        "relationFromFields": [
+          "departmentId"
+        ],
+        "relationToFields": [
+          "id"
+        ]
+      },
+      {
+        "name": "tenant",
+        "type": "Tenant",
+        "isList": false,
+        "relationFromFields": [
+          "tenantId"
+        ],
+        "relationToFields": [
+          "id"
+        ]
+      },
+      {
+        "name": "employees",
+        "type": "Employee",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      },
+      {
+        "name": "jobPostings",
+        "type": "JobPosting",
+        "isList": true,
+        "relationFromFields": [],
+        "relationToFields": []
+      }
+    ],
+    "parity": {
+      "inPrismaNotInDb": [],
+      "inDbNotInPrisma": [],
+      "hasStatusInDb": true,
+      "hasStatusInPrisma": true,
+      "hasUpdatedAtInDb": true,
+      "hasUpdatedAtInPrisma": true,
+      "hasUpdatedByInDb": false,
+      "hasUpdatedByInPrisma": false
+    }
+  }
+}

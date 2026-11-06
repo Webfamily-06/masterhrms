@@ -76,6 +76,7 @@ exports.createEmployeeSchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid("Invalid branch ID").nullable().optional(),
     shiftId: zod_1.z.string().uuid("Invalid shift ID").nullable().optional(),
     reportingToId: zod_1.z.string().uuid("Invalid reporting manager ID").nullable().optional(),
+    managerId: zod_1.z.string().uuid("Invalid reporting manager ID").nullable().optional(),
     employmentType: zod_1.z.enum(["full_time", "part_time", "contract", "intern", "probation"]).optional().default("full_time"),
     joinedAt: zod_1.z.union([zod_1.z.string(), zod_1.z.date()]).optional(),
     salary: zod_1.z.union([zod_1.z.number(), zod_1.z.string()]).transform((val) => Number(val)).refine((num) => !isNaN(num) && num >= 0, {

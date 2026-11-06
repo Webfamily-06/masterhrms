@@ -1,0 +1,46 @@
+{
+  "designation": {
+    "create": true,
+    "read": true,
+    "activate": true,
+    "deactivate": true,
+    "edit": true,
+    "delete": true
+  },
+  "department": {
+    "create": true,
+    "read": true,
+    "deactivate": true,
+    "activate": true,
+    "edit": true,
+    "delete": true
+  },
+  "branch": {
+    "create": true,
+    "read": true,
+    "deactivate": true,
+    "activate": true,
+    "edit": true,
+    "delete": true
+  },
+  "security": {
+    "duplicateValidation": true,
+    "invalidPayloadRejection": true,
+    "dependencyGuard": true,
+    "crossTenantUpdate": true,
+    "crossTenantDelete": true
+  },
+  "dataIntegrity": {
+    "preCounts": {
+      "branch": 1,
+      "dept": 5,
+      "desig": 10
+    },
+    "postCounts": {
+      "branch": 1,
+      "dept": 5,
+      "desig": 10
+    },
+    "zeroLeak": true
+  }
+}

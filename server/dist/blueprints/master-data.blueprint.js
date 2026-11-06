@@ -1,7 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MASTER_DATA_ALLOWED_FIELDS = void 0;
+exports.resolveModelAllowedFields = resolveModelAllowedFields;
+exports.buildModelSafePayload = buildModelSafePayload;
 exports.createMasterDataRouter = createMasterDataRouter;
 const express_1 = require("express");
+const client_1 = require("@prisma/client");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const tenant_context_1 = require("../context/tenant-context");
@@ -9,6 +13,97 @@ const audit_service_1 = require("../services/audit.service");
 const outbox_service_1 = require("../services/outbox.service");
 const allowed_actions_1 = require("../lib/allowed-actions");
 const data_scope_1 = require("../lib/data-scope");
+/**
+ * Authoritative field allowlists for master-data entities.
+ * Only these scalar fields may be accepted from client requests for create/update.
+ * Excludes immutable/system fields: id, tenantId, createdAt, updatedAt.
+ */
+exports.MASTER_DATA_ALLOWED_FIELDS = {
+    branch: [
+        "name",
+        "code",
+        "address",
+        "phone",
+        "email",
+        "latitude",
+        "longitude",
+        "geofenceRadius",
+        "status",
+    ],
+    department: [
+        "name",
+        "description",
+        "branchId",
+        "status",
+    ],
+    designation: [
+        "name",
+        "description",
+        "departmentId",
+        "status",
+    ],
+    awardType: [
+        "name",
+        "icon",
+        "description",
+    ],
+    holiday: [
+        "name",
+        "date",
+        "type",
+        "year",
+        "description",
+        "branchIds",
+        "stateCodes",
+        "status",
+    ],
+    holidayType: [
+        "name",
+        "description",
+        "color",
+        "status",
+    ],
+};
+/**
+ * Resolves the allowed updatable/creatable fields for a given model.
+ * Prioritizes config.allowedFields, then MASTER_DATA_ALLOWED_FIELDS dictionary,
+ * and falls back to Prisma DMMF scalar fields (excluding system fields).
+ */
+function resolveModelAllowedFields(modelName, configAllowed) {
+    if (configAllowed && configAllowed.length > 0) {
+        return configAllowed;
+    }
+    const key = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+    if (exports.MASTER_DATA_ALLOWED_FIELDS[key]) {
+        return exports.MASTER_DATA_ALLOWED_FIELDS[key];
+    }
+    const m = client_1.Prisma.dmmf?.datamodel?.models?.find((x) => x.name.toLowerCase() === modelName.toLowerCase());
+    if (m) {
+        return m.fields
+            .filter((f) => f.kind === "scalar" &&
+            !f.isId &&
+            f.name !== "tenantId" &&
+            f.name !== "createdAt" &&
+            f.name !== "updatedAt")
+            .map((f) => f.name);
+    }
+    return [];
+}
+/**
+ * Filters raw input data to only include explicitly allowed fields.
+ */
+function buildModelSafePayload(rawBody, allowedFields) {
+    const safePayload = {};
+    if (!rawBody || typeof rawBody !== "object") {
+        return safePayload;
+    }
+    for (const field of allowedFields) {
+        if (Object.prototype.hasOwnProperty.call(rawBody, field) && rawBody[field] !== undefined) {
+            safePayload[field] = rawBody[field];
+        }
+    }
+    return safePayload;
+}
 /**
  * Creates an authoritative, tenant-isolated CRUD router for master-data entities.
  * Enforces:
@@ -21,6 +116,7 @@ function createMasterDataRouter(config) {
     const router = (0, express_1.Router)();
     router.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
     const { modelName, entityName, searchFields = ["name", "code"], uniqueFields = ["name"], filterFields = [], select, include, customCounts, dependencyCheck, } = config;
+    const allowedFields = resolveModelAllowedFields(modelName, config.allowedFields);
     // 1. LIST ENTITIES (GET /)
     router.get("/", auth_1.requireAuth, async (req, res) => {
         try {
@@ -170,12 +266,15 @@ function createMasterDataRouter(config) {
             }
             // Execute within transaction: create + audit + outbox
             const result = await db.$transaction(async (tx) => {
+                const safePayload = buildModelSafePayload(req.body, allowedFields);
                 const createData = {
-                    ...req.body,
+                    ...safePayload,
                     tenantId,
                 };
-                if (req.user?.userId) {
+                if (allowedFields.includes("createdBy") && req.user?.userId) {
                     createData.createdBy = req.user.userId;
+                }
+                if (allowedFields.includes("updatedBy") && req.user?.userId) {
                     createData.updatedBy = req.user.userId;
                 }
                 const item = await tx[modelName].create({
@@ -221,14 +320,14 @@ function createMasterDataRouter(config) {
             const delegate = db[modelName];
             const existing = await delegate.findFirst({
                 where: { id: req.params.id, tenantId },
-                select: { id: true },
+                select: select || undefined,
             });
             if (!existing) {
                 return res.status(404).json({ error: `${entityName} not found` });
             }
             // Validate unique constraint on update (excluding current record)
             for (const field of uniqueFields) {
-                if (req.body[field]) {
+                if (req.body[field] !== undefined) {
                     const duplicate = await delegate.findFirst({
                         where: {
                             tenantId,
@@ -244,17 +343,17 @@ function createMasterDataRouter(config) {
                     }
                 }
             }
+            // Build model-safe update payload using explicit allowlist
+            const safePayload = buildModelSafePayload(req.body, allowedFields);
+            if (Object.keys(safePayload).length === 0) {
+                return res.status(400).json({
+                    error: `No valid updatable fields provided for ${entityName}. Allowed fields: ${allowedFields.join(", ")}`,
+                });
+            }
             const result = await db.$transaction(async (tx) => {
-                const payload = { ...req.body };
-                delete payload.id;
-                delete payload.tenantId;
-                delete payload.createdAt;
-                if (req.user?.userId) {
-                    payload.updatedBy = req.user.userId;
-                }
                 const updated = await tx[modelName].update({
                     where: { id: req.params.id },
-                    data: payload,
+                    data: safePayload,
                     select: select || undefined,
                 });
                 await audit_service_1.AuditService.logMutation({
@@ -353,10 +452,14 @@ function createMasterDataRouter(config) {
             if (!Array.isArray(ids) || ids.length === 0) {
                 return res.status(400).json({ error: "IDs array required" });
             }
+            const validIds = ids.filter((id) => typeof id === "string" && id.trim().length > 0);
+            if (validIds.length === 0) {
+                return res.status(400).json({ error: "Valid string IDs array required" });
+            }
             const db = (0, tenant_context_1.getTenantDb)(req);
             const delegate = db[modelName];
             const result = await delegate.updateMany({
-                where: { id: { in: ids }, tenantId },
+                where: { id: { in: validIds }, tenantId },
                 data: { status },
             });
             return res.json({ success: true, count: result.count });

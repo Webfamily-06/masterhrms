@@ -127,6 +127,7 @@ export function EmployeeEditWizardPage() {
     branchId: "",
     departmentId: "",
     designationId: "",
+    managerId: "",
     joinedAt: "",
     employmentType: "full_time",
     status: "active",
@@ -243,6 +244,7 @@ export function EmployeeEditWizardPage() {
         branchId: emp.branchId || "",
         departmentId: emp.departmentId || "",
         designationId: emp.designationId || "",
+        managerId: emp.managerId || "",
         joinedAt: emp.joinedAt
           ? format(new Date(emp.joinedAt), "yyyy-MM-dd")
           : "",
@@ -299,6 +301,15 @@ export function EmployeeEditWizardPage() {
       return res.data || res || [];
     },
   });
+
+  const { data: managersData = [] } = useQuery({
+    queryKey: ["potential-managers-list"],
+    queryFn: async () => {
+      const res = await api.get("/hr/employees", { params: { limit: 200, status: "active" } });
+      return res.data?.data || res.data || res || [];
+    },
+  });
+  const potentialManagers = Array.isArray(managersData) ? managersData : (managersData as any)?.data || [];
 
   const { data: shifts = [] } = useQuery({
     queryKey: ["attendance-shifts"],
@@ -473,6 +484,8 @@ export function EmployeeEditWizardPage() {
       queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["employee-documents", id] });
+      queryClient.invalidateQueries({ queryKey: ["org-tree"] });
+      queryClient.invalidateQueries({ queryKey: ["org-structure"] });
       navigate({ to: "/hr/employees/$id", params: { id } } as any);
     },
     onError: (err: any) => {
@@ -505,6 +518,7 @@ export function EmployeeEditWizardPage() {
       branchId: formData.branchId,
       departmentId: formData.departmentId,
       designationId: formData.designationId,
+      managerId: formData.managerId || null,
       joinedAt: formData.joinedAt,
       employmentType: formData.employmentType,
       status: formData.status,
@@ -1101,6 +1115,34 @@ export function EmployeeEditWizardPage() {
                   {errors.designationId && (
                     <p className="text-[11px] text-destructive">{errors.designationId}</p>
                   )}
+                </div>
+
+                {/* Reporting Manager */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="managerId" className="text-xs font-medium">
+                    Reporting Manager
+                  </Label>
+                  <Select
+                    value={formData.managerId || "none"}
+                    onValueChange={(val) => updateField("managerId", val === "none" ? "" : val)}
+                  >
+                    <SelectTrigger id="managerId">
+                      <SelectValue placeholder="Select manager (Optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (Top-Level Executive / Root)</SelectItem>
+                      {potentialManagers
+                        .filter((m: any) => m.id !== id)
+                        .map((m: any) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.firstName} {m.lastName} ({m.employeeCode}) {m.position ? `— ${m.position}` : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Connects this employee to the corporate reporting tree.
+                  </p>
                 </div>
 
                 {/* Date of Joining */}

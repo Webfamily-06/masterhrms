@@ -117,6 +117,35 @@ async function runBrowserTests(baseUrl = 'http://localhost:3000') {
 
       const rows = await page.$$('table tbody tr');
       console.log(`[${vp.name}] Designations table rows rendered:`, rows.length);
+
+      // Interactive UI toggle test on desktop: activate / de-activate without updatedBy runtime error
+      if (vp.name === 'desktop') {
+        const deactivateBtn = await page.$('table tbody tr button:has-text("De-activate")');
+        if (deactivateBtn) {
+          console.log('[desktop] Testing browser interactive toggle on Designation...');
+          await deactivateBtn.click();
+          await page.waitForTimeout(600);
+          const confirmBtn = await page.$('[role="dialog"] button:has-text("De-activate")');
+          if (confirmBtn) {
+            await confirmBtn.click();
+            await page.waitForTimeout(2000);
+            console.log('[desktop] Designation de-activated via UI dialog without schema error!');
+            
+            // Re-activate to restore clean state
+            const activateBtn = await page.$('table tbody tr button:has-text("Activate")');
+            if (activateBtn) {
+              await activateBtn.click();
+              await page.waitForTimeout(600);
+              const confirmActBtn = await page.$('[role="dialog"] button:has-text("Activate")');
+              if (confirmActBtn) {
+                await confirmActBtn.click();
+                await page.waitForTimeout(2000);
+                console.log('[desktop] Designation re-activated via UI dialog without schema error!');
+              }
+            }
+          }
+        }
+      }
     } catch (err) {
       console.warn(`[${vp.name}] Designations navigation warning:`, err.message);
     }

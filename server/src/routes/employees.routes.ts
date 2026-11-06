@@ -9,6 +9,7 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { requireWithinLimit } from "../middleware/limits";
 import { AuditService } from "../services/audit.service";
+import { validateReportingHierarchy } from "../lib/reporting-hierarchy-validator";
 
 export const employeesRouter = Router();
 
@@ -228,6 +229,13 @@ employeesRouter.post("/", requireAuth, requirePermission("hrm.employees.create")
       tdsEligible,
     } = req.body;
 
+    if (managerId) {
+      const hierarchyCheck = await validateReportingHierarchy(tenantId, null, managerId, prisma);
+      if (!hierarchyCheck.valid) {
+        return res.status(400).json({ error: hierarchyCheck.error });
+      }
+    }
+
     const employee = await prisma.$transaction(async (tx) => {
     await lockWorkspaceCapacity(tx, tenantId, "employees");
     const cleanEmail = email.toLowerCase().trim();
@@ -364,6 +372,13 @@ employeesRouter.put("/:id", requireAuth, requirePermission("hrm.employees.edit")
         error: "FORBIDDEN: Insufficient permissions to modify employee lifecycle status",
         code: "INSUFFICIENT_STATUS_PRIVILEGE",
       });
+    }
+
+    if (managerId !== undefined && managerId !== existingEmp.managerId) {
+      const hierarchyCheck = await validateReportingHierarchy(existingEmp.tenantId, id, managerId, prisma);
+      if (!hierarchyCheck.valid) {
+        return res.status(400).json({ error: hierarchyCheck.error });
+      }
     }
 
     await AuditService.logMutation({

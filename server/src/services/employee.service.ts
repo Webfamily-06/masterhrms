@@ -9,6 +9,7 @@ import { attachAllowedActions } from "../lib/allowed-actions";
 import { buildDataScopeFilter, UserSecurityContext, DataScope } from "../lib/data-scope";
 import { EmployeeSystemIdService } from "./employee-system-id.service";
 import { normalizePhoneE164 } from "../schemas/employee.schema";
+import { validateReportingHierarchy } from "../lib/reporting-hierarchy-validator";
 
 export const EMPLOYEE_PHYSICAL_COLUMNS_SELECT = {
   id: true,
@@ -71,6 +72,8 @@ export interface UpdateEmployeeInput {
   branchId?: string | null;
   departmentId?: string | null;
   designationId?: string | null;
+  managerId?: string | null;
+  reportingToId?: string | null;
   joinedAt?: string | Date | null;
   employmentType?: "full_time" | "part_time" | "contract" | "intern";
   status?: "active" | "on_leave" | "terminated";
@@ -146,6 +149,7 @@ export interface CreateEmployeeInput {
   departmentId?: string | null;
   designationId?: string | null;
   managerId?: string | null;
+  reportingToId?: string | null;
   position?: string | null;
   employmentType?: "full_time" | "part_time" | "contract" | "intern";
   status?: "active" | "on_leave" | "terminated";
@@ -258,6 +262,15 @@ export class EmployeeService {
       const systemId = await EmployeeSystemIdService.generateSystemId(tenantId, input.branchId, tx);
       const finalEmployeeCode = input.employeeCode ? input.employeeCode.trim() : systemId;
 
+      // Validate reporting hierarchy if manager is specified
+      const targetManagerId = input.managerId || input.reportingToId || null;
+      if (targetManagerId) {
+        const hierarchyCheck = await validateReportingHierarchy(tenantId, null, targetManagerId, tx);
+        if (!hierarchyCheck.valid) {
+          throw new Error(hierarchyCheck.error);
+        }
+      }
+
       const employee = await tx.employee.create({
         data: {
           tenantId,
@@ -271,7 +284,7 @@ export class EmployeeService {
           branchId: input.branchId || null,
           departmentId: input.departmentId || null,
           designationId: input.designationId || null,
-          managerId: input.managerId || null,
+          managerId: targetManagerId,
           employmentType: input.employmentType || "full_time",
           status: input.status || "active",
           salary: input.salary !== undefined && input.salary !== null ? String(input.salary) : null,
@@ -551,7 +564,8 @@ export class EmployeeService {
 
     const employee = await db.employee.findFirst({
       where: { id: employeeId, tenantId },
-      include: {
+      select: {
+        ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
         department: true,
         branch: {
           select: {
@@ -950,7 +964,8 @@ export class EmployeeService {
     // 1. Employee existence check
     const existing = await db.employee.findFirst({
       where: { id: employeeId, tenantId },
-      include: {
+      select: {
+        ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
         department: true,
         branch: {
           select: {
@@ -1050,6 +1065,20 @@ export class EmployeeService {
       }
     }
 
+    // 5b. Validation: Reporting hierarchy & manager
+    const targetManagerId = input.managerId !== undefined ? input.managerId : input.reportingToId;
+    if (targetManagerId !== undefined) {
+      const cleanMgrId = targetManagerId === "" ? null : targetManagerId;
+      if (cleanMgrId !== existing.managerId) {
+        const hierarchyCheck = await validateReportingHierarchy(tenantId, employeeId, cleanMgrId, db);
+        if (!hierarchyCheck.valid) {
+          const err: any = new Error(hierarchyCheck.error);
+          err.statusCode = 400;
+          throw err;
+        }
+      }
+    }
+
     // 6. Sensitive Financial & Statutory authorization check
     const hasSensitivePermission =
       userPermissions.includes("hr:employee:sensitive:write") ||
@@ -1098,6 +1127,7 @@ export class EmployeeService {
       if (input.branchId !== undefined) updateData.branchId = input.branchId || null;
       if (input.departmentId !== undefined) updateData.departmentId = input.departmentId || null;
       if (input.designationId !== undefined) updateData.designationId = input.designationId || null;
+      if (targetManagerId !== undefined) updateData.managerId = targetManagerId === "" ? null : (targetManagerId || null);
       if (input.joinedAt !== undefined) updateData.joinedAt = input.joinedAt ? new Date(input.joinedAt) : null;
       if (input.employmentType !== undefined) updateData.employmentType = input.employmentType;
       if (input.status !== undefined) updateData.status = input.status;
@@ -1121,7 +1151,8 @@ export class EmployeeService {
       const emp = await tx.employee.update({
         where: { id: employeeId },
         data: updateData,
-        include: {
+        select: {
+          ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
           department: true,
           branch: true,
           designation: true,
@@ -1319,7 +1350,8 @@ export class EmployeeService {
     // 2. Fetch employee with tenant isolation
     const employee = await db.employee.findFirst({
       where: { id: employeeId, tenantId },
-      include: {
+      select: {
+        ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
         user: {
           include: {
             roles: { where: { tenantId } },
@@ -1451,7 +1483,8 @@ export class EmployeeService {
     // 1. Fetch employee with tenant isolation
     const employee = await db.employee.findFirst({
       where: { id: employeeId, tenantId },
-      include: {
+      select: {
+        ...EMPLOYEE_PHYSICAL_COLUMNS_SELECT,
         user: {
           include: {
             roles: { where: { tenantId } },

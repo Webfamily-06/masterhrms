@@ -15,6 +15,7 @@ const tenant_context_middleware_1 = require("../middleware/tenant-context.middle
 const auth_helpers_1 = require("../lib/auth-helpers");
 const limits_1 = require("../middleware/limits");
 const audit_service_1 = require("../services/audit.service");
+const reporting_hierarchy_validator_1 = require("../lib/reporting-hierarchy-validator");
 exports.employeesRouter = (0, express_1.Router)();
 // Enforce Request-Scoped Tenant Context on all employee endpoints
 exports.employeesRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
@@ -196,6 +197,12 @@ exports.employeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissi
     try {
         const tenantId = await getTenantId(req);
         const { firstName, lastName, email, phone, position, employeeCode, departmentId, managerId, employmentType, salary, joinedAt, avatarUrl, password, pan, aadhaar, uan, esiNumber, bankName, bankAccount, bankIfsc, bankBranch, dateOfBirth, gender, taxRegime, state, pfEligible, esiEligible, ptEligible, tdsEligible, } = req.body;
+        if (managerId) {
+            const hierarchyCheck = await (0, reporting_hierarchy_validator_1.validateReportingHierarchy)(tenantId, null, managerId, prisma_1.prisma);
+            if (!hierarchyCheck.valid) {
+                return res.status(400).json({ error: hierarchyCheck.error });
+            }
+        }
         const employee = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, workspace_policy_service_1.lockWorkspaceCapacity)(tx, tenantId, "employees");
             const cleanEmail = email.toLowerCase().trim();
@@ -295,6 +302,12 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
                 error: "FORBIDDEN: Insufficient permissions to modify employee lifecycle status",
                 code: "INSUFFICIENT_STATUS_PRIVILEGE",
             });
+        }
+        if (managerId !== undefined && managerId !== existingEmp.managerId) {
+            const hierarchyCheck = await (0, reporting_hierarchy_validator_1.validateReportingHierarchy)(existingEmp.tenantId, id, managerId, prisma_1.prisma);
+            if (!hierarchyCheck.valid) {
+                return res.status(400).json({ error: hierarchyCheck.error });
+            }
         }
         await audit_service_1.AuditService.logMutation({
             tenantId: tenantId || "unknown",

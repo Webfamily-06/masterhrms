@@ -7,6 +7,7 @@ const tenant_context_middleware_1 = require("../middleware/tenant-context.middle
 const tenant_context_1 = require("../context/tenant-context");
 const master_data_blueprint_1 = require("../blueprints/master-data.blueprint");
 const announcements_routes_1 = require("./announcements.routes");
+const organization_tree_service_1 = require("../services/organization-tree.service");
 exports.organizationRouter = (0, express_1.Router)();
 exports.organizationRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 exports.BRANCH_PHYSICAL_COLUMNS_SELECT = {
@@ -226,98 +227,98 @@ exports.organizationRouter.use("/holiday-types", (0, master_data_blueprint_1.cre
 // =========================================================================
 exports.organizationRouter.use("/announcements", announcements_routes_1.announcementsRouter);
 // =========================================================================
-// 7. HR ORGANIZATION STRUCTURE & HIERARCHY (GET /structure)
+// 7. HR ORGANIZATION TREE & HIERARCHY SUITE
+// Authoritative endpoints for interactive Employee & Department org charts
 // =========================================================================
+// 7.1 Employee Hierarchy Tree (/tree/employees)
+exports.organizationRouter.get("/tree/employees", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const result = await organization_tree_service_1.OrganizationTreeService.getEmployeeHierarchy(tenantId, req.query);
+        return res.json(result);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// 7.2 Department Hierarchy (/tree/departments)
+exports.organizationRouter.get("/tree/departments", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const result = await organization_tree_service_1.OrganizationTreeService.getDepartmentHierarchy(tenantId);
+        return res.json(result);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// 7.3 Hierarchy Summary KPI Metrics (/tree/summary)
+exports.organizationRouter.get("/tree/summary", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const summary = await organization_tree_service_1.OrganizationTreeService.getHierarchySummary(tenantId);
+        return res.json(summary);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// 7.4 Detailed Employee Node Profile for Slide-Over Drawer (/tree/employee/:id)
+exports.organizationRouter.get("/tree/employee/:id", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const detail = await organization_tree_service_1.OrganizationTreeService.getEmployeeTreeDetail(tenantId, req.params.id);
+        if (!detail) {
+            return res.status(404).json({ error: "Employee not found in organization hierarchy" });
+        }
+        return res.json(detail);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+// 7.5 Backward-Compatible Full Structure (/structure)
 exports.organizationRouter.get("/structure", auth_1.requireAuth, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         if (!tenantId)
             return res.status(403).json({ error: "Tenant context required" });
-        const db = (0, tenant_context_1.getTenantDb)();
-        // Parallel fetch of org components
-        const [branches, departments, designations, employees] = await Promise.all([
-            db.branch.findMany({
-                where: { tenantId },
-                include: {
-                    _count: {
-                        select: { employees: true, departments: true },
-                    },
-                },
-                orderBy: { name: "asc" },
-            }),
-            db.department.findMany({
-                where: { tenantId },
-                include: {
-                    branch: { select: { id: true, name: true, code: true } },
-                    _count: {
-                        select: { employees: true, designations: true },
-                    },
-                },
-                orderBy: { name: "asc" },
-            }),
-            db.designation.findMany({
-                where: { tenantId },
-                include: {
-                    department: { select: { id: true, name: true } },
-                    _count: {
-                        select: { employees: true },
-                    },
-                },
-                orderBy: { name: "asc" },
-            }),
-            db.employee.findMany({
-                where: { tenantId, status: "active" },
-                select: {
-                    id: true,
-                    employeeCode: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true,
-                    phone: true,
-                    position: true,
-                    managerId: true,
-                    departmentId: true,
-                    branchId: true,
-                    designationId: true,
-                    status: true,
-                    department: { select: { id: true, name: true } },
-                    branch: { select: { id: true, name: true } },
-                    designation: { select: { id: true, name: true } },
-                },
-            }),
+        const [empResult, deptResult, summary] = await Promise.all([
+            organization_tree_service_1.OrganizationTreeService.getEmployeeHierarchy(tenantId, req.query),
+            organization_tree_service_1.OrganizationTreeService.getDepartmentHierarchy(tenantId),
+            organization_tree_service_1.OrganizationTreeService.getHierarchySummary(tenantId),
         ]);
-        // Build employee reporting hierarchy tree
-        const employeeMap = new Map();
-        employees.forEach((emp) => {
-            employeeMap.set(emp.id, {
-                ...emp,
-                name: `${emp.firstName} ${emp.lastName}`.trim(),
-                subordinates: [],
-            });
-        });
-        const rootNodes = [];
-        employees.forEach((emp) => {
-            const node = employeeMap.get(emp.id);
-            if (emp.managerId && employeeMap.has(emp.managerId)) {
-                employeeMap.get(emp.managerId).subordinates.push(node);
-            }
-            else {
-                rootNodes.push(node);
-            }
-        });
-        const stats = {
-            totalBranches: branches.length,
-            totalDepartments: departments.length,
-            totalDesignations: designations.length,
-            totalEmployees: employees.length,
-            activeEmployees: employees.filter((e) => e.status === "active").length,
-        };
+        const db = (0, tenant_context_1.getTenantDb)();
+        const [branches, departments, designations] = await Promise.all([
+            db.branch.findMany({ where: { tenantId }, orderBy: { name: "asc" } }),
+            db.department.findMany({ where: { tenantId }, orderBy: { name: "asc" } }),
+            db.designation.findMany({ where: { tenantId }, orderBy: { name: "asc" } }),
+        ]);
         return res.json({
             branches,
             departments,
             designations,
-            orgChart: rootNodes,
-            stats,
+            orgChart: empResult.orgChart,
+            unassigned: empResult.unassigned,
+            departmentTree: deptResult.departments,
+            stats: {
+                totalBranches: summary.totalBranches,
+                totalDepartments: summary.totalDepartments,
+                totalDesignations: summary.totalDesignations,
+                totalEmployees: summary.totalEmployees,
+                activeEmployees: summary.activeEmployees,
+                totalManagers: summary.totalManagers,
+                topExecutivesCount: summary.topExecutivesCount,
+                maxHierarchyDepth: summary.maxHierarchyDepth,
+            },
         });
     }
     catch (err) {

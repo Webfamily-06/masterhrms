@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
@@ -14,10 +15,113 @@ export interface MasterBlueprintConfig {
   searchFields?: string[];
   uniqueFields?: string[];
   filterFields?: string[];
+  allowedFields?: string[];
   select?: Record<string, boolean>;
   include?: Record<string, any>;
   customCounts?: (db: any, tenantId: string, req: AuthRequest) => Promise<Record<string, number>>;
   dependencyCheck?: (db: any, id: string, tenantId: string) => Promise<{ canDelete: boolean; message?: string }>;
+}
+
+/**
+ * Authoritative field allowlists for master-data entities.
+ * Only these scalar fields may be accepted from client requests for create/update.
+ * Excludes immutable/system fields: id, tenantId, createdAt, updatedAt.
+ */
+export const MASTER_DATA_ALLOWED_FIELDS: Record<string, string[]> = {
+  branch: [
+    "name",
+    "code",
+    "address",
+    "phone",
+    "email",
+    "latitude",
+    "longitude",
+    "geofenceRadius",
+    "status",
+  ],
+  department: [
+    "name",
+    "description",
+    "branchId",
+    "status",
+  ],
+  designation: [
+    "name",
+    "description",
+    "departmentId",
+    "status",
+  ],
+  awardType: [
+    "name",
+    "icon",
+    "description",
+  ],
+  holiday: [
+    "name",
+    "date",
+    "type",
+    "year",
+    "description",
+    "branchIds",
+    "stateCodes",
+    "status",
+  ],
+  holidayType: [
+    "name",
+    "description",
+    "color",
+    "status",
+  ],
+};
+
+/**
+ * Resolves the allowed updatable/creatable fields for a given model.
+ * Prioritizes config.allowedFields, then MASTER_DATA_ALLOWED_FIELDS dictionary,
+ * and falls back to Prisma DMMF scalar fields (excluding system fields).
+ */
+export function resolveModelAllowedFields(modelName: string, configAllowed?: string[]): string[] {
+  if (configAllowed && configAllowed.length > 0) {
+    return configAllowed;
+  }
+  const key = modelName.charAt(0).toLowerCase() + modelName.slice(1);
+  if (MASTER_DATA_ALLOWED_FIELDS[key]) {
+    return MASTER_DATA_ALLOWED_FIELDS[key];
+  }
+  const m = Prisma.dmmf?.datamodel?.models?.find(
+    (x) => x.name.toLowerCase() === modelName.toLowerCase()
+  );
+  if (m) {
+    return m.fields
+      .filter(
+        (f) =>
+          f.kind === "scalar" &&
+          !f.isId &&
+          f.name !== "tenantId" &&
+          f.name !== "createdAt" &&
+          f.name !== "updatedAt"
+      )
+      .map((f) => f.name);
+  }
+  return [];
+}
+
+/**
+ * Filters raw input data to only include explicitly allowed fields.
+ */
+export function buildModelSafePayload(
+  rawBody: Record<string, any>,
+  allowedFields: string[]
+): Record<string, any> {
+  const safePayload: Record<string, any> = {};
+  if (!rawBody || typeof rawBody !== "object") {
+    return safePayload;
+  }
+  for (const field of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(rawBody, field) && rawBody[field] !== undefined) {
+      safePayload[field] = rawBody[field];
+    }
+  }
+  return safePayload;
 }
 
 /**
@@ -42,6 +146,8 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
     customCounts,
     dependencyCheck,
   } = config;
+
+  const allowedFields = resolveModelAllowedFields(modelName, config.allowedFields);
 
   // 1. LIST ENTITIES (GET /)
   router.get("/", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -229,12 +335,15 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
 
       // Execute within transaction: create + audit + outbox
       const result = await db.$transaction(async (tx: any) => {
+        const safePayload = buildModelSafePayload(req.body, allowedFields);
         const createData: any = {
-          ...req.body,
+          ...safePayload,
           tenantId,
         };
-        if (req.user?.userId) {
+        if (allowedFields.includes("createdBy") && req.user?.userId) {
           createData.createdBy = req.user.userId;
+        }
+        if (allowedFields.includes("updatedBy") && req.user?.userId) {
           createData.updatedBy = req.user.userId;
         }
 
@@ -295,7 +404,7 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
 
       const existing = await delegate.findFirst({
         where: { id: req.params.id, tenantId },
-        select: { id: true },
+        select: select || undefined,
       });
 
       if (!existing) {
@@ -304,7 +413,7 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
 
       // Validate unique constraint on update (excluding current record)
       for (const field of uniqueFields) {
-        if (req.body[field]) {
+        if (req.body[field] !== undefined) {
           const duplicate = await delegate.findFirst({
             where: {
               tenantId,
@@ -321,18 +430,18 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
         }
       }
 
-      const result = await db.$transaction(async (tx: any) => {
-        const payload = { ...req.body };
-        delete payload.id;
-        delete payload.tenantId;
-        delete payload.createdAt;
-        if (req.user?.userId) {
-          payload.updatedBy = req.user.userId;
-        }
+      // Build model-safe update payload using explicit allowlist
+      const safePayload = buildModelSafePayload(req.body, allowedFields);
+      if (Object.keys(safePayload).length === 0) {
+        return res.status(400).json({
+          error: `No valid updatable fields provided for ${entityName}. Allowed fields: ${allowedFields.join(", ")}`,
+        });
+      }
 
+      const result = await db.$transaction(async (tx: any) => {
         const updated = await tx[modelName].update({
           where: { id: req.params.id },
-          data: payload,
+          data: safePayload,
           select: select || undefined,
         });
 
@@ -462,11 +571,16 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
         return res.status(400).json({ error: "IDs array required" });
       }
 
+      const validIds = ids.filter((id: any) => typeof id === "string" && id.trim().length > 0);
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: "Valid string IDs array required" });
+      }
+
       const db = getTenantDb(req);
       const delegate = (db as any)[modelName];
 
       const result = await delegate.updateMany({
-        where: { id: { in: ids }, tenantId },
+        where: { id: { in: validIds }, tenantId },
         data: { status },
       });
 
