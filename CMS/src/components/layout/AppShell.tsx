@@ -20,6 +20,7 @@ const MARKETING_PAGES = [
   '/resources',
   '/cms',
   '/p',
+  '/verify-certificate',
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

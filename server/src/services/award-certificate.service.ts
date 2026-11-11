@@ -12,6 +12,7 @@ import { CertificateFolderService } from "./files/certificate-folder.service";
 import { FilesService } from "./files/files.service";
 import { broadcastToTenant } from "../socket";
 import { CertificateStudioService } from "./certificate-studio.service";
+import { resolveCertificateVerificationUrl } from "../lib/certificate-verification-resolver";
 
 export interface GenerateCertificateDto {
   tenantId: string;
@@ -487,8 +488,7 @@ export class AwardCertificateService {
     const verificationCode = `VERIFY-${crypto.randomBytes(16).toString("hex").toUpperCase()}`;
     const certId = crypto.randomUUID();
 
-    const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const verificationUrl = `${baseUrl}/verify-certificate?code=${verificationCode}`;
+    const verificationUrl = resolveCertificateVerificationUrl(verificationCode);
 
     const metadata: CertificateMetadata = {
       certificateNumber,
@@ -857,8 +857,14 @@ export class AwardCertificateService {
       return { valid: false, message: "Verification code must be specified." };
     }
 
+    const trimmed = verificationCode.trim();
     const cert = await db.employeeAwardCertificate.findFirst({
-      where: { verificationCode: verificationCode.trim() },
+      where: {
+        OR: [
+          { verificationCode: trimmed },
+          { certificateNumber: trimmed }
+        ]
+      },
     });
 
     if (!cert) {

@@ -4,6 +4,7 @@ import { AuthRequest, requireAuth } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { CertificateStudioService, PLACEHOLDER_REGISTRY } from "../services/certificate-studio.service";
 import { CertificateFolderService } from "../services/files/certificate-folder.service";
+import { resolveCertificateVerificationUrl } from "../lib/certificate-verification-resolver";
 import { isHRAwardAuthorized } from "./awards.routes";
 import { prisma } from "../prisma";
 
@@ -49,6 +50,31 @@ certificateStudioRouter.get("/branding", async (req: AuthRequest, res: Response)
     return res.json({ assets });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch branding assets." });
+  }
+});
+
+certificateStudioRouter.get("/branding/primary-logo", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const primaryLogo = await CertificateStudioService.getPrimaryLogoAsset(tenantId);
+    return res.json({ primaryLogo });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch primary logo." });
+  }
+});
+
+// Authoritative Real-Time Preview Context
+certificateStudioRouter.get("/preview-context", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
+
+    const context = await CertificateStudioService.getPreviewContext(tenantId);
+    return res.json({ success: true, context });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to retrieve preview context." });
   }
 });
 
@@ -346,23 +372,37 @@ certificateStudioRouter.post("/templates/:id/save-design", async (req: AuthReque
 
 certificateStudioRouter.post("/templates/preview-pdf", async (req: AuthRequest, res: Response) => {
   try {
-    const { designJson, sampleData } = req.body;
+    const tenantId = req.user?.tenantId;
+    const { designJson, sampleData, previewContext } = req.body;
     if (!designJson) return res.status(400).json({ error: "designJson required." });
 
+    const tenant = tenantId ? await prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }) : null;
+    const verificationCode = sampleData?.verificationCode || "VERIFY-9C81B27D8310E476A841";
+    const verificationUrl = sampleData?.verificationUrl || resolveCertificateVerificationUrl(verificationCode);
+
     const contextMap: Record<string, string> = {
-      "{{employee.name}}": sampleData?.name || "Dr. Alex Vance",
-      "{{employee.employeeCode}}": sampleData?.code || "EMP-2026-9901",
-      "{{employee.designation}}": sampleData?.designation || "Principal Systems Architect",
-      "{{employee.department}}": sampleData?.department || "Core Engineering & Cloud Infrastructure",
-      "{{award.title}}": sampleData?.awardTitle || "Executive Leadership Distinction 2026",
-      "{{award.description}}": sampleData?.awardDescription || "For pioneering enterprise-grade architectures and driving exemplary excellence across global organizations.",
-      "{{award.date}}": sampleData?.date || new Date().toISOString().split("T")[0],
-      "{{award.category}}": sampleData?.category || "Leadership & Performance",
-      "{{organization.name}}": sampleData?.orgName || "MASTERHRMS Global Enterprise",
-      "{{certificate.number}}": "PREVIEW-2026-X89A",
-      "{{certificate.verificationCode}}": "VERIFY-PREVIEW-CODE-A1B2C3D4",
-      "{{certificate.verificationUrl}}": "https://masterhrms.io/verify-certificate?code=PREVIEW"
+      "{{employee.name}}": sampleData?.name || "Alexander M. Vance",
+      "{{employee.employeeCode}}": sampleData?.code || sampleData?.employeeCode || "EMP-2026-0891",
+      "{{employee.designation}}": sampleData?.designation || "Principal Platform Architect",
+      "{{employee.department}}": sampleData?.department || "Technology & Platform Operations",
+      "{{award.title}}": sampleData?.awardTitle || sampleData?.title || "Governor Excellence Award 2026",
+      "{{award.description}}": sampleData?.awardDescription || sampleData?.description || "For exceptional leadership, sustained engineering innovation, and organizational impact.",
+      "{{award.date}}": sampleData?.date || sampleData?.awardDate || new Date().toLocaleDateString("en-US", { month: "long", day: "2-digit", year: "numeric" }),
+      "{{award.category}}": sampleData?.category || "Employee Excellence",
+      "{{organization.name}}": sampleData?.orgName || tenant?.name || "MASTERHRMS Global Technologies",
+      "{{certificate.number}}": sampleData?.certificateNumber || "CERT-2026-8F29A10C",
+      "{{certificate.verificationCode}}": verificationCode,
+      "{{certificate.verificationUrl}}": verificationUrl,
+      "{{signatures.hr}}": sampleData?.hrSignatoryName || "Head of People",
+      "{{signatures.director}}": sampleData?.directorSignatoryName || "Managing Director",
+      "{{signatures.ceo}}": sampleData?.ceoSignatoryName || "Chief Executive Officer"
     };
+
+    if (sampleData?.logoUrl) contextMap["{{organization.logo}}"] = sampleData.logoUrl;
+    if (sampleData?.sealUrl) contextMap["{{organization.seal}}"] = sampleData.sealUrl;
+    if (sampleData?.hrSignatureUrl) contextMap["{{signatures.hr.image}}"] = sampleData.hrSignatureUrl;
+    if (sampleData?.directorSignatureUrl) contextMap["{{signatures.director.image}}"] = sampleData.directorSignatureUrl;
+    if (sampleData?.ceoSignatureUrl) contextMap["{{signatures.ceo.image}}"] = sampleData.ceoSignatureUrl;
 
     const pdfBuffer = await CertificateStudioService.renderTemplateToPdf(designJson, contextMap);
 

@@ -15,6 +15,8 @@ const certificate_folder_service_1 = require("./files/certificate-folder.service
 const files_service_1 = require("./files/files.service");
 const qrcode_1 = __importDefault(require("qrcode"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
+const sharp_1 = __importDefault(require("sharp"));
+const certificate_verification_resolver_1 = require("../lib/certificate-verification-resolver");
 // Dynamic Placeholder Registry
 exports.PLACEHOLDER_REGISTRY = [
     { key: "{{employee.name}}", name: "Employee Full Name", module: "Employee", sample: "Johnathan Doe", required: true },
@@ -34,7 +36,7 @@ exports.PLACEHOLDER_REGISTRY = [
     { key: "{{signatures.ceo}}", name: "CEO / MD Signature", module: "Signatures", sample: "Chief Executive Officer", required: false },
     { key: "{{certificate.number}}", name: "Certificate Serial Number", module: "Certificate", sample: "CERT-2026-8F29A10C", required: true },
     { key: "{{certificate.verificationCode}}", name: "Unguessable Verification Code", module: "Certificate", sample: "VERIFY-9C81B27D8310E476A841", required: true },
-    { key: "{{certificate.verificationUrl}}", name: "Verification Public URL", module: "Certificate", sample: "https://masterhrms.io/verify-certificate?code=VERIFY-9C81B27D8310E476A841", required: true },
+    { key: "{{certificate.verificationUrl}}", name: "Verification Public URL", module: "Certificate", sample: (0, certificate_verification_resolver_1.resolveCertificateVerificationUrl)("VERIFY-9C81B27D8310E476A841"), required: true },
     { key: "{{certificate.qrCode}}", name: "Verification QR Code", module: "Certificate", sample: "[QR_CODE_IMAGE]", required: false },
 ];
 class CertificateStudioService {
@@ -86,6 +88,276 @@ class CertificateStudioService {
             where: { tenantId, isActive: true },
             orderBy: { createdAt: "desc" }
         });
+    }
+    /**
+     * Authoritatively resolves the organization active primary logo asset.
+     * If an explicit LOGO_PRIMARY asset is registered, returns it.
+     * Fallback to tenant.logoUrl or system default if none exists.
+     */
+    static async getPrimaryLogoAsset(tenantId) {
+        const primaryAsset = await db.organizationBrandingAsset.findFirst({
+            where: {
+                tenantId,
+                assetType: { in: ["LOGO_PRIMARY", "PRIMARY_LOGO"] },
+                isActive: true
+            },
+            orderBy: { createdAt: "desc" }
+        });
+        if (primaryAsset) {
+            return {
+                id: primaryAsset.id,
+                assetName: primaryAsset.assetName,
+                assetType: primaryAsset.assetType,
+                fileId: primaryAsset.fileId,
+                storagePath: primaryAsset.storagePath,
+                mimeType: primaryAsset.mimeType,
+                url: `/api/certificate-studio/branding/${primaryAsset.id}/preview`
+            };
+        }
+        // Secondary fallback: tenant table logoUrl
+        const tenant = await db.tenant.findUnique({
+            where: { id: tenantId },
+            select: { name: true, logoUrl: true }
+        });
+        if (tenant?.logoUrl) {
+            return {
+                id: "tenant-primary-logo",
+                assetName: `${tenant.name} Logo`,
+                assetType: "LOGO_PRIMARY",
+                fileId: null,
+                storagePath: null,
+                mimeType: "image/webp",
+                url: tenant.logoUrl
+            };
+        }
+        return null;
+    }
+    /**
+     * Resolves binary asset buffer from branding asset URL, signatory preview URL, or local path.
+     * Automatically executes SVG to PNG rasterization with Sharp for PDFKit vector embedding.
+     */
+    static async resolveAssetBuffer(resolvedUrl) {
+        if (!resolvedUrl || typeof resolvedUrl !== "string")
+            return null;
+        let imageBuffer = null;
+        const uploadsRoot = (0, media_service_1.getUploadsRoot)();
+        try {
+            // 1. Branding asset preview URL e.g. /api/certificate-studio/branding/:id/preview
+            if (resolvedUrl.includes("/branding/") && resolvedUrl.includes("/preview")) {
+                const assetIdMatch = resolvedUrl.match(/\/branding\/([^/?]+)/);
+                if (assetIdMatch) {
+                    const brandingAsset = await db.organizationBrandingAsset.findUnique({
+                        where: { id: assetIdMatch[1] }
+                    });
+                    if (brandingAsset && brandingAsset.storagePath) {
+                        const filePath = path_1.default.resolve(uploadsRoot, brandingAsset.storagePath.replace(/^\/+/, ""));
+                        if (fs_1.default.existsSync(filePath)) {
+                            imageBuffer = fs_1.default.readFileSync(filePath);
+                            if (brandingAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
+                                imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                            }
+                        }
+                    }
+                }
+            }
+            // 2. Signatory preview URL e.g. /api/certificate-studio/signatories/:id/signature-preview
+            else if (resolvedUrl.includes("/signatories/") && resolvedUrl.includes("/signature-preview")) {
+                const sigIdMatch = resolvedUrl.match(/\/signatories\/([^/?]+)/);
+                if (sigIdMatch) {
+                    const signatory = await db.organizationSignatory.findUnique({
+                        where: { id: sigIdMatch[1] },
+                        include: { signatureAsset: true }
+                    });
+                    if (signatory?.signatureAsset?.storagePath) {
+                        const filePath = path_1.default.resolve(uploadsRoot, signatory.signatureAsset.storagePath.replace(/^\/+/, ""));
+                        if (fs_1.default.existsSync(filePath)) {
+                            imageBuffer = fs_1.default.readFileSync(filePath);
+                            if (signatory.signatureAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
+                                imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                            }
+                        }
+                    }
+                }
+            }
+            // 3. Direct local file or public path
+            else {
+                const cleaned = resolvedUrl.replace(/^\//, "");
+                const candidatePublic = path_1.default.resolve(process.cwd(), "public", cleaned);
+                const candidateUploads = path_1.default.resolve(uploadsRoot, cleaned);
+                if (fs_1.default.existsSync(candidatePublic)) {
+                    imageBuffer = fs_1.default.readFileSync(candidatePublic);
+                }
+                else if (fs_1.default.existsSync(candidateUploads)) {
+                    imageBuffer = fs_1.default.readFileSync(candidateUploads);
+                }
+                if (imageBuffer) {
+                    const lower = (resolvedUrl || "").toLowerCase();
+                    if (lower.endsWith(".svg") || lower.endsWith(".webp") || lower.includes(".svg") || lower.includes(".webp")) {
+                        try {
+                            imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                        }
+                        catch (sharpErr) {
+                            console.warn("[resolveAssetBuffer] sharp conversion to PNG failed:", sharpErr);
+                        }
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.warn("[resolveAssetBuffer] Asset read failed for:", resolvedUrl, err);
+        }
+        return imageBuffer;
+    }
+    /**
+     * Retrieves authoritative real-time preview context for Certificate Studio:
+     * Organization profile, primary logo, official seal, authorized signatories, active employees,
+     * award types, and centralized verification URL.
+     */
+    static async getPreviewContext(tenantId) {
+        const tenant = await db.tenant.findUnique({
+            where: { id: tenantId },
+            select: { id: true, name: true, slug: true, logoUrl: true }
+        });
+        const primaryLogo = await this.getPrimaryLogoAsset(tenantId);
+        // Official Seal
+        const sealAsset = await db.organizationBrandingAsset.findFirst({
+            where: {
+                tenantId,
+                assetType: { in: ["OFFICIAL_SEAL", "SEAL"] },
+                isActive: true
+            },
+            orderBy: { createdAt: "desc" }
+        });
+        // Watermark
+        const watermarkAsset = await db.organizationBrandingAsset.findFirst({
+            where: {
+                tenantId,
+                assetType: "WATERMARK",
+                isActive: true
+            },
+            orderBy: { createdAt: "desc" }
+        });
+        // Background
+        const backgroundAsset = await db.organizationBrandingAsset.findFirst({
+            where: {
+                tenantId,
+                assetType: "BACKGROUND",
+                isActive: true
+            },
+            orderBy: { createdAt: "desc" }
+        });
+        // Active Signatories
+        const now = new Date();
+        const signatories = await db.organizationSignatory.findMany({
+            where: {
+                tenantId,
+                isActive: true,
+                authorizationStatus: "AUTHORIZED"
+            },
+            include: { signatureAsset: true },
+            orderBy: { createdAt: "asc" }
+        });
+        const formattedSignatories = signatories.map(sig => ({
+            id: sig.id,
+            name: sig.name,
+            designation: sig.designation,
+            department: sig.department || "",
+            signatoryType: sig.signatoryType,
+            authorizationStatus: sig.authorizationStatus,
+            signatureAssetId: sig.signatureAssetId,
+            signatureUrl: sig.signatureAssetId ? `/api/certificate-studio/signatories/${sig.id}/signature-preview` : null,
+            isCurrent: sig.effectiveFrom <= now && (!sig.effectiveTo || sig.effectiveTo >= now)
+        }));
+        // Find specific signatories by role
+        const hrSignatory = formattedSignatories.find(s => s.signatoryType.includes("HR")) || formattedSignatories[0] || null;
+        const directorSignatory = formattedSignatories.find(s => s.signatoryType.includes("DIRECTOR")) || formattedSignatories[1] || null;
+        const ceoSignatory = formattedSignatories.find(s => s.signatoryType.includes("CEO") || s.signatoryType.includes("MD")) || formattedSignatories[2] || null;
+        // Recent / Active Employees
+        const employees = await db.employee.findMany({
+            where: { tenantId, status: "active" },
+            take: 30,
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                employeeCode: true,
+                position: true,
+                department: { select: { id: true, name: true } },
+                designation: { select: { id: true, name: true } }
+            },
+            orderBy: { firstName: "asc" }
+        });
+        const formattedEmployees = employees.map(emp => ({
+            id: emp.id,
+            name: `${emp.firstName} ${emp.lastName}`.trim(),
+            employeeCode: emp.employeeCode,
+            designation: emp.designation?.name || emp.position || "Staff Professional",
+            department: emp.department?.name || "Operations"
+        }));
+        // Active Award Types
+        const awardTypes = await db.awardType.findMany({
+            where: { tenantId, status: "active" },
+            take: 30,
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                icon: true
+            },
+            orderBy: { name: "asc" }
+        });
+        const formattedAwards = awardTypes.map(aw => ({
+            id: aw.id,
+            title: aw.name,
+            description: aw.description || "In recognition of outstanding performance, sustained innovation, and exemplary commitment to organizational values.",
+            category: "Excellence & Distinction"
+        }));
+        const sampleVerificationCode = "VERIFY-9C81B27D8310E476A841";
+        const sampleVerificationUrl = (0, certificate_verification_resolver_1.resolveCertificateVerificationUrl)(sampleVerificationCode);
+        return {
+            organization: {
+                id: tenant?.id || tenantId,
+                name: tenant?.name || "MASTERHRMS Global Technologies",
+                slug: tenant?.slug || "masterhrms",
+                logoUrl: primaryLogo?.url || tenant?.logoUrl || "/logo.webp"
+            },
+            branding: {
+                primaryLogo: primaryLogo || {
+                    id: "default-logo",
+                    assetName: "Master HRMS Logo",
+                    url: "/logo.webp"
+                },
+                officialSeal: sealAsset ? {
+                    id: sealAsset.id,
+                    assetName: sealAsset.assetName,
+                    url: `/api/certificate-studio/branding/${sealAsset.id}/preview`
+                } : null,
+                watermark: watermarkAsset ? {
+                    id: watermarkAsset.id,
+                    assetName: watermarkAsset.assetName,
+                    url: `/api/certificate-studio/branding/${watermarkAsset.id}/preview`
+                } : null,
+                background: backgroundAsset ? {
+                    id: backgroundAsset.id,
+                    assetName: backgroundAsset.assetName,
+                    url: `/api/certificate-studio/branding/${backgroundAsset.id}/preview`
+                } : null,
+            },
+            signatories: formattedSignatories,
+            signatoryRoles: {
+                hr: hrSignatory,
+                director: directorSignatory,
+                ceo: ceoSignatory
+            },
+            employees: formattedEmployees,
+            awards: formattedAwards,
+            sampleCertificate: {
+                certificateNumber: "CERT-2026-8F29A10C",
+                verificationCode: sampleVerificationCode,
+                verificationUrl: sampleVerificationUrl,
+                isSample: true
+            }
+        };
     }
     static async saveBrandingAsset(dto) {
         const { tenantId, assetType, assetName, buffer, mimeType, fileName, metadata, actorUserId } = dto;
@@ -200,7 +472,7 @@ class CertificateStudioService {
         return { ...asset, reused: isReused, file: mediaFile };
     }
     static async deleteBrandingAsset(tenantId, assetId, actorUserId) {
-        const asset = await prisma_1.prisma.organizationBrandingAsset.findFirst({
+        const asset = await db.organizationBrandingAsset.findFirst({
             where: { id: assetId, tenantId },
         });
         if (!asset) {
@@ -241,13 +513,13 @@ class CertificateStudioService {
             throw err;
         }
         // Soft-deactivate branding record
-        await prisma_1.prisma.organizationBrandingAsset.update({
+        await db.organizationBrandingAsset.update({
             where: { id: assetId },
             data: { isActive: false, updatedBy: actorUserId },
         });
         // If fileId is present, check if other active branding records share this file
         if (asset.fileId) {
-            const otherUses = await prisma_1.prisma.organizationBrandingAsset.count({
+            const otherUses = await db.organizationBrandingAsset.count({
                 where: { tenantId, fileId: asset.fileId, isActive: true, id: { not: assetId } },
             });
             if (otherUses === 0) {
@@ -881,69 +1153,215 @@ class CertificateStudioService {
                 const elements = (designJson.elements || []);
                 for (const el of elements) {
                     try {
-                        if (el.type === "shape" && el.shapeType === "rectangle") {
-                            doc.rect(el.x, el.y, el.width, el.height);
-                            if (el.stroke) {
-                                doc.lineWidth(el.strokeWidth || 1).strokeColor(el.stroke).stroke();
+                        if (el.hidden)
+                            continue;
+                        doc.save();
+                        // Opacity
+                        if (el.opacity !== undefined && el.opacity < 1 && el.opacity >= 0) {
+                            doc.opacity(el.opacity);
+                        }
+                        // Rotation
+                        if (el.rotation) {
+                            const cx = el.x + (el.width || 0) / 2;
+                            const cy = el.y + (el.height || 0) / 2;
+                            doc.rotate(el.rotation, { origin: [cx, cy] });
+                        }
+                        if (el.type === "shape") {
+                            if (el.shapeType === "line" || (el.height <= 3 && !el.shapeType)) {
+                                const lineY = el.y + (el.height || 2) / 2;
+                                doc.moveTo(el.x, lineY).lineTo(el.x + el.width, lineY);
+                                const strokeColor = el.stroke || el.fill || canvas.primaryColor || "#1E3A8A";
+                                doc.lineWidth(el.strokeWidth || el.height || 2).strokeColor(strokeColor);
+                                if (el.lineStyle === "dashed")
+                                    doc.dash(4, { space: 2 });
+                                else if (el.lineStyle === "dotted")
+                                    doc.dash(2, { space: 2 });
+                                doc.stroke();
+                                doc.undash();
                             }
-                            if (el.fill && el.fill !== "transparent") {
-                                doc.fillColor(el.fill).fill();
+                            else if (el.shapeType === "circle") {
+                                const cx = el.x + (el.width || 0) / 2;
+                                const cy = el.y + (el.height || 0) / 2;
+                                const r = Math.min(el.width || 0, el.height || 0) / 2;
+                                doc.circle(cx, cy, r);
+                                if (el.fill && el.fill !== "transparent") {
+                                    doc.fillColor(el.fill);
+                                    if (el.stroke && el.strokeWidth) {
+                                        doc.lineWidth(el.strokeWidth).strokeColor(el.stroke);
+                                        if (el.lineStyle === "dashed")
+                                            doc.dash(4, { space: 2 });
+                                        else if (el.lineStyle === "dotted")
+                                            doc.dash(2, { space: 2 });
+                                        doc.fillAndStroke();
+                                        doc.undash();
+                                    }
+                                    else {
+                                        doc.fill();
+                                    }
+                                }
+                                else if (el.stroke) {
+                                    doc.lineWidth(el.strokeWidth || 1).strokeColor(el.stroke);
+                                    if (el.lineStyle === "dashed")
+                                        doc.dash(4, { space: 2 });
+                                    else if (el.lineStyle === "dotted")
+                                        doc.dash(2, { space: 2 });
+                                    doc.stroke();
+                                    doc.undash();
+                                }
+                            }
+                            else {
+                                if (el.borderRadius && el.borderRadius > 0) {
+                                    doc.roundedRect(el.x, el.y, el.width, el.height, el.borderRadius);
+                                }
+                                else {
+                                    doc.rect(el.x, el.y, el.width, el.height);
+                                }
+                                if (el.fill && el.fill !== "transparent") {
+                                    doc.fillColor(el.fill);
+                                    if (el.stroke && el.strokeWidth) {
+                                        doc.lineWidth(el.strokeWidth).strokeColor(el.stroke);
+                                        if (el.lineStyle === "dashed")
+                                            doc.dash(4, { space: 2 });
+                                        else if (el.lineStyle === "dotted")
+                                            doc.dash(2, { space: 2 });
+                                        doc.fillAndStroke();
+                                        doc.undash();
+                                    }
+                                    else {
+                                        doc.fill();
+                                    }
+                                }
+                                else if (el.stroke) {
+                                    doc.lineWidth(el.strokeWidth || 1).strokeColor(el.stroke);
+                                    if (el.lineStyle === "dashed")
+                                        doc.dash(4, { space: 2 });
+                                    else if (el.lineStyle === "dotted")
+                                        doc.dash(2, { space: 2 });
+                                    doc.stroke();
+                                    doc.undash();
+                                }
                             }
                         }
                         else if (el.type === "text") {
                             const rawText = el.text || "";
-                            const resolvedText = CertificateStudioService.replacePlaceholders(rawText, context);
+                            let resolvedText = CertificateStudioService.replacePlaceholders(rawText, context);
+                            if (el.textTransform === "uppercase")
+                                resolvedText = resolvedText.toUpperCase();
+                            else if (el.textTransform === "lowercase")
+                                resolvedText = resolvedText.toLowerCase();
+                            else if (el.textTransform === "capitalize")
+                                resolvedText = resolvedText.replace(/\b\w/g, (c) => c.toUpperCase());
                             const fontSize = el.fontSize || 12;
                             doc.fontSize(fontSize);
                             if (el.color)
                                 doc.fillColor(el.color);
                             // Use standard built-in PDFKit fonts mapping
-                            const isSerif = el.fontFamily?.toLowerCase().includes("cinzel") || el.fontFamily?.toLowerCase().includes("playfair") || el.fontFamily?.toLowerCase().includes("georgia");
-                            const isBold = el.fontWeight === "bold" || el.fontSize > 20;
+                            const fontLower = (el.fontFamily || "").toLowerCase();
+                            const isSerif = fontLower.includes("cinzel") || fontLower.includes("playfair") || fontLower.includes("georgia") || fontLower.includes("times") || fontLower.includes("baskerville") || fontLower.includes("garamond") || fontLower.includes("merriweather");
+                            const isMonospace = fontLower.includes("mono") || fontLower.includes("code") || fontLower.includes("courier");
+                            const isBold = el.fontWeight === "bold" || el.fontWeight === "700" || el.fontWeight === "800" || el.fontSize > 22;
+                            const isItalic = el.fontStyle === "italic";
                             let fontName = "Helvetica";
-                            if (isSerif) {
-                                fontName = isBold ? "Times-Bold" : "Times-Roman";
+                            if (isMonospace) {
+                                fontName = isBold ? (isItalic ? "Courier-BoldOblique" : "Courier-Bold") : (isItalic ? "Courier-Oblique" : "Courier");
+                            }
+                            else if (isSerif) {
+                                fontName = isBold ? (isItalic ? "Times-BoldItalic" : "Times-Bold") : (isItalic ? "Times-Italic" : "Times-Roman");
                             }
                             else {
-                                fontName = isBold ? "Helvetica-Bold" : "Helvetica";
+                                fontName = isBold ? (isItalic ? "Helvetica-BoldOblique" : "Helvetica-Bold") : (isItalic ? "Helvetica-Oblique" : "Helvetica");
                             }
                             doc.font(fontName);
                             doc.text(resolvedText, el.x, el.y, {
                                 width: el.width,
                                 align: el.textAlign || "left",
                                 lineGap: el.lineHeight ? el.lineHeight * 2 : 2,
+                                characterSpacing: el.letterSpacing || 0,
                                 underline: !!el.underline
                             });
                         }
-                        else if (el.type === "qrcode") {
-                            const qrText = context["{{certificate.verificationUrl}}"] || "https://masterhrms.io/verify";
+                        else if (el.type === "qrcode" || el.type === "qr" || el.id?.toLowerCase().includes("qr")) {
+                            const qrText = context["{{certificate.verificationUrl}}"] || el.placeholder || (0, certificate_verification_resolver_1.resolveCertificateVerificationUrl)("VERIFY-CODE");
+                            const renderWidth = Math.max(256, Math.round((el.width || 45) * 4));
                             const qrPngBuffer = await qrcode_1.default.toBuffer(qrText, {
-                                width: el.width,
+                                width: renderWidth,
                                 margin: 1,
-                                color: { dark: "#000000", light: "#FFFFFF" }
+                                errorCorrectionLevel: "M",
+                                color: { dark: "#0F172A", light: "#FFFFFF" }
                             });
                             doc.image(qrPngBuffer, el.x, el.y, { width: el.width, height: el.height });
                         }
-                        else if (el.type === "seal") {
-                            const sealColor = el.fill || canvas.secondaryColor || "#D97706";
-                            const cx = el.x + el.width / 2;
-                            const cy = el.y + el.height / 2;
-                            const r = el.width / 2;
-                            doc.circle(cx, cy, r).lineWidth(2).strokeColor(sealColor).stroke();
-                            doc.circle(cx, cy, r - 5).lineWidth(1).strokeColor(sealColor).stroke();
-                            doc.fontSize(7).font("Helvetica-Bold").fillColor(sealColor).text("OFFICIAL SEAL", el.x, cy - 4, {
-                                width: el.width,
-                                align: "center"
-                            });
+                        else if (el.type === "seal" || el.isSeal || el.id?.toLowerCase().includes("seal") || (el.name && el.name.toLowerCase().includes("seal"))) {
+                            const sealUrl = (el.url && !el.url.includes("{{") ? el.url : null) || context["{{organization.seal}}"] || context.officialSealUrl;
+                            let sealBuffer = null;
+                            if (sealUrl) {
+                                sealBuffer = await CertificateStudioService.resolveAssetBuffer(sealUrl);
+                            }
+                            if (sealBuffer) {
+                                doc.image(sealBuffer, el.x, el.y, { fit: [el.width, el.height], align: "center" });
+                            }
+                            else {
+                                const sealColor = el.fill || canvas.secondaryColor || "#D97706";
+                                const cx = el.x + el.width / 2;
+                                const cy = el.y + el.height / 2;
+                                const r = el.width / 2;
+                                doc.circle(cx, cy, r).lineWidth(2).strokeColor(sealColor).stroke();
+                                doc.circle(cx, cy, r - 5).lineWidth(1).strokeColor(sealColor).stroke();
+                                doc.fontSize(7).font("Helvetica-Bold").fillColor(sealColor).text("OFFICIAL SEAL", el.x, cy - 4, {
+                                    width: el.width,
+                                    align: "center"
+                                });
+                            }
                         }
-                        else if (el.type === "signature") {
+                        else if (el.type === "signature" || el.id?.toLowerCase().includes("sig") || (el.name && el.name.toLowerCase().includes("signature"))) {
                             const lineY = el.y + el.height - 18;
+                            const effectiveSigType = el.signatoryType || (el.id?.toLowerCase().includes("hr") || el.name?.toLowerCase().includes("hr") ? "HR" : (el.id?.toLowerCase().includes("ceo") || el.name?.toLowerCase().includes("ceo")) ? "CEO" : (el.id?.toLowerCase().includes("dir") || el.name?.toLowerCase().includes("dir")) ? "DIRECTOR" : "HR");
+                            let sigUrl = el.signatureUrl || (el.url && !el.url.includes("{{") ? el.url : null);
+                            if (!sigUrl) {
+                                if (effectiveSigType.includes("HR"))
+                                    sigUrl = context["{{signatures.hr.image}}"] || context.hrSignatureUrl;
+                                else if (effectiveSigType.includes("DIRECTOR"))
+                                    sigUrl = context["{{signatures.director.image}}"] || context.directorSignatureUrl;
+                                else if (effectiveSigType.includes("CEO") || effectiveSigType.includes("MD"))
+                                    sigUrl = context["{{signatures.ceo.image}}"] || context.ceoSignatureUrl;
+                                if (!sigUrl)
+                                    sigUrl = context.hrSignatureUrl || context.ceoSignatureUrl;
+                            }
+                            let sigBuffer = null;
+                            if (sigUrl) {
+                                sigBuffer = await CertificateStudioService.resolveAssetBuffer(sigUrl);
+                            }
+                            if (sigBuffer) {
+                                doc.image(sigBuffer, el.x, el.y, { fit: [el.width, Math.max(10, el.height - 20)], align: "center" });
+                            }
                             doc.moveTo(el.x, lineY).lineTo(el.x + el.width, lineY).lineWidth(1).strokeColor(canvas.primaryColor || "#374151").stroke();
-                            doc.fontSize(8.5).font("Helvetica").fillColor(canvas.primaryColor || "#374151").text(el.signatoryName || "Authorized Signatory", el.x, lineY + 3, {
+                            const sigName = el.signatoryName || (el.placeholder ? context[el.placeholder] : "") || (effectiveSigType.includes("HR") ? (context["{{signatures.hr.name}}"] || "Sarah Jenkins") : (context["{{signatures.ceo.name}}"] || "Marcus Sterling")) || "Authorized Signatory";
+                            doc.fontSize(8.5).font("Helvetica-Bold").fillColor(canvas.primaryColor || "#374151").text(sigName, el.x, lineY + 3, {
                                 width: el.width,
                                 align: "center"
                             });
+                            const sigDesig = el.signatoryDesignation || (effectiveSigType.includes("HR") ? (context["{{signatures.hr.title}}"] || "Director of People & Culture") : (context["{{signatures.ceo.title}}"] || "Chief Executive Officer"));
+                            if (sigDesig) {
+                                doc.fontSize(7).font("Helvetica").fillColor("#64748B").text(sigDesig, el.x, lineY + 12, {
+                                    width: el.width,
+                                    align: "center"
+                                });
+                            }
                         }
+                        else if (el.type === "logo" || el.type === "image" || el.isLogo || el.id?.toLowerCase().includes("logo") || el.placeholder === "{{organization.logo}}") {
+                            let resolvedUrl = (el.url && !el.url.includes("{{")) ? el.url : (context["{{organization.logo}}"] || context.primaryLogoUrl || "/logo.webp");
+                            let imageBuffer = await CertificateStudioService.resolveAssetBuffer(resolvedUrl);
+                            if (!imageBuffer) {
+                                const defaultLogo = path_1.default.resolve(process.cwd(), "public", "logo.webp");
+                                if (fs_1.default.existsSync(defaultLogo)) {
+                                    imageBuffer = await (0, sharp_1.default)(fs_1.default.readFileSync(defaultLogo)).png().toBuffer();
+                                }
+                            }
+                            if (imageBuffer) {
+                                doc.image(imageBuffer, el.x, el.y, { fit: [el.width, el.height], align: el.align || "center" });
+                            }
+                        }
+                        doc.restore();
                     }
                     catch (itemErr) {
                         console.error("Error rendering canvas element:", itemErr);
@@ -960,7 +1378,7 @@ class CertificateStudioService {
      * Streams a branding asset binary with verified tenant isolation, proper MIME type, and inline caching.
      */
     static async streamBrandingAsset(tenantId, assetId, res) {
-        const asset = await prisma_1.prisma.organizationBrandingAsset.findFirst({
+        const asset = await db.organizationBrandingAsset.findFirst({
             where: { id: assetId, tenantId }
         });
         if (!asset) {

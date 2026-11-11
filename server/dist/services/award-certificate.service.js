@@ -18,6 +18,7 @@ const certificate_folder_service_1 = require("./files/certificate-folder.service
 const files_service_1 = require("./files/files.service");
 const socket_1 = require("../socket");
 const certificate_studio_service_1 = require("./certificate-studio.service");
+const certificate_verification_resolver_1 = require("../lib/certificate-verification-resolver");
 class AwardCertificateService {
     /**
      * Generates a printable, vector-rendered landscape A4 certificate PDF.
@@ -392,8 +393,7 @@ class AwardCertificateService {
         const certificateNumber = `CERT-${year}-${randomHex}`;
         const verificationCode = `VERIFY-${crypto_1.default.randomBytes(16).toString("hex").toUpperCase()}`;
         const certId = crypto_1.default.randomUUID();
-        const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-        const verificationUrl = `${baseUrl}/verify-certificate?code=${verificationCode}`;
+        const verificationUrl = (0, certificate_verification_resolver_1.resolveCertificateVerificationUrl)(verificationCode);
         const metadata = {
             certificateNumber,
             verificationCode,
@@ -727,8 +727,14 @@ class AwardCertificateService {
         if (!verificationCode || verificationCode.trim().length === 0) {
             return { valid: false, message: "Verification code must be specified." };
         }
+        const trimmed = verificationCode.trim();
         const cert = await db.employeeAwardCertificate.findFirst({
-            where: { verificationCode: verificationCode.trim() },
+            where: {
+                OR: [
+                    { verificationCode: trimmed },
+                    { certificateNumber: trimmed }
+                ]
+            },
         });
         if (!cert) {
             return {
