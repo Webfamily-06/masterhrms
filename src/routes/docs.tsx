@@ -487,8 +487,7 @@ export function DocsPortalPage({ embedded = false }: { embedded?: boolean } = {}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                <BookOpen className="size-6 text-primary" /> Enterprise Documentation Portal
+              <h1 className="text-2xl font-bold tracking-tight text-foreground"> Enterprise Documentation Portal
               </h1>
               <Badge variant="secondary" className="gap-1 text-xs font-mono">
                 v{system.version || "2.5.0"}

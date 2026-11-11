@@ -197,7 +197,7 @@ function EmployeePayslipsPage() {
     Number(homeLoanInterest || 0);
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 w-full min-w-0">
       <BreadcrumbNav className="mb-4" />
       {/* ── Page Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
@@ -209,8 +209,7 @@ function EmployeePayslipsPage() {
             <span>/</span>
             <span className="text-foreground font-semibold">My Payslips & Tax Compliance</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <FileText className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             <span>My Payslips & Tax Declaration</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

@@ -259,7 +259,7 @@ export function BudgetsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto">
+    <div className="space-y-6 w-full min-w-0">
       {/* ── Breadcrumb & Header ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -270,8 +270,7 @@ export function BudgetsPage() {
             <span>/</span>
             <span className="text-foreground font-medium">Budgets</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <PiggyBank className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Budgets & Expense Plans
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

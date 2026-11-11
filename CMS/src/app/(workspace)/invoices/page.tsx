@@ -377,8 +377,7 @@ function InvoicesPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Receipt className="size-6 text-primary" /> Sales Invoices & Billing
+            <h1 className="text-2xl font-black tracking-tight"> Sales Invoices & Billing
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               GST-compliant invoices with multi-line items, CGST/SGST/IGST breakdown and PDF export.

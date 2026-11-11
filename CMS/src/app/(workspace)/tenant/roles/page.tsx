@@ -54,8 +54,7 @@ function TenantRolesPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <ShieldCheck className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Roles & Access Permissions
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

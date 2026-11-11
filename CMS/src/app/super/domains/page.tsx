@@ -329,8 +329,7 @@ export default function SuperDomainsPage() {
             <ChevronRight className="size-3" />
             <span className="text-foreground font-medium">Custom Domains</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            <Globe className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Custom Domains
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

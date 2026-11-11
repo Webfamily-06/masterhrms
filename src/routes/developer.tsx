@@ -438,8 +438,7 @@ export function DeveloperPanelPage() {
               <div className="space-y-6 max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border">
                   <div>
-                    <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-primary" /> Developer Engine Overview
+                    <h2 className="text-xl font-bold text-foreground tracking-tight"> Developer Engine Overview
                     </h2>
                     <p className="text-xs text-muted-foreground mt-1">
                       Forensically inspected runtime & API inventory across Master ERP SaaS platform.
@@ -686,8 +685,7 @@ export function DeveloperPanelPage() {
               <div className="space-y-4 max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-border">
                   <div>
-                    <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <Search className="h-5 w-5 text-primary" /> API Explorer Directory
+                    <h2 className="text-lg font-bold text-foreground tracking-tight"> API Explorer Directory
                     </h2>
                     <p className="text-xs text-muted-foreground">
                       Search, inspect schemas, and filter all 433 live backend endpoints across 24 modules.
@@ -862,8 +860,7 @@ export function DeveloperPanelPage() {
               <div className="space-y-6 max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border">
                   <div>
-                    <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <ShieldCheck className="h-5 w-5 text-amber-500" /> Super Admin Platform REST APIs
+                    <h2 className="text-xl font-bold text-foreground tracking-tight"> Super Admin Platform REST APIs
                     </h2>
                     <p className="text-xs text-muted-foreground mt-1">
                       Platform root orchestration endpoints restricted to Super Admins (`requireSuperAdmin`).
@@ -930,8 +927,7 @@ export function DeveloperPanelPage() {
               <div className="space-y-6 max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border">
                   <div>
-                    <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <Terminal className="h-5 w-5 text-primary" /> Interactive API Console
+                    <h2 className="text-xl font-bold text-foreground tracking-tight"> Interactive API Console
                     </h2>
                     <p className="text-xs text-muted-foreground mt-1">
                       Execute real HTTP requests against the running Master ERP backend with SSRF protection.
@@ -1171,8 +1167,7 @@ export function DeveloperPanelPage() {
               <div className="space-y-4 max-w-6xl mx-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border">
                   <div>
-                    <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
-                      <History className="h-5 w-5 text-primary" /> API Testing History
+                    <h2 className="text-lg font-bold text-foreground tracking-tight"> API Testing History
                     </h2>
                     <p className="text-xs text-muted-foreground">
                       Local log of API executions triggered from this session. Persisted in browser storage.
@@ -1258,8 +1253,7 @@ export function DeveloperPanelPage() {
             {activeTab === "auth-guide" && (
               <div className="space-y-6 max-w-5xl mx-auto">
                 <div className="pb-2 border-b border-border">
-                  <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                    <Key className="h-5 w-5 text-amber-500" /> API Authentication & Token Lifecycle
+                  <h2 className="text-xl font-bold text-foreground tracking-tight"> API Authentication & Token Lifecycle
                   </h2>
                   <p className="text-xs text-muted-foreground mt-1">
                     Standard OAuth2/JWT Bearer Token flow, tenant header requirements, and error specifications.
@@ -1336,8 +1330,7 @@ Content-Type: application/json`}
             {activeTab === "permissions" && (
               <div className="space-y-6 max-w-6xl mx-auto">
                 <div className="pb-2 border-b border-border">
-                  <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-emerald-500" /> Permissions & Role Matrix
+                  <h2 className="text-xl font-bold text-foreground tracking-tight"> Permissions & Role Matrix
                   </h2>
                   <p className="text-xs text-muted-foreground mt-1">
                     Role-Based Access Control (RBAC) mapping across platform and tenant modules.
@@ -1413,8 +1406,7 @@ Content-Type: application/json`}
             {activeTab === "integrations" && (
               <div className="space-y-6 max-w-6xl mx-auto">
                 <div className="pb-2 border-b border-border">
-                  <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-2">
-                    <Network className="h-5 w-5 text-primary" /> Integration Engine Explorer
+                  <h2 className="text-xl font-bold text-foreground tracking-tight"> Integration Engine Explorer
                   </h2>
                   <p className="text-xs text-muted-foreground mt-1">
                     Technical configuration and protocol specifications for real-time WebSockets, IoT Biometrics, and External APIs.

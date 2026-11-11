@@ -391,8 +391,7 @@ function SubscriptionPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <CreditCard className="size-6 text-primary" /> Subscription, Addons & Invoices
+          <h1 className="text-2xl font-black tracking-tight"> Subscription, Addons & Invoices
           </h1>
           <p className="text-xs text-muted-foreground">
             Manage workspace tiers, view currently purchased add-ons, and download official payment tax invoices.

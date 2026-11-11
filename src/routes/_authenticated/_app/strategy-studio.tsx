@@ -183,8 +183,7 @@ export function StrategyStudioPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Target className="size-6 text-primary" />
+          <h1 className="text-2xl font-black tracking-tight">
             Strategy Studio
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

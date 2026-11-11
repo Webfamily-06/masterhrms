@@ -60,8 +60,7 @@ function TenantBrandingPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-          <Sparkles className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Workspace Branding & White-Label
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

@@ -180,8 +180,7 @@ export function SuperDeveloperPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Terminal className="size-6 text-primary" /> Developer Console & Web APIs
+            <h1 className="text-2xl font-bold tracking-tight text-foreground"> Developer Console & Web APIs
             </h1>
             <Badge variant="secondary" className="gap-1 text-xs">
               <Sparkles className="size-3 text-primary animate-pulse" /> 8 Web APIs

@@ -256,8 +256,7 @@ export default function HelpCenterPage() {
 
         {/* FAQs Accordion */}
         <div className="space-y-4 pt-4 border-t">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <HelpCircle className="size-5 text-primary" /> Frequently Asked Questions
+          <h2 className="text-lg font-bold"> Frequently Asked Questions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {faqsList.map((faq, i) => (

@@ -765,7 +765,7 @@ export function AwardTypesPage() {
                             size="sm"
                             onClick={() => handleOpenAssign(at)}
                             className="h-8 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
-                            title="Assign to Employee"
+                            aria-label="Assign to Employee"
                           >
                             <UserCheck className="h-3.5 w-3.5" />
                             <span className="hidden lg:inline ml-1">Assign</span>
@@ -778,7 +778,7 @@ export function AwardTypesPage() {
                           size="sm"
                           onClick={() => handleOpenEdit(at)}
                           className="h-8 px-2 text-xs"
-                          title="Edit Award Type"
+                          title="Edit Award Type" aria-label="Edit Award Type"
                         >
                           <Edit2 className="h-3.5 w-3.5" />
                         </Button>
@@ -809,7 +809,7 @@ export function AwardTypesPage() {
                             setDeleteConfirmTarget(at);
                           }}
                           className="h-8 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                          title="Delete Award Type"
+                          title="Delete Award Type" aria-label="Delete Award Type"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

@@ -196,7 +196,7 @@ export function EmployeeAttendancePage() {
   const daysHalfDay = attendanceRecords.filter((r) => r.status === "half_day").length;
 
   return (
-    <div className="space-y-6 sm: lg:p-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm: lg:p-8 w-full min-w-0">
       <BreadcrumbNav className="mb-4" />
       {/* ── Page Header matching ui-2/attendance-employee.html ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
@@ -208,8 +208,7 @@ export function EmployeeAttendancePage() {
             <span>/</span>
             <span className="text-foreground font-semibold">Employee Attendance Matrix</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <CalendarDays className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             <span>Employee Attendance</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

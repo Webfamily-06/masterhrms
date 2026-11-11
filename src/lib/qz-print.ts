@@ -81,7 +81,7 @@ export async function initQz(
     }
 
     isQzConnected = true;
-    console.log("QZ-Tray hardware printing service connected successfully.");
+    // QZ-Tray connected
     return true;
   } catch (err) {
     console.warn("QZ-Tray daemon connection bypassed (using browser print fallback):", err);

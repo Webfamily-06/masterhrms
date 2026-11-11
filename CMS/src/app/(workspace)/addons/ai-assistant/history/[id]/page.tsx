@@ -189,8 +189,7 @@ function AiHistoryDetailPage() {
 
         {/* Generated Result Cards */}
         <div className="space-y-3">
-          <h2 className="text-base font-bold flex items-center">
-            <Sparkles className="w-4 h-4 mr-2 text-primary" />
+          <h2 className="text-base font-bold">
             Generated Options ({detail.results?.length || 0})
           </h2>
           <div className="space-y-3">

@@ -219,7 +219,7 @@ function LanguageEditorPage() {
   }, [filteredEntries, currentPage, perPage]);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto sm: lg:p-8 animate-in fade-in duration-300">
+    <div className="space-y-6 w-full min-w-0 sm: lg:p-8 animate-in fade-in duration-300">
       <BreadcrumbNav className="mb-4" />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">

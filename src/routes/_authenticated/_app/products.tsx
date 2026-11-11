@@ -926,8 +926,7 @@ export function ProductsAndServicesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Boxes className="size-6 text-primary" /> Products & Services Hub
+            <h1 className="text-2xl font-black tracking-tight"> Products & Services Hub
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               Manage product catalogs, service tiers, spare parts, SKU barcodes, multi-warehouse stocks, and taxes.

@@ -251,7 +251,7 @@ function AiDocumentGeneratePage() {
 
   return (
     <PlanGuard moduleName="AI Document" requiredPlan="growth">
-      <div className="p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-6 md:p-8 space-y-6 w-full min-w-0">
         <AiDocumentNavHeader activeTab="generate" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

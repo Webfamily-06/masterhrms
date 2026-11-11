@@ -60,8 +60,7 @@ export function CustomDomainDocumentationPage() {
             <ChevronRight className="size-3" />
             <span className="text-foreground font-medium">Custom Domain Documentation</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-            <Globe className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Primary Custom Domain Engineering Guide
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

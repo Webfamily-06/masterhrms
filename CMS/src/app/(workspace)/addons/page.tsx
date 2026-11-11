@@ -312,7 +312,7 @@ function AddonsPage() {
       </PageHero>
 
       <section className="py-12 bg-secondary/10 min-h-screen">
-        <div className="mx-auto max-w-7xl px-6 space-y-8">
+        <div className="w-full min-w-0 px-6 space-y-8">
           {/* Category Filter Pills Bar */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b">
             <span className="text-xs font-bold text-muted-foreground shrink-0 uppercase tracking-wider text-[10px] mr-2">

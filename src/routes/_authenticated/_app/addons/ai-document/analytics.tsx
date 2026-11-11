@@ -39,7 +39,7 @@ export default function AiDocumentAnalyticsPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-7xl space-y-6">
+    <div className="container w-full min-w-0 space-y-6">
       <AiDocumentNavHeader active="analytics" />
 
       <div>

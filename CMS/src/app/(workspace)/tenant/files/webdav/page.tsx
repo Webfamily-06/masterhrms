@@ -95,12 +95,11 @@ export default function WebdavTokensPage() {
       : (typeof process !== "undefined" && process.env.INTERNAL_API_URL ? `${process.env.INTERNAL_API_URL}/webdav` : (process.env.NODE_ENV === "production" ? "/webdav" : "http://localhost:4000/webdav")));
 
   return (
-    <div className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full gap-6">
+    <div className="flex-1 flex flex-col w-full min-w-0 gap-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <HardDrive className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight">
             WebDAV Network Drive Gateway
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

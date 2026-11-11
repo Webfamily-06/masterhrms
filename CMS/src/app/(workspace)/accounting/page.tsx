@@ -349,8 +349,7 @@ function AccountingAppSuite() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Landmark className="size-6 text-primary" /> Advanced Accounting & General Ledger
+            <h1 className="text-2xl font-black tracking-tight"> Advanced Accounting & General Ledger
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               Double-entry bookkeeping, balanced journal vouchers, banking, customer/vendor ledgers & financial statements.

@@ -699,8 +699,7 @@ function MarketplacePage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-5">
             <div>
               <BreadcrumbNav />
-              <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-                <Store className="size-6 text-primary" /> Add-ons Marketplace
+              <h1 className="text-2xl font-black tracking-tight"> Add-ons Marketplace
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Discover, install, and manage extensions available to your workspace.
@@ -709,59 +708,31 @@ function MarketplacePage() {
 
             {/* Authoritative DB-backed Summary Counters */}
             <div className="flex flex-wrap items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
-                    <span className="size-2 rounded-full bg-blue-500 shrink-0" />
-                    <span className="text-muted-foreground">Available:</span>
-                    <span className="font-bold text-foreground font-mono">{summaryCounts.available}</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  Not currently installed; purchase or eligibility may be required.
-                </TooltipContent>
-              </Tooltip>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium shadow-2xs">
+                <span className="size-2 rounded-full bg-blue-500 shrink-0" />
+                <span className="text-muted-foreground">Available:</span>
+                <span className="font-bold text-foreground font-mono">{summaryCounts.available}</span>
+              </div>
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
-                    <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span className="text-muted-foreground">Installed:</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{summaryCounts.installed}</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  This add-on is installed in your workspace.
-                </TooltipContent>
-              </Tooltip>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium shadow-2xs">
+                <span className="size-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-muted-foreground">Installed:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{summaryCounts.installed}</span>
+              </div>
 
               {summaryCounts.disabled > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
-                      <span className="size-2 rounded-full bg-amber-500 shrink-0" />
-                      <span className="text-muted-foreground">Disabled:</span>
-                      <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{summaryCounts.disabled}</span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    Installed add-ons currently disabled for this workspace.
-                  </TooltipContent>
-                </Tooltip>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium shadow-2xs">
+                  <span className="size-2 rounded-full bg-amber-500 shrink-0" />
+                  <span className="text-muted-foreground">Disabled:</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{summaryCounts.disabled}</span>
+                </div>
               )}
 
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium cursor-help shadow-2xs">
-                    <span className="size-2 rounded-full bg-purple-500 shrink-0" />
-                    <span className="text-muted-foreground">Included in plan:</span>
-                    <span className="font-bold text-purple-600 dark:text-purple-400 font-mono">{summaryCounts.planIncluded}</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  Included in your current subscription tier.
-                </TooltipContent>
-              </Tooltip>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-card text-xs font-medium shadow-2xs">
+                <span className="size-2 rounded-full bg-purple-500 shrink-0" />
+                <span className="text-muted-foreground">Included in plan:</span>
+                <span className="font-bold text-purple-600 dark:text-purple-400 font-mono">{summaryCounts.planIncluded}</span>
+              </div>
             </div>
           </div>
 
@@ -1054,95 +1025,53 @@ function MarketplacePage() {
                               )}
                             </div>
 
-                            {/* Status & Pricing Indicators with Accessible Tooltips */}
+                            {/* Status & Pricing Indicators */}
                             <div className="flex flex-col items-end gap-1">
                               {disabled ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 gap-1 cursor-help py-0.5"
-                                    >
-                                      <AlertCircle className="size-2.5" /> Disabled
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    This add-on is currently disabled for this workspace.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 gap-1 py-0.5"
+                                >
+                                  <AlertCircle className="size-2.5" /> Disabled
+                                </Badge>
                               ) : installed ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1 cursor-help py-0.5"
-                                    >
-                                      <CheckCircle2 className="size-2.5" /> Installed
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    This add-on is installed in your workspace.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 gap-1 py-0.5"
+                                >
+                                  <CheckCircle2 className="size-2.5" /> Installed
+                                </Badge>
                               ) : (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="outline"
-                                      className="text-[10px] font-medium text-muted-foreground border-border cursor-help py-0.5"
-                                    >
-                                      Available
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Not currently installed; purchase or eligibility may be required.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] font-medium text-muted-foreground border-border py-0.5"
+                                >
+                                  Available
+                                </Badge>
                               )}
 
                               {/* Commercial / Tier Badge */}
                               {planIncluded ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 cursor-help py-0"
-                                    >
-                                      Plan Included
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Included in your current subscription.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 py-0"
+                                >
+                                  Plan Included
+                                </Badge>
                               ) : isFree ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 cursor-help py-0"
-                                    >
-                                      Free
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    No purchase payment is required for this catalog item.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 py-0"
+                                >
+                                  Free
+                                </Badge>
                               ) : (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 cursor-help py-0"
-                                    >
-                                      Pro
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-xs">
-                                    Requires purchase unless your subscription already covers it.
-                                  </TooltipContent>
-                                </Tooltip>
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 py-0"
+                                >
+                                  Pro
+                                </Badge>
                               )}
                             </div>
                           </div>

@@ -556,8 +556,7 @@ export function TrainingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <GraduationCap className="size-6 text-primary" /> Training Academy & Learning LMS
+          <h1 className="text-2xl font-black tracking-tight"> Training Academy & Learning LMS
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Plan, monitor, and coordinate training programs, internal/external trainers, session tasks, and accounting expense tracking.

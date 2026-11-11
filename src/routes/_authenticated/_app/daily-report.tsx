@@ -134,7 +134,7 @@ export function DailyReportPage() {
   };
 
   return (
-    <div className="sm: space-y-6 max-w-[1600px] mx-auto">
+    <div className="sm: space-y-6 w-full min-w-0">
       {/* ─── PageHeader with Breadcrumb and Actions ────────────────────────── */}
       <PageHeader
         title="Daily Report"

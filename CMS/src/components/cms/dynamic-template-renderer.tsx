@@ -221,8 +221,7 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
       {content.faqs && content.faqs.length > 0 && (
         <section className="max-w-3xl mx-auto px-6 space-y-6">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-foreground flex items-center justify-center gap-2">
-              <HelpCircle className="size-5 text-primary" /> Frequently Asked Questions
+            <h2 className="text-2xl font-bold text-foreground"> Frequently Asked Questions
             </h2>
             <p className="text-xs text-muted-foreground">Answers to common operational and architectural questions.</p>
           </div>
@@ -240,8 +239,7 @@ export function DynamicTemplateRenderer({ content, fallbackTitle }: DynamicTempl
       {/* 6. Testimonials Dynamic Section (if present) */}
       {content.testimonials && content.testimonials.length > 0 && (
         <section className="max-w-4xl mx-auto px-6 space-y-6">
-          <h2 className="text-2xl font-bold text-center text-foreground flex items-center justify-center gap-2">
-            <MessageSquareQuote className="size-5 text-primary" /> Customer Stories & Reviews
+          <h2 className="text-2xl font-bold text-center text-foreground"> Customer Stories & Reviews
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {content.testimonials.map((t, idx) => (

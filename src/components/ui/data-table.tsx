@@ -212,7 +212,7 @@ export function DataTable<T extends Record<string, any>>({
               className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage(1)}
               disabled={safePage <= 1}
-              title="First Page"
+              title="First Page" aria-label="First Page"
             >
               <ChevronsLeft className="size-3.5" />
             </Button>
@@ -222,7 +222,7 @@ export function DataTable<T extends Record<string, any>>({
               className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safePage <= 1}
-              title="Previous Page"
+              title="Previous Page" aria-label="Previous Page"
             >
               <ChevronLeft className="size-3.5" />
             </Button>
@@ -235,7 +235,7 @@ export function DataTable<T extends Record<string, any>>({
               className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safePage >= totalPages}
-              title="Next Page"
+              title="Next Page" aria-label="Next Page"
             >
               <ChevronRight className="size-3.5" />
             </Button>
@@ -245,7 +245,7 @@ export function DataTable<T extends Record<string, any>>({
               className="h-11 w-11 sm:h-7 sm:w-7 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0"
               onClick={() => setCurrentPage(totalPages)}
               disabled={safePage >= totalPages}
-              title="Last Page"
+              title="Last Page" aria-label="Last Page"
             >
               <ChevronsRight className="size-3.5" />
             </Button>

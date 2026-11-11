@@ -2501,8 +2501,7 @@ export function Employees() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Users className="size-6 text-primary" /> Workforce & Talent Hub
+          <h1 className="text-2xl font-black tracking-tight"> Workforce & Talent Hub
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage employee directories, 360° OKR performance appraisals, and company hardware assets.
@@ -2795,7 +2794,7 @@ export function Employees() {
                         variant="ghost"
                         className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
                         onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }}
-                        title="Manage Login & Reset Password"
+                        title="Manage Login & Reset Password" aria-label="Manage Login & Reset Password"
                       >
                         <KeyRound className="size-3.5" />
                       </Button>
@@ -2804,7 +2803,7 @@ export function Employees() {
                         variant="ghost"
                         className="size-7"
                         onClick={() => setSelectedEmployeeId(e.id)}
-                        title="View Full Profile Details (Dreams UI-2)"
+                        title="View Full Profile Details" aria-label="View Full Profile Details"
                       >
                         <Eye className="size-3.5 text-primary" />
                       </Button>
@@ -2813,7 +2812,7 @@ export function Employees() {
                         variant="ghost"
                         className="size-7"
                         onClick={() => setEditingEmployee({ ...e })}
-                        title="Edit Info"
+                        title="Edit Employee Information" aria-label="Edit Employee Information"
                       >
                         <Edit2 className="size-3.5" />
                       </Button>
@@ -2824,7 +2823,7 @@ export function Employees() {
                         onClick={() => {
                           if (confirm(`Remove ${e.first_name} ${e.last_name}?`)) deleteMut.mutate(e.id);
                         }}
-                        title="Delete"
+                        title="Delete Employee" aria-label="Delete Employee"
                       >
                         <Trash2 className="size-3.5" />
                       </Button>
@@ -2892,7 +2891,7 @@ export function Employees() {
                               variant="ghost"
                               className="size-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
                               onClick={() => { setAuthModalEmployee(e); setNewPassword(""); }}
-                              title="Manage Login & Reset Password"
+                              title="Manage Login & Reset Password" aria-label="Manage Login & Reset Password"
                             >
                               <KeyRound className="size-3.5" />
                             </Button>
@@ -2901,7 +2900,7 @@ export function Employees() {
                               variant="ghost"
                               className="size-7"
                               onClick={() => setSelectedEmployeeId(e.id)}
-                              title="View Full Profile Details (Dreams UI-2)"
+                              title="View Full Profile Details" aria-label="View Full Profile Details"
                             >
                               <Eye className="size-3.5 text-primary" />
                             </Button>
@@ -2910,7 +2909,7 @@ export function Employees() {
                               variant="ghost"
                               className="size-7"
                               onClick={() => setEditingEmployee({ ...e })}
-                              title="Edit Info"
+                              title="Edit Employee Information" aria-label="Edit Employee Information"
                             >
                               <Edit2 className="size-3.5" />
                             </Button>
@@ -2921,7 +2920,7 @@ export function Employees() {
                               onClick={() => {
                                 if (confirm(`Remove ${e.first_name} ${e.last_name}?`)) deleteMut.mutate(e.id);
                               }}
-                              title="Delete"
+                              title="Delete Employee" aria-label="Delete Employee"
                             >
                               <Trash2 className="size-3.5" />
                             </Button>

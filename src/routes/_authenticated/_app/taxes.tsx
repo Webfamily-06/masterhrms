@@ -185,8 +185,7 @@ export function TaxesPage() {
             <span>/</span>
             <span className="text-foreground font-medium">Taxes</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Percent className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Tax Rates & GST Slabs
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

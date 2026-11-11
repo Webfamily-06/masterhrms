@@ -9,8 +9,7 @@ function TenantDomainPage() {
   return (
     <div className="space-y-6 max-w-5xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-          <Globe className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Workspace Domain & Custom Domain
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

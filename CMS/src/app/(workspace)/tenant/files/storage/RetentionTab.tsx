@@ -806,7 +806,8 @@ export default function RetentionTab() {
 
           <div className="p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-800 dark:text-rose-200 space-y-2">
             <div className="font-semibold flex items-center gap-1.5">
-              <span>⚠️ Destructive Operation Notice</span>
+              <ShieldAlert className="size-4 shrink-0" />
+              <span>Destructive Operation Notice</span>
             </div>
             <p className="text-[11px] leading-relaxed">
               Active files, files with business references, and files under legal hold are strictly protected.

@@ -252,8 +252,7 @@ export function OffboardingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <UserMinus className="size-6 text-primary" /> Offboarding & Employee Exit Management
+          <h1 className="text-2xl font-black tracking-tight"> Offboarding & Employee Exit Management
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage multi-department clearance (IT, Finance, HR, Admin), asset recoveries, exit interviews, and Full & Final (FnF) settlements.

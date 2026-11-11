@@ -262,8 +262,7 @@ function AdjustmentsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5">
-            <SlidersHorizontal className="size-6 text-indigo-500" />
+          <h1 className="text-2xl font-bold tracking-tight">
             Physical Stock Adjustments & Count Audits
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

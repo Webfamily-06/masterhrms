@@ -393,8 +393,7 @@ function Leave() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Palmtree className="size-6 text-primary" /> Leave & Holiday Management
+          <h1 className="text-2xl font-black tracking-tight"> Leave & Holiday Management
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage employee time off quotas, approval workflows, company holidays, and leave metrics.

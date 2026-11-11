@@ -49,14 +49,14 @@ export interface AIContentGeneratorModalProps {
 }
 
 const LANGUAGES = [
-  { value: "English", label: "🇺🇸 English" },
-  { value: "Tamil", label: "🇮🇳 Tamil (தமிழ்)" },
-  { value: "Hindi", label: "🇮🇳 Hindi (हिन्दी)" },
-  { value: "Arabic", label: "🇦🇪 Arabic (العربية)" },
-  { value: "Spanish", label: "🇪🇸 Spanish (Español)" },
-  { value: "French", label: "🇫🇷 French (Français)" },
-  { value: "German", label: "🇩🇪 German (Deutsch)" },
-  { value: "Japanese", label: "🇯🇵 Japanese (日本語)" },
+  { value: "English", label: "English" },
+  { value: "Tamil", label: "Tamil (தமிழ்)" },
+  { value: "Hindi", label: "Hindi (हिन्दी)" },
+  { value: "Arabic", label: "Arabic (العربية)" },
+  { value: "Spanish", label: "Spanish (Español)" },
+  { value: "French", label: "French (Français)" },
+  { value: "German", label: "German (Deutsch)" },
+  { value: "Japanese", label: "Japanese (日本語)" },
 ];
 
 const TONES = [

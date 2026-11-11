@@ -132,7 +132,7 @@ function DailyReportPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* ─── PageHeader with Breadcrumb and Actions ────────────────────────── */}
       <PageHeader
         title="Daily Report"

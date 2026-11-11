@@ -322,8 +322,7 @@ export default function TransfersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-gray-50 flex items-center gap-2">
-            <ArrowRightLeft className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-gray-50">
             Stock Transfers & In-Transit
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

@@ -83,18 +83,9 @@ export function PageHeader({
           </nav>
         )}
 
-        {/* Title, icon & optional badge */}
+        {/* Title & optional badge (decorative leading icon removed per enterprise UI standards) */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          {icon && (
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-              {React.isValidElement(icon)
-                ? icon
-                : typeof icon === "function" || (typeof icon === "object" && icon !== null && "$$typeof" in icon)
-                ? React.createElement(icon as any, { className: "size-4" })
-                : icon}
-            </div>
-          )}
-          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
             {title}
           </h1>
           {badge && <div className="inline-flex items-center">{badge}</div>}

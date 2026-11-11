@@ -286,8 +286,7 @@ export function TimesheetsPage() {
       {/* ── Breadcrumb & Top Bar ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Clock className="size-6 text-primary" /> Timesheets
+          <h1 className="text-2xl font-black tracking-tight"> Timesheets
           </h1>
           <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
             <Link to="/hr/dashboard" className="hover:text-foreground transition-colors">

@@ -231,8 +231,7 @@ function AiOcrPage() {
         <div className="flex items-center justify-between border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <ScanLine className="size-6 text-purple-600" /> AI Invoice OCR Reader
+            <h1 className="text-2xl font-black tracking-tight"> AI Invoice OCR Reader
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Upload PDF or image invoices and let AI auto-extract all fields.

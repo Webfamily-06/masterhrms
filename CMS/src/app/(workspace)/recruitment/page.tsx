@@ -376,8 +376,7 @@ function RecruitmentHub() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Briefcase className="size-6 text-primary" /> Recruitment & Applicant Tracking (ATS)
+          <h1 className="text-2xl font-black tracking-tight"> Recruitment & Applicant Tracking (ATS)
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage job postings, visual recruitment stages, candidate scorecards, and 1-click staff onboarding.

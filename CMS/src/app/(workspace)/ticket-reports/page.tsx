@@ -193,7 +193,7 @@ function TicketReportsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Ticket Report"

@@ -201,7 +201,7 @@ export function PaymentCheckoutModal({
         qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
 
         toast.success(
-          `⏳ Bank Transfer Request Submitted (Ref: ${refNo})! Super Admin will review your payment screenshot and activate ${itemName}.`,
+          `Bank Transfer Request Submitted (Ref: ${refNo})! Super Admin will review your payment screenshot and activate ${itemName}.`,
           { duration: 7000 },
         );
 

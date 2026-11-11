@@ -288,12 +288,11 @@ function CertificateBrandingPage() {
   const signatories = signatoriesData?.signatories || [];
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Palette className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Certificate Branding & Signatory Studio
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -321,29 +320,6 @@ function CertificateBrandingPage() {
               Add Authorized Signatory
             </Button>
           )}
-        </div>
-      </div>
-
-      {/* System Storage Indicator Banner */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg text-primary">
-            <Shield className="h-5 w-5" />
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              Protected System Folder Hierarchy Active
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-medium">
-                Unified File Manager
-              </span>
-            </h4>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Certificates / Branding • Certificates / Signatures • Certificates / Templates • Certificates / Generated
-            </p>
-          </div>
-        </div>
-        <div className="text-xs text-muted-foreground text-right hidden sm:block">
-          <span>Protected from deletion and renaming</span>
         </div>
       </div>
 
@@ -379,7 +355,7 @@ function CertificateBrandingPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
               {assets.map((asset: any) => {
                 const previewUrl = getCertificateAssetPreviewUrl(asset.id, asset.fileId, asset.storagePath);
                 const hasError = imageErrors[asset.id];
@@ -407,6 +383,7 @@ function CertificateBrandingPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Preview full asset"
                           title="Preview full asset"
                           onClick={() => setPreviewModalAsset(asset)}
                           className="text-muted-foreground hover:text-foreground"
@@ -416,6 +393,7 @@ function CertificateBrandingPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Replace asset"
                           title="Replace asset"
                           onClick={() => {
                             setAssetToReplace(asset);
@@ -428,6 +406,7 @@ function CertificateBrandingPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label="Delete asset"
                           title="Delete asset"
                           onClick={() => {
                             if (window.confirm(`Are you sure you want to delete "${asset.assetName}"? If referenced by active certificates or signatories, deletion will be blocked.`)) {
@@ -506,7 +485,7 @@ function CertificateBrandingPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-5">
               {signatories.map((sig: any) => {
                 const sigPreviewUrl = getSignatorySignaturePreviewUrl(sig.id, sig.signatureAssetId);
                 const hasError = imageErrors[`sig-${sig.id}`];

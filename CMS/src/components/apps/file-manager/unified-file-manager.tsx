@@ -1811,7 +1811,7 @@ export function UnifiedFileManager({
                   setIsMoveOpen(true);
                 }}
                 className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
-                title="Move to folder"
+                aria-label="Move to folder"
               >
                 <img src="/FILE-MANAGER/Folder%20Open.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
                 <span className="hidden sm:inline">Move</span>
@@ -1829,7 +1829,7 @@ export function UnifiedFileManager({
                   }
                 }}
                 className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
-                title="Share with people, teams, or create public link"
+                aria-label="Share"
               >
                 <Share2 className="size-3.5 text-primary" />
                 <span className="hidden sm:inline">Share</span>
@@ -1842,7 +1842,7 @@ export function UnifiedFileManager({
                 disabled={selectedItems.length !== 1 || selectedItems[0]?.isFolder}
                 onClick={() => selectedItems[0] && handleCopySignedLink(selectedItems[0])}
                 className="h-8 px-2.5 gap-1.5 font-medium text-xs hover:bg-accent/60 disabled:opacity-40"
-                title="Copy secure link"
+                aria-label="Copy secure link"
               >
                 <img src="/FILE-MANAGER/Link.ico" alt="" className="size-3.5 object-contain shrink-0" draggable={false} />
                 <span className="hidden sm:inline">Copy link</span>
@@ -1979,7 +1979,7 @@ export function UnifiedFileManager({
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
                 className="hover:text-destructive ml-1"
-                title="Clear selection"
+                aria-label="Clear selection"
               >
                 <X className="size-3" />
               </button>
@@ -2351,7 +2351,7 @@ export function UnifiedFileManager({
                             <div className="text-xs font-semibold text-foreground truncate group-hover:text-primary transition-colors">
                               <span>{folder.fileName}</span>
                               {isProtectedFolder(folder) && (
-                                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded border border-primary/20 shrink-0" title="Protected System Folder">
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded border border-primary/20 shrink-0">
                                   <Shield className="size-2.5" /> System
                                 </span>
                               )}
@@ -2486,7 +2486,7 @@ export function UnifiedFileManager({
                                   <span className="font-medium text-foreground truncate max-w-xs sm:max-w-md">
                                     <span>{item.fileName}</span>
                                     {isProtectedFolder(item) && (
-                                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 shrink-0" title="Protected System Folder">
+                                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 shrink-0">
                                         <Shield className="size-2.5" /> System
                                       </span>
                                     )}

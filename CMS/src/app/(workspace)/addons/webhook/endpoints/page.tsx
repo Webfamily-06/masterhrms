@@ -50,8 +50,7 @@ function WebhookNavHeader({ activeTab }: { activeTab: "endpoints" | "events" | "
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
       <div>
         <BreadcrumbNav />
-        <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-          <Webhook className="size-6 text-primary" /> Webhook Engine
+        <h1 className="text-2xl font-black tracking-tight"> Webhook Engine
         </h1>
         <p className="text-xs text-muted-foreground mt-0.5">
           Event-driven HTTP callback system with HMAC-SHA256 signatures, SSRF protection & bounded retries.

@@ -834,8 +834,7 @@ function PosPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <ShoppingCart className="size-6 text-primary" /> Point of Sale & Barcode Hub
+            <h1 className="text-2xl font-black tracking-tight"> Point of Sale & Barcode Hub
             </h1>
             <p className="text-xs text-muted-foreground mt-0.5">
               High-speed barcode scanner, Code-128 label generator, offline cache, and instant GST tax invoice printing.

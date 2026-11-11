@@ -123,7 +123,7 @@ export default function SuperStorageAdministrationPage() {
   const planChartSeries = overview?.planDistribution?.map((p: any) => p.count) || [];
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto min-h-screen text-foreground">
+    <div className="p-6 space-y-6 w-full min-w-0 min-h-screen text-foreground">
       {/* ── Top Header Ribbon ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
@@ -300,7 +300,7 @@ export default function SuperStorageAdministrationPage() {
 
           <div className="text-xs text-muted-foreground bg-accent/20 p-3 rounded-lg border border-border/40">
             <p>
-              💡 <strong>Integrity Note:</strong> Historical storage trends begin from deployment date and are grounded in real snapshots. Estimates use linear velocity projection without synthetic inflation.
+              <strong>Integrity Note:</strong> Historical storage trends begin from deployment date and are grounded in real snapshots. Estimates use linear velocity projection without synthetic inflation.
             </p>
           </div>
         </div>

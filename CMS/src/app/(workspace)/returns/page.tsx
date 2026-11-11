@@ -565,8 +565,7 @@ function ReturnsPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <RotateCcw className="h-6 w-6 text-orange-500" />
+          <h1 className="text-2xl font-bold tracking-tight">
             Returns & Credit/Debit Notes
           </h1>
           <p className="text-muted-foreground text-sm mt-1">

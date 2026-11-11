@@ -191,8 +191,7 @@ function ProposalsPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <FileText className="size-6 text-primary" /> Realtime Proposals & Quotations
+            <h1 className="text-2xl font-black tracking-tight"> Realtime Proposals & Quotations
             </h1>
             <p className="text-xs text-muted-foreground">
               Digital client proposals & quotes synced in real-time to MySQL database.

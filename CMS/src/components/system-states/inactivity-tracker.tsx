@@ -98,7 +98,7 @@ export function InactivityTracker() {
       // 2. AUTO-LOCK: >= 15 minutes inactivity while authenticated
       if (idleTime >= LOCK_THRESHOLD_MS) {
         if (path !== "/lock-screen") {
-          console.info("[Session Manager] User inactive for 15 minutes. Redirecting to lock screen.");
+          // Redirecting inactive session to lock screen
           const returnUrl = window.location.pathname + window.location.search;
           if (returnUrl && returnUrl !== "/" && !returnUrl.startsWith("/auth")) {
             localStorage.setItem("hrms_locked_return_url", returnUrl);

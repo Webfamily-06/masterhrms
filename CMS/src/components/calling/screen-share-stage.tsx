@@ -57,7 +57,7 @@ export function ScreenShareStage({
     if (!screenTrack) return;
 
     const handleTrackEnded = () => {
-      console.log("[SCREEN_SHARE_ENDED] Detected native screenTrack.onended event");
+      // Native screenTrack ended
       onStopScreenShare();
     };
 

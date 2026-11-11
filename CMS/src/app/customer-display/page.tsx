@@ -205,8 +205,7 @@ export default function CustomerDisplayPage() {
         {/* LEFT COLUMN: SCANNED ITEMS (7 cols) */}
         <section className="lg:col-span-7 xl:col-span-8 flex flex-col bg-slate-900/50 border border-slate-800/80 rounded-3xl p-5 overflow-hidden shadow-xl">
           <div className="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3 shrink-0">
-            <h2 className="text-base font-black text-white flex items-center gap-2">
-              <ShoppingCart className="size-4 text-orange-500" /> Scanned Items (
+            <h2 className="text-base font-black text-white"> Scanned Items (
               {displayState.cart.reduce((s, i) => s + i.qty, 0)})
             </h2>
             <span className="text-xs text-slate-400">Updates live as items are scanned</span>

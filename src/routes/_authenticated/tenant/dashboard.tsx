@@ -52,8 +52,7 @@ function TenantDashboardPage() {
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Building2 className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {tenantMetrics?.tenantName || branding.name || "Enterprise Workspace"} Overview
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

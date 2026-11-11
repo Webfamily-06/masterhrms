@@ -289,13 +289,12 @@ export function MarketingCampaignsPage() {
   };
 
   return (
-    <div className="page-wrapper min-h-screen bg-slate-50/50 sm: lg:p-8 space-y-6">
+    <div className="w-full min-w-0 space-y-6">
       {/* ─── Page Header ────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2.5">
-            <Megaphone className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             <span>Marketing Campaigns</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">

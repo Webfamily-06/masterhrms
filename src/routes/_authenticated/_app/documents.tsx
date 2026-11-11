@@ -366,8 +366,7 @@ export function DocumentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <FolderLock className="size-6 text-primary" /> Document Vault & Digital E-Signatures
+          <h1 className="text-2xl font-black tracking-tight"> Document Vault & Digital E-Signatures
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Cryptographic document storage, employment agreements, NDAs, company policies, legal e-Signatures, and official HR letter requests.

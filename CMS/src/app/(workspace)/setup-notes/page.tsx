@@ -136,8 +136,7 @@ function SetupNotesPage() {
       {/* 4-Step Process Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-            <Clock className="size-4 text-primary" />
+          <h2 className="text-sm font-black text-foreground uppercase tracking-wider">
             <span>How Authentication Works Step-by-Step</span>
           </h2>
         </div>

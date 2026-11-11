@@ -229,8 +229,7 @@ function PublicCareersPage() {
       {/* Jobs Listing */}
       <main className="max-w-6xl mx-auto px-4 py-10 flex-1 w-full space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-            <Briefcase className="size-4 text-primary" /> Open Positions ({filteredJobs.length})
+          <h2 className="text-lg font-bold text-foreground"> Open Positions ({filteredJobs.length})
           </h2>
           <span className="text-xs text-muted-foreground">Updated in real-time</span>
         </div>

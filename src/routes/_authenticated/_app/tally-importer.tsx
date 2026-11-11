@@ -245,8 +245,7 @@ function TallyImporterPage() {
         <div className="flex items-center justify-between border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <ArrowLeftRight className="size-6 text-orange-600" /> Tally Prime Ledger Importer
+            <h1 className="text-2xl font-black tracking-tight"> Tally Prime Ledger Importer
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Import CSV/XML ledger data from Tally Prime with field mapping and validation.

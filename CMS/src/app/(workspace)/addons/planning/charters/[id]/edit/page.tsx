@@ -201,8 +201,7 @@ export default function EditCharterPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
+          <h1 className="text-xl font-bold">
             Edit Strategic Charter
           </h1>
           <p className="text-xs text-muted-foreground">Modify parameters, narrative, and team membership.</p>

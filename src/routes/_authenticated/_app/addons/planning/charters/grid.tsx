@@ -64,7 +64,7 @@ export default function ChartersGridPage() {
   };
 
   return (
-    <div className="container mx-auto max-w-7xl space-y-6">
+    <div className="container w-full min-w-0 space-y-6">
       <PlanningNavHeader active="charters" charterView="grid" />
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

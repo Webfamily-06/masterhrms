@@ -597,8 +597,7 @@ export function ExpensesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Receipt className="size-6 text-primary" /> Expense Claims & Reimbursements
+          <h1 className="text-2xl font-black tracking-tight"> Expense Claims & Reimbursements
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage multi-category employee claims, digital receipts, multi-tier approvals, and 1-click payroll settlements.
@@ -964,8 +963,7 @@ export function ExpensesPage() {
         <TabsContent value="categories" className="space-y-4 pt-1">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Settings2 className="size-4 text-primary" /> Workspace Expense Categories & Monthly Limits
+              <h2 className="text-sm font-bold text-foreground"> Workspace Expense Categories & Monthly Limits
               </h2>
               <p className="text-xs text-muted-foreground">
                 Define policy spending caps, mandatory receipt attachments, and budget thresholds.

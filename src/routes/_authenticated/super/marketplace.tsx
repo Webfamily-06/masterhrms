@@ -505,14 +505,13 @@ function MarketplaceAdmin() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="w-full min-w-0 space-y-6 pb-12">
       <BreadcrumbNav className="mb-4" />
       {/* 1. HEADER SECTION */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-5">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-              <Store className="size-7 text-primary" />
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
               Marketplace Addons
             </h1>
             <Badge variant="secondary" className="gap-1 text-xs font-mono font-bold">

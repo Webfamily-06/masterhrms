@@ -319,7 +319,7 @@ export function SuperAdminComplianceControlCenter() {
   const rulesList = rulesData?.rules || [];
 
   return (
-    <div className="flex-1 space-y-6 p-8 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       {/* Top Banner / Release Gate Warning */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
         <div>

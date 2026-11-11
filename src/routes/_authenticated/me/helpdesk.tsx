@@ -316,8 +316,7 @@ export function HelpdeskPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <LifeBuoy className="size-6 text-primary" /> Internal Helpdesk & Employee Support
+          <h1 className="text-2xl font-black tracking-tight"> Internal Helpdesk & Employee Support
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Internal organization support ticketing for IT hardware, payroll queries, leave policies, and facility issues with SLA tracking.

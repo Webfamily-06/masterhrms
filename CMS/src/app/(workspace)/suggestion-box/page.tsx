@@ -321,8 +321,7 @@ function SuggestionBoxPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Lightbulb className="size-6 text-amber-500 animate-pulse" /> Employee Voice & Suggestion Box
+          <h1 className="text-2xl font-black tracking-tight"> Employee Voice & Suggestion Box
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Empower employee innovation, transparent voting, category workflows, and management decision tracking.

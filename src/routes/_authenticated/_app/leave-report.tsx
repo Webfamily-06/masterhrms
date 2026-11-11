@@ -150,7 +150,7 @@ export function LeaveReportPage() {
   }
 
   return (
-    <div className="sm: space-y-6 max-w-7xl mx-auto">
+    <div className="sm: space-y-6 w-full min-w-0">
       {/* ── Page Header ── */}
       <PageHeader
         title="Leave & PTO Report"

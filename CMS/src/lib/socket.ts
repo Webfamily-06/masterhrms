@@ -78,7 +78,7 @@ export function getSocketClient(): Socket {
       });
       if (process.env.NODE_ENV !== "production") {
         console.warn(
-          "⚡ [SOCKET_CLIENT] No NEXT_PUBLIC_SOCKET_URL configured — Socket.IO is disabled on this deployment. " +
+          "[SOCKET_CLIENT] No NEXT_PUBLIC_SOCKET_URL configured — Socket.IO is disabled on this deployment. " +
           "Realtime features are handled by Pusher."
         );
       }
@@ -96,11 +96,11 @@ export function getSocketClient(): Socket {
       reconnectionDelay: 2000,
     });
     globalSocket.on("connect", () => {
-      if (process.env.NODE_ENV !== "production") console.log("⚡ [SOCKET_CLIENT] Connected! socketId:", globalSocket?.id);
+      // Socket connected
     });
     globalSocket.on("connect_error", (err) => {
       if (process.env.NODE_ENV !== "production") {
-        console.warn("⚡ [SOCKET_CLIENT] Connection error:", err.message);
+        console.warn("[SOCKET_CLIENT] Connection error:", err.message);
       }
     });
     if (typeof window !== "undefined") (window as any).__socket = globalSocket;
@@ -371,7 +371,7 @@ export function useRealtimeSocket() {
 
     function onSettingsUpdated(data: any) {
       if (process.env.NODE_ENV !== "production") {
-        console.log("[Realtime] settings.updated received:", data);
+        // [Realtime] settings.updated received
       }
       qc.invalidateQueries({ queryKey: ["app-config"] });
       qc.invalidateQueries({ queryKey: ["tenant-branding"] });

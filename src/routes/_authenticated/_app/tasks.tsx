@@ -151,7 +151,7 @@ export function PersonalTasksBoardPage() {
   ];
 
   return (
-    <div className="space-y-6 sm: lg:p-8 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       <BreadcrumbNav className="mb-4" />
       {/* ── Page Header matching ui-2/tasks.html ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
@@ -163,8 +163,7 @@ export function PersonalTasksBoardPage() {
             <span>/</span>
             <span className="text-foreground font-semibold">Personal Tasks Board</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Kanban className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             <span>My Tasks Board</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

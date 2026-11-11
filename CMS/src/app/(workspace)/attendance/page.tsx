@@ -583,8 +583,7 @@ function AttendancePage() {
         <div>
           <BreadcrumbNav />
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <Clock className="size-6 text-primary" /> Attendance & Timesheet
+            <h1 className="text-2xl font-black tracking-tight"> Attendance & Timesheet
             </h1>
             <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
               Shift: {shiftStartTime} - {shiftEndTime} (IST)

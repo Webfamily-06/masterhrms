@@ -237,13 +237,12 @@ function SuperUsersPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto animate-in fade-in duration-300">
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8 w-full min-w-0 animate-in fade-in duration-300">
       <BreadcrumbNav className="mb-4" />
       {/* ── Top Header Bar ─── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Users className="size-7 text-primary" />
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
             Global Platform Users
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

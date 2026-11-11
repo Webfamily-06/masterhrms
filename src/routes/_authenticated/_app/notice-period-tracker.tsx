@@ -174,7 +174,7 @@ export function NoticePeriodTrackerPage() {
   const completedCount = exits.filter((e) => e.status === "completed" || e.status === "fnf_settled").length;
 
   return (
-    <div className="space-y-6 sm: lg:p-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm: lg:p-8 w-full min-w-0">
       <BreadcrumbNav className="mb-4" />
       {/* ── Page Header matching ui-2/notice-period-tracker.html ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
@@ -186,8 +186,7 @@ export function NoticePeriodTrackerPage() {
             <span>/</span>
             <span className="text-foreground font-semibold">Notice Period Tracker</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <LogOut className="size-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             <span>Notice Period Tracker</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

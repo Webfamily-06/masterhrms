@@ -630,7 +630,7 @@ function ProjectDetailPage() {
   const projectCode = `PRO-${project.id.slice(0, 6).toUpperCase()}`;
 
   return (
-    <div className="sm: lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       {/* ─── TOP ACTION BAR ─── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b">
         <div className="flex items-center gap-3">

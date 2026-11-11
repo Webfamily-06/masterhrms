@@ -201,7 +201,7 @@ export function PaymentCheckoutModal({
         qc.invalidateQueries({ queryKey: ["super-transactions-list"] });
 
         toast.success(
-          `⏳ Bank Transfer Request Submitted (Ref: ${refNo})! Super Admin will review your payment screenshot and activate ${itemName}.`,
+          `Bank Transfer Request Submitted (Ref: ${refNo})! Super Admin will review your payment screenshot and activate ${itemName}.`,
           { duration: 7000 },
         );
 
@@ -255,11 +255,10 @@ export function PaymentCheckoutModal({
               </DialogDescription>
             </DialogHeader>
 
-            <div className={`p-4 rounded-xl border space-y-3 ${
-              failureState.type === "service_unavailable"
+            <div className={`p-4 rounded-xl border space-y-3 ${failureState.type === "service_unavailable"
                 ? "bg-amber-500/10 border-amber-500/30"
                 : "bg-rose-500/10 border-rose-500/30"
-            }`}>
+              }`}>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Payment Method:</span>
@@ -271,11 +270,10 @@ export function PaymentCheckoutModal({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Status:</span>
-                  <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    failureState.type === "service_unavailable"
+                  <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${failureState.type === "service_unavailable"
                       ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30"
                       : "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/30"
-                  }`}>
+                    }`}>
                     {failureState.type === "service_unavailable" ? "Service Unavailable" : "Payment Failed"}
                   </span>
                 </div>
@@ -409,157 +407,157 @@ export function PaymentCheckoutModal({
                     </div>
                   )}
 
-              {/* Manual Bank Transfer */}
-              <label
-                className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "bank_transfer" ? "border-emerald-600 bg-emerald-500/5 shadow-xs ring-1 ring-emerald-500/30" : "hover:bg-secondary/30"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value="bank_transfer" id="pm-bank" />
-                  <div className="flex items-center gap-3">
-                    <div className="h-7 w-20 rounded-lg bg-card border p-1 grid place-items-center shrink-0 shadow-xs">
-                      <PaymentProviderIcon provider="bank_transfer" className="h-5 w-auto" />
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs">Manual Bank Transfer + Receipt Upload</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        Direct Bank / UPI transfer with screenshot verification
+                  {/* Manual Bank Transfer */}
+                  <label
+                    className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${paymentMethod === "bank_transfer" ? "border-emerald-600 bg-emerald-500/5 shadow-xs ring-1 ring-emerald-500/30" : "hover:bg-secondary/30"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <RadioGroupItem value="bank_transfer" id="pm-bank" />
+                      <div className="flex items-center gap-3">
+                        <div className="h-7 w-20 rounded-lg bg-card border p-1 grid place-items-center shrink-0 shadow-xs">
+                          <PaymentProviderIcon provider="bank_transfer" className="h-5 w-auto" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs">Manual Bank Transfer + Receipt Upload</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Direct Bank / UPI transfer with screenshot verification
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[9px]">
-                  Admin Verify
-                </Badge>
-              </label>
-            </RadioGroup>
-          </div>
-
-          {/* Manual Bank Transfer Detailed Panel */}
-          {paymentMethod === "bank_transfer" && (
-            <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-3">
-              <div className="font-bold text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 border-b border-emerald-500/20 pb-2">
-                <Building className="size-4" /> Official Bank Account Details & Transfer
-                Instructions
+                    <Badge variant="outline" className="text-[9px]">
+                      Admin Verify
+                    </Badge>
+                  </label>
+                </RadioGroup>
               </div>
 
-              {sysConfig?.bankTransferDetails ? (
-                <div className="p-2.5 rounded-lg bg-background border font-mono text-[11px] whitespace-pre-line leading-relaxed text-foreground">
-                  {sysConfig.bankTransferDetails}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
-                  <div>
-                    <span className="text-muted-foreground">Bank:</span>{" "}
-                    <strong className="text-foreground">{BANK_DETAILS.bankName}</strong>
+              {/* Manual Bank Transfer Detailed Panel */}
+              {paymentMethod === "bank_transfer" && (
+                <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-3">
+                  <div className="font-bold text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 border-b border-emerald-500/20 pb-2">
+                    <Building className="size-4" /> Official Bank Account Details & Transfer
+                    Instructions
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">A/C Name:</span>{" "}
-                    <strong className="text-foreground">{BANK_DETAILS.accountName}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">A/C No:</span>{" "}
-                    <strong className="text-foreground">{BANK_DETAILS.accountNo}</strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">IFSC:</span>{" "}
-                    <strong className="text-foreground">{BANK_DETAILS.ifsc}</strong>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">UPI ID:</span>{" "}
-                    <strong className="text-foreground text-emerald-600">
-                      {BANK_DETAILS.upiId}
-                    </strong>
+
+                  {sysConfig?.bankTransferDetails ? (
+                    <div className="p-2.5 rounded-lg bg-background border font-mono text-[11px] whitespace-pre-line leading-relaxed text-foreground">
+                      {sysConfig.bankTransferDetails}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
+                      <div>
+                        <span className="text-muted-foreground">Bank:</span>{" "}
+                        <strong className="text-foreground">{BANK_DETAILS.bankName}</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">A/C Name:</span>{" "}
+                        <strong className="text-foreground">{BANK_DETAILS.accountName}</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">A/C No:</span>{" "}
+                        <strong className="text-foreground">{BANK_DETAILS.accountNo}</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">IFSC:</span>{" "}
+                        <strong className="text-foreground">{BANK_DETAILS.ifsc}</strong>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">UPI ID:</span>{" "}
+                        <strong className="text-foreground text-emerald-600">
+                          {BANK_DETAILS.upiId}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 border-t border-emerald-500/20 pt-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">
+                        Transaction / UTR / Reference No. *
+                      </Label>
+                      <Input
+                        value={refNo}
+                        onChange={(e) => setRefNo(e.target.value)}
+                        placeholder="e.g. UTR1234567890"
+                        className="text-xs font-mono bg-background"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold">
+                        Attach Payment Screenshot / Receipt *
+                      </Label>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                      />
+
+                      {proofPreview ? (
+                        <div className="flex items-center gap-3 p-2 rounded-lg bg-background border">
+                          <img
+                            src={proofPreview}
+                            alt="Receipt preview"
+                            className="size-10 object-cover rounded-md border shrink-0"
+                            loading="lazy" />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-xs truncate">
+                              {proofFile?.name || "Receipt screenshot"}
+                            </div>
+                            <div className="text-[10px] text-emerald-600 font-semibold">
+                              Ready to submit
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            Change
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full text-xs font-bold gap-2 h-9 bg-background"
+                        >
+                          <Upload className="size-3.5 text-emerald-600" /> Upload Receipt Screenshot
+                          (.jpg, .png)
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
-
-              <div className="space-y-2 border-t border-emerald-500/20 pt-2">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">
-                    Transaction / UTR / Reference No. *
-                  </Label>
-                  <Input
-                    value={refNo}
-                    onChange={(e) => setRefNo(e.target.value)}
-                    placeholder="e.g. UTR1234567890"
-                    className="text-xs font-mono bg-background"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold">
-                    Attach Payment Screenshot / Receipt *
-                  </Label>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-
-                  {proofPreview ? (
-                    <div className="flex items-center gap-3 p-2 rounded-lg bg-background border">
-                      <img
-                        src={proofPreview}
-                        alt="Receipt preview"
-                        className="size-10 object-cover rounded-md border shrink-0"
-                       loading="lazy"/>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-xs truncate">
-                          {proofFile?.name || "Receipt screenshot"}
-                        </div>
-                        <div className="text-[10px] text-emerald-600 font-semibold">
-                          Ready to submit
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-xs"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Change
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full text-xs font-bold gap-2 h-9 bg-background"
-                    >
-                      <Upload className="size-3.5 text-emerald-600" /> Upload Receipt Screenshot
-                      (.jpg, .png)
-                    </Button>
-                  )}
-                </div>
-              </div>
             </div>
-          )}
-        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleProceedPayment}
-            disabled={isProcessing}
-            className="font-bold gap-2 bg-primary text-primary-foreground"
-          >
-            {isProcessing ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ShieldCheck className="size-4" />
-            )}
-            {paymentMethod === "bank_transfer"
-              ? "Submit Receipt for Approval"
-              : `Pay ${formatSystemAmount(amount, sysConfig?.currency)} via ${paymentMethod === "paypal" ? "PayPal" : "Razorpay"}`}
-          </Button>
-        </DialogFooter>
-        </>
-      )}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleProceedPayment}
+                disabled={isProcessing}
+                className="font-bold gap-2 bg-primary text-primary-foreground"
+              >
+                {isProcessing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="size-4" />
+                )}
+                {paymentMethod === "bank_transfer"
+                  ? "Submit Receipt for Approval"
+                  : `Pay ${formatSystemAmount(amount, sysConfig?.currency)} via ${paymentMethod === "paypal" ? "PayPal" : "Razorpay"}`}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

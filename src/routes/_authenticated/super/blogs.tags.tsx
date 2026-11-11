@@ -178,7 +178,7 @@ function BlogTagsPage() {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-[1600px] mx-auto pb-16">
+    <div className="space-y-6 w-full min-w-0 pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">

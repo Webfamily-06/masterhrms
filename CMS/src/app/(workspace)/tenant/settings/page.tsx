@@ -18,8 +18,7 @@ function TenantSettingsPage() {
   return (
     <div className="space-y-6">
       <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-          <Settings className="size-6 text-primary" />
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Workspace Settings & Architecture
         </h1>
         <p className="text-xs text-muted-foreground mt-1">

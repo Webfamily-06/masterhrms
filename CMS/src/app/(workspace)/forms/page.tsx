@@ -487,9 +487,6 @@ function FormsPage() {
       });
 
       const elapsedMs = Math.round(performance.now() - startTime);
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`[Statutory PDF Generator] Download Success: Form=${formDefToUse.formNumber}, File=${res.filename}, Size=${(res.byteSize / 1024).toFixed(1)}KB, Time=${elapsedMs}ms`);
-      }
 
       toast.success(`PDF downloaded successfully: ${res.filename} (${(res.byteSize / 1024).toFixed(1)} KB)`);
     } catch (err: any) {

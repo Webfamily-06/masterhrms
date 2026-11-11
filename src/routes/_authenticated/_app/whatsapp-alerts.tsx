@@ -331,8 +331,7 @@ function WhatsAppAlertsPage() {
         <div className="flex items-center justify-between border-b pb-4">
           <div>
             <BreadcrumbNav />
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-              <MessageSquare className="size-6 text-emerald-600" /> WhatsApp Alerts & Bot Engine
+            <h1 className="text-2xl font-black tracking-tight"> WhatsApp Alerts & Bot Engine
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Automated outbound alerts & interactive inbound WhatsApp bot auto-responder.

@@ -171,7 +171,7 @@ export class HybridRoomAdapter {
     });
 
     room.on(RoomEvent.Disconnected, () => {
-      console.log("[HybridAdapter] Disconnected from SFU room");
+      // Disconnected from SFU room
     });
   }
 

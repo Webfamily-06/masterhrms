@@ -23,8 +23,7 @@ function TenantDataPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-          <Database className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Data Import, Export & Backups
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

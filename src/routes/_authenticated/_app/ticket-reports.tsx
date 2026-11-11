@@ -194,7 +194,7 @@ export function TicketReportsPage() {
   };
 
   return (
-    <div className="sm: space-y-6 max-w-7xl mx-auto">
+    <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
       <PageHeader
         title="Ticket Report"

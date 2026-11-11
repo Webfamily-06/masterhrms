@@ -336,7 +336,7 @@ export function PerformanceAppraisalPage() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-6 animate-in fade-in duration-200">
+    <div className="w-full min-w-0 space-y-6 animate-in fade-in duration-200">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>

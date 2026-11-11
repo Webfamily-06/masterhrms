@@ -186,7 +186,7 @@ export function CronjobPage() {
   };
 
   return (
-    <div className="sm: space-y-5 max-w-[1600px] mx-auto">
+    <div className="sm: space-y-5 w-full min-w-0">
       {/* ─── Breadcrumb & Top Bar ───────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
@@ -197,8 +197,7 @@ export function CronjobPage() {
             <span>/</span>
             <span className="text-foreground font-medium">Cronjob</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Clock className="size-6 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             <span>Cronjob Management</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

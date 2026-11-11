@@ -156,8 +156,7 @@ function SupportDeskAdmin() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <ShieldCheck className="size-6 text-primary" /> Super Admin — Platform Support & SaaS Requests
+          <h1 className="text-2xl font-black tracking-tight"> Super Admin — Platform Support & SaaS Requests
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Cross-tenant support hub. Review SaaS add-on upgrades, billing requests, technical tickets, and activate customer modules in 1-click.

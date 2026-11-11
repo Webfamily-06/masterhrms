@@ -154,7 +154,7 @@ export default function AiBusinessAdvisorPage() {
   const formattedScore = overallScoreNum.toFixed(2);
 
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 w-full min-w-0">
       {/* ─── TOP HEADER ─── */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

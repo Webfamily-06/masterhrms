@@ -1008,7 +1008,7 @@ function OkrPerformancePage() {
                           </Badge>
                         </td>
                         <td className="py-2.5 font-bold text-amber-600 font-mono">
-                          ⭐ {Number(r.ratingScore).toFixed(1)} / 5.0
+                          {Number(r.ratingScore).toFixed(1)} / 5.0
                         </td>
                         <td className="py-2.5 text-muted-foreground truncate max-w-xs">
                           {r.feedbackText || "Constructive feedback recorded."}

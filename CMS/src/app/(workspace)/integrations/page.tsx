@@ -320,7 +320,7 @@ export default function WooCommerceSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-16">
+    <div className="space-y-6 w-full min-w-0 pb-16">
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <div>
@@ -329,8 +329,7 @@ export default function WooCommerceSettingsPage() {
             <span>/</span>
             <span className="text-foreground">WooCommerce Settings</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-            <Globe className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             WooCommerce Integration Hub
           </h1>
           <p className="text-sm text-muted-foreground">

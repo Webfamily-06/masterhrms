@@ -1941,11 +1941,11 @@ function SuperSettingsAdmin() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="en">🇬🇧 English</SelectItem>
-                      <SelectItem value="hi">🇮🇳 Hindi (हिंदी)</SelectItem>
-                      <SelectItem value="es">🇪🇸 Spanish (Español)</SelectItem>
-                      <SelectItem value="fr">🇫🇷 French (Français)</SelectItem>
-                      <SelectItem value="ar">🇦🇪 Arabic (العربية - RTL)</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="hi">Hindi (हिंदी)</SelectItem>
+                      <SelectItem value="es">Spanish (Español)</SelectItem>
+                      <SelectItem value="fr">French (Français)</SelectItem>
+                      <SelectItem value="ar">Arabic (العربية - RTL)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

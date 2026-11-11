@@ -242,8 +242,7 @@ export function CurrenciesPage() {
             <span>/</span>
             <span className="text-foreground font-medium">Currencies</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Coins className="h-6 w-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Currencies & FX Exchange
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">

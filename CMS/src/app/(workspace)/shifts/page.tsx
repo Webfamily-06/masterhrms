@@ -358,8 +358,7 @@ function ShiftsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
           <BreadcrumbNav />
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Layers className="size-6 text-primary" /> Shift Rostering & Scheduling Engine
+          <h1 className="text-2xl font-black tracking-tight"> Shift Rostering & Scheduling Engine
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage multi-shift rotas, differential allowances, peer swap workflows, and automated scheduling.
@@ -625,8 +624,7 @@ function ShiftsPage() {
         <TabsContent value="definitions" className="space-y-4 pt-1">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Settings2 className="size-4 text-primary" /> Workspace Shift Definitions & Allowances
+              <h2 className="text-sm font-bold text-foreground"> Workspace Shift Definitions & Allowances
               </h2>
               <p className="text-xs text-muted-foreground">
                 Define timing bands, mandatory breaks, overtime eligibility, and shift differential compensation.
@@ -761,8 +759,7 @@ function ShiftsPage() {
         <TabsContent value="swaps" className="space-y-4 pt-1">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <ArrowLeftRight className="size-4 text-amber-500" /> Peer Shift Swap Approval Pipeline
+              <h2 className="text-sm font-bold text-foreground"> Peer Shift Swap Approval Pipeline
               </h2>
               <p className="text-xs text-muted-foreground">
                 Staff can request reciprocal shift swaps. Once peer agrees, manager provides 1-click roster authorization.

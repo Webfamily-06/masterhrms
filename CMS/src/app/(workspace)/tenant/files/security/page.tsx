@@ -165,12 +165,11 @@ export default function TenantFileSecurityPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6 max-w-7xl mx-auto w-full gap-6">
+    <div className="flex-1 flex flex-col w-full min-w-0 gap-6">
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ShieldAlert className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight">
             File Security & Compliance Center
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

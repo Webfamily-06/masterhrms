@@ -644,8 +644,7 @@ function RolesAdminStudio() {
         {/* TAB 2: ROLE DEFINITIONS & FEATURE PERMISSIONS CRUD */}
         <TabsContent value="roles_crud" className="space-y-6 pt-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Sliders className="size-4 text-primary" /> Defined Roles & Feature Access Matrix
+            <h2 className="text-lg font-bold"> Defined Roles & Feature Access Matrix
             </h2>
             <Button
               size="sm"

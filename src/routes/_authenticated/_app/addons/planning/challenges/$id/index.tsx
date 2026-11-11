@@ -84,8 +84,7 @@ export default function ChallengeDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <Target className="h-5 w-5 text-indigo-500" />
+              <h1 className="text-xl font-bold">
                 {challenge?.name}
               </h1>
               <Badge variant="outline">{challenge?.categoryName || "General"}</Badge>
@@ -146,8 +145,7 @@ export default function ChallengeDetailPage() {
       {/* Linked Charters */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold flex items-center gap-2">
-            <FileText className="h-4 w-4 text-primary" />
+          <h2 className="text-base font-bold">
             Initiative Charters ({models.length})
           </h2>
           {!isExpired && (

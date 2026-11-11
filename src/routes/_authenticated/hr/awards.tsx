@@ -761,7 +761,7 @@ export function HrAwardsManagementPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto pb-16">
+    <div className="w-full min-w-0 space-y-6 pb-16">
       {/* ─── PageHeader with Breadcrumbs and Actions ───────────────────────── */}
       <PageHeader
         title="Awards & Recognition Management"
@@ -856,7 +856,7 @@ export function HrAwardsManagementPage() {
               size="sm"
               className="h-7 w-7 p-0"
               onClick={() => setActiveTab("grid")}
-              title="Grid View"
+              title="Grid View" aria-label="Grid View"
             >
               <LayoutGrid className="size-3.5" />
             </Button>
@@ -865,7 +865,7 @@ export function HrAwardsManagementPage() {
               size="sm"
               className="h-7 w-7 p-0"
               onClick={() => setActiveTab("table")}
-              title="Table View"
+              title="Table View" aria-label="Table View"
             >
               <List className="size-3.5" />
             </Button>
@@ -949,7 +949,7 @@ export function HrAwardsManagementPage() {
               }}
             />
           ) : activeTab === "grid" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredAwards.map((award) => (
                 <Card
                   key={award.id}
@@ -1039,7 +1039,7 @@ export function HrAwardsManagementPage() {
                       size="sm"
                       className="h-8 text-xs gap-1 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                       onClick={() => handleDownloadCertificatePdf(award)}
-                      title="Download Official PDF Certificate"
+                      aria-label="Download Official PDF Certificate"
                     >
                       <Download className="size-3.5" />
                       <span>PDF</span>
@@ -1140,7 +1140,7 @@ export function HrAwardsManagementPage() {
                               variant="ghost"
                               size="sm"
                               className="h-6 text-[10px] px-1.5 gap-1 text-primary hover:bg-primary/10"
-                              title="Reissue with new certificate"
+                              aria-label="Reissue Certificate"
                               onClick={() => setReissueCertTarget(award)}
                             >
                               <RotateCcw className="size-2.5" /> Reissue

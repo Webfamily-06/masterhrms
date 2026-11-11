@@ -23,7 +23,7 @@ export default function OperationalAnalyticsPage() {
 
   if (!isNavLoading && !hasEntitlement) {
     return (
-      <div className="flex-1 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+      <div className="flex-1 p-4 md:p-8 pt-6 w-full min-w-0">
         <AddonNotInstalled
           addonName="Smart Dashboard Analytics"
           addonSlug="smart-dashboard"
@@ -36,7 +36,7 @@ export default function OperationalAnalyticsPage() {
 
   if (!isNavLoading && !isCapLoading && !canAccess) {
     return (
-      <div className="flex-1 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+      <div className="flex-1 p-4 md:p-8 pt-6 w-full min-w-0">
         <AddonNotInstalled
           addonName="Operational Modules"
           addonSlug="pos"
@@ -48,7 +48,7 @@ export default function OperationalAnalyticsPage() {
   }
 
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 max-w-[1600px] mx-auto">
+    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6 w-full min-w-0">
       <SmartDashboardNav
         activeSection="operational"
         onRefresh={() => {

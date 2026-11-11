@@ -140,7 +140,7 @@ function AiHiringForecastPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1600px] mx-auto">
+    <div className="p-4 sm:p-6 space-y-6 w-full min-w-0">
       {/* ─── Top Header & Breadcrumbs ───────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
         <div>
@@ -151,8 +151,7 @@ function AiHiringForecastPage() {
             <span>/</span>
             <span className="text-foreground font-medium">AI Hiring Forecast</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Sparkles className="size-6 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
             <span>AI Hiring Forecast</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">

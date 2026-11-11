@@ -224,7 +224,7 @@ export default function ShopifyHubPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+    <div className="space-y-6 w-full min-w-0 pb-12">
       <BreadcrumbNav className="mb-4" />
       {/* Top Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-5">

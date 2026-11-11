@@ -527,8 +527,7 @@ export function BiometricPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
-            <Fingerprint className="size-6 text-primary" /> Universal Biometric Hardware Sync & Cloud Engine
+          <h1 className="text-2xl font-black tracking-tight"> Universal Biometric Hardware Sync & Cloud Engine
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Real hardware capture for ZKTeco, eSSL, Realtime, Hikvision & all biometric machines. Direct Port 4370 binary ZK protocol sync, ADMS cloud push, and automatic attendance calculation.
@@ -714,8 +713,7 @@ export function BiometricPage() {
           {/* ─── HARDWARE TERMINALS FLEET ─── */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold tracking-tight text-foreground uppercase tracking-wider flex items-center gap-2">
-            <Cpu className="size-4 text-primary" /> Connected Terminals Fleet ({devices.length})
+          <h2 className="text-sm font-bold tracking-tight text-foreground uppercase tracking-wider"> Connected Terminals Fleet ({devices.length})
           </h2>
           <div className="flex items-center gap-2">
             <Button

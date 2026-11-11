@@ -556,7 +556,6 @@ export function InteractiveOrgTree() {
                 size="sm"
                 onClick={() => setIsMobileFilterOpen(true)}
                 className="h-10 px-3 text-xs font-semibold rounded-lg shrink-0 gap-1.5 min-h-[40px] active:scale-95"
-                title="Filters"
                 aria-label="Open Filters"
               >
                 <Filter className="h-3.5 w-3.5" />
@@ -573,7 +572,7 @@ export function InteractiveOrgTree() {
                   size="sm"
                   onClick={() => setShowResetConfirm(true)}
                   className="h-10 px-2 text-xs text-muted-foreground hover:text-foreground min-h-[40px]"
-                  title="Clear all filters"
+                  aria-label="Clear all filters"
                 >
                   Clear
                 </Button>
@@ -1061,7 +1060,7 @@ export function InteractiveOrgTree() {
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground p-3 rounded-lg border bg-muted/20">
-                    👑 Top-level executive: This role does not report to any subordinate in the workspace.
+                    Top-level executive: This role does not report to any subordinate in the workspace.
                   </p>
                 )}
               </div>

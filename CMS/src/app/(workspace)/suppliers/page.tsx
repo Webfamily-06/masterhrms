@@ -196,8 +196,7 @@ export default function SuppliersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-gray-50 flex items-center gap-2">
-            <Truck className="w-6 h-6 text-primary" />
+          <h1 className="text-2xl font-bold tracking-tight text-gray-950 dark:text-gray-50">
             Suppliers & Vendors Master Directory
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

@@ -667,7 +667,7 @@ function Payroll() {
   }, [runs, filterMonth, filterYear]);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto min-h-screen">
+    <div className="p-6 space-y-6 w-full min-w-0 min-h-screen">
       {/* Top Banner & Action Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
         <div>

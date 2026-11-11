@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useIncomingCall } from "@/context/incoming-call-context";
-import { Phone, PhoneOff, Video, Users, ChevronUp, Loader2 } from "lucide-react";
+import { Phone, PhoneOff, Video, Users, ChevronUp, Loader2, VolumeX } from "lucide-react";
 
 export function FullScreenIncomingCall() {
   const {
@@ -128,7 +128,8 @@ export function FullScreenIncomingCall() {
             onClick={unlockAudio}
             className="mt-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-medium flex items-center gap-1.5 animate-bounce hover:bg-amber-500/30 transition-colors cursor-pointer"
           >
-            <span>🔇 Audio muted by browser — tap anywhere to unmute</span>
+            <VolumeX className="size-3.5 text-amber-400 shrink-0" />
+            <span>Audio muted by browser — tap anywhere to unmute</span>
           </button>
         )}
       </div>
