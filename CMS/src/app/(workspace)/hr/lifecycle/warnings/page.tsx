@@ -1,17 +1,16 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
-
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -35,14 +34,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { toast } from "sonner";
-import { AlertTriangle, Plus, Trash2, ShieldAlert, CheckCircle2, MessageSquare, AlertCircle } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
-
+const warningExportColumns: ExportColumn[] = [
+  { header: "Employee Name", key: "employeeName" },
+  { header: "Employee Code", key: "employeeCode" },
+  {
+    header: "Incident Date",
+    key: "warningDate",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Severity", key: "severity" },
+  { header: "Subject", key: "subject" },
+  { header: "Status", key: "status" },
+  { header: "Employee Response", key: "explanation" },
+];
 
 export default function HrWarningsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState({
     employeeId: "",
     subject: "",
@@ -52,7 +70,7 @@ export default function HrWarningsPage() {
     warningBy: "",
   });
 
-  const { data: warnings = [], isLoading } = useQuery({
+    const { data: warnings = [], isLoading } = useQuery({
     queryKey: ["hr-lifecycle-warnings"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/warnings");
@@ -98,6 +116,27 @@ export default function HrWarningsPage() {
       queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-warnings"] });
       toast.success("Warning record retracted.");
     },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to retract warning.");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "warnings",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-warnings"] });
+      toast.success(data?.message || "Selected warning records deleted.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected warnings.");
+    },
   });
 
   const getSeverityBadge = (severity: string) => {
@@ -113,67 +152,166 @@ export default function HrWarningsPage() {
     }
   };
 
+  const filteredWarnings = (warnings || []).filter((w: any) => {
+    const name = `${w.employee?.firstName || ""} ${w.employee?.lastName || ""}`.toLowerCase();
+    const code = (w.employee?.employeeCode || "").toLowerCase();
+    const subject = (w.subject || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || code.includes(query) || subject.includes(query);
+    const matchesSeverity = severityFilter === "all" || w.severity?.toLowerCase() === severityFilter.toLowerCase();
+    return matchesSearch && matchesSeverity;
+  });
+
+  const paginatedWarnings = filteredWarnings.slice((page - 1) * pageSize, page * pageSize);
+
+  const visibleWarningIds = useMemo(() => paginatedWarnings.map((x: any) => x.id), [paginatedWarnings]);
+
+    const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedWarnings);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredWarnings.filter((w: any) => selectedIds.has(w.id))
+      : filteredWarnings;
+
+    return source.map((w: any) => ({
+      employeeName: `${w.employee?.firstName || ""} ${w.employee?.lastName || ""}`.trim(),
+      employeeCode: w.employee?.employeeCode || "—",
+      warningDate: w.warningDate,
+      severity: w.severity,
+      subject: w.subject,
+      status: w.status,
+      explanation: w.employeeExplanation || "Awaiting acknowledgement",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Disciplinary Warnings & Compliance",
+      columns: warningExportColumns,
+      data: getExportData(),
+      filename: `warnings-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Warnings",
+    });
+    toast.success(`Exported ${getExportData().length} warning records to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Disciplinary Warnings & Compliance",
+      columns: warningExportColumns,
+      data: getExportData(),
+      filename: `warnings-export-${format(new Date(), "yyyyMMdd")}`,
+          });
+    toast.success(`Exported ${getExportData().length} warning records to PDF.`);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Disciplinary Warnings & Compliance"
         description="Issue formal reprimands, track employee digital acknowledgements, and manage written appeals."
-        actions={
-          <Button onClick={() => setIsModalOpen(true)} className="gap-2 bg-destructive hover:bg-destructive/90 text-white">
-            <Plus className="h-4 w-4" /> Issue Warning
-          </Button>
-        }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Total Warnings" value={String(warnings.length)} icon={AlertTriangle} description="Logged infractions" />
-        <StatCard
-          title="Critical / Major"
-          value={String(warnings.filter((w: any) => ["critical", "major"].includes(w.severity?.toLowerCase())).length)}
-          icon={ShieldAlert}
-          description="High severity compliance cases"
-        />
-        <StatCard
-          title="Acknowledged"
-          value={String(warnings.filter((w: any) => w.status === "acknowledged").length)}
-          icon={CheckCircle2}
-          description="Signed off by employees"
-        />
-      </div>
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search by employee, code, or subject..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={severityFilter}
+            onValueChange={(val) => {
+              setSeverityFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40 h-9 text-xs">
+              <SelectValue placeholder="All Severities" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Severities</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="major">Major</SelectItem>
+              <SelectItem value="moderate">Moderate</SelectItem>
+              <SelectItem value="minor">Minor</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        primaryActionLabel="Issue Warning"
+        primaryActionIcon={<Plus className="h-4 w-4" />}
+        onPrimaryAction={() => setIsModalOpen(true)}
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Disciplinary Registry</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={isAllVisibleSelected(visibleWarningIds) ? true : isSomeVisibleSelected(visibleWarningIds) ? "indeterminate" : false}
+                  onCheckedChange={() => selectAllVisible(visibleWarningIds)}
+                  aria-label="Select all visible warnings"
+                />
+              </TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Incident Date</TableHead>
+              <TableHead>Severity</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Employee Response</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Incident Date</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Employee Response</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Loading warnings...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Loading warnings...
-                  </TableCell>
-                </TableRow>
-              ) : warnings.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No active disciplinary warnings on record.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                warnings.map((w: any) => (
-                  <TableRow key={w.id}>
+            ) : filteredWarnings.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  {search || severityFilter !== "all"
+                    ? "No warnings match your filter criteria."
+                    : "No active disciplinary warnings on record."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedWarnings.map((w: any) => {
+                const checked = isSelected(w.id);
+                return (
+                  <TableRow
+                    key={w.id}
+                    data-state={checked ? "selected" : undefined}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={() => toggleRow(w.id)}
+                  >
+                    <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleRow(w.id)}
+                        aria-label={`Select warning for ${w.employee?.firstName || "employee"}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {w.employee?.firstName} {w.employee?.lastName}
                       <span className="block text-xs text-muted-foreground">{w.employee?.employeeCode}</span>
@@ -182,14 +320,14 @@ export default function HrWarningsPage() {
                     <TableCell>{getSeverityBadge(w.severity)}</TableCell>
                     <TableCell className="font-medium">{w.subject}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize">
+                      <Badge variant={w.status === "acknowledged" ? "secondary" : "outline"} className="capitalize">
                         {w.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                      {w.employeeResponse || "Awaiting response"}
+                      {w.employeeExplanation || "Awaiting acknowledgement"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -200,12 +338,23 @@ export default function HrWarningsPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredWarnings.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {/* Issue Warning Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

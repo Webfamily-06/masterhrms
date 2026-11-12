@@ -120,6 +120,7 @@ model Tenant {
   disciplinaryWarnings         DisciplinaryWarning[]
   documentAcknowledgements     DocumentAcknowledgement[]
   documentCategories           DocumentCategory[]
+  documentTypes                DocumentType[]
   documentRequests             DocumentRequest[]
   documentTemplates            DocumentTemplate[]
   awards                       Award[]
@@ -452,6 +453,8 @@ model Employee {
   assignedTrainingTasks        TrainingTask[]
   wfhRequests                  WfhRequest[]
 
+  @@unique([tenantId, employeeCode], name: "uq_employees_tenant_employee_code")
+  @@unique([tenantId, email], name: "uq_employees_tenant_email")
   @@index([tenantId, status])
   @@index([tenantId, departmentId])
   @@map("employees")
@@ -2355,12 +2358,15 @@ model CompanyDocument {
   verifiedBy        String?                   @map("verified_by") @db.VarChar(150)
   verifiedAt        DateTime?                 @map("verified_at")
   notes             String?
+  documentTypeId    String?                   @map("document_type_id") @db.VarChar(36)
+  documentType      DocumentType?             @relation(fields: [documentTypeId], references: [id], onDelete: SetNull)
   createdAt         DateTime                  @default(now()) @map("created_at")
   updatedAt         DateTime                  @updatedAt @map("updated_at")
   employee          Employee?                 @relation(fields: [employeeId], references: [id])
   tenant            Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   acknowledgements  DocumentAcknowledgement[]
 
+  @@index([tenantId, documentTypeId])
   @@index([tenantId, category])
   @@index([tenantId, status])
   @@index([tenantId, employeeId])
@@ -6466,6 +6472,25 @@ model DocumentCategory {
   @@unique([tenantId, code])
   @@index([tenantId])
   @@map("document_categories")
+}
+
+model DocumentType {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  tenantId    String   @map("tenant_id") @db.VarChar(36)
+  name        String   @db.VarChar(100)
+  code        String   @db.VarChar(50)
+  description String?  @db.Text
+  isRequired  Boolean  @default(false) @map("is_required")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  companyDocuments CompanyDocument[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isRequired])
+  @@index([tenantId, isActive])
+  @@map("document_types")
 }
 
 model DocumentTemplate {

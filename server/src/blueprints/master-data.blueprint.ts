@@ -597,5 +597,89 @@ export function createMasterDataRouter(config: MasterBlueprintConfig): Router {
     }
   });
 
+  // 7. BULK DELETE (POST /bulk-delete)
+  router.post("/bulk-delete", requireAuth, async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const roles = req.user?.roles || [];
+      const isAuthorizedHR = roles.some((r: string) =>
+        ["hr_admin", "super_admin", "tenant_admin"].includes(r)
+      );
+      if (!isAuthorizedHR) {
+        return res.status(403).json({ error: "Access denied. HR Administrator privileges required." });
+      }
+
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "IDs array required" });
+      }
+
+      const validIds = ids.filter((id: any) => typeof id === "string" && id.trim().length > 0);
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: "Valid string IDs array required" });
+      }
+
+      const db = getTenantDb(req);
+      const delegate = (db as any)[modelName];
+
+      let deletedCount = 0;
+      let failedCount = 0;
+      const failures: { id: string; reason: string }[] = [];
+
+      for (const id of validIds) {
+        const existing = await delegate.findFirst({
+          where: { id, tenantId },
+          select: { id: true },
+        });
+        if (!existing) {
+          failedCount++;
+          failures.push({ id, reason: "Record not found" });
+          continue;
+        }
+
+        if (dependencyCheck) {
+          const check = await dependencyCheck(db, id, tenantId);
+          if (!check.canDelete) {
+            failedCount++;
+            failures.push({ id, reason: check.message || "Record is referenced by existing data" });
+            continue;
+          }
+        }
+
+        try {
+          await db.$transaction(async (tx: any) => {
+            await tx[modelName].delete({ where: { id } });
+            await AuditService.logMutation(
+              {
+                tenantId,
+                actorId: req.user?.userId,
+                action: `${entityName.toUpperCase()}_BULK_DELETE`,
+                entityType: entityName,
+                entityId: id,
+                oldState: existing,
+              },
+              tx
+            );
+          });
+          deletedCount++;
+        } catch (delErr: any) {
+          failedCount++;
+          failures.push({ id, reason: delErr.message });
+        }
+      }
+
+      return res.json({
+        success: true,
+        deletedCount,
+        failedCount,
+        failures,
+      });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
   return router;
 }

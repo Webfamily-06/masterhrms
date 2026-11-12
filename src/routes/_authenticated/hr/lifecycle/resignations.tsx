@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -33,12 +34,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { toast } from "sonner";
-import { LogOut, Calendar, CheckCircle2, Clock, UserCheck, XCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/lifecycle/resignations")({
   component: HrResignationsPage,
 });
+
+const resignationExportColumns: ExportColumn[] = [
+  { header: "Employee Name", key: "employeeName" },
+  { header: "Employee Code", key: "employeeCode" },
+  { header: "Designation", key: "position" },
+  {
+    header: "Notice Date",
+    key: "resignationDate",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  {
+    header: "Last Working Day",
+    key: "lastWorkingDay",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Notice Duration (Days)", key: "noticePeriodDays" },
+  { header: "Status", key: "status", format: (val: any) => (val ? String(val).replace("_", " ") : "") },
+  { header: "Reason", key: "reason" },
+];
 
 export default function HrResignationsPage() {
   const queryClient = useQueryClient();
@@ -48,6 +70,10 @@ export default function HrResignationsPage() {
     acceptedLastWorkingDay: "",
     notes: "",
   });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data: resignations = [], isLoading } = useQuery({
     queryKey: ["hr-lifecycle-resignations"],
@@ -71,6 +97,86 @@ export default function HrResignationsPage() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "resignations",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-resignations"] });
+      toast.success(data?.message || "Selected resignation records deleted.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected resignations.");
+    },
+  });
+
+  const filteredResignations = (resignations || []).filter((r: any) => {
+    const name = `${r.employee?.firstName || ""} ${r.employee?.lastName || ""}`.toLowerCase();
+    const reason = (r.reason || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || reason.includes(query);
+    const matchesStatus = statusFilter === "all" || r.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const paginatedResignations = filteredResignations.slice((page - 1) * pageSize, page * pageSize);
+
+  const visibleResignationIds = useMemo(() => paginatedResignations.map((x: any) => x.id), [paginatedResignations]);
+
+  const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedResignations);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredResignations.filter((r: any) => selectedIds.has(r.id))
+      : filteredResignations;
+
+    return source.map((r: any) => ({
+      employeeName: `${r.employee?.firstName || ""} ${r.employee?.lastName || ""}`.trim(),
+      employeeCode: r.employee?.employeeCode || "—",
+      position: r.employee?.position || "Staff",
+      resignationDate: r.resignationDate,
+      lastWorkingDay: r.lastWorkingDay,
+      noticePeriodDays: r.noticePeriodDays,
+      status: r.status,
+      reason: r.reason || "—",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Employee Resignations & Voluntary Departures",
+      columns: resignationExportColumns,
+      data: getExportData(),
+      filename: `resignations-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Resignations",
+    });
+    toast.success(`Exported ${getExportData().length} resignation records to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Employee Resignations & Notice Periods",
+      columns: resignationExportColumns,
+      data: getExportData(),
+      filename: `resignations-export-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getExportData().length} resignation records to PDF.`);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -78,55 +184,94 @@ export default function HrResignationsPage() {
         description="Review incoming employee resignations, manage notice periods, calculate policy last working days, and schedule exit clearances."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Active Notices" value={String(resignations.length)} icon={LogOut} description="Serving notice period" />
-        <StatCard
-          title="Clearances Pending"
-          value={String(resignations.filter((r: any) => r.status === "clearance_pending").length)}
-          icon={Clock}
-          description="Awaiting department sign-offs"
-        />
-        <StatCard
-          title="Withdrawn"
-          value={String(resignations.filter((r: any) => r.status === "withdrawn").length)}
-          icon={UserCheck}
-          description="Retained team members"
-        />
-      </div>
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search by employee or reason..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40 h-9 text-xs">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="notice_active">Notice Active</SelectItem>
+              <SelectItem value="clearance_pending">Clearance Pending</SelectItem>
+              <SelectItem value="withdrawn">Withdrawn</SelectItem>
+              <SelectItem value="relieved">Relieved</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Notice Period Pipeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={isAllVisibleSelected(visibleResignationIds) ? true : isSomeVisibleSelected(visibleResignationIds) ? "indeterminate" : false}
+                  onCheckedChange={() => selectAllVisible(visibleResignationIds)}
+                  aria-label="Select all visible resignations"
+                />
+              </TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Notice Date</TableHead>
+              <TableHead>Last Working Day</TableHead>
+              <TableHead>Notice Duration</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Reason</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Notice Date</TableHead>
-                <TableHead>Last Working Day</TableHead>
-                <TableHead>Notice Duration</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Loading resignations...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Loading resignations...
-                  </TableCell>
-                </TableRow>
-              ) : resignations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No active resignation notices on record.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                resignations.map((r: any) => (
-                  <TableRow key={r.id}>
+            ) : filteredResignations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  {search || statusFilter !== "all"
+                    ? "No resignation records match your filter criteria."
+                    : "No active resignation notices on record."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedResignations.map((r: any) => {
+                const checked = isSelected(r.id);
+                return (
+                  <TableRow
+                    key={r.id}
+                    data-state={checked ? "selected" : undefined}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={() => toggleRow(r.id)}
+                  >
+                    <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleRow(r.id)}
+                        aria-label={`Select resignation for ${r.employee?.firstName || "employee"}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {r.employee?.firstName} {r.employee?.lastName}
                       <span className="block text-xs text-muted-foreground">{r.employee?.position || "Staff"}</span>
@@ -144,7 +289,7 @@ export default function HrResignationsPage() {
                     <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
                       {r.reason}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="outline"
                         size="sm"
@@ -161,12 +306,23 @@ export default function HrResignationsPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredResignations.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {/* Review Resignation Dialog */}
       <Dialog open={!!selectedExit} onOpenChange={(open) => !open && setSelectedExit(null)}>

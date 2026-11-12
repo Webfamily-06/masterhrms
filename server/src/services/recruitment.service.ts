@@ -393,31 +393,79 @@ export class RecruitmentService {
           });
         }
       } else {
-        // Fallback standard checklist items
-        const defaultTasks = [
-          { title: "Submit Identity & Address Proof (Aadhaar / Passport)", role: "candidate", offset: 2 },
-          { title: "Submit Educational Certificates & Marksheets", role: "candidate", offset: 3 },
-          { title: "Submit Relieving Letter & Previous Payslips", role: "candidate", offset: 5 },
-          { title: "Background Verification Check (BGV)", role: "hr", offset: 7 },
-          { title: "Bank Account Details & Cancelled Cheque", role: "candidate", offset: 7 },
-          { title: "IT Hardware & Email Provisioning", role: "it", offset: 10 },
-          { title: "Assign Team Buddy & Desk Allocation", role: "manager", offset: 12 },
-        ];
+        // Fallback standard checklist items populated from tenant's authoritative Document Types
+        const activeDocTypes = await tx.documentType.findMany({
+          where: { tenantId, isActive: true },
+          orderBy: [{ isRequired: "desc" }, { createdAt: "asc" }],
+        });
 
-        for (let i = 0; i < defaultTasks.length; i++) {
-          const dt = defaultTasks[i];
-          await tx.candidateOnboardingTask.create({
-            data: {
-              tenantId,
-              onboardingId: onboarding.id,
-              title: dt.title,
-              category: "document",
-              dueOffsetDays: dt.offset,
-              isMandatory: true,
-              sequence: i + 1,
-              status: "pending",
-            },
-          });
+        let seq = 1;
+
+        if (activeDocTypes.length > 0) {
+          for (const dt of activeDocTypes) {
+            await tx.candidateOnboardingTask.create({
+              data: {
+                tenantId,
+                onboardingId: onboarding.id,
+                title: `Submit ${dt.name}`,
+                description: dt.description || `Please upload your official ${dt.name}.`,
+                category: "document",
+                dueOffsetDays: dt.isRequired ? 3 : 7,
+                isMandatory: dt.isRequired,
+                sequence: seq++,
+                status: "pending",
+              },
+            });
+          }
+
+          // Also append necessary company orientation & hardware tasks
+          const standardAdminTasks = [
+            { title: "Background Verification Check (BGV)", offset: 7 },
+            { title: "IT Hardware & Email Provisioning", offset: 10 },
+            { title: "Assign Team Buddy & Desk Allocation", offset: 12 },
+          ];
+
+          for (const at of standardAdminTasks) {
+            await tx.candidateOnboardingTask.create({
+              data: {
+                tenantId,
+                onboardingId: onboarding.id,
+                title: at.title,
+                category: "general",
+                dueOffsetDays: at.offset,
+                isMandatory: true,
+                sequence: seq++,
+                status: "pending",
+              },
+            });
+          }
+        } else {
+          // Hardcoded fallback if no document types are configured yet
+          const defaultTasks = [
+            { title: "Submit Identity & Address Proof (Aadhaar / Passport)", role: "candidate", offset: 2 },
+            { title: "Submit Educational Certificates & Marksheets", role: "candidate", offset: 3 },
+            { title: "Submit Relieving Letter & Previous Payslips", role: "candidate", offset: 5 },
+            { title: "Background Verification Check (BGV)", role: "hr", offset: 7 },
+            { title: "Bank Account Details & Cancelled Cheque", role: "candidate", offset: 7 },
+            { title: "IT Hardware & Email Provisioning", role: "it", offset: 10 },
+            { title: "Assign Team Buddy & Desk Allocation", role: "manager", offset: 12 },
+          ];
+
+          for (let i = 0; i < defaultTasks.length; i++) {
+            const dt = defaultTasks[i];
+            await tx.candidateOnboardingTask.create({
+              data: {
+                tenantId,
+                onboardingId: onboarding.id,
+                title: dt.title,
+                category: "document",
+                dueOffsetDays: dt.offset,
+                isMandatory: true,
+                sequence: i + 1,
+                status: "pending",
+              },
+            });
+          }
         }
       }
 

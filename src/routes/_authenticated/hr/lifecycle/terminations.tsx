@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
-
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -34,16 +34,41 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { toast } from "sonner";
-import { UserX, Plus, ShieldAlert, AlertTriangle, DollarSign, Calendar } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/lifecycle/terminations")({
   component: HrTerminationsPage,
 });
 
+const terminationExportColumns: ExportColumn[] = [
+  { header: "Employee Name", key: "employeeName" },
+  { header: "Employee Code", key: "employeeCode" },
+  {
+    header: "Termination Date",
+    key: "lastWorkingDay",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Category / Grounds", key: "exitType" },
+  {
+    header: "Severance Provision",
+    key: "severance",
+    format: (val: any) => (Number(val) > 0 ? `₹${Number(val).toLocaleString()}` : "None"),
+  },
+  { header: "Reason / Documentation", key: "reason" },
+  { header: "Status", key: "status" },
+];
+
 export default function HrTerminationsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState({
     employeeId: "",
     exitType: "termination",
@@ -89,66 +114,183 @@ export default function HrTerminationsPage() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "terminations",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-terminations"] });
+      toast.success(data?.message || "Selected termination records deleted.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected terminations.");
+    },
+  });
+
+  const filteredTerminations = (terminations || []).filter((t: any) => {
+    const name = `${t.employee?.firstName || ""} ${t.employee?.lastName || ""}`.toLowerCase();
+    const code = (t.employee?.employeeCode || "").toLowerCase();
+    const reason = (t.reason || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || code.includes(query) || reason.includes(query);
+    const matchesType = typeFilter === "all" || t.exitType === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const paginatedTerminations = filteredTerminations.slice((page - 1) * pageSize, page * pageSize);
+
+  const visibleTerminationIds = useMemo(() => paginatedTerminations.map((x: any) => x.id), [paginatedTerminations]);
+
+  const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedTerminations);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredTerminations.filter((t: any) => selectedIds.has(t.id))
+      : filteredTerminations;
+
+    return source.map((t: any) => ({
+      employeeName: `${t.employee?.firstName || ""} ${t.employee?.lastName || ""}`.trim(),
+      employeeCode: t.employee?.employeeCode || "—",
+      lastWorkingDay: t.lastWorkingDay,
+      exitType: t.exitType,
+      severance: t.fnfSettlementAmount,
+      reason: t.reason || "—",
+      status: t.status || "terminated",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Involuntary Terminations & Departures",
+      columns: terminationExportColumns,
+      data: getExportData(),
+      filename: `terminations-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Terminations",
+    });
+    toast.success(`Exported ${getExportData().length} termination records to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Involuntary Terminations & Severance",
+      columns: terminationExportColumns,
+      data: getExportData(),
+      filename: `terminations-export-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getExportData().length} termination records to PDF.`);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Involuntary Terminations & Severance"
         description="Execute authoritative employee terminations under strict compliance with severance calculations and immediate user credential revocation."
-        actions={
-          <Button onClick={() => setIsModalOpen(true)} variant="destructive" className="gap-2">
-            <Plus className="h-4 w-4" /> Execute Termination
-          </Button>
-        }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Terminations Executed" value={String(terminations.length)} icon={UserX} description="Total offboarded via termination" />
-        <StatCard
-          title="Misconduct / Legal"
-          value={String(terminations.filter((t: any) => t.exitType === "misconduct").length)}
-          icon={ShieldAlert}
-          description="Disciplinary terminations"
-        />
-        <StatCard
-          title="Total Severance"
-          value={`₹${terminations.reduce((sum: number, t: any) => sum + Number(t.fnfSettlementAmount || 0), 0).toLocaleString()}`}
-          icon={DollarSign}
-          description="Approved severance payouts"
-        />
-      </div>
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search by employee, code, or grounds..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={typeFilter}
+            onValueChange={(val) => {
+              setTypeFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44 h-9 text-xs">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              <SelectItem value="termination">Standard Termination</SelectItem>
+              <SelectItem value="misconduct">Misconduct / Disciplinary</SelectItem>
+              <SelectItem value="layoff">Layoff / Redundancy</SelectItem>
+              <SelectItem value="performance">Performance Failure</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        primaryActionLabel="Execute Termination"
+        primaryActionIcon={<Plus className="h-4 w-4" />}
+        onPrimaryAction={() => setIsModalOpen(true)}
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Termination Audit Log</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={isAllVisibleSelected(visibleTerminationIds) ? true : isSomeVisibleSelected(visibleTerminationIds) ? "indeterminate" : false}
+                  onCheckedChange={() => selectAllVisible(visibleTerminationIds)}
+                  aria-label="Select all visible terminations"
+                />
+              </TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Termination Date</TableHead>
+              <TableHead>Category / Grounds</TableHead>
+              <TableHead>Severance</TableHead>
+              <TableHead>Reason</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Termination Date</TableHead>
-                <TableHead>Category / Grounds</TableHead>
-                <TableHead>Severance</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Status</TableHead>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  Loading termination records...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Loading termination records...
-                  </TableCell>
-                </TableRow>
-              ) : terminations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No involuntary terminations on record.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                terminations.map((t: any) => (
-                  <TableRow key={t.id}>
+            ) : filteredTerminations.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  {search || typeFilter !== "all"
+                    ? "No termination records match your search criteria."
+                    : "No involuntary terminations on record."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedTerminations.map((t: any) => {
+                const checked = isSelected(t.id);
+                return (
+                  <TableRow
+                    key={t.id}
+                    data-state={checked ? "selected" : undefined}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={() => toggleRow(t.id)}
+                  >
+                    <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleRow(t.id)}
+                        aria-label={`Select termination for ${t.employee?.firstName || "employee"}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {t.employee?.firstName} {t.employee?.lastName}
                       <span className="block text-xs text-muted-foreground">{t.employee?.employeeCode}</span>
@@ -171,12 +313,23 @@ export default function HrTerminationsPage() {
                       </Badge>
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredTerminations.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {/* Execute Termination Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

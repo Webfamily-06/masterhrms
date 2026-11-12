@@ -458,6 +458,58 @@ class EmployeeService {
                     include: { awardType: true },
                     orderBy: { awardDate: "desc" },
                 },
+                promotionRecords: {
+                    orderBy: { promotionDate: "desc" },
+                    take: 20,
+                },
+                transfers: {
+                    orderBy: { effectiveDate: "desc" },
+                    take: 20,
+                },
+                disciplinaryWarnings: {
+                    include: { warningType: true },
+                    orderBy: { warningDate: "desc" },
+                    take: 20,
+                },
+                employeeExits: {
+                    include: { checklists: true },
+                    orderBy: { createdAt: "desc" },
+                    take: 5,
+                },
+                attendance: {
+                    orderBy: { date: "desc" },
+                    take: 30,
+                },
+                leaveRequests: {
+                    include: { leaveType: true },
+                    orderBy: { createdAt: "desc" },
+                    take: 20,
+                },
+                payslips: {
+                    orderBy: { createdAt: "desc" },
+                    take: 12,
+                },
+                assignedAssets: {
+                    select: {
+                        id: true,
+                        name: true,
+                        assetTag: true,
+                        category: true,
+                        serialNumber: true,
+                        status: true,
+                        condition: true,
+                        assignedAt: true,
+                    },
+                    take: 20,
+                },
+                assignedTrainingTasks: {
+                    include: { training: true },
+                    take: 20,
+                },
+                courseEnrollments: {
+                    include: { course: true },
+                    take: 20,
+                },
             },
         });
         if (!employee) {
@@ -473,6 +525,41 @@ class EmployeeService {
             isSelf,
         });
         const metadata = await EmployeeService.getEmployeeMetadata(tenantId, employee.id);
+        // Fetch related Audit Logs and Master Document Types for complete 360 governance
+        const [auditLogs, documentTypes] = await Promise.all([
+            db.auditLog.findMany({
+                where: { tenantId, entityType: "Employee", entityId: employee.id },
+                select: {
+                    id: true,
+                    action: true,
+                    actorId: true,
+                    createdAt: true,
+                    afterJson: true,
+                },
+                orderBy: { createdAt: "desc" },
+                take: 20,
+            }).catch(() => []),
+            db.documentType.findMany({
+                where: { tenantId, isActive: true },
+                select: { id: true, name: true, code: true, isRequired: true },
+                orderBy: { name: "asc" },
+            }).catch(() => []),
+        ]);
+        let qualifications = [];
+        try {
+            qualifications = metadata.qualifications ? JSON.parse(metadata.qualifications) : [];
+        }
+        catch { }
+        let workExperience = [];
+        try {
+            workExperience = metadata.workExperience ? JSON.parse(metadata.workExperience) : [];
+        }
+        catch { }
+        let familyMembers = [];
+        try {
+            familyMembers = metadata.familyMembers ? JSON.parse(metadata.familyMembers) : [];
+        }
+        catch { }
         const transformedEmployee = {
             ...masked,
             systemId: metadata.systemId || employee.id,
@@ -494,6 +581,11 @@ class EmployeeService {
             taxPayerId: metadata.taxPayerId || employee.pan || "",
             shiftId: metadata.shiftId || (employee.shiftRosters?.[0]?.shiftId ?? null),
             attendancePolicyId: metadata.attendancePolicyId || null,
+            qualifications,
+            workExperience,
+            familyMembers,
+            auditLogs,
+            documentTypes,
         };
         // Attach allowed actions
         const withActions = (0, allowed_actions_1.attachAllowedActions)("Employee", transformedEmployee, userContext, userPermissions);

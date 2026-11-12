@@ -78,29 +78,39 @@ export function PortalSidebar({
   }
 
   // Navigation items for this portal
-  const navItems = getNavigationForPortal(activePortal, {
-    roles: auth.roles,
-    permissions: auth.permissions,
-    enabledModules: auth.enabledModules,
-    isSuperAdmin: auth.isSuperAdmin,
-    isTenantAdmin: auth.isTenantAdmin,
-  });
+  const navItems = React.useMemo(() => {
+    return getNavigationForPortal(activePortal, {
+      roles: auth.roles,
+      permissions: auth.permissions,
+      enabledModules: auth.enabledModules,
+      isSuperAdmin: auth.isSuperAdmin,
+      isTenantAdmin: auth.isTenantAdmin,
+    });
+  }, [
+    activePortal,
+    auth.roles?.join(','),
+    auth.permissions?.join(','),
+    auth.enabledModules?.join(','),
+    auth.isSuperAdmin,
+    auth.isTenantAdmin,
+  ]);
 
   // Group items by section
-  const sections: { sectionName: string; items: NavigationItem[] }[] = [];
-  const sectionMap = new Map<string, NavigationItem[]>();
-
-  for (const item of navItems) {
-    const sec = item.section || "General";
-    if (!sectionMap.has(sec)) {
-      sectionMap.set(sec, []);
+  const sections = React.useMemo(() => {
+    const sectionMap = new Map<string, NavigationItem[]>();
+    for (const item of navItems) {
+      const sec = item.section || 'General';
+      if (!sectionMap.has(sec)) {
+        sectionMap.set(sec, []);
+      }
+      sectionMap.get(sec)!.push(item);
     }
-    sectionMap.get(sec)!.push(item);
-  }
-
-  for (const [sec, items] of sectionMap.entries()) {
-    sections.push({ sectionName: sec, items });
-  }
+    const result: { sectionName: string; items: NavigationItem[] }[] = [];
+    for (const [sec, items] of sectionMap.entries()) {
+      result.push({ sectionName: sec, items });
+    }
+    return result;
+  }, [navItems]);
 
   // State for collapsible parent menus
   const [openParents, setOpenParents] = useState<Record<string, boolean>>(() => {
@@ -123,15 +133,34 @@ export function PortalSidebar({
 
   // Synchronize expanded parent state whenever path changes to contain an active child
   useEffect(() => {
+    let hasNewParent = false;
     for (const item of navItems) {
       if (item.children) {
         const hasActiveChild = item.children.some((child) =>
           isRouteActive(currentPath, child)
         );
-        if (hasActiveChild) {
-          setOpenParents((prev) => ({ ...prev, [item.id]: true }));
+        if (hasActiveChild && !openParents[item.id]) {
+          hasNewParent = true;
+          break;
         }
       }
+    }
+
+    if (hasNewParent) {
+      setOpenParents((prev) => {
+        const next = { ...prev };
+        for (const item of navItems) {
+          if (item.children) {
+            const hasActiveChild = item.children.some((child) =>
+              isRouteActive(currentPath, child)
+            );
+            if (hasActiveChild) {
+              next[item.id] = true;
+            }
+          }
+        }
+        return next;
+      });
     }
   }, [currentPath, navItems]);
 

@@ -14,6 +14,7 @@ const tenant_context_middleware_1 = require("../middleware/tenant-context.middle
 const tenant_context_1 = require("../context/tenant-context");
 const master_data_blueprint_1 = require("../blueprints/master-data.blueprint");
 const announcements_routes_1 = require("./announcements.routes");
+const document_types_routes_1 = require("./document-types.routes");
 const organization_tree_service_1 = require("../services/organization-tree.service");
 const prisma_1 = require("../prisma");
 const media_service_1 = require("../services/media/media.service");
@@ -345,6 +346,7 @@ exports.organizationRouter.use("/holiday-types", (0, master_data_blueprint_1.cre
 // 6. ANNOUNCEMENTS (/announcements)
 // =========================================================================
 exports.organizationRouter.use("/announcements", announcements_routes_1.announcementsRouter);
+exports.organizationRouter.use("/document-types", document_types_routes_1.documentTypesRouter);
 // =========================================================================
 // 7. HR ORGANIZATION TREE & HIERARCHY SUITE
 // Authoritative endpoints for interactive Employee & Department org charts

@@ -273,6 +273,7 @@ export const DIRECT_TENANT_MODELS = new Set<string>([
   "Meeting",
   "MeetingActionItem",
   "DocumentCategory",
+  "DocumentType",
   "DocumentTemplate",
   "DocumentAcknowledgement",
   "GeneratedLetter",

@@ -139,6 +139,30 @@ export class EmployeeSystemIdService {
       });
     }
 
+    // Atomic PostgreSQL concurrency lock: ensure the row exists then update atomically with RETURNING
+    try {
+      await client.$executeRaw`
+        INSERT INTO "custom_field_values" ("id", "tenant_id", "custom_field_id", "entity_id", "value", "created_at", "updated_at")
+        VALUES (gen_random_uuid()::text, ${tenantId}, ${cf.id}, 'tenant_counter', ${String(initialStart - 1)}, NOW(), NOW())
+        ON CONFLICT ("custom_field_id", "entity_id") DO NOTHING
+      `;
+
+      const updated: any = await client.$queryRaw`
+        UPDATE "custom_field_values"
+        SET "value" = CAST(GREATEST(COALESCE(NULLIF("value", ''), '0')::int, ${initialStart - 1}) + 1 AS TEXT),
+            "updated_at" = NOW()
+        WHERE "tenant_id" = ${tenantId} AND "custom_field_id" = ${cf.id} AND "entity_id" = 'tenant_counter'
+        RETURNING "value"
+      `;
+
+      if (Array.isArray(updated) && updated.length > 0 && updated[0].value) {
+        return parseInt(updated[0].value, 10);
+      }
+    } catch (sqlErr) {
+      console.warn("[allocateNextSequence atomic fallback]:", sqlErr);
+    }
+
+    // Resilient fallback in non-Postgres environments
     const existingVal = await client.customFieldValue.findFirst({
       where: { tenantId, customFieldId: cf.id, entityId: "tenant_counter" },
     });

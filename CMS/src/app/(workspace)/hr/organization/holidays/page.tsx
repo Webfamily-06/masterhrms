@@ -7,7 +7,9 @@ import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { useMasterForm } from "@/hooks/use-master-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -225,6 +227,76 @@ export default function HolidaysPage() {
     },
   });
 
+
+  const holidayExportColumns: ExportColumn<HolidayRecord>[] = [
+    { header: "Holiday Name", key: "name" },
+    { header: "Date", key: "date", format: (v) => (v ? new Date(v).toISOString().split("T")[0] : "") },
+    { header: "Classification", key: "type" },
+    { header: "Description", key: "description" },
+    { header: "Status", key: "status", format: (v) => (v === "active" ? "Active" : "Inactive") },
+  ];
+
+  const handleExportExcel = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? holidays.filter((h: any) => selectedIds.includes(h.id))
+      : holidays;
+    await exportToExcel({
+      filename: `holidays_${new Date().toISOString().split("T")[0]}`,
+      title: "Holidays Directory",
+      columns: holidayExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} holiday(s) to Excel`);
+  };
+
+  const handleExportPdf = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? holidays.filter((h: any) => selectedIds.includes(h.id))
+      : holidays;
+    await exportToPdf({
+      filename: `holidays_${new Date().toISOString().split("T")[0]}`,
+      title: "Holidays Directory",
+      columns: holidayExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} holiday(s) to PDF`);
+  };
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: "active" | "inactive" }) => {
+      return await api.post("/hr/organization/holidays/bulk-archive", { ids, status });
+    },
+    onSuccess: (res: any, vars) => {
+      toast.success(`${vars.status === "active" ? "Activated" : "De-activated"} ${res.data?.count || selectedIds.length} holiday(s)`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk status update failed");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      return await api.post("/hr/organization/holidays/bulk-delete", { ids });
+    },
+    onSuccess: (res: any) => {
+      const { deletedCount, failedCount } = res.data || {};
+      if (failedCount > 0) {
+        toast.warning(`Deleted ${deletedCount} holiday(s). ${failedCount} could not be deleted.`);
+      } else {
+        toast.success(`Deleted ${deletedCount || selectedIds.length} holiday(s)`);
+      }
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["holidays-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
+    },
+  });
+
   // Bulk de-activate mutation
   const bulkArchiveMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -382,58 +454,20 @@ export default function HolidaysPage() {
               Manage Types
             </Button>
 
-            <Button onClick={handleOpenAdd} className="h-9 gap-2 text-xs">
-              <Plus className="h-4 w-4" />
-              Add Holiday
-            </Button>
+            
           </div>
         }
       />
 
-      {/* Top Authoritative Summary Cards */}
-      <StatsOverviewGrid columns={3}>
-        <StatCard
-          title={`Total Holidays (${selectedYear})`}
-          value={counts?.total ?? total}
-          icon={CalendarDays}
-          variant="info"
-          className="bg-gradient-to-br from-blue-50/70 via-card to-card dark:from-blue-950/20 dark:via-card dark:to-card border-blue-200/80 hover:border-blue-400 dark:border-blue-800/40 dark:hover:border-blue-700 hover:shadow-xs transition-all duration-200"
-          description="Total scheduled non-working days"
-        />
-        <StatCard
-          title="Mandatory / Public"
-          value={(counts as any)?.public ?? 0}
-          icon={CheckCircle2}
-          variant="success"
-          className="bg-gradient-to-br from-emerald-50/70 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card border-emerald-200/80 hover:border-emerald-400 dark:border-emerald-800/40 dark:hover:border-emerald-700 hover:shadow-xs transition-all duration-200"
-          description="Statutory public & national closures"
-        />
-        <StatCard
-          title="Optional / Restricted"
-          value={(counts as any)?.optional ?? 0}
-          icon={Sun}
-          variant="warning"
-          className="bg-gradient-to-br from-amber-50/70 via-card to-card dark:from-amber-950/20 dark:via-card dark:to-card border-amber-200/80 hover:border-amber-400 dark:border-amber-800/40 dark:hover:border-amber-700 hover:shadow-xs transition-all duration-200"
-          description="Floating & restricted festival holidays"
-        />
-      </StatsOverviewGrid>
-
-      {/* Filter and Search Toolbar */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search holidays by name or description..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-9 text-xs"
-            />
-          </div>
-
+      {/* Standard Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search holidays by name or description..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={statusFilter}
@@ -446,9 +480,9 @@ export default function HolidaysPage() {
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="all" className="text-xs">All Status</SelectItem>
+                <SelectItem value="active" className="text-xs">Active</SelectItem>
+                <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
               </SelectContent>
             </Select>
 
@@ -463,9 +497,9 @@ export default function HolidaysPage() {
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {holidayTypes.map((t) => (
-                  <SelectItem key={t.id} value={t.name}>
+                <SelectItem value="all" className="text-xs">All Types</SelectItem>
+                {holidayTypes.map((t: any) => (
+                  <SelectItem key={t.id} value={t.name} className="text-xs">
                     {t.name}
                   </SelectItem>
                 ))}
@@ -489,35 +523,19 @@ export default function HolidaysPage() {
               </Button>
             )}
           </div>
-        </div>
-
-        {/* Bulk Actions Indicator */}
-        {selectedIds.length > 0 && (
-          <div className="flex items-center gap-2 border-t pt-2 sm:border-t-0 sm:pt-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              {selectedIds.length} selected
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bulkArchiveMutation.isPending}
-              onClick={() => bulkArchiveMutation.mutate(selectedIds)}
-              className="h-8 gap-1 text-xs"
-            >
-              <PowerOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              De-activate Selected
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds([])}
-              className="h-8 text-xs text-muted-foreground"
-            >
-              Clear
-            </Button>
-          </div>
-        )}
-      </div>
+        }
+        selectedCount={selectedIds.length}
+        totalFilteredCount={total}
+        onClearSelection={() => setSelectedIds([])}
+        onBulkActivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "active" })}
+        onBulkDeactivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "inactive" })}
+        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
+        isActionLoading={bulkStatusMutation.isPending || bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+        primaryActionLabel="Add Holiday"
+        onPrimaryAction={handleOpenAdd}
+      />
 
       {/* Main Table Container */}
       <div className="overflow-hidden rounded-lg border bg-card">
@@ -732,73 +750,16 @@ export default function HolidaysPage() {
         </Table>
 
         {/* Pagination & Page Size Selector Controls */}
-        <div className="flex flex-col items-center justify-between gap-4 border-t p-4 text-xs text-muted-foreground sm:flex-row">
-          <div className="flex items-center gap-2">
-            <span>Rows per page:</span>
-            <Select
-              value={String(limit)}
-              onValueChange={(val) => {
-                setLimit(Number(val));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-8 w-20 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-            <span className="ml-2">
-              Showing page {page} of {totalPages || 1} ({total} total records)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(1)}
-              className="h-8 px-2 text-xs"
-            >
-              First
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              className="h-8 px-2.5 text-xs"
-            >
-              Previous
-            </Button>
-            <span className="px-2 font-medium text-foreground">
-              {page} / {totalPages || 1}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-              className="h-8 px-2.5 text-xs"
-            >
-              Next
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(totalPages)}
-              className="h-8 px-2 text-xs"
-            >
-              Last
-            </Button>
-          </div>
-        </div>
+        <StandardPagination
+          page={page}
+          pageSize={limit}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Add / Edit Holiday Dialog */}

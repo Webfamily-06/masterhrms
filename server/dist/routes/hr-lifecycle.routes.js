@@ -6,6 +6,7 @@ const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const tenant_context_1 = require("../context/tenant-context");
 const lifecycle_service_1 = require("../services/lifecycle.service");
+const audit_service_1 = require("../services/audit.service");
 exports.hrLifecycleRouter = (0, express_1.Router)();
 exports.hrLifecycleRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 // Authorized HR Administration Roles
@@ -484,5 +485,269 @@ exports.hrLifecycleRouter.get("/timeline/:employeeId", requireHrAdmin, async (re
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to load employee timeline." });
+    }
+});
+// =========================================================================
+// 12. GLOBAL LIFECYCLE BULK OPERATIONS
+// =========================================================================
+exports.hrLifecycleRouter.post("/bulk-delete", requireHrAdmin, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(403).json({ error: "Tenant context required" });
+        }
+        const { entity, ids } = req.body;
+        if (!entity || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: "entity and array of ids are required." });
+        }
+        const validIds = ids.filter((id) => typeof id === "string" && id.trim().length > 0);
+        if (validIds.length === 0) {
+            return res.status(400).json({ error: "Valid string IDs array required" });
+        }
+        const db = (0, tenant_context_1.getTenantDb)();
+        const actorId = req.user?.userId || "system";
+        let deletedCount = 0;
+        let failedCount = 0;
+        const failures = [];
+        switch (entity) {
+            case "awards": {
+                const records = await db.award.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.award.delete({ where: { id } });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "AWARD_BULK_DELETE",
+                            entityType: "Award",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "warnings": {
+                const records = await db.disciplinaryWarning.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.disciplinaryWarning.delete({ where: { id } });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "WARNING_BULK_DELETE",
+                            entityType: "DisciplinaryWarning",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "promotions": {
+                const records = await db.promotionRecord.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.promotionRecord.delete({ where: { id } });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "PROMOTION_BULK_DELETE",
+                            entityType: "PromotionRecord",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "transfers": {
+                const records = await db.employeeTransfer.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    if (existing.status === "COMPLETED") {
+                        failedCount++;
+                        failures.push({ id, reason: "Cannot delete completed employee transfer record to preserve historical career records." });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.employeeTransfer.delete({ where: { id } });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "TRANSFER_BULK_DELETE",
+                            entityType: "EmployeeTransfer",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "resignations":
+            case "terminations":
+            case "exits": {
+                const records = await db.employeeExit.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    // Protect settled or finalized exits
+                    if (existing.fnfSettlementStatus === "completed" ||
+                        existing.fnfSettlementStatus === "settled" ||
+                        existing.relievingLetterCode) {
+                        failedCount++;
+                        failures.push({ id, reason: "Cannot delete settled or finalized exit record with full & final clearance." });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.exitChecklistItem.deleteMany({
+                            where: { exitId: id },
+                        });
+                        await tx.employeeExit.delete({
+                            where: { id },
+                        });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "EXIT_BULK_DELETE",
+                            entityType: "EmployeeExit",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "trips": {
+                const records = await db.employeeTrip.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    // Protect settled or reimbursed travel expense claims
+                    if (existing.settlementStatus === "settled" ||
+                        existing.settlementStatus === "reimbursed") {
+                        failedCount++;
+                        failures.push({ id, reason: "Cannot delete settled travel expense record." });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.tripExpenseItem.deleteMany({
+                            where: { tripId: id },
+                        });
+                        await tx.employeeTrip.delete({
+                            where: { id },
+                        });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "TRIP_BULK_DELETE",
+                            entityType: "EmployeeTrip",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            case "complaints": {
+                const records = await db.employeeComplaint.findMany({
+                    where: { tenantId, id: { in: validIds } },
+                });
+                const foundMap = new Map(records.map((r) => [r.id, r]));
+                for (const id of validIds) {
+                    const existing = foundMap.get(id);
+                    if (!existing) {
+                        failedCount++;
+                        failures.push({ id, reason: "Record not found or belongs to another tenant" });
+                        continue;
+                    }
+                    await db.$transaction(async (tx) => {
+                        await tx.complaintCaseNote.deleteMany({
+                            where: { complaintId: id },
+                        });
+                        await tx.employeeComplaint.delete({
+                            where: { id },
+                        });
+                        await audit_service_1.AuditService.logMutation({
+                            tenantId,
+                            actorId,
+                            action: "COMPLAINT_BULK_DELETE",
+                            entityType: "EmployeeComplaint",
+                            entityId: id,
+                            oldState: existing,
+                        }, tx);
+                    });
+                    deletedCount++;
+                }
+                break;
+            }
+            default:
+                return res.status(400).json({ error: `Unsupported entity type: ${entity}` });
+        }
+        return res.json({
+            success: true,
+            message: `Processed ${validIds.length} record(s). ${deletedCount} deleted, ${failedCount} failed.`,
+            deletedCount,
+            failedCount,
+            failures,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to execute bulk deletion." });
     }
 });

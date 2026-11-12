@@ -19,6 +19,7 @@ const reporting_hierarchy_validator_1 = require("../lib/reporting-hierarchy-vali
 exports.employeesRouter = (0, express_1.Router)();
 // Enforce Request-Scoped Tenant Context on all employee endpoints
 exports.employeesRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+const requireHrEmployeeAdmin = (0, auth_1.requireRole)("admin", "super_admin", "tenant_admin", "hr_admin");
 // ---------------------------------------------------------------------------
 // PII MASKING — WAVE 2 SECURITY ENFORCEMENT
 // Protects Aadhaar, PAN, Bank Account numbers from exposure to non-privileged
@@ -471,8 +472,8 @@ exports.employeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePermis
         });
     }
 });
-// DELETE /api/employees/:id (Full Cascade: removes all related employee and user records from DB)
-exports.employeesRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
+// DELETE /api/employees/:id (Secured with HR Admin RBAC guard)
+exports.employeesRouter.delete("/:id", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         if (!id)
@@ -598,7 +599,7 @@ exports.employeesRouter.get("/departments/:id", auth_1.requireAuth, async (req, 
     }
 });
 // POST /api/employees/departments
-exports.employeesRouter.post("/departments", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.post("/departments", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const tenantId = await getTenantId(req);
         const { name, description } = req.body;
@@ -619,7 +620,7 @@ exports.employeesRouter.post("/departments", auth_1.requireAuth, async (req, res
     }
 });
 // PUT /api/employees/departments/:id
-exports.employeesRouter.put("/departments/:id", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.put("/departments/:id", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const tenantId = await getTenantId(req);
@@ -646,7 +647,7 @@ exports.employeesRouter.put("/departments/:id", auth_1.requireAuth, async (req, 
     }
 });
 // PATCH /api/employees/departments/:id  (partial update alias)
-exports.employeesRouter.patch("/departments/:id", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.patch("/departments/:id", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const tenantId = await getTenantId(req);
@@ -670,7 +671,7 @@ exports.employeesRouter.patch("/departments/:id", auth_1.requireAuth, async (req
     }
 });
 // DELETE /api/employees/departments/:id
-exports.employeesRouter.delete("/departments/:id", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.delete("/departments/:id", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const tenantId = await getTenantId(req);
@@ -719,7 +720,7 @@ exports.employeesRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
     }
 });
 // POST /api/employees/:id/reset-2fa (Tenant Admin resets 2FA for an employee)
-exports.employeesRouter.post("/:id/reset-2fa", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.post("/:id/reset-2fa", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const tenantId = req.user?.tenantId;
@@ -790,7 +791,7 @@ exports.employeesRouter.get("/:id/login-account", auth_1.requireAuth, async (req
     }
 });
 // POST /api/employees/:id/set-password (Admin sets / resets employee login password)
-exports.employeesRouter.post("/:id/set-password", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.post("/:id/set-password", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { newPassword, sendNotification } = req.body;
@@ -853,7 +854,7 @@ exports.employeesRouter.post("/:id/set-password", auth_1.requireAuth, async (req
 });
 // POST /api/employees/bulk-import
 // Atomically imports multiple employees in batch with upfront capacity enforcement & auto department resolution
-exports.employeesRouter.post("/bulk-import", auth_1.requireAuth, async (req, res) => {
+exports.employeesRouter.post("/bulk-import", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
     try {
         const tenantId = await getTenantId(req);
         const rawList = Array.isArray(req.body) ? req.body : req.body.employees || req.body.data || [];

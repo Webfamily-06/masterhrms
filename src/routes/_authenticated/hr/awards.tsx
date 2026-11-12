@@ -81,6 +81,22 @@ import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { LoadingState } from "@/components/system-states/loading-state";
 import { EmptyState } from "@/components/system-states/empty-state";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalExportDropdown } from "@/components/ui/global-export-dropdown";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/hr/awards")({
   component: HrAwardsManagementPage,
@@ -160,6 +176,26 @@ function renderSourceBadge(source: string) {
       return <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200">HR Admin</Badge>;
   }
 }
+
+const awardExportColumns: ExportColumn[] = [
+  { header: "Recipient Name", key: "recipientName" },
+  { header: "Employee Code", key: "employeeCode" },
+  { header: "Department", key: "department" },
+  { header: "Award Category", key: "awardCategory" },
+  { header: "Citation & Reason", key: "description" },
+  { header: "Certificate No", key: "certificateNo" },
+  {
+    header: "Date Conferred",
+    key: "awardDate",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  {
+    header: "Reward Value",
+    key: "giftAmount",
+    format: (val: any) => (Number(val) > 0 ? `₹${Number(val).toLocaleString()}` : "0"),
+  },
+  { header: "Presented By", key: "presentedBy" },
+];
 
 export function HrAwardsManagementPage() {
   const qc = useQueryClient();
@@ -737,6 +773,83 @@ export function HrAwardsManagementPage() {
     });
   }, [awards, searchTerm, selectedTypeFilter]);
 
+  const [awardsPage, setAwardsPage] = useState(1);
+  const [awardsPageSize, setAwardsPageSize] = useState(10);
+
+  const paginatedAwards = useMemo(() => {
+    return filteredAwards.slice((awardsPage - 1) * awardsPageSize, awardsPage * awardsPageSize);
+  }, [filteredAwards, awardsPage, awardsPageSize]);
+
+  const visibleAwardIds = useMemo(() => paginatedAwards.map((a) => a.id), [paginatedAwards]);
+
+  const {
+    selectedIds: selectedAwardIds,
+    selectedCount: selectedAwardCount,
+    isSelected: isAwardSelected,
+    toggleRow: toggleAwardRow,
+    selectAllVisible: selectAllVisibleAwards,
+    clearSelection: clearAwardSelection,
+    isAllVisibleSelected: isAllVisibleAwardsSelected,
+    isSomeVisibleSelected: isSomeVisibleAwardsSelected,
+  } = useGlobalListSelection(paginatedAwards);
+
+  const bulkDeleteAwardsMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "awards",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["hr-awards-list"] });
+      toast.success(data?.message || "Selected awards deleted.");
+      clearAwardSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected awards.");
+    },
+  });
+
+  const getAwardsExportData = () => {
+    const source = selectedAwardCount > 0
+      ? filteredAwards.filter((a) => selectedAwardIds.has(a.id))
+      : filteredAwards;
+
+    return source.map((a) => ({
+      recipientName: `${a.employee?.firstName || ""} ${a.employee?.lastName || ""}`.trim(),
+      employeeCode: a.employee?.employeeCode || "—",
+      department: a.employee?.department?.name || "General",
+      awardCategory: a.awardType?.name || a.giftItem || "Honorary Award",
+      description: a.description || "—",
+      certificateNo: a.certificateNo || "—",
+      awardDate: a.awardDate,
+      giftAmount: a.giftAmount,
+      presentedBy: a.presentedBy || "—",
+    }));
+  };
+
+  const handleExportAwardsExcel = async () => {
+    await exportToExcel({
+      title: "Employee Awards & Honors Registry",
+      columns: awardExportColumns,
+      data: getAwardsExportData(),
+      filename: `awards-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Awards",
+    });
+    toast.success(`Exported ${getAwardsExportData().length} awards to Excel.`);
+  };
+
+  const handleExportAwardsPdf = () => {
+    exportToPdf({
+      title: "Employee Awards & Honors Registry",
+      columns: awardExportColumns,
+      data: getAwardsExportData(),
+      filename: `awards-export-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getAwardsExportData().length} awards to PDF.`);
+  };
+
   if (isProfileLoading) {
     return <LoadingState message="Verifying HR Administrator credentials..." />;
   }
@@ -914,10 +1027,19 @@ export function HrAwardsManagementPage() {
           <FilterToolbar
             searchPlaceholder="Search by employee, award title, or certificate no..."
             searchQuery={searchTerm}
-            onSearchChange={setSearchTerm}
+            onSearchChange={(val) => {
+              setSearchTerm(val);
+              setAwardsPage(1);
+            }}
             filters={
               <div className="flex flex-wrap items-center gap-2">
-                <Select value={selectedTypeFilter} onValueChange={setSelectedTypeFilter}>
+                <Select
+                  value={selectedTypeFilter}
+                  onValueChange={(val) => {
+                    setSelectedTypeFilter(val);
+                    setAwardsPage(1);
+                  }}
+                >
                   <SelectTrigger className="w-[180px] h-9 text-xs">
                     <SelectValue placeholder="Category" />
                   </SelectTrigger>
@@ -932,7 +1054,58 @@ export function HrAwardsManagementPage() {
                 </Select>
               </div>
             }
+            actions={
+              <GlobalExportDropdown
+                onExportExcel={handleExportAwardsExcel}
+                onExportPdf={handleExportAwardsPdf}
+                disabled={filteredAwards.length === 0}
+              />
+            }
           />
+
+          {/* Selection Action Bar */}
+          {selectedAwardCount > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/60 border rounded-lg animate-in fade-in-50">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-primary/10 text-primary">
+                  {selectedAwardCount} selected
+                </span>
+                <Button variant="ghost" size="sm" onClick={clearAwardSelection} className="h-7 text-xs">
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                    >
+                      Delete Selected ({selectedAwardCount})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Selected Awards</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete {selectedAwardCount} selected award(s)? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        onClick={() => bulkDeleteAwardsMutation.mutate(Array.from(selectedAwardIds))}
+                      >
+                        Confirm Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          )}
 
           {/* Awards Content */}
           {awardsLoading ? (
@@ -949,12 +1122,13 @@ export function HrAwardsManagementPage() {
               }}
             />
           ) : activeTab === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredAwards.map((award) => (
-                <Card
-                  key={award.id}
-                  className="overflow-hidden border-border/60 hover:shadow-md transition-shadow group flex flex-col justify-between"
-                >
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {paginatedAwards.map((award) => (
+                  <Card
+                    key={award.id}
+                    className="overflow-hidden border-border/60 hover:shadow-md transition-shadow group flex flex-col justify-between"
+                  >
                   <CardHeader className="p-4 pb-2 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
@@ -994,7 +1168,7 @@ export function HrAwardsManagementPage() {
                       </Avatar>
                       <div className="min-w-0">
                         <Link
-                          to={`/hr/employees/${award.employeeId}`}
+                          to={`/hr/employees/${award.employeeId}` as any}
                           className="text-xs font-semibold hover:underline block truncate"
                         >
                           {award.employee?.firstName} {award.employee?.lastName}
@@ -1063,12 +1237,20 @@ export function HrAwardsManagementPage() {
                   </div>
                 </Card>
               ))}
+              </div>
             </div>
           ) : (
             <Card className="border-border/60">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={isAllVisibleAwardsSelected(visibleAwardIds) ? true : isSomeVisibleAwardsSelected(visibleAwardIds) ? "indeterminate" : false}
+                        onCheckedChange={() => selectAllVisibleAwards(visibleAwardIds)}
+                        aria-label="Select all visible awards"
+                      />
+                    </TableHead>
                     <TableHead className="w-[180px]">Recipient</TableHead>
                     <TableHead>Award Category</TableHead>
                     <TableHead>Citation & Reason</TableHead>
@@ -1079,8 +1261,22 @@ export function HrAwardsManagementPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAwards.map((award) => (
-                    <TableRow key={award.id}>
+                  {paginatedAwards.map((award) => {
+                    const checked = isAwardSelected(award.id);
+                    return (
+                    <TableRow
+                      key={award.id}
+                      data-state={checked ? "selected" : undefined}
+                      className="hover:bg-muted/40 cursor-pointer"
+                      onClick={() => toggleAwardRow(award.id)}
+                    >
+                      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleAwardRow(award.id)}
+                          aria-label={`Select award for ${award.employee?.firstName || "employee"}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Avatar className="size-7">
@@ -1091,7 +1287,7 @@ export function HrAwardsManagementPage() {
                           </Avatar>
                           <div className="min-w-0">
                             <Link
-                              to={`/hr/employees/${award.employeeId}`}
+                              to={`/hr/employees/${award.employeeId}` as any}
                               className="text-xs font-semibold hover:underline block truncate"
                             >
                               {award.employee?.firstName} {award.employee?.lastName}
@@ -1194,11 +1390,23 @@ export function HrAwardsManagementPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
           )}
+
+          <StandardPagination
+            page={awardsPage}
+            pageSize={awardsPageSize}
+            total={filteredAwards.length}
+            onPageChange={setAwardsPage}
+            onPageSizeChange={(newSize) => {
+              setAwardsPageSize(newSize);
+              setAwardsPage(1);
+            }}
+          />
         </div>
       )}
 
@@ -1324,7 +1532,7 @@ export function HrAwardsManagementPage() {
                           </Avatar>
                           <div className="min-w-0">
                             <Link
-                              to={`/hr/employees/${nom.employeeId}`}
+                              to={`/hr/employees/${nom.employeeId}` as any}
                               className="text-xs font-semibold hover:underline block truncate"
                             >
                               {nom.employee?.firstName} {nom.employee?.lastName}

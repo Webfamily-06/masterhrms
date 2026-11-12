@@ -7,6 +7,7 @@ const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const pagination_1 = require("../lib/pagination");
 const storage_factory_1 = require("../services/factories/storage.factory");
+const audit_service_1 = require("../services/audit.service");
 exports.documentsRouter = (0, express_1.Router)();
 exports.documentsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 // Standard default company document templates
@@ -483,6 +484,73 @@ exports.documentsRouter.put("/:id/verify", auth_1.requireAuth, async (req, res) 
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to verify document." });
+    }
+});
+// POST /api/documents/:id/reject (HR rejects document with mandatory reason)
+exports.documentsRouter.post("/:id/reject", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        const tenantId = req.user?.tenantId;
+        const reviewerName = req.user?.name || req.user?.email || "HR Reviewer";
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({ error: "Rejection reason is mandatory." });
+        }
+        const userRoles = req.user?.roles || [];
+        const userPerms = req.user?.permissions || [];
+        const isEmployeeOnly = userRoles.length === 1 && userRoles[0] === "employee";
+        const canVerify = userPerms.includes("hr:documents:verify") ||
+            userPerms.includes("documents:verify") ||
+            userRoles.includes("super_admin") ||
+            userRoles.includes("hr_admin") ||
+            userRoles.includes("admin");
+        if (isEmployeeOnly || !canVerify) {
+            return res.status(403).json({
+                error: "Forbidden: You do not have permission to reject employee documents. Only authorized HR personnel may reject documents.",
+            });
+        }
+        const existing = await prisma_1.prisma.companyDocument.findUnique({ where: { id } });
+        if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+            return res.status(404).json({ error: "Document not found." });
+        }
+        const rejected = await prisma_1.prisma.companyDocument.update({
+            where: { id },
+            data: {
+                status: "rejected",
+                notes: `Rejected: ${reason.trim()}`,
+                verifiedBy: reviewerName,
+                verifiedAt: new Date(),
+            },
+            include: {
+                employee: { include: { department: true } },
+            },
+        });
+        try {
+            await audit_service_1.AuditService.logMutation({
+                tenantId: existing.tenantId,
+                actorId: req.user?.userId || "system",
+                action: "DOCUMENT_REJECTED",
+                entityType: "CompanyDocument",
+                entityId: id,
+                metadata: {
+                    documentCode: existing.documentCode,
+                    title: existing.title,
+                    reason: reason.trim(),
+                    reviewer: reviewerName,
+                },
+            });
+        }
+        catch (auditErr) {
+            console.warn("[documents.reject] Audit log creation failed:", auditErr?.message);
+        }
+        return res.json({
+            success: true,
+            message: `Document ${rejected.documentCode} has been marked as rejected.`,
+            document: rejected,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to reject document." });
     }
 });
 // DELETE /api/documents/:id (Delete document)

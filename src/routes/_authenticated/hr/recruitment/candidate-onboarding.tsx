@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -8,6 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import {
   Table,
   TableBody,
@@ -36,10 +42,6 @@ import {
   UserCheck,
   CheckCircle2,
   Clock,
-  FileText,
-  ShieldCheck,
-  AlertCircle,
-  Laptop,
   Users,
   Eye,
 } from "lucide-react";
@@ -48,9 +50,25 @@ export const Route = createFileRoute("/_authenticated/hr/recruitment/candidate-o
   component: HrCandidateOnboardingPage,
 });
 
+const onboardingExportColumns: ExportColumn[] = [
+  { header: "Candidate Name", key: "candidateName" },
+  { header: "Email", key: "email" },
+  {
+    header: "Expected Joining Date",
+    key: "joiningDate",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Progress (%)", key: "progress" },
+  { header: "Status", key: "status" },
+];
+
 export default function HrCandidateOnboardingPage() {
   const queryClient = useQueryClient();
   const [selectedOnboarding, setSelectedOnboarding] = useState<any>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Queries
   const { data: onboardingList = [], isLoading } = useQuery({
@@ -80,6 +98,65 @@ export default function HrCandidateOnboardingPage() {
     if (!tasks || tasks.length === 0) return 0;
     const completed = tasks.filter((t) => t.status === "verified" || t.status === "waived").length;
     return Math.round((completed / tasks.length) * 100);
+  };
+
+  const filteredOnboarding = (onboardingList || []).filter((item: any) => {
+    const name = (item.candidate?.fullName || "").toLowerCase();
+    const email = (item.candidate?.email || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || email.includes(query);
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const paginatedOnboarding = filteredOnboarding.slice((page - 1) * pageSize, page * pageSize);
+
+  const visibleCandidateIds = useMemo(() => paginatedOnboarding.map((o: any) => o.id), [paginatedOnboarding]);
+
+  const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedOnboarding);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredOnboarding.filter((o: any) => selectedIds.has(o.id))
+      : filteredOnboarding;
+
+    return source.map((item: any) => ({
+      candidateName: item.candidate?.fullName || "—",
+      email: item.candidate?.email || "—",
+      joiningDate: item.joiningDate,
+      progress: getProgress(item.tasks),
+      status: item.status || "pending",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Candidate Pre-Joining & Onboarding",
+      columns: onboardingExportColumns,
+      data: getExportData(),
+      filename: `candidate-onboarding-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Onboarding",
+    });
+    toast.success(`Exported ${getExportData().length} onboarding records to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Candidate Pre-Joining & Onboarding",
+      columns: onboardingExportColumns,
+      data: getExportData(),
+      filename: `candidate-onboarding-export-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getExportData().length} onboarding records to PDF.`);
   };
 
   return (
@@ -119,6 +196,40 @@ export default function HrCandidateOnboardingPage() {
         />
       </div>
 
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search candidates by name or email..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40 h-9 text-xs">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="ready_to_join">Ready to Join</SelectItem>
+              <SelectItem value="joined">Joined</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
+
       {/* Onboarding List */}
       <Card>
         <CardHeader>
@@ -127,10 +238,17 @@ export default function HrCandidateOnboardingPage() {
             Candidates with accepted offers undergoing pre-boarding compliance and equipment provisioning.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={isAllVisibleSelected(visibleCandidateIds) ? true : isSomeVisibleSelected(visibleCandidateIds) ? "indeterminate" : false}
+                    onCheckedChange={() => selectAllVisible(visibleCandidateIds)}
+                    aria-label="Select all visible candidates"
+                  />
+                </TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead>Expected Joining Date</TableHead>
                 <TableHead>Checklist Progress</TableHead>
@@ -139,17 +257,38 @@ export default function HrCandidateOnboardingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {onboardingList.length === 0 ? (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No candidates currently in onboarding.
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    Loading candidates...
+                  </TableCell>
+                </TableRow>
+              ) : filteredOnboarding.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    {search || statusFilter !== "all"
+                      ? "No candidates match your filter criteria."
+                      : "No candidates currently in onboarding."}
                   </TableCell>
                 </TableRow>
               ) : (
-                onboardingList.map((item: any) => {
+                paginatedOnboarding.map((item: any) => {
                   const progress = getProgress(item.tasks);
+                  const checked = isSelected(item.id);
                   return (
-                    <TableRow key={item.id}>
+                    <TableRow
+                      key={item.id}
+                      data-state={checked ? "selected" : undefined}
+                      className="hover:bg-muted/40 cursor-pointer"
+                      onClick={() => toggleRow(item.id)}
+                    >
+                      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleRow(item.id)}
+                          aria-label={`Select candidate ${item.candidate?.fullName || "candidate"}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="font-semibold">{item.candidate?.fullName}</div>
                         <div className="text-xs text-muted-foreground">{item.candidate?.email}</div>
@@ -179,7 +318,7 @@ export default function HrCandidateOnboardingPage() {
                           {progress === 100 ? "Ready to Join" : item.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="sm"
                           variant="outline"
@@ -195,6 +334,17 @@ export default function HrCandidateOnboardingPage() {
               )}
             </TableBody>
           </Table>
+
+          <StandardPagination
+            page={page}
+            pageSize={pageSize}
+            total={filteredOnboarding.length}
+            onPageChange={setPage}
+            onPageSizeChange={(newSize) => {
+              setPageSize(newSize);
+              setPage(1);
+            }}
+          />
         </CardContent>
       </Card>
 

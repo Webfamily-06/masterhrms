@@ -5,14 +5,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -76,6 +78,8 @@ export function AnnouncementsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AnnouncementRecord | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -137,6 +141,84 @@ export function AnnouncementsPage() {
     },
   });
 
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const announcementExportColumns: ExportColumn<AnnouncementRecord>[] = [
+    { header: "Title", key: "title" },
+    { header: "Target Scope", key: "targetType", format: (v) => v || "All Organization" },
+    { header: "Priority", key: "priority" },
+    { header: "Start Date", key: "publishDate", format: (v) => (v ? new Date(v).toISOString().split("T")[0] : "") },
+    { header: "End Date", key: "expiryDate", format: (v) => (v ? new Date(v).toISOString().split("T")[0] : "") },
+    { header: "Status", key: "priority", format: (_v) => "Active" },
+  ];
+
+  const handleExportExcel = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? announcements.filter((a: any) => selectedIds.includes(a.id))
+      : announcements;
+    await exportToExcel({
+      filename: `announcements_${new Date().toISOString().split("T")[0]}`,
+      title: "Announcements Directory",
+      columns: announcementExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} announcement(s) to Excel`);
+  };
+
+  const handleExportPdf = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? announcements.filter((a: any) => selectedIds.includes(a.id))
+      : announcements;
+    await exportToPdf({
+      filename: `announcements_${new Date().toISOString().split("T")[0]}`,
+      title: "Announcements Directory",
+      columns: announcementExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} announcement(s) to PDF`);
+  };
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      // Delete sequentially or via bulk
+      for (const id of ids) {
+        await api.delete(`/hr/organization/announcements/${id}`);
+      }
+    },
+    onSuccess: () => {
+      toast.success(`Deleted ${selectedIds.length} announcement(s)`);
+      setSelectedIds([]);
+      qc.invalidateQueries({ queryKey: ["hr-announcements"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
+    },
+  });
+
+  const currentPageIds = announcements.map((a: any) => a.id).filter(Boolean);
+  const isAllCurrentPageSelected =
+    currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.includes(id));
+  const isPartiallySelected =
+    currentPageIds.some((id) => selectedIds.includes(id)) && !isAllCurrentPageSelected;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...currentPageIds])));
+    } else {
+      setSelectedIds((prev) => prev.filter((id) => !currentPageIds.includes(id)));
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, id]);
+    } else {
+      setSelectedIds((prev) => prev.filter((i) => i !== id));
+    }
+  };
+
   const handleOpenAdd = () => {
     setEditingItem(null);
     setFormTitle("");
@@ -177,9 +259,7 @@ export function AnnouncementsPage() {
     });
   };
 
-  const urgentCount = announcements.filter((a) => a.priority === "urgent" || a.priority === "high").length;
-  const pinnedCount = announcements.filter((a) => a.isPinned).length;
-  const ackCount = announcements.filter((a) => a.acknowledgementRequired).length;
+  const paginatedAnnouncements = announcements.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="space-y-6">
@@ -187,45 +267,38 @@ export function AnnouncementsPage() {
         title="Company Announcements"
         description="Official broadcasts, corporate communications, and compliance notices."
         icon={Megaphone}
-        actions={
-          <Button onClick={handleOpenAdd} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Publish Notice
-          </Button>
-        }
+        
       />
 
-      <StatsOverviewGrid>
-        <StatCard
-          title="Active Announcements"
-          value={announcements.length}
-          icon={Megaphone}
-          description="Total published communications"
-        />
-        <StatCard
-          title="Pinned & Featured"
-          value={pinnedCount}
-          icon={Pin}
-          description="High visibility broadcasts"
-        />
-        <StatCard
-          title="Compliance Required"
-          value={ackCount}
-          icon={FileCheck}
-          description="Mandatory acknowledgement policies"
-        />
-      </StatsOverviewGrid>
-
-      <FilterToolbar
-        searchQuery={search}
-        onSearchChange={setSearch}
+      <GlobalListActionToolbar
         searchPlaceholder="Search announcements by title or content..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        selectedCount={selectedIds.length}
+        totalFilteredCount={announcements.length}
+        onClearSelection={() => setSelectedIds([])}
+        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+        primaryActionLabel="Publish Notice"
+        onPrimaryAction={handleOpenAdd}
       />
 
       <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 text-center">
+                <Checkbox
+                  checked={isAllCurrentPageSelected ? true : isPartiallySelected ? "indeterminate" : false}
+                  onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
+                  aria-label="Select all announcements on this page"
+                />
+              </TableHead>
               <TableHead>Title & Category</TableHead>
               <TableHead>Target Scope</TableHead>
               <TableHead>Priority</TableHead>
@@ -237,19 +310,26 @@ export function AnnouncementsPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Loading announcements...
                 </TableCell>
               </TableRow>
             ) : announcements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   No announcements found.
                 </TableCell>
               </TableRow>
             ) : (
-              announcements.map((a) => (
+              paginatedAnnouncements.map((a) => (
                 <TableRow key={a.id}>
+                  <TableCell className="w-12 text-center" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.includes(a.id)}
+                      onCheckedChange={(checked) => handleSelectRow(a.id, Boolean(checked))}
+                      aria-label={`Select announcement ${a.title}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {a.isPinned && <Pin className="h-3.5 w-3.5 text-primary rotate-45" />}
@@ -313,6 +393,17 @@ export function AnnouncementsPage() {
             )}
           </TableBody>
         </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={announcements.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

@@ -4,7 +4,7 @@ import { lockWorkspaceCapacity } from "../services/workspace-policy.service";
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../prisma";
-import { requireAuth, requirePermission, AuthRequest, invalidateAuthCache } from "../middleware/auth";
+import { requireAuth, requirePermission, requireRole, AuthRequest, invalidateAuthCache } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { provisionEmployeeUser } from "../lib/auth-helpers";
 import { requireWithinLimit } from "../middleware/limits";
@@ -15,6 +15,8 @@ export const employeesRouter = Router();
 
 // Enforce Request-Scoped Tenant Context on all employee endpoints
 employeesRouter.use(requireAuth, resolveTenantContext);
+
+const requireHrEmployeeAdmin = requireRole("admin", "super_admin", "tenant_admin", "hr_admin");
 
 // ---------------------------------------------------------------------------
 // PII MASKING — WAVE 2 SECURITY ENFORCEMENT
@@ -550,8 +552,8 @@ employeesRouter.put("/:id", requireAuth, requirePermission("hrm.employees.edit")
   }
 });
 
-// DELETE /api/employees/:id (Full Cascade: removes all related employee and user records from DB)
-employeesRouter.delete("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+// DELETE /api/employees/:id (Secured with HR Admin RBAC guard)
+employeesRouter.delete("/:id", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     if (!id) return res.status(400).json({ error: "Employee ID is required" });
@@ -690,7 +692,7 @@ employeesRouter.get("/departments/:id", requireAuth, async (req: AuthRequest, re
 });
 
 // POST /api/employees/departments
-employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/departments", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
 
@@ -715,7 +717,7 @@ employeesRouter.post("/departments", requireAuth, async (req: AuthRequest, res: 
 });
 
 // PUT /api/employees/departments/:id
-employeesRouter.put("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.put("/departments/:id", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = await getTenantId(req);
@@ -746,7 +748,7 @@ employeesRouter.put("/departments/:id", requireAuth, async (req: AuthRequest, re
 });
 
 // PATCH /api/employees/departments/:id  (partial update alias)
-employeesRouter.patch("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.patch("/departments/:id", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = await getTenantId(req);
@@ -773,7 +775,7 @@ employeesRouter.patch("/departments/:id", requireAuth, async (req: AuthRequest, 
 });
 
 // DELETE /api/employees/departments/:id
-employeesRouter.delete("/departments/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.delete("/departments/:id", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = await getTenantId(req);
@@ -827,7 +829,7 @@ employeesRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response)
 });
 
 // POST /api/employees/:id/reset-2fa (Tenant Admin resets 2FA for an employee)
-employeesRouter.post("/:id/reset-2fa", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/:id/reset-2fa", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
@@ -908,7 +910,7 @@ employeesRouter.get("/:id/login-account", requireAuth, async (req: AuthRequest, 
 });
 
 // POST /api/employees/:id/set-password (Admin sets / resets employee login password)
-employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/:id/set-password", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const { newPassword, sendNotification } = req.body;
@@ -977,7 +979,7 @@ employeesRouter.post("/:id/set-password", requireAuth, async (req: AuthRequest, 
 
 // POST /api/employees/bulk-import
 // Atomically imports multiple employees in batch with upfront capacity enforcement & auto department resolution
-employeesRouter.post("/bulk-import", requireAuth, async (req: AuthRequest, res: Response) => {
+employeesRouter.post("/bulk-import", requireAuth, requireHrEmployeeAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = await getTenantId(req);
     const rawList = Array.isArray(req.body) ? req.body : req.body.employees || req.body.data || [];

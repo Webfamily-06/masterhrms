@@ -1,8 +1,8 @@
 'use client';
-import { useState } from "react";
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
+import { useState, useMemo } from "react";
+import { createFileRoute, Link } from "@/src/lib/router-compat";
 import { format } from "date-fns";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
@@ -11,6 +11,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalExportDropdown } from "@/components/ui/global-export-dropdown";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -65,7 +81,6 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
 
 
 export interface EmployeeItem {
@@ -164,7 +179,25 @@ function getLoginStatusBadge(loginStatus?: string, userId?: string | null) {
   );
 }
 
-function EmployeesDirectoryPage() {
+const employeeExportColumns: ExportColumn[] = [
+  { header: "Employee Code", key: "employeeCode" },
+  { header: "First Name", key: "firstName" },
+  { header: "Last Name", key: "lastName" },
+  { header: "Email", key: "email" },
+  { header: "Phone", key: "phone" },
+  { header: "Department", key: "department" },
+  { header: "Designation", key: "designation" },
+  { header: "Branch", key: "branch" },
+  { header: "Employment Type", key: "employmentType" },
+  {
+    header: "Joining Date",
+    key: "joinedAt",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Status", key: "status" },
+];
+
+export default function EmployeesDirectoryPage() {
   const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [selectedBranch, setSelectedBranch] = useState("all");
@@ -340,6 +373,90 @@ function EmployeesDirectoryPage() {
   const probationCount = statusCounts?.probation ?? 0;
   const termCount = statusCounts?.terminated ?? 0;
 
+  const visibleEmployeeIds = useMemo(() => employees.map((e) => e.id), [employees]);
+
+  const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(employees);
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: string }) => {
+      const res = await api.post("/hr/employees/bulk-status", { ids, status });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
+      toast.success(data?.message || "Employee statuses updated successfully.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to update employee status.");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/employees/bulk-delete", { ids });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-employees-list"] });
+      toast.success(data?.message || "Selected employees deactivated.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to deactivate employees.");
+    },
+  });
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? employees.filter((e) => selectedIds.has(e.id))
+      : employees;
+
+    return source.map((emp) => ({
+      employeeCode: emp.employeeCode || "—",
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      email: emp.email || "—",
+      phone: emp.phone || "—",
+      department: emp.department?.name || "—",
+      designation: emp.designation?.name || emp.position || "—",
+      branch: emp.branch?.name || "—",
+      employmentType: formatEmploymentType(emp.employmentType),
+      joinedAt: emp.joinedAt,
+      status: emp.status || "active",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Employees Directory",
+      columns: employeeExportColumns,
+      data: getExportData(),
+      filename: `employees-directory-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Employees",
+    });
+    toast.success(`Exported ${getExportData().length} employees to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Employees Directory",
+      columns: employeeExportColumns,
+      data: getExportData(),
+      filename: `employees-directory-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getExportData().length} employees to PDF.`);
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Breadcrumb Navigation ── */}
@@ -354,6 +471,11 @@ function EmployeesDirectoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <GlobalExportDropdown
+            onExportExcel={handleExportExcel}
+            onExportPdf={handleExportPdf}
+            disabled={employees.length === 0}
+          />
           <Link to="/hr/employees/import">
             <Button variant="outline" className="gap-2 h-9 text-xs">
               <UploadCloud className="h-4 w-4" />
@@ -590,6 +712,68 @@ function EmployeesDirectoryPage() {
         </div>
       )}
 
+      {/* ── Selection Action Bar ── */}
+      {selectedCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/60 border rounded-lg animate-in fade-in-50">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-primary/10 text-primary">
+              {selectedCount} selected
+            </span>
+            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-7 text-xs">
+              Clear
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs text-emerald-600 border-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              onClick={() => bulkStatusMutation.mutate({ ids: Array.from(selectedIds), status: "active" })}
+              disabled={bulkStatusMutation.isPending}
+            >
+              Activate
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs text-amber-600 border-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+              onClick={() => bulkStatusMutation.mutate({ ids: Array.from(selectedIds), status: "inactive" })}
+              disabled={bulkStatusMutation.isPending}
+            >
+              Deactivate
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+                >
+                  Deactivate Selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Deactivate Selected Employees</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to deactivate {selectedCount} selected employee(s)? Their account access will be revoked while preserving history.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+                  >
+                    Confirm Deactivate
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
       {/* ── Data Display: List View vs Grid View ── */}
       {viewMode === "list" ? (
         <div className="rounded-xl border bg-card shadow-xs overflow-hidden">
@@ -597,7 +781,13 @@ function EmployeesDirectoryPage() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-12 text-center text-xs font-semibold">#</TableHead>
+                  <TableHead className="w-10 text-center">
+                    <Checkbox
+                      checked={isAllVisibleSelected(visibleEmployeeIds) ? true : isSomeVisibleSelected(visibleEmployeeIds) ? "indeterminate" : false}
+                      onCheckedChange={() => selectAllVisible(visibleEmployeeIds)}
+                      aria-label="Select all visible employees"
+                    />
+                  </TableHead>
                   <TableHead className="min-w-[220px]">
                     <button
                       type="button"
@@ -647,12 +837,21 @@ function EmployeesDirectoryPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  employees.map((emp, index) => {
-                    const rowNum = (page - 1) * limit + index + 1;
+                  employees.map((emp) => {
+                    const checked = isSelected(emp.id);
                     return (
-                      <TableRow key={emp.id} className="hover:bg-muted/40 transition-colors">
-                        <TableCell className="text-center font-mono text-xs text-muted-foreground">
-                          {rowNum}
+                      <TableRow
+                        key={emp.id}
+                        data-state={checked ? "selected" : undefined}
+                        className="hover:bg-muted/40 transition-colors cursor-pointer"
+                        onClick={() => toggleRow(emp.id)}
+                      >
+                        <TableCell className="w-10 text-center" onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleRow(emp.id)}
+                            aria-label={`Select employee ${emp.firstName} ${emp.lastName}`}
+                          />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
@@ -915,67 +1114,17 @@ function EmployeesDirectoryPage() {
         </div>
       )}
 
-      {/* ── Functional Pagination Footer (Section 4) ── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t pt-4 text-xs text-muted-foreground">
-        <div>
-          <span>
-            Showing <strong className="text-foreground">{startRow}</strong>–
-            <strong className="text-foreground">{endRow}</strong> of{" "}
-            <strong className="text-foreground">{total}</strong> employees
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* Rows per page selector: 10, 20, 30 */}
-          <div className="flex items-center gap-2">
-            <span className="whitespace-nowrap">Rows per page:</span>
-            <Select
-              value={String(limit)}
-              onValueChange={(val) => {
-                setLimit(Number(val));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-8 w-16 text-xs bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="20">20</SelectItem>
-                <SelectItem value="30">30</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <span className="whitespace-nowrap">
-            Page <strong className="text-foreground">{page}</strong> of{" "}
-            <strong className="text-foreground">{totalPages}</strong>
-          </span>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              className="h-8 text-xs gap-1 px-2.5 bg-background"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-              className="h-8 text-xs gap-1 px-2.5 bg-background"
-            >
-              Next
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      {/* ── Standard Pagination Footer ── */}
+      <StandardPagination
+        page={page}
+        pageSize={limit}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(newSize) => {
+          setLimit(newSize);
+          setPage(1);
+        }}
+      />
 
       {/* ── Modal: Change Employee Password ── */}
       <Dialog
@@ -1242,5 +1391,3 @@ function EmployeesDirectoryPage() {
     </div>
   );
 }
-
-export default EmployeesDirectoryPage;

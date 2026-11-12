@@ -8,6 +8,7 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { createMasterDataRouter } from "../blueprints/master-data.blueprint";
 import { announcementsRouter } from "./announcements.routes";
+import { documentTypesRouter } from "./document-types.routes";
 import { resolveUserSecurityContext, buildDataScopePrismaFilter } from "../lib/data-scope";
 import { applyFieldSecurityMask } from "../lib/field-security";
 import { OrganizationTreeService } from "../services/organization-tree.service";
@@ -392,6 +393,7 @@ organizationRouter.use(
 // 6. ANNOUNCEMENTS (/announcements)
 // =========================================================================
 organizationRouter.use("/announcements", announcementsRouter);
+organizationRouter.use("/document-types", documentTypesRouter);
 
 // =========================================================================
 // 7. HR ORGANIZATION TREE & HIERARCHY SUITE

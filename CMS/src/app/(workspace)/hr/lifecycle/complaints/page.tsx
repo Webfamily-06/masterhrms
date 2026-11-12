@@ -1,17 +1,16 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
-
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -35,10 +34,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { toast } from "sonner";
-import { ShieldAlert, CheckCircle2, Clock, Eye, AlertTriangle } from "lucide-react";
 
-
+const complaintExportColumns: ExportColumn[] = [
+  { header: "Case Ticket", key: "ticketCode" },
+  { header: "Category", key: "category" },
+  { header: "Severity", key: "severity" },
+  { header: "Subject", key: "subject" },
+  { header: "Complainant", key: "complainant" },
+  { header: "Status", key: "status" },
+  {
+    header: "Created At",
+    key: "createdAt",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+];
 
 export default function HrComplaintsPage() {
   const queryClient = useQueryClient();
@@ -47,8 +60,12 @@ export default function HrComplaintsPage() {
     resolutionNotes: "",
     actionTaken: "counselling",
   });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const { data: complaints = [], isLoading } = useQuery({
+    const { data: complaints = [], isLoading } = useQuery({
     queryKey: ["hr-lifecycle-complaints"],
     queryFn: async () => {
       const res = await api.get("/hr/lifecycle/complaints");
@@ -71,6 +88,86 @@ export default function HrComplaintsPage() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "complaints",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-complaints"] });
+      toast.success(data?.message || "Selected complaints deleted.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected complaints.");
+    },
+  });
+
+  const filteredComplaints = (complaints || []).filter((c: any) => {
+    const ticket = (c.ticketCode || "").toLowerCase();
+    const category = (c.category || "").toLowerCase();
+    const subject = (c.subject || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || ticket.includes(query) || category.includes(query) || subject.includes(query);
+    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const paginatedComplaints = filteredComplaints.slice((page - 1) * pageSize, page * pageSize);
+
+  const visibleComplaintIds = useMemo(() => paginatedComplaints.map((x: any) => x.id), [paginatedComplaints]);
+
+    const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedComplaints);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredComplaints.filter((c: any) => selectedIds.has(c.id))
+      : filteredComplaints;
+
+    return source.map((c: any) => ({
+      ticketCode: c.ticketCode,
+      category: c.category,
+      severity: c.severity,
+      subject: c.subject,
+      complainant: c.isAnonymous ? "Anonymous" : "Confidential Employee",
+      status: (c.status || "").replace("_", " "),
+      createdAt: c.createdAt,
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Grievances & Confidential Cases",
+      columns: complaintExportColumns,
+      data: getExportData(),
+      filename: `complaints-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Complaints",
+    });
+    toast.success(`Exported ${getExportData().length} complaints to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Grievances & Confidential Cases",
+      columns: complaintExportColumns,
+      data: getExportData(),
+      filename: `complaints-export-${format(new Date(), "yyyyMMdd")}`,
+          });
+    toast.success(`Exported ${getExportData().length} complaints to PDF.`);
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -78,55 +175,94 @@ export default function HrComplaintsPage() {
         description="Handle employee grievances, ethics reports, and workplace investigations with whistleblower confidentiality."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Total Grievances" value={String(complaints.length)} icon={ShieldAlert} description="Reported cases" />
-        <StatCard
-          title="Open Investigations"
-          value={String(complaints.filter((c: any) => ["new", "under_review", "investigating"].includes(c.status)).length)}
-          icon={Clock}
-          description="In-progress inquiries"
-        />
-        <StatCard
-          title="Resolved"
-          value={String(complaints.filter((c: any) => c.status === "resolved").length)}
-          icon={CheckCircle2}
-          description="Concluded cases"
-        />
-      </div>
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search by ticket, category or subject..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={statusFilter}
+            onValueChange={(val) => {
+              setStatusFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-44 h-9 text-xs">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="new">New</SelectItem>
+              <SelectItem value="under_review">Under Review</SelectItem>
+              <SelectItem value="investigating">Investigating</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Case Registry</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={isAllVisibleSelected(visibleComplaintIds) ? true : isSomeVisibleSelected(visibleComplaintIds) ? "indeterminate" : false}
+                  onCheckedChange={() => selectAllVisible(visibleComplaintIds)}
+                  aria-label="Select all visible grievances"
+                />
+              </TableHead>
+              <TableHead>Case Ticket</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Severity</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Complainant</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead>Case Ticket</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Severity</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Complainant</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Action</TableHead>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Loading cases...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Loading cases...
-                  </TableCell>
-                </TableRow>
-              ) : complaints.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    No active grievances on record.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                complaints.map((c: any) => (
-                  <TableRow key={c.id}>
+            ) : filteredComplaints.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  {search || statusFilter !== "all"
+                    ? "No grievances match your search criteria."
+                    : "No active grievances on record."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedComplaints.map((c: any) => {
+                const checked = isSelected(c.id);
+                return (
+                  <TableRow
+                    key={c.id}
+                    data-state={checked ? "selected" : undefined}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={() => toggleRow(c.id)}
+                  >
+                    <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleRow(c.id)}
+                        aria-label={`Select grievance ${c.ticketCode}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-xs font-semibold">{c.ticketCode}</TableCell>
                     <TableCell>{c.category}</TableCell>
                     <TableCell>
@@ -149,7 +285,7 @@ export default function HrComplaintsPage() {
                         {c.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {c.status !== "resolved" && (
                         <Button
                           variant="outline"
@@ -167,12 +303,23 @@ export default function HrComplaintsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredComplaints.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {/* Resolve Dialog */}
       <Dialog open={!!selectedComplaint} onOpenChange={(open) => !open && setSelectedComplaint(null)}>

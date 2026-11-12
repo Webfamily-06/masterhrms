@@ -5,7 +5,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, unwrapArray } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +65,7 @@ import {
   ShieldCheck,
   Sparkles,
   Search,
+  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/organization/award-types")({
@@ -506,6 +510,91 @@ export function AwardTypesPage() {
     return (awardTypes || []).filter((at) => at.status !== "inactive");
   }, [awardTypes]);
 
+  // Selection and bulk operations
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const awardExportColumns: ExportColumn<AwardTypeRecord>[] = [
+    { header: "Award Title", key: "name" },
+    { header: "Description", key: "description", format: (v) => v || "—" },
+    { header: "Status", key: "status", format: (v) => (v === "inactive" ? "Inactive" : "Active") },
+    { header: "Approval Required", key: "requiresApproval", format: (v) => (v ? "Yes" : "No") },
+    { header: "Peer Nomination", key: "allowPeerNomination", format: (v) => (v ? "Allowed" : "Not Allowed") },
+  ];
+
+  const handleExportExcel = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? (awardTypes || []).filter((at: any) => selectedIds.includes(at.id!))
+      : (awardTypes || []);
+    await exportToExcel({
+      filename: `award_types_${new Date().toISOString().split("T")[0]}`,
+      title: "Employee Award Types Registry",
+      columns: awardExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} award type(s) to Excel`);
+  };
+
+  const handleExportPdf = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? (awardTypes || []).filter((at: any) => selectedIds.includes(at.id!))
+      : (awardTypes || []);
+    await exportToPdf({
+      filename: `award_types_${new Date().toISOString().split("T")[0]}`,
+      title: "Employee Award Types Registry",
+      columns: awardExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} award type(s) to PDF`);
+  };
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: "active" | "inactive" }) => {
+      return await api.post("/hr/organization/award-types/bulk-archive", { ids, status });
+    },
+    onSuccess: (res: any, vars) => {
+      toast.success(`${vars.status === "active" ? "Activated" : "De-activated"} ${res.data?.count || selectedIds.length} award type(s)`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["award-types-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk status update failed");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      return await api.post("/hr/organization/award-types/bulk-delete", { ids });
+    },
+    onSuccess: (res: any) => {
+      const { deletedCount, failedCount } = res.data || {};
+      if (failedCount > 0) {
+        toast.warning(`Deleted ${deletedCount} award type(s). ${failedCount} could not be deleted (referenced).`);
+      } else {
+        toast.success(`Deleted ${deletedCount || selectedIds.length} award type(s)`);
+      }
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["award-types-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
+    },
+  });
+
+  const isAllCurrentPageSelected = (awardTypes || []).length > 0 && (awardTypes || []).every((at: any) => selectedIds.includes(at.id));
+  const isPartiallySelected = (awardTypes || []).some((at: any) => selectedIds.includes(at.id)) && !isAllCurrentPageSelected;
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const pageIds = (awardTypes || []).map((at: any) => at.id).filter(Boolean);
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    } else {
+      const pageIds = new Set((awardTypes || []).map((at: any) => at.id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header — Decorative icon removed per Phase 6 requirements */}
@@ -522,51 +611,20 @@ export function AwardTypesPage() {
               <UserCheck className="h-4 w-4 text-primary" />
               Assign Award
             </Button>
-            <Button onClick={handleOpenAdd} className="h-9 gap-2 text-xs font-medium">
-              <Plus className="h-4 w-4" />
-              Add Award Type
-            </Button>
+            
           </div>
         }
       />
 
-      {/* Authoritative Aggregate Summary Cards */}
-      <StatsOverviewGrid columns={3}>
-        <StatCard
-          title="Total Award Categories"
-          value={counts?.total ?? total}
-          icon={Trophy}
-          variant="info"
-          className="bg-gradient-to-br from-amber-50/70 via-card to-card dark:from-amber-950/20 dark:via-card dark:to-card border-amber-200/80 hover:border-amber-400 dark:border-amber-800/40 dark:hover:border-amber-700 hover:shadow-xs transition-all duration-200"
-          description="Registered employee achievement awards"
-        />
-        <StatCard
-          title="Active Award Types"
-          value={(counts as any)?.activeTypes ?? counts?.active ?? 0}
-          icon={Star}
-          variant="success"
-          className="bg-gradient-to-br from-emerald-50/70 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card border-emerald-200/80 hover:border-emerald-400 dark:border-emerald-800/40 dark:hover:border-emerald-700 hover:shadow-xs transition-all duration-200"
-          description="Active recognition types ready for assignment"
-        />
-        <StatCard
-          title="Total Awards Issued"
-          value={(counts as any)?.totalAwardsIssued ?? 0}
-          icon={Award}
-          variant="default"
-          className="bg-gradient-to-br from-blue-50/70 via-card to-card dark:from-blue-950/20 dark:via-card dark:to-card border-blue-200/80 hover:border-blue-400 dark:border-blue-800/40 dark:hover:border-blue-700 hover:shadow-xs transition-all duration-200"
-          description="Total employee recognition honors conferred"
-        />
-      </StatsOverviewGrid>
-
       {/* Filter and Search Toolbar */}
-      <FilterToolbar
-        searchQuery={search}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search award types by title or description..."
+        searchTerm={search}
         onSearchChange={(val) => {
           setSearch(val);
           setPage(1);
         }}
-        searchPlaceholder="Search award types by title or description..."
-        filters={
+        filterSlot={
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={statusFilter}
@@ -579,31 +637,40 @@ export function AwardTypesPage() {
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
+                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                <SelectItem value="active" className="text-xs">Active Only</SelectItem>
+                <SelectItem value="inactive" className="text-xs">Inactive Only</SelectItem>
               </SelectContent>
             </Select>
 
-            <Select
-              value={String(limit)}
-              onValueChange={(val) => {
-                setLimit(Number(val));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-28 h-9 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10 / page</SelectItem>
-                <SelectItem value="25">25 / page</SelectItem>
-                <SelectItem value="50">50 / page</SelectItem>
-                <SelectItem value="100">100 / page</SelectItem>
-              </SelectContent>
-            </Select>
+            {(search || statusFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setPage(1);
+                }}
+                className="h-9 gap-1 text-xs text-muted-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            )}
           </div>
         }
+        selectedCount={selectedIds.length}
+        totalFilteredCount={total}
+        onClearSelection={() => setSelectedIds([])}
+        onBulkActivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "active" })}
+        onBulkDeactivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "inactive" })}
+        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
+        isActionLoading={bulkStatusMutation.isPending || bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+        primaryActionLabel="Add Award Type"
+        onPrimaryAction={handleOpenAdd}
       />
 
       {/* Award Types Responsive Table */}
@@ -611,6 +678,13 @@ export function AwardTypesPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40">
+              <TableHead className="w-12 text-center">
+                <Checkbox
+                  checked={isAllCurrentPageSelected ? true : isPartiallySelected ? "indeterminate" : false}
+                  onCheckedChange={(checked) => handleSelectAll(Boolean(checked))}
+                  aria-label="Select all award types on this page"
+                />
+              </TableHead>
               <TableHead className="w-16">Badge</TableHead>
               <TableHead className="min-w-[180px]">Award Title</TableHead>
               <TableHead className="min-w-[190px]">Workflow & Governance</TableHead>
@@ -624,7 +698,7 @@ export function AwardTypesPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                     <span className="text-xs">Loading award types...</span>
@@ -633,7 +707,7 @@ export function AwardTypesPage() {
               </TableRow>
             ) : awardTypes.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Trophy className="h-8 w-8 text-muted-foreground/50" />
                     <p className="text-xs font-semibold text-foreground">No award types found</p>
@@ -649,13 +723,28 @@ export function AwardTypesPage() {
               awardTypes.map((at) => {
                 const isInactive = at.status === "inactive";
                 const awardCount = at._count?.awards ?? 0;
+                const isChecked = selectedIds.includes(at.id!);
                 return (
                   <TableRow
                     key={at.id || at.name}
+                    data-state={isChecked ? "selected" : undefined}
                     className={`transition-colors hover:bg-muted/30 ${
                       isInactive ? "opacity-75 bg-muted/10" : ""
                     }`}
                   >
+                    <TableCell className="w-12 text-center">
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedIds((prev) => [...prev, at.id!]);
+                          } else {
+                            setSelectedIds((prev) => prev.filter((id) => id !== at.id));
+                          }
+                        }}
+                        aria-label={`Select ${at.name}`}
+                      />
+                    </TableCell>
                     {/* Badge / Icon */}
                     <TableCell>
                       {at.imageUrl ? (
@@ -822,37 +911,17 @@ export function AwardTypesPage() {
           </TableBody>
         </Table>
 
-        {/* Server Pagination Footer */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t px-4 py-3 bg-muted/20 text-xs">
-            <span className="text-muted-foreground">
-              Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} award types
-            </span>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(Math.max(page - 1, 1))}
-                disabled={page <= 1}
-                className="h-7 px-2.5 text-xs"
-              >
-                Previous
-              </Button>
-              <span className="px-2 font-medium">
-                {page} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(Math.min(page + 1, totalPages))}
-                disabled={page >= totalPages}
-                className="h-7 px-2.5 text-xs"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Standard Pagination Footer */}
+        <StandardPagination
+          page={page}
+          pageSize={limit}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setLimit(newSize);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* ADD / EDIT AWARD TYPE MODAL */}

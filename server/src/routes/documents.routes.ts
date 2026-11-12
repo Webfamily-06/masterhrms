@@ -4,6 +4,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { StorageFactory } from "../services/factories/storage.factory";
+import { AuditService } from "../services/audit.service";
 
 export const documentsRouter = Router();
 
@@ -538,6 +539,80 @@ documentsRouter.put("/:id/verify", requireAuth, async (req: AuthRequest, res: Re
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to verify document." });
+  }
+});
+
+// POST /api/documents/:id/reject (HR rejects document with mandatory reason)
+documentsRouter.post("/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const tenantId = req.user?.tenantId;
+    const reviewerName = (req.user as any)?.name || (req.user as any)?.email || "HR Reviewer";
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ error: "Rejection reason is mandatory." });
+    }
+
+    const userRoles = req.user?.roles || [];
+    const userPerms = req.user?.permissions || [];
+    const isEmployeeOnly = userRoles.length === 1 && userRoles[0] === "employee";
+    const canVerify =
+      userPerms.includes("hr:documents:verify") ||
+      userPerms.includes("documents:verify") ||
+      userRoles.includes("super_admin") ||
+      userRoles.includes("hr_admin") ||
+      userRoles.includes("admin");
+
+    if (isEmployeeOnly || !canVerify) {
+      return res.status(403).json({
+        error: "Forbidden: You do not have permission to reject employee documents. Only authorized HR personnel may reject documents.",
+      });
+    }
+
+    const existing = await prisma.companyDocument.findUnique({ where: { id } });
+    if (!existing || (tenantId && existing.tenantId !== tenantId)) {
+      return res.status(404).json({ error: "Document not found." });
+    }
+
+    const rejected = await prisma.companyDocument.update({
+      where: { id },
+      data: {
+        status: "rejected",
+        notes: `Rejected: ${reason.trim()}`,
+        verifiedBy: reviewerName,
+        verifiedAt: new Date(),
+      },
+      include: {
+        employee: { include: { department: true } },
+      },
+    });
+
+    try {
+      await AuditService.logMutation({
+        tenantId: existing.tenantId,
+        actorId: req.user?.userId || "system",
+        action: "DOCUMENT_REJECTED",
+        entityType: "CompanyDocument",
+        entityId: id,
+        metadata: {
+          documentCode: existing.documentCode,
+          title: existing.title,
+          reason: reason.trim(),
+          reviewer: reviewerName,
+        },
+      });
+    } catch (auditErr: any) {
+      console.warn("[documents.reject] Audit log creation failed:", auditErr?.message);
+    }
+
+    return res.json({
+      success: true,
+      message: `Document ${rejected.documentCode} has been marked as rejected.`,
+      document: rejected,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reject document." });
   }
 });
 

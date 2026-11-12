@@ -279,6 +279,20 @@ hrRecruitmentRouter.delete("/interview-rounds/:id", requireAuth, async (req: Aut
 });
 
 // --- Onboarding Check Items ---
+hrRecruitmentRouter.get("/check-items/document-types", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const db = getTenantDb();
+    const docTypes = await db.documentType.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [{ isRequired: "desc" }, { name: "asc" }],
+    });
+    return res.json(docTypes);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 hrRecruitmentRouter.get("/check-items", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;

@@ -1,16 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { api, unwrapArray } from "@/lib/api";
-
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -34,16 +34,47 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { useGlobalListSelection } from "@/hooks/useGlobalListSelection";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { toast } from "sonner";
-import { TrendingUp, Plus, Briefcase, Calendar, DollarSign, Award, ArrowRight } from "lucide-react";
+import { Plus, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/lifecycle/promotions")({
   component: HrPromotionsPage,
 });
 
+const promotionExportColumns: ExportColumn[] = [
+  { header: "Employee Name", key: "employeeName" },
+  { header: "Employee Code", key: "employeeCode" },
+  {
+    header: "Effective Date",
+    key: "promotionDate",
+    format: (val: any) => (val ? format(new Date(val), "yyyy-MM-dd") : ""),
+  },
+  { header: "Previous Role", key: "previousDesignation" },
+  { header: "New Role", key: "newDesignation" },
+  {
+    header: "Previous Salary",
+    key: "previousSalary",
+    format: (val: any) => (val ? `₹${Number(val).toLocaleString()}` : "—"),
+  },
+  {
+    header: "New Salary",
+    key: "newSalary",
+    format: (val: any) => (val ? `₹${Number(val).toLocaleString()}` : "—"),
+  },
+  { header: "Promotion Type", key: "promotionType" },
+  { header: "Remarks", key: "remarks" },
+];
+
 export default function HrPromotionsPage() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [formData, setFormData] = useState({
     employeeId: "",
     newDesignation: "",
@@ -93,75 +124,187 @@ export default function HrPromotionsPage() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const res = await api.post("/hr/lifecycle/bulk-delete", {
+        entity: "promotions",
+        ids,
+      });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["hr-lifecycle-promotions"] });
+      toast.success(data?.message || "Selected promotion records deleted.");
+      clearSelection();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to delete selected promotions.");
+    },
+  });
+
   const selectedEmployee = employees.find((e: any) => e.id === formData.employeeId);
+
+  const filteredPromotions = (promotions || []).filter((p: any) => {
+    const name = `${p.employee?.firstName || ""} ${p.employee?.lastName || ""}`.toLowerCase();
+    const code = (p.employee?.employeeCode || "").toLowerCase();
+    const desig = (p.newDesignation || "").toLowerCase();
+    const query = search.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || code.includes(query) || desig.includes(query);
+    const matchesType = typeFilter === "all" || p.promotionType === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  const paginatedPromotions = filteredPromotions.slice((page - 1) * pageSize, page * pageSize);
+
+  const visiblePromotionIds = useMemo(() => paginatedPromotions.map((x: any) => x.id), [paginatedPromotions]);
+
+  const {
+    selectedIds,
+    selectedCount,
+    isSelected,
+    toggleRow,
+    selectAllVisible,
+    clearSelection,
+    isAllVisibleSelected,
+    isSomeVisibleSelected,
+  } = useGlobalListSelection(paginatedPromotions);
+
+  const getExportData = () => {
+    const source = selectedCount > 0
+      ? filteredPromotions.filter((p: any) => selectedIds.has(p.id))
+      : filteredPromotions;
+
+    return source.map((p: any) => ({
+      employeeName: `${p.employee?.firstName || ""} ${p.employee?.lastName || ""}`.trim(),
+      employeeCode: p.employee?.employeeCode || "—",
+      promotionDate: p.promotionDate,
+      previousDesignation: p.previousDesignation || "—",
+      newDesignation: p.newDesignation || "—",
+      previousSalary: p.previousSalary,
+      newSalary: p.newSalary,
+      promotionType: p.promotionType,
+      remarks: p.remarks || "—",
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    await exportToExcel({
+      title: "Promotions & Career Progressions",
+      columns: promotionExportColumns,
+      data: getExportData(),
+      filename: `promotions-export-${format(new Date(), "yyyyMMdd")}`,
+      sheetName: "Promotions",
+    });
+    toast.success(`Exported ${getExportData().length} promotion records to Excel.`);
+  };
+
+  const handleExportPdf = () => {
+    exportToPdf({
+      title: "Employee Promotions & Progressions",
+      columns: promotionExportColumns,
+      data: getExportData(),
+      filename: `promotions-export-${format(new Date(), "yyyyMMdd")}`,
+    });
+    toast.success(`Exported ${getExportData().length} promotion records to PDF.`);
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Promotions & Career Progressions"
         description="Authorize merit-based promotions, role elevations, and compensation revisions with immutable audit logging."
-        actions={
-          <Button onClick={() => setIsModalOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> Record Promotion
-          </Button>
-        }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard title="Total Promotions" value={String(promotions.length)} icon={TrendingUp} description="Recorded career leaps" />
-        <StatCard
-          title="Merit-Based Elevate"
-          value={String(promotions.filter((p: any) => p.promotionType === "merit").length)}
-          icon={Award}
-          description="Performance-driven"
-        />
-        <StatCard
-          title="Average Increment"
-          value={
-            promotions.length > 0
-              ? `₹${Math.round(
-                  promotions.reduce((sum: number, p: any) => sum + (Number(p.newSalary || 0) - Number(p.previousSalary || 0)), 0) /
-                    promotions.length
-                ).toLocaleString()}`
-              : "₹0"
-          }
-          icon={DollarSign}
-          description="Average salary revision"
-        />
-      </div>
+      {/* Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search by employee, code or role..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
+          <Select
+            value={typeFilter}
+            onValueChange={(val) => {
+              setTypeFilter(val);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger className="w-40 h-9 text-xs">
+              <SelectValue placeholder="All Promotion Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="merit">Merit-Based</SelectItem>
+              <SelectItem value="tenure">Tenure-Based</SelectItem>
+              <SelectItem value="restructuring">Restructuring</SelectItem>
+              <SelectItem value="acting">Acting Role</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        primaryActionLabel="Record Promotion"
+        primaryActionIcon={<Plus className="h-4 w-4" />}
+        onPrimaryAction={() => setIsModalOpen(true)}
+        selectedCount={selectedCount}
+        onClearSelection={clearSelection}
+        onBulkDelete={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+        isActionLoading={bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Promotion History & Effective Dates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+      <div className="rounded-lg border bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={isAllVisibleSelected(visiblePromotionIds) ? true : isSomeVisibleSelected(visiblePromotionIds) ? "indeterminate" : false}
+                  onCheckedChange={() => selectAllVisible(visiblePromotionIds)}
+                  aria-label="Select all visible promotions"
+                />
+              </TableHead>
+              <TableHead>Employee</TableHead>
+              <TableHead>Effective Date</TableHead>
+              <TableHead>Designation Movement</TableHead>
+              <TableHead>Compensation Adjustment</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Justification</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
               <TableRow>
-                <TableHead>Employee</TableHead>
-                <TableHead>Effective Date</TableHead>
-                <TableHead>Designation Movement</TableHead>
-                <TableHead>Compensation Adjustment</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Justification</TableHead>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  Loading promotion records...
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    Loading promotion records...
-                  </TableCell>
-                </TableRow>
-              ) : promotions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No promotions recorded yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                promotions.map((p: any) => (
-                  <TableRow key={p.id}>
+            ) : filteredPromotions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  {search || typeFilter !== "all"
+                    ? "No promotion records match your filter criteria."
+                    : "No promotions recorded yet."}
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginatedPromotions.map((p: any) => {
+                const checked = isSelected(p.id);
+                return (
+                  <TableRow
+                    key={p.id}
+                    data-state={checked ? "selected" : undefined}
+                    className="hover:bg-muted/40 cursor-pointer"
+                    onClick={() => toggleRow(p.id)}
+                  >
+                    <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleRow(p.id)}
+                        aria-label={`Select promotion for ${p.employee?.firstName || "employee"}`}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">
                       {p.employee?.firstName} {p.employee?.lastName}
                       <span className="block text-xs text-muted-foreground">{p.employee?.employeeCode}</span>
@@ -195,12 +338,23 @@ export default function HrPromotionsPage() {
                       {p.remarks || "—"}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+
+        <StandardPagination
+          page={page}
+          pageSize={pageSize}
+          total={filteredPromotions.length}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {/* Record Promotion Dialog */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

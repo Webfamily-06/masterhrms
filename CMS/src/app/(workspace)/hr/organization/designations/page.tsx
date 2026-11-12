@@ -6,7 +6,9 @@ import { api } from "@/lib/api";
 import { useMasterList } from "@/hooks/use-master-list";
 import { useMasterForm } from "@/hooks/use-master-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
+import { StandardPagination } from "@/components/ui/standard-pagination";
+import { GlobalListActionToolbar } from "@/components/ui/global-list-action-toolbar";
+import { exportToExcel, exportToPdf, ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -175,6 +177,75 @@ export default function DesignationsPage() {
     },
   });
 
+
+  const desigExportColumns: ExportColumn<DesignationRecord>[] = [
+    { header: "Designation Title", key: "name" },
+    { header: "Department", key: "department.name", format: (_v, r) => r.department?.name || "All Departments" },
+    { header: "Description", key: "description" },
+    { header: "Status", key: "status", format: (v) => (v === "active" ? "Active" : "Inactive") },
+  ];
+
+  const handleExportExcel = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? designations.filter((d: any) => selectedIds.includes(d.id!))
+      : designations;
+    await exportToExcel({
+      filename: `designations_${new Date().toISOString().split("T")[0]}`,
+      title: "Designations & Job Titles Directory",
+      columns: desigExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} designation(s) to Excel`);
+  };
+
+  const handleExportPdf = async () => {
+    const dataToExport = selectedIds.length > 0
+      ? designations.filter((d: any) => selectedIds.includes(d.id!))
+      : designations;
+    await exportToPdf({
+      filename: `designations_${new Date().toISOString().split("T")[0]}`,
+      title: "Designations & Job Titles Directory",
+      columns: desigExportColumns,
+      data: dataToExport,
+    });
+    toast.success(`Exported ${dataToExport.length} designation(s) to PDF`);
+  };
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ ids, status }: { ids: string[]; status: "active" | "inactive" }) => {
+      return await api.post("/hr/organization/designations/bulk-archive", { ids, status });
+    },
+    onSuccess: (res: any, vars) => {
+      toast.success(`${vars.status === "active" ? "Activated" : "De-activated"} ${res.data?.count || selectedIds.length} designation(s)`);
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["designations-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk status update failed");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      return await api.post("/hr/organization/designations/bulk-delete", { ids });
+    },
+    onSuccess: (res: any) => {
+      const { deletedCount, failedCount } = res.data || {};
+      if (failedCount > 0) {
+        toast.warning(`Deleted ${deletedCount} designation(s). ${failedCount} could not be deleted (referenced).`);
+      } else {
+        toast.success(`Deleted ${deletedCount || selectedIds.length} designation(s)`);
+      }
+      setSelectedIds([]);
+      queryClient.invalidateQueries({ queryKey: ["designations-list"] });
+      refetch();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || err.message || "Bulk delete failed");
+    },
+  });
+
   // Bulk de-activate mutation
   const bulkArchiveMutation = useMutation({
     mutationFn: async (ids: string[]) => {
@@ -247,58 +318,18 @@ export default function DesignationsPage() {
       <PageHeader
         title="Designations & Job Titles"
         description="Formal organizational roles, job titles, and departmental hierarchy levels."
-        actions={
-          <Button onClick={handleOpenAdd} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Designation
-          </Button>
-        }
+        
       />
 
-      {/* Authoritative Top Summary Cards */}
-      <StatsOverviewGrid columns={3}>
-        <StatCard
-          title="Total Designations"
-          value={counts?.total ?? total}
-          icon={Briefcase}
-          variant="info"
-          className="bg-gradient-to-br from-blue-50/70 via-card to-card dark:from-blue-950/20 dark:via-card dark:to-card border-blue-200/80 hover:border-blue-400 dark:border-blue-800/40 dark:hover:border-blue-700 hover:shadow-xs transition-all duration-200"
-          description="Formal roles defined across organization"
-        />
-        <StatCard
-          title="Active Roles"
-          value={counts?.active ?? 0}
-          icon={CheckCircle2}
-          variant="success"
-          className="bg-gradient-to-br from-emerald-50/70 via-card to-card dark:from-emerald-950/20 dark:via-card dark:to-card border-emerald-200/80 hover:border-emerald-400 dark:border-emerald-800/40 dark:hover:border-emerald-700 hover:shadow-xs transition-all duration-200"
-          description="Operational job titles in use"
-        />
-        <StatCard
-          title="Inactive Roles"
-          value={counts?.inactive ?? 0}
-          icon={AlertCircle}
-          variant="warning"
-          className="bg-gradient-to-br from-amber-50/70 via-card to-card dark:from-amber-950/20 dark:via-card dark:to-card border-amber-200/80 hover:border-amber-400 dark:border-amber-800/40 dark:hover:border-amber-700 hover:shadow-xs transition-all duration-200"
-          description="De-activated or deprecated roles"
-        />
-      </StatsOverviewGrid>
-
-      {/* Filter and Search Toolbar */}
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search designations..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-9"
-            />
-          </div>
-
+      {/* Standard Global List Action Toolbar */}
+      <GlobalListActionToolbar
+        searchPlaceholder="Search designations..."
+        searchTerm={search}
+        onSearchChange={(val) => {
+          setSearch(val);
+          setPage(1);
+        }}
+        filterSlot={
           <div className="flex items-center gap-2">
             <Select
               value={statusFilter}
@@ -307,33 +338,13 @@ export default function DesignationsPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[140px] h-9 text-xs">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active Only</SelectItem>
-                <SelectItem value="inactive">Inactive Only</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={deptFilter}
-              onValueChange={(val) => {
-                setDeptFilter(val);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {departments.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
+                <SelectItem value="active" className="text-xs">Active Only</SelectItem>
+                <SelectItem value="inactive" className="text-xs">Inactive Only</SelectItem>
               </SelectContent>
             </Select>
 
@@ -347,42 +358,26 @@ export default function DesignationsPage() {
                   setDeptFilter("all");
                   setPage(1);
                 }}
-                className="h-9 gap-1 text-xs"
+                className="h-9 gap-1 text-xs text-muted-foreground"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset
               </Button>
             )}
           </div>
-        </div>
-
-        {/* Bulk Actions Indicator */}
-        {selectedIds.length > 0 && (
-          <div className="flex items-center gap-2 border-t pt-2 sm:border-t-0 sm:pt-0">
-            <span className="text-xs font-medium text-muted-foreground">
-              {selectedIds.length} selected
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={bulkArchiveMutation.isPending}
-              onClick={() => bulkArchiveMutation.mutate(selectedIds)}
-              className="h-8 gap-1 text-xs"
-            >
-              <PowerOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              De-activate Selected
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds([])}
-              className="h-8 text-xs text-muted-foreground"
-            >
-              Clear
-            </Button>
-          </div>
-        )}
-      </div>
+        }
+        selectedCount={selectedIds.length}
+        totalFilteredCount={total}
+        onClearSelection={() => setSelectedIds([])}
+        onBulkActivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "active" })}
+        onBulkDeactivate={() => bulkStatusMutation.mutate({ ids: selectedIds, status: "inactive" })}
+        onBulkDelete={() => bulkDeleteMutation.mutate(selectedIds)}
+        isActionLoading={bulkStatusMutation.isPending || bulkDeleteMutation.isPending}
+        onExportExcel={handleExportExcel}
+        onExportPdf={handleExportPdf}
+        primaryActionLabel="Add Designation"
+        onPrimaryAction={handleOpenAdd}
+      />
 
       {/* Table Section */}
       <div className="rounded-lg border bg-card">
@@ -534,57 +529,14 @@ export default function DesignationsPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination & Page Size Selector Controls */}
-        <div className="flex flex-col items-center justify-between gap-4 border-t p-4 text-xs text-muted-foreground sm:flex-row">
-          <div className="flex items-center gap-2">
-            <span>Rows per page:</span>
-            <Select
-              value={String(limit)}
-              onValueChange={(val) => {
-                setLimit(Number(val));
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-                <SelectItem value="100">100</SelectItem>
-              </SelectContent>
-            </Select>
-            <span>
-              Showing {total > 0 ? (page - 1) * limit + 1 : 0} to{" "}
-              {Math.min(page * limit, total)} of {total} records
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span>
-              Page {page} of {Math.max(1, totalPages)}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-              className="h-8"
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
-              className="h-8"
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        {/* Standard Table Pagination */}
+        <StandardPagination
+          page={page}
+          pageSize={limit}
+          total={total}
+          onPageChange={setPage}
+          onPageSizeChange={setLimit}
+        />
       </div>
 
       {/* Add / Edit Designation Modal Dialog */}

@@ -48,6 +48,12 @@ exports.hrEmployeesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermis
         });
     }
     catch (err) {
+        const isConflict = err.code === "P2002" ||
+            err.message?.includes("already exists") ||
+            err.message?.includes("Unique constraint");
+        if (isConflict) {
+            return res.status(409).json({ error: err.message, code: "CONFLICT" });
+        }
         return res.status(400).json({ error: err.message });
     }
 });
@@ -211,9 +217,12 @@ exports.hrEmployeesRouter.put("/:id", auth_1.requireAuth, (0, auth_1.requirePerm
         });
     }
     catch (err) {
+        const isConflict = err.code === "P2002" ||
+            err.message?.includes("already exists") ||
+            err.message?.includes("Unique constraint");
         const status = err.statusCode ||
-            (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
-        return res.status(status).json({ error: err.message });
+            (isConflict ? 409 : err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+        return res.status(status).json({ error: err.message, code: isConflict ? "CONFLICT" : undefined });
     }
 });
 // =========================================================================
@@ -240,9 +249,12 @@ async function handlePasswordChange(req, res) {
         return res.json(result);
     }
     catch (err) {
+        const isConflict = err.code === "P2002" ||
+            err.message?.includes("already exists") ||
+            err.message?.includes("Unique constraint");
         const status = err.statusCode ||
-            (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
-        return res.status(status).json({ error: err.message });
+            (isConflict ? 409 : err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+        return res.status(status).json({ error: err.message, code: isConflict ? "CONFLICT" : undefined });
     }
 }
 exports.hrEmployeesRouter.post("/:id/password", auth_1.requireAuth, handlePasswordChange);
@@ -265,10 +277,57 @@ async function handleToggleAccountStatus(req, res) {
         return res.json(result);
     }
     catch (err) {
+        const isConflict = err.code === "P2002" ||
+            err.message?.includes("already exists") ||
+            err.message?.includes("Unique constraint");
         const status = err.statusCode ||
-            (err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
-        return res.status(status).json({ error: err.message });
+            (isConflict ? 409 : err.message?.includes("not found") ? 404 : err.message?.includes("Forbidden") ? 403 : 400);
+        return res.status(status).json({ error: err.message, code: isConflict ? "CONFLICT" : undefined });
     }
 }
 exports.hrEmployeesRouter.post("/:id/toggle-account-status", auth_1.requireAuth, handleToggleAccountStatus);
 exports.hrEmployeesRouter.post("/:id/toggle-status", auth_1.requireAuth, handleToggleAccountStatus);
+// =========================================================================
+// 9. BULK ACTIONS (STATUS & DELETION)
+// =========================================================================
+const requireHrEmployeeAdmin = (0, auth_1.requireRole)("admin", "super_admin", "tenant_admin", "hr_admin");
+exports.hrEmployeesRouter.post("/bulk-status", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const { ids, status } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0 || !status) {
+            return res.status(400).json({ error: "ids array and status are required" });
+        }
+        const db = (0, tenant_context_1.getTenantDb)();
+        const result = await db.employee.updateMany({
+            where: { tenantId, id: { in: ids } },
+            data: { status },
+        });
+        return res.json({ success: true, updatedCount: result.count, message: `Successfully updated status for ${result.count} employee(s).` });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update employee status" });
+    }
+});
+exports.hrEmployeesRouter.post("/bulk-delete", auth_1.requireAuth, requireHrEmployeeAdmin, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(403).json({ error: "Tenant context required" });
+        const { ids } = req.body;
+        if (!Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: "ids array is required" });
+        }
+        const db = (0, tenant_context_1.getTenantDb)();
+        const result = await db.employee.updateMany({
+            where: { tenantId, id: { in: ids } },
+            data: { status: "inactive" },
+        });
+        return res.json({ success: true, deletedCount: result.count, message: `Successfully deactivated ${result.count} employee(s).` });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to delete employees" });
+    }
+});

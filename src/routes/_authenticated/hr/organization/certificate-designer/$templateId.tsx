@@ -169,6 +169,7 @@ export function CertificateDesignerPage() {
   // Refs
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const justFinishedInteractionRef = useRef<boolean>(false);
   const dragInteractionRef = useRef<{
     mode: "drag" | "resize" | "rotate" | null;
     elementId: string | null;
@@ -667,12 +668,12 @@ export function CertificateDesignerPage() {
   // POINTER INTERACTION HANDLERS: DRAGGING, RESIZING, ROTATING
   // --------------------------------------------------------------------------
   const handlePointerDownElement = (e: React.PointerEvent, el: any) => {
-    if (el.locked || el.hidden) {
-      setSelectedElementId(el.id);
-      return;
-    }
+    if (el.hidden) return;
     e.stopPropagation();
     setSelectedElementId(el.id);
+    if (el.locked) {
+      return;
+    }
 
     const docPt = getDocPoint(e.clientX, e.clientY);
     dragInteractionRef.current = {
@@ -839,6 +840,17 @@ export function CertificateDesignerPage() {
 
     const interaction = dragInteractionRef.current;
     if (interaction && interaction.hasMoved) {
+      justFinishedInteractionRef.current = true;
+      const preventClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        window.removeEventListener("click", preventClick, true);
+      };
+      window.addEventListener("click", preventClick, true);
+      setTimeout(() => {
+        justFinishedInteractionRef.current = false;
+        window.removeEventListener("click", preventClick, true);
+      }, 300);
       setElements((latest) => {
         const updated = history.slice(0, historyIndex + 1);
         const cloned = JSON.parse(JSON.stringify(latest));
@@ -1257,9 +1269,7 @@ export function CertificateDesignerPage() {
           <span className="text-[11px] text-muted-foreground hidden lg:inline truncate max-w-[200px]" title={resolvedVerificationUrl}>
             {resolvedVerificationUrl}
           </span>
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-            ● Real-Time Binding
-          </span>
+          
         </div>
       </div>
 
@@ -1279,7 +1289,7 @@ export function CertificateDesignerPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("text", {
                     name: "Certificate Header",
@@ -1292,12 +1302,13 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Heading1 className="h-3.5 w-3.5 mr-1.5 text-primary" /> Title
+                <Heading1 className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" />
+                <span className="truncate min-w-0">Title</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("text", {
                     name: "Subheading Citation",
@@ -1310,14 +1321,15 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Heading2 className="h-3.5 w-3.5 mr-1.5 text-primary" /> Subhead
+                <Heading2 className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" />
+                <span className="truncate min-w-0">Subhead</span>
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("text", {
                     name: "Body Text / Description",
@@ -1330,12 +1342,13 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Type className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" /> Body Text
+                <Type className="h-3.5 w-3.5 mr-1.5 shrink-0 text-muted-foreground" />
+                <span className="truncate min-w-0">Body Text</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("text", {
                     name: "Custom Citation",
@@ -1348,7 +1361,8 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Type className="h-3.5 w-3.5 mr-1.5 text-primary" /> Custom Text
+                <Type className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" />
+                <span className="truncate min-w-0">Custom Text</span>
               </Button>
             </div>
           </div>
@@ -1475,7 +1489,7 @@ export function CertificateDesignerPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="justify-start text-xs h-8"
+                  className="justify-start text-xs h-8 min-w-0 px-2.5 overflow-hidden"
                   onClick={() =>
                     addElement("text", {
                       name: "Certificate Number",
@@ -1488,12 +1502,12 @@ export function CertificateDesignerPage() {
                     })
                   }
                 >
-                  Cert Number
+                  <span className="truncate min-w-0">Cert Number</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="justify-start text-xs h-8"
+                  className="justify-start text-xs h-8 min-w-0 px-2.5 overflow-hidden"
                   onClick={() =>
                     addElement("text", {
                       name: "Verification Code",
@@ -1506,7 +1520,7 @@ export function CertificateDesignerPage() {
                     })
                   }
                 >
-                  Verify Code
+                  <span className="truncate min-w-0">Verify Code</span>
                 </Button>
               </div>
             </div>
@@ -1519,7 +1533,7 @@ export function CertificateDesignerPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 draggable
                 onDragStart={(e) =>
                   handleDragStartFromPanel(e, "image", {
@@ -1543,12 +1557,12 @@ export function CertificateDesignerPage() {
                   });
                 }}
               >
-                <ImageIcon className="h-3.5 w-3.5 mr-1.5 text-primary" /> Logo
+                <ImageIcon className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" /><span className="truncate min-w-0">Logo</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("signature", {
                     name: "HR Signature",
@@ -1559,14 +1573,14 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <PenTool className="h-3.5 w-3.5 mr-1.5 text-primary" /> Signature
+                <PenTool className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" /><span className="truncate min-w-0">Signature</span>
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 draggable
                 onDragStart={(e) =>
                   handleDragStartFromPanel(e, "seal", {
@@ -1585,12 +1599,12 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Shield className="h-3.5 w-3.5 mr-1.5 text-amber-500" /> Seal
+                <Shield className="h-3.5 w-3.5 mr-1.5 shrink-0 text-amber-500" /><span className="truncate min-w-0">Seal</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 draggable
                 onDragStart={(e) =>
                   handleDragStartFromPanel(e, "qrcode", {
@@ -1609,7 +1623,7 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <QrCode className="h-3.5 w-3.5 mr-1.5 text-primary" /> QR Code
+                <QrCode className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" /><span className="truncate min-w-0">QR Code</span>
               </Button>
             </div>
             <Button
@@ -1641,7 +1655,7 @@ export function CertificateDesignerPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 draggable
                 onDragStart={(e) =>
                   handleDragStartFromPanel(e, "shape", {
@@ -1668,12 +1682,12 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Square className="h-3.5 w-3.5 mr-1.5" /> Rectangle
+                <Square className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="truncate min-w-0">Rectangle</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("shape", {
                     shapeType: "circle",
@@ -1686,14 +1700,14 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Circle className="h-3.5 w-3.5 mr-1.5" /> Circle
+                <Circle className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="truncate min-w-0">Circle</span>
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("shape", {
                     shapeType: "line",
@@ -1706,12 +1720,12 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Minus className="h-3.5 w-3.5 mr-1.5" /> Line
+                <Minus className="h-3.5 w-3.5 mr-1.5 shrink-0" /><span className="truncate min-w-0">Line</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="justify-start text-xs h-9"
+                className="justify-start text-xs h-9 min-w-0 px-2.5 overflow-hidden"
                 onClick={() =>
                   addElement("shape", {
                     shapeType: "rectangle",
@@ -1727,7 +1741,7 @@ export function CertificateDesignerPage() {
                   })
                 }
               >
-                <Square className="h-3.5 w-3.5 mr-1.5 text-primary" /> Border
+                <Square className="h-3.5 w-3.5 mr-1.5 shrink-0 text-primary" /><span className="truncate min-w-0">Border</span>
               </Button>
             </div>
           </div>
@@ -1737,7 +1751,19 @@ export function CertificateDesignerPage() {
         <div
           ref={canvasContainerRef}
           className="flex-1 overflow-auto p-12 flex items-center justify-center bg-muted/40 relative cursor-default"
-          onClick={() => setSelectedElementId(null)}
+          onClick={(e) => {
+            if (justFinishedInteractionRef.current) {
+              justFinishedInteractionRef.current = false;
+              return;
+            }
+            if (
+              e.target === canvasContainerRef.current ||
+              (e.target as HTMLElement)?.id === "certificate-canvas" ||
+              (e.target as HTMLElement)?.classList.contains("border-dashed")
+            ) {
+              setSelectedElementId(null);
+            }
+          }}
         >
           {/* Alignment Snapping Guides */}
           {activeGuide?.vertical !== undefined && (
@@ -1763,6 +1789,19 @@ export function CertificateDesignerPage() {
             ref={canvasRef}
             onDragOver={handleCanvasDragOver}
             onDrop={handleCanvasDrop}
+            onClick={(e) => {
+              if (justFinishedInteractionRef.current) {
+                justFinishedInteractionRef.current = false;
+                return;
+              }
+              if (
+                e.target === canvasRef.current ||
+                (e.target as HTMLElement)?.id === "certificate-canvas" ||
+                (e.target as HTMLElement)?.classList.contains("border-dashed")
+              ) {
+                setSelectedElementId(null);
+              }
+            }}
             className="bg-white shadow-2xl relative select-none border border-slate-200"
             style={{
               width: canvasWidth,
@@ -1786,6 +1825,11 @@ export function CertificateDesignerPage() {
                     data-element-id={el.id}
                     data-element-type={el.type}
                     onPointerDown={(e) => handlePointerDownElement(e, el)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (justFinishedInteractionRef.current) return;
+                      setSelectedElementId(el.id);
+                    }}
                     className={`absolute select-none group ${
                       el.locked
                         ? "cursor-not-allowed opacity-90"
@@ -1891,9 +1935,7 @@ export function CertificateDesignerPage() {
                         ) : (
                           <QrCode className="w-full h-full text-slate-800" />
                         )}
-                        <div className="absolute bottom-0 right-0 bg-slate-900/80 text-[6px] text-white font-mono px-0.5 rounded-tl pointer-events-none">
-                          LIVE QR
-                        </div>
+                        
                       </div>
                     )}
 
@@ -1970,7 +2012,10 @@ export function CertificateDesignerPage() {
 
                     {/* Active Selection Bounding Box & Canva-Style Resize Handles */}
                     {isSelected && (
-                      <div className="absolute inset-0 border-2 border-primary ring-1 ring-primary/30 pointer-events-none">
+                      <div
+                        className="absolute inset-0 border-2 border-primary ring-1 ring-primary/30 pointer-events-none"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {/* Status / Dimension Floating Pill */}
                         <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow pointer-events-none whitespace-nowrap z-50">
                           {liveTransformText || `W: ${Math.round(el.width)} × H: ${Math.round(el.height)}`}
@@ -1981,47 +2026,65 @@ export function CertificateDesignerPage() {
                             {/* Rotation Handle Stalk & Circular Knob */}
                             <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-0.5 h-6 bg-primary pointer-events-none" />
                             <div
+                              data-handle="rot"
                               onPointerDown={(e) => handlePointerDownHandle(e, "rot", el)}
-                              className="absolute -top-7 left-1/2 -translate-x-1/2 size-4 bg-white border-2 border-primary rounded-full cursor-grab active:cursor-grabbing pointer-events-auto flex items-center justify-center shadow hover:scale-125 transition-transform"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -top-7 left-1/2 -translate-x-1/2 size-4 bg-white border-2 border-primary rounded-full cursor-grab active:cursor-grabbing pointer-events-auto flex items-center justify-center shadow hover:scale-125 transition-transform z-50"
                               title="Rotate Element"
                             >
-                              <RotateCw className="size-2.5 text-primary" />
+                              <RotateCw className="size-2.5 text-primary pointer-events-none" />
                             </div>
 
                             {/* 4 Corner Resize Handles */}
                             <div
+                              data-handle="nw"
                               onPointerDown={(e) => handlePointerDownHandle(e, "nw", el)}
-                              className="absolute -top-1.5 -left-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -top-1.5 -left-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform z-50"
                             />
                             <div
+                              data-handle="ne"
                               onPointerDown={(e) => handlePointerDownHandle(e, "ne", el)}
-                              className="absolute -top-1.5 -right-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -top-1.5 -right-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform z-50"
                             />
                             <div
+                              data-handle="se"
                               onPointerDown={(e) => handlePointerDownHandle(e, "se", el)}
-                              className="absolute -bottom-1.5 -right-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -bottom-1.5 -right-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nwse-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform z-50"
                             />
                             <div
+                              data-handle="sw"
                               onPointerDown={(e) => handlePointerDownHandle(e, "sw", el)}
-                              className="absolute -bottom-1.5 -left-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -bottom-1.5 -left-1.5 size-3 bg-white border-2 border-primary rounded-sm cursor-nesw-resize pointer-events-auto shadow-sm hover:scale-125 transition-transform z-50"
                             />
 
                             {/* 4 Edge Handles */}
                             <div
+                              data-handle="n"
                               onPointerDown={(e) => handlePointerDownHandle(e, "n", el)}
-                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-1.5 bg-white border border-primary rounded cursor-ns-resize pointer-events-auto shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -top-1 left-1/2 -translate-x-1/2 w-3.5 h-1.5 bg-white border border-primary rounded cursor-ns-resize pointer-events-auto shadow-sm z-50"
                             />
                             <div
+                              data-handle="s"
                               onPointerDown={(e) => handlePointerDownHandle(e, "s", el)}
-                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3.5 h-1.5 bg-white border border-primary rounded cursor-ns-resize pointer-events-auto shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3.5 h-1.5 bg-white border border-primary rounded cursor-ns-resize pointer-events-auto shadow-sm z-50"
                             />
                             <div
+                              data-handle="w"
                               onPointerDown={(e) => handlePointerDownHandle(e, "w", el)}
-                              className="absolute top-1/2 -translate-y-1/2 -left-1 w-1.5 h-3.5 bg-white border border-primary rounded cursor-ew-resize pointer-events-auto shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute top-1/2 -translate-y-1/2 -left-1 w-1.5 h-3.5 bg-white border border-primary rounded cursor-ew-resize pointer-events-auto shadow-sm z-50"
                             />
                             <div
+                              data-handle="e"
                               onPointerDown={(e) => handlePointerDownHandle(e, "e", el)}
-                              className="absolute top-1/2 -translate-y-1/2 -right-1 w-1.5 h-3.5 bg-white border border-primary rounded cursor-ew-resize pointer-events-auto shadow-sm"
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute top-1/2 -translate-y-1/2 -right-1 w-1.5 h-3.5 bg-white border border-primary rounded cursor-ew-resize pointer-events-auto shadow-sm z-50"
                             />
                           </>
                         )}

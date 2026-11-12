@@ -266,6 +266,7 @@ exports.DIRECT_TENANT_MODELS = new Set([
     "Meeting",
     "MeetingActionItem",
     "DocumentCategory",
+    "DocumentType",
     "DocumentTemplate",
     "DocumentAcknowledgement",
     "GeneratedLetter",
