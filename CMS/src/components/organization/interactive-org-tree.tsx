@@ -436,8 +436,13 @@ export function InteractiveOrgTree() {
       const prevCollapsed = new Set(collapsedNodes);
       setCollapsedNodes(new Set());
 
-      // Wait for layout and SVG connector recalculation
-      await new Promise((r) => setTimeout(r, 450));
+      // Wait for layout, font readiness and SVG connector recalculation
+      await new Promise((r) => setTimeout(r, 600));
+      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
+        try {
+          await (document as any).fonts.ready;
+        } catch {}
+      }
 
       const targetEl = treeContainerRef.current;
       const html2canvasModule = await import("html2canvas");
@@ -481,14 +486,52 @@ export function InteractiveOrgTree() {
           allowTaint: true,
           backgroundColor: "#ffffff",
           logging: false,
-          windowWidth: targetEl.scrollWidth + 100,
-          windowHeight: targetEl.scrollHeight + 100,
+          scrollX: 0,
+          scrollY: 0,
           onclone: (clonedDoc: Document, clonedEl: HTMLElement) => {
             const cloneWin = clonedDoc.defaultView;
             if (cloneWin && cloneWin !== window) {
               patchWindowComputedStyle(cloneWin);
             }
             sanitizeDocumentForCanvas(clonedDoc, clonedEl);
+
+            // 1. Reset zoom and pan transforms on the cloned tree hierarchy
+            const transformParent = clonedEl.closest('[data-testid="org-canvas-transform"]') as HTMLElement | null;
+            if (transformParent) {
+              transformParent.style.transform = "none";
+              transformParent.style.width = "max-content";
+              transformParent.style.minWidth = "100%";
+              transformParent.style.padding = "24px";
+            }
+
+            // 2. Prevent card clipping: unconstrain heights, allow natural expansion, ensure crisp text rendering
+            clonedEl.style.width = "max-content";
+            clonedEl.style.minWidth = "100%";
+            clonedEl.style.padding = "32px";
+            clonedEl.style.backgroundColor = "#ffffff";
+
+            const cards = clonedEl.querySelectorAll<HTMLElement>('[data-node-id], .interactive-node');
+            cards.forEach((card) => {
+              card.style.height = "auto";
+              card.style.minHeight = "fit-content";
+              card.style.overflow = "visible";
+              card.style.boxSizing = "border-box";
+              card.style.transform = "none";
+
+              // Ensure titles, department badges and sub-text wrap gracefully rather than clipping
+              const textEls = card.querySelectorAll<HTMLElement>("h4, p, span");
+              textEls.forEach((txt) => {
+                txt.style.overflow = "visible";
+                txt.style.textOverflow = "clip";
+              });
+            });
+
+            // 3. Ensure SVG connectors have visible overflow and clean dimensions matching cards
+            const svgs = clonedEl.querySelectorAll<SVGElement>("svg");
+            svgs.forEach((svg) => {
+              svg.style.overflow = "visible";
+              svg.setAttribute("overflow", "visible");
+            });
           },
         });
       } finally {
@@ -505,22 +548,131 @@ export function InteractiveOrgTree() {
         toast.success("Organization Tree exported as PNG successfully!");
       } else {
         const { jsPDF } = await import("jspdf");
-        const imgData = canvas.toDataURL("image/png");
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
 
-        const pdfWidth = Math.max(842, canvasWidth * 0.5);
-        const pdfHeight = Math.max(595, canvasHeight * 0.5);
-        const orientation = canvasWidth >= canvasHeight ? "landscape" : "portrait";
+        // Target standard A4 Landscape (842 x 595 pt) with 30pt margins
+        const targetPageWidth = 842;
+        const targetPageHeight = 595;
+        const margin = 30;
+        const headerSpace = 36;
+        const printableWidth = targetPageWidth - margin * 2;
+        const printableHeight = targetPageHeight - margin * 2 - headerSpace;
 
-        const pdf = new jsPDF({
-          orientation,
-          unit: "pt",
-          format: [pdfWidth, pdfHeight],
-        });
+        // Sizing logic: determine scale factor required to fit into standard A4 Landscape printable area
+        const scaleX = printableWidth / canvasWidth;
+        const scaleY = printableHeight / canvasHeight;
+        const singlePageScale = Math.min(scaleX, scaleY);
 
-        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
+        // If the entire hierarchy fits comfortably on a single standard page with reasonable readability (>= 0.60)
+        // or if canvas size is relatively compact, render as a single crisp A4 Landscape page.
+        // Otherwise, split into multi-page horizontal/vertical tiles preserving 100% card readability.
+        if (singlePageScale >= 0.55) {
+          const pdf = new jsPDF({
+            orientation: "landscape",
+            unit: "pt",
+            format: "a4",
+          });
+
+          const renderedWidth = canvasWidth * singlePageScale;
+          const renderedHeight = canvasHeight * singlePageScale;
+          const xOffset = margin + (printableWidth - renderedWidth) / 2;
+          const yOffset = margin + headerSpace + (printableHeight - renderedHeight) / 2;
+
+          // Standard MasterHRMS Report Header
+          pdf.setFontSize(14);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(30, 41, 59);
+          pdf.text("Organization Hierarchy Structure", margin, margin + 12);
+
+          pdf.setFontSize(9);
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(100, 116, 139);
+          pdf.text(
+            `Generated on: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}  |  MasterHRMS Enterprise`,
+            margin,
+            margin + 26
+          );
+
+          const imgData = canvas.toDataURL("image/png");
+          pdf.addImage(imgData, "PNG", xOffset, yOffset, renderedWidth, renderedHeight);
+          pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
+        } else {
+          // Multi-page Tiling: slice canvas into readable sections across multiple standard A4 Landscape pages
+          const pdf = new jsPDF({
+            orientation: "landscape",
+            unit: "pt",
+            format: "a4",
+          });
+
+          // Establish a high-readability target scale (approx 0.70x to 0.85x canvas native size)
+          const tileScale = Math.min(0.85, Math.max(0.65, singlePageScale * 1.5));
+          const sliceSourceWidth = Math.floor(printableWidth / tileScale);
+          const sliceSourceHeight = Math.floor(printableHeight / tileScale);
+
+          const cols = Math.ceil(canvasWidth / sliceSourceWidth);
+          const rows = Math.ceil(canvasHeight / sliceSourceHeight);
+          const totalPages = cols * rows;
+          let currentPage = 0;
+
+          // Temporary slicing canvas
+          const sliceCanvas = document.createElement("canvas");
+          sliceCanvas.width = sliceSourceWidth;
+          sliceCanvas.height = sliceSourceHeight;
+          const sliceCtx = sliceCanvas.getContext("2d");
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              currentPage++;
+              if (currentPage > 1) {
+                pdf.addPage("a4", "landscape");
+              }
+
+              const sx = c * sliceSourceWidth;
+              const sy = r * sliceSourceHeight;
+              const sWidth = Math.min(sliceSourceWidth, canvasWidth - sx);
+              const sHeight = Math.min(sliceSourceHeight, canvasHeight - sy);
+
+              if (sliceCtx) {
+                sliceCtx.fillStyle = "#ffffff";
+                sliceCtx.fillRect(0, 0, sliceSourceWidth, sliceSourceHeight);
+                sliceCtx.drawImage(
+                  canvas,
+                  sx, sy, sWidth, sHeight,
+                  0, 0, sWidth, sHeight
+                );
+              }
+
+              // Page Header & Breadcrumb
+              pdf.setFontSize(13);
+              pdf.setFont("helvetica", "bold");
+              pdf.setTextColor(30, 41, 59);
+              pdf.text("Organization Hierarchy Structure", margin, margin + 12);
+
+              pdf.setFontSize(8.5);
+              pdf.setFont("helvetica", "normal");
+              pdf.setTextColor(100, 116, 139);
+              pdf.text(
+                `Generated on: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}  |  Section (Col ${c + 1}/${cols}, Row ${r + 1}/${rows})  |  Page ${currentPage} of ${totalPages}`,
+                margin,
+                margin + 26
+              );
+
+              const sliceData = sliceCanvas.toDataURL("image/png");
+              pdf.addImage(
+                sliceData,
+                "PNG",
+                margin,
+                margin + headerSpace,
+                sWidth * tileScale,
+                sHeight * tileScale
+              );
+            }
+          }
+
+          pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
+        }
+
         toast.success("Organization Tree exported as PDF successfully!");
       }
 
