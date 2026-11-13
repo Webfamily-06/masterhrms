@@ -48,6 +48,7 @@ import {
   Clock,
   Layers,
   Award,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -237,6 +238,20 @@ export function InteractiveOrgTree() {
     queryFn: async () => {
       const res = await api.get(`/hr/organization/tree/employee/${selectedEmployeeId}`);
       return res.data || res;
+    },
+  });
+
+  // 6. Fetch Historical Manager Transitions
+  const { data: managerHistoryData } = useQuery({
+    queryKey: ["org-tree-employee-manager-history", selectedEmployeeId],
+    enabled: !!selectedEmployeeId,
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/hr/organization/tree/employee/${selectedEmployeeId}/manager-history`);
+        return res.data?.history || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -1114,6 +1129,31 @@ export function InteractiveOrgTree() {
                   </p>
                 )}
               </div>
+
+              {/* Historical Reporting Transitions (Phase 3.4) */}
+              {managerHistoryData && managerHistoryData.length > 0 && (
+                <div className="space-y-2 pt-2 border-t">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <History className="h-3.5 w-3.5 text-indigo-500" />
+                    Manager Transition History
+                  </h5>
+                  <div className="space-y-2">
+                    {managerHistoryData.map((hist: any) => (
+                      <div key={hist.id} className="p-2.5 rounded-lg border bg-muted/20 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Effective: {new Date(hist.effectiveDate).toLocaleDateString()}</span>
+                          <span className="text-[10px]">Applied: {new Date(hist.appliedAt).toLocaleDateString()}</span>
+                        </div>
+                        <div className="font-medium text-foreground">
+                          {hist.oldManager ? `${hist.oldManager.firstName} ${hist.oldManager.lastName}` : "Top Executive"}
+                          {" → "}
+                          <span className="text-indigo-600">{hist.newManager ? `${hist.newManager.firstName} ${hist.newManager.lastName}` : "Top Executive"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Contact Information (Safe only) */}
               <div className="space-y-2 pt-2 border-t">

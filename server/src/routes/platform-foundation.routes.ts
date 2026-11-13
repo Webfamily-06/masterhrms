@@ -32,6 +32,7 @@ import { hrDocumentsRouter } from "./hr-documents.routes";
 import { meDocumentsRouter } from "./me-documents.routes";
 import { hrCollaborationRouter } from "./hr-collaboration.routes";
 import { meCollaborationRouter } from "./me-collaboration.routes";
+import { hrProfileChangesRouter } from "./hr-profile-changes.routes";
 
 export const platformFoundationRouter = Router();
 
@@ -42,6 +43,8 @@ platformFoundationRouter.use(requireAuth, resolveTenantContext);
 // =========================================================================
 platformFoundationRouter.use("/hr/organization", organizationRouter);
 platformFoundationRouter.use("/hr/employees", hrEmployeesRouter);
+platformFoundationRouter.use("/hr/requests/profile-changes", hrProfileChangesRouter);
+platformFoundationRouter.use("/hr/profile-changes", hrProfileChangesRouter);
 
 // =========================================================================
 // P3. ATTENDANCE & LEAVE BUSINESS LAYER

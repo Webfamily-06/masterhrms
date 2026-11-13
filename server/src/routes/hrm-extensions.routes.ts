@@ -9,6 +9,9 @@ import { TenantConnectionManager } from "../services/tenant-connection-manager.s
 import { runBiometricAutoSync } from "../cron/biometric-sync";
 import { processDueRecurringInvoices } from "../services/recurring-invoice.service";
 import { runSubscriptionExpiryRemindersCron } from "../cron/subscription-reminder.cron";
+import { runDocumentExpiryCron } from "../cron/document-expiry.cron";
+import { runProbationContractExpiryCron } from "../cron/probation-contract-expiry.cron";
+import { runReportingManagerChangeScheduler } from "../cron/reporting-manager-change.cron";
 import { getPlatformMaintenanceConfig, evaluateMaintenanceStatus } from "../middleware/maintenance";
 import { getBaseDomain } from "../lib/workspace-host";
 
@@ -1046,6 +1049,39 @@ systemMaintenanceRouter.get("/cronjobs", requireAuth, requireSuperAdmin, async (
             lastStatus: "success",
             durationMs: 380,
           },
+          {
+            name: "Document Expiry & Compliance Monitor",
+            code: "document_expiry_monitor",
+            schedule: "Daily at 02:00 AM UTC",
+            cronExpression: "0 2 * * *",
+            nextRun: inMidnight,
+            lastRun: now,
+            status: "running",
+            lastStatus: "success",
+            durationMs: 450,
+          },
+          {
+            name: "Probation & Contract Expiry Monitor",
+            code: "probation_contract_monitor",
+            schedule: "Daily at 02:30 AM UTC",
+            cronExpression: "30 2 * * *",
+            nextRun: inMidnight,
+            lastRun: now,
+            status: "running",
+            lastStatus: "success",
+            durationMs: 420,
+          },
+          {
+            name: "Reporting Manager Change Scheduler",
+            code: "reporting_manager_change_monitor",
+            schedule: "Daily at 02:45 AM UTC",
+            cronExpression: "45 2 * * *",
+            nextRun: inMidnight,
+            lastRun: now,
+            status: "running",
+            lastStatus: "success",
+            durationMs: 380,
+          },
         ],
       });
 
@@ -1156,6 +1192,27 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireAuth, requireSuperAdmin
       } catch (e: any) {
         executionError = e.message || "Execution failed";
       }
+    } else if (existing.code.includes("document_expiry") || existing.code === "document_expiry_monitor") {
+      try {
+        const docResult = await runDocumentExpiryCron();
+        console.log(`[CRON] Processed document expiry monitoring:`, docResult);
+      } catch (e: any) {
+        executionError = e.message || "Execution failed";
+      }
+    } else if (existing.code.includes("probation_contract") || existing.code === "probation_contract_monitor") {
+      try {
+        const pcResult = await runProbationContractExpiryCron();
+        console.log(`[CRON] Processed probation and contract expiry monitoring:`, pcResult);
+      } catch (e: any) {
+        executionError = e.message || "Execution failed";
+      }
+    } else if (existing.code.includes("reporting_manager") || existing.code === "reporting_manager_change_monitor") {
+      try {
+        const rmcResult = await runReportingManagerChangeScheduler();
+        console.log(`[CRON] Processed reporting manager change scheduling:`, rmcResult);
+      } catch (e: any) {
+        executionError = e.message || "Execution failed";
+      }
     }
 
     const duration = Math.max(15, Date.now() - startTime + Math.floor(100 + Math.random() * 200));
@@ -1189,6 +1246,39 @@ systemMaintenanceRouter.post("/cronjobs/:id/run", requireAuth, requireSuperAdmin
 systemMaintenanceRouter.post("/cronjobs/run-subscription-reminders", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const result = await runSubscriptionExpiryRemindersCron();
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system/cronjobs/run-document-expiry (Super Admin or Scheduled invocation)
+systemMaintenanceRouter.post("/cronjobs/run-document-expiry", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string | undefined;
+    const result = await runDocumentExpiryCron({ tenantId });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system/cronjobs/run-probation-contract-expiry (Super Admin or Scheduled invocation)
+systemMaintenanceRouter.post("/cronjobs/run-probation-contract-expiry", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string | undefined;
+    const result = await runProbationContractExpiryCron({ tenantId });
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/system/cronjobs/run-reporting-manager-changes (Super Admin or Scheduled invocation)
+systemMaintenanceRouter.post("/cronjobs/run-reporting-manager-changes", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.query.tenantId as string | undefined;
+    const result = await runReportingManagerChangeScheduler({ tenantId });
     res.json({ success: true, ...result });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

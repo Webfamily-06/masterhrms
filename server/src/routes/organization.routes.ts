@@ -12,6 +12,7 @@ import { documentTypesRouter } from "./document-types.routes";
 import { resolveUserSecurityContext, buildDataScopePrismaFilter } from "../lib/data-scope";
 import { applyFieldSecurityMask } from "../lib/field-security";
 import { OrganizationTreeService } from "../services/organization-tree.service";
+import { ReportingManagerChangeService } from "../services/reporting-manager-change.service";
 import { prisma } from "../prisma";
 import { MediaService, getUploadsRoot } from "../services/media/media.service";
 import { computeSha256 } from "../services/storage/integrity-hasher";
@@ -511,6 +512,202 @@ organizationRouter.get(
           maxHierarchyDepth: summary.maxHierarchyDepth,
         },
       });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// =========================================================================
+// 8. REPORTING MANAGER CHANGE REQUESTS & WORKFLOW (PHASE 3.4)
+// =========================================================================
+
+// 8.1 Submit Reporting Manager Change Request
+// POST /manager-change-request & POST /manager-changes
+const handleCreateManagerChange = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+    const actorUserId = req.user?.userId || "system";
+    const { employeeId, newManagerId, effectiveDate, reason, attachmentId, submitNow } = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({ error: "Target employeeId is required." });
+    }
+    if (!effectiveDate) {
+      return res.status(400).json({ error: "effectiveDate is required." });
+    }
+    if (!reason || String(reason).trim().length === 0) {
+      return res.status(400).json({ error: "A justification reason is mandatory." });
+    }
+
+    const result = await ReportingManagerChangeService.createRequest({
+      tenantId,
+      actorUserId,
+      employeeId,
+      newManagerId: newManagerId || null,
+      effectiveDate,
+      reason,
+      attachmentId: attachmentId || null,
+      submitNow: submitNow !== false,
+    });
+
+    return res.status(201).json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+};
+
+organizationRouter.post("/manager-change-request", requireAuth, handleCreateManagerChange);
+organizationRouter.post("/manager-changes", requireAuth, handleCreateManagerChange);
+
+// 8.2 Manager Change Overview KPI Metrics
+// GET /manager-changes/overview
+organizationRouter.get(
+  "/manager-changes/overview",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const overview = await ReportingManagerChangeService.getOverview(tenantId);
+      return res.json({ success: true, ...overview });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// 8.3 List Manager Change Requests
+// GET /manager-changes
+organizationRouter.get(
+  "/manager-changes",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const result = await ReportingManagerChangeService.getRequests(tenantId, req.query as any);
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// 8.4 Get Single Request Detail
+// GET /manager-changes/:id
+organizationRouter.get(
+  "/manager-changes/:id",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const db = getTenantDb();
+      const transfer = await db.employeeTransfer.findFirst({
+        where: { id: req.params.id, tenantId },
+        include: {
+          employee: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              position: true,
+              department: { select: { id: true, name: true } },
+              branch: { select: { id: true, name: true } },
+            },
+          },
+        },
+      });
+
+      if (!transfer) {
+        return res.status(404).json({ error: "Manager change request not found." });
+      }
+
+      let oldManager = null;
+      let newManager = null;
+      if (transfer.oldManagerId) {
+        oldManager = await db.employee.findFirst({
+          where: { id: transfer.oldManagerId, tenantId },
+          select: { id: true, firstName: true, lastName: true, employeeCode: true, position: true },
+        });
+      }
+      if (transfer.newManagerId) {
+        newManager = await db.employee.findFirst({
+          where: { id: transfer.newManagerId, tenantId },
+          select: { id: true, firstName: true, lastName: true, employeeCode: true, position: true },
+        });
+      }
+
+      return res.json({
+        success: true,
+        request: {
+          ...transfer,
+          oldManager,
+          newManager,
+        },
+      });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// 8.5 Review / Action Manager Change Request (APPROVE, REJECT, REQUEST_CORRECTION)
+// POST /manager-changes/:id/action
+organizationRouter.post(
+  "/manager-changes/:id/action",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const actorUserId = req.user?.userId || "system";
+      const { action, comments } = req.body;
+
+      if (!action || !["APPROVE", "REJECT", "REQUEST_CORRECTION"].includes(action)) {
+        return res.status(400).json({
+          error: "Invalid action. Must be one of 'APPROVE', 'REJECT', 'REQUEST_CORRECTION'.",
+        });
+      }
+
+      const result = await ReportingManagerChangeService.reviewRequest({
+        tenantId,
+        actorUserId,
+        requestId: req.params.id,
+        action,
+        comments,
+      });
+
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  }
+);
+
+// 8.6 Get Employee Historical Manager Changes for Slide-Over Drawer
+// GET /tree/employee/:id/manager-history
+organizationRouter.get(
+  "/tree/employee/:id/manager-history",
+  requireAuth,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.user?.tenantId;
+      if (!tenantId) return res.status(403).json({ error: "Tenant context required" });
+
+      const history = await ReportingManagerChangeService.getEmployeeManagerHistory(
+        tenantId,
+        req.params.id
+      );
+      return res.json({ success: true, history });
     } catch (err: any) {
       return res.status(500).json({ error: err.message });
     }

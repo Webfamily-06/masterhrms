@@ -3,6 +3,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { LifecycleService } from "../services/lifecycle.service";
+import { ProbationService } from "../services/probation.service.js";
 
 export const meLifecycleRouter = Router();
 
@@ -338,5 +339,104 @@ meLifecycleRouter.post("/complaints", requireAuth, async (req: AuthRequest, res:
     return res.status(201).json(complaint);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to file complaint." });
+  }
+});
+
+// =========================================================================
+// 8. MY PROBATION & TEAM PROBATION REVIEWS (ME-LC-08)
+// =========================================================================
+
+// GET /api/v1/me/lifecycle/probation (My own probation status)
+meLifecycleRouter.get("/probation", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const employee = await resolveEmployee(req);
+    if (!employee) return res.status(404).json({ error: "Employee profile not found" });
+
+    const db = getTenantDb();
+    const probation = await db.probationRecord.findFirst({
+      where: { tenantId, employeeId: employee.id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!probation) return res.json(null);
+
+    const cls = ProbationService.classifyProbation(probation, new Date());
+    return res.json({
+      ...probation,
+      classification: cls.classification,
+      daysRemaining: cls.daysRemaining,
+      isOverdue: cls.isOverdue,
+      isDueSoon: cls.isDueSoon,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load probation." });
+  }
+});
+
+// GET /api/v1/me/lifecycle/team/probation (Subordinates' probation reviews assigned to me)
+meLifecycleRouter.get("/team/probation", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const employee = await resolveEmployee(req);
+    if (!employee) return res.json([]);
+
+    const db = getTenantDb();
+    const now = new Date();
+
+    const teamProbations = await db.probationRecord.findMany({
+      where: {
+        tenantId,
+        employee: { managerId: employee.id },
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            position: true,
+            department: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { endDate: "asc" },
+    });
+
+    const evaluated = teamProbations.map((p) => {
+      const cls = ProbationService.classifyProbation(p, now);
+      return {
+        ...p,
+        classification: cls.classification,
+        daysRemaining: cls.daysRemaining,
+        isOverdue: cls.isOverdue,
+        isDueSoon: cls.isDueSoon,
+        stage: cls.stage,
+      };
+    });
+
+    return res.json(evaluated);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to load team probation records." });
+  }
+});
+
+// POST /api/v1/me/lifecycle/team/probation/:id/review (Manager submits review)
+meLifecycleRouter.post("/team/probation/:id/review", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+
+    const updated = await ProbationService.submitManagerReview({
+      tenantId,
+      actorUserId: actorId,
+      probationId: req.params.id,
+      review: req.body,
+    });
+
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to submit probation review." });
   }
 });

@@ -95,6 +95,12 @@ export const hrSidebar: HRMenuItem[] = [
         permission: "hrm.employees.view",
       },
       {
+        label: "Profile Change Requests",
+        path: "/hr/requests/profile-changes",
+        icon: "ph-clipboard-text",
+        permission: "hrm.employees.view",
+      },
+      {
         label: "Organization",
         icon: "ph-tree-structure",
         permission: "hrm.employees.view",
@@ -105,6 +111,7 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Holidays", path: "/hr/organization/holidays", permission: "hrm.attendance.view" },
           { label: "Announcements", path: "/hr/organization/announcements", permission: "hrm.dashboard.view" },
           { label: "Organization Tree", path: "/hr/organization/tree", permission: "hrm.employees.view" },
+          { label: "Manager Changes", path: "/hr/organization/manager-changes", permission: "hrm.employees.view" },
           { label: "Award Types", path: "/hr/organization/award-types", permission: "hrm.employees.view" },
           { label: "Certificate Branding", path: "/hr/organization/certificate-branding", permission: "hrm.employees.view" },
           { label: "Certificate Templates", path: "/hr/organization/certificate-templates", permission: "hrm.employees.view" },
@@ -270,6 +277,7 @@ export const hrSidebar: HRMenuItem[] = [
         permission: "hrm.dashboard.view",
         children: [
           { label: "Document Repository", path: "/hr/documents", permission: "hrm.dashboard.view" },
+          { label: "Compliance & Expiry", path: "/hr/documents/compliance", permission: "hrm.dashboard.view" },
           { label: "Employee Contracts", path: "/hr/documents/contracts", permission: "hrm.dashboard.view" },
           { label: "Letters & Requests", path: "/hr/documents/letters", permission: "hrm.dashboard.view" },
           { label: "Acknowledgements", path: "/hr/documents/acknowledgements", permission: "hrm.dashboard.view" },

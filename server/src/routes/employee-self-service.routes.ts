@@ -12,6 +12,8 @@ import { parsePaginationParams, formatPaginatedResponse } from "../lib/paginatio
 import { broadcastToTenant } from "../socket";
 import { AwardNominationService } from "../services/award-nomination.service";
 import { AwardCertificateService } from "../services/award-certificate.service";
+import { EmployeeChangeRequestService } from "../services/employee-change-request.service";
+import { ReportingManagerChangeService } from "../services/reporting-manager-change.service";
 
 export const employeeSelfServiceRouter = Router();
 
@@ -137,98 +139,168 @@ employeeSelfServiceRouter.put("/profile", async (req: EmployeeAuthRequest, res: 
 
 /**
  * POST /api/v1/me/profile/change-requests
- * Submits sensitive fields (bank, pan, legal name, aadhaar) for HR review & approval
+ * Submits sensitive fields (bank, pan, legal name, aadhaar, address, emergency contact)
+ * Supports compound payloads, drafts, attachments, and server-side allowlists.
  */
 employeeSelfServiceRouter.post("/profile/change-requests", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
   const tenantId = req.user!.tenantId!;
-  const { fieldCategory, fieldKey, newValue, proofMediaId } = req.body;
+  const userId = req.user!.userId;
+  const { fieldCategory, category, fieldKey, changes, newValue, proofMediaId, reason, isDraft } = req.body;
 
-  if (!fieldCategory || !fieldKey || newValue === undefined) {
-    return res.status(400).json({ error: "fieldCategory, fieldKey, and newValue are required" });
-  }
-
-  const allowedCategories = ["bank", "personal", "statutory", "address"];
-  if (!allowedCategories.includes(fieldCategory)) {
-    return res.status(400).json({ error: "Invalid field category" });
+  const targetCategory = category || fieldCategory;
+  if (!targetCategory) {
+    return res.status(400).json({ error: "category or fieldCategory is required" });
   }
 
   try {
-    // Current employee record to snapshot old value
-    const emp = await db.employee.findUnique({
-      where: { id: employeeId },
-    });
-
-    if (!emp) return res.status(404).json({ error: "Employee record not found" });
-
-    const oldValue = (emp as any)[fieldKey] !== undefined ? (emp as any)[fieldKey] : null;
-
-    const changeRequest = await db.employeeChangeRequest.create({
-      data: {
-        tenantId,
-        employeeId,
-        fieldCategory,
-        fieldKey,
-        oldValueJson: JSON.stringify(oldValue),
-        newValueJson: JSON.stringify(newValue),
-        proofMediaId: proofMediaId || null,
-        status: "PENDING",
-      },
-    });
-
-    // Queue outbox event and audit log (masked)
-    await OutboxService.createOutboxEvent({
+    const result = await EmployeeChangeRequestService.createRequest({
       tenantId,
-      eventType: "profile.change_requested",
-      entityType: "EmployeeChangeRequest",
-      entityId: changeRequest.id,
-      actorId: req.user!.userId,
-      payload: {
-        employeeId,
-        fieldCategory,
-        fieldKey,
-      },
-    });
-
-    await AuditService.logMutation({
-      tenantId,
-      actorId: req.user!.userId,
-      action: "PROFILE_CHANGE_REQUEST_SUBMIT",
-      entityType: "EmployeeChangeRequest",
-      entityId: changeRequest.id,
-      newState: { fieldCategory, fieldKey, status: "PENDING" },
+      employeeId,
+      userId,
+      fieldCategory: targetCategory,
+      fieldKey,
+      changes,
+      newValue,
+      proofMediaId,
+      reason,
+      isDraft: Boolean(isDraft),
     });
 
     return res.status(201).json({
       success: true,
-      message: "Change request submitted successfully and is pending HR verification.",
-      data: changeRequest,
+      message: isDraft
+        ? "Change request saved as draft."
+        : "Change request submitted successfully and is pending review.",
+      data: result,
     });
   } catch (err: any) {
-    console.error("[POST /me/profile/change-requests] Error:", err);
-    return res.status(500).json({ error: "Failed to submit change request" });
+    console.error("[POST /me/profile/change-requests] Error:", err?.message || err);
+    return res.status(400).json({ error: err?.message || "Failed to submit change request" });
   }
 });
 
 /**
  * GET /api/v1/me/profile/change-requests
- * Returns all past and pending change requests submitted by this employee
+ * Returns all past and pending change requests submitted by this employee with status/category filters.
  */
 employeeSelfServiceRouter.get("/profile/change-requests", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const { status, category, page, limit } = req.query;
 
   try {
-    const list = await db.employeeChangeRequest.findMany({
-      where: { employeeId },
-      orderBy: { createdAt: "desc" },
+    const result = await EmployeeChangeRequestService.listEmployeeRequests(tenantId, employeeId, {
+      status: typeof status === "string" ? status : undefined,
+      category: typeof category === "string" ? category : undefined,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
 
-    return res.json({ success: true, data: list });
+    return res.json({
+      success: true,
+      data: result.items,
+      pagination: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        totalPages: Math.ceil(result.total / result.pageSize),
+      },
+    });
   } catch (err: any) {
-    console.error("[GET /me/profile/change-requests] Error:", err);
-    return res.status(500).json({ error: "Failed to fetch change requests" });
+    console.error("[GET /me/profile/change-requests] Error:", err?.message || err);
+    return res.status(500).json({ error: err?.message || "Failed to fetch change requests" });
+  }
+});
+
+/**
+ * GET /api/v1/me/profile/change-requests/:id
+ * Returns single request details with diff and proof file preview.
+ */
+employeeSelfServiceRouter.get("/profile/change-requests/:id", async (req: EmployeeAuthRequest, res: Response) => {
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const { id } = req.params;
+
+  try {
+    const details = await EmployeeChangeRequestService.getRequestDetails(tenantId, id, {
+      employeeId,
+      isHrAdmin: req.user!.roles?.includes("hr_admin") || req.user!.roles?.includes("super_admin"),
+      canViewSensitive: false,
+    });
+
+    return res.json({ success: true, data: details });
+  } catch (err: any) {
+    console.error("[GET /me/profile/change-requests/:id] Error:", err?.message || err);
+    return res.status(404).json({ error: err?.message || "Change request not found" });
+  }
+});
+
+/**
+ * PUT /api/v1/me/profile/change-requests/:id
+ * Updates an existing DRAFT or responds to a CORRECTION_REQUESTED request.
+ */
+employeeSelfServiceRouter.put("/profile/change-requests/:id", async (req: EmployeeAuthRequest, res: Response) => {
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const userId = req.user!.userId;
+  const { id } = req.params;
+  const { changes, newValue, proofMediaId, reason, submitNow } = req.body;
+
+  try {
+    const updated = await EmployeeChangeRequestService.updateDraftOrCorrection({
+      tenantId,
+      employeeId,
+      userId,
+      requestId: id,
+      changes,
+      newValue,
+      proofMediaId,
+      reason,
+      submitNow: Boolean(submitNow),
+    });
+
+    return res.json({
+      success: true,
+      message: submitNow
+        ? "Change request resubmitted for approval."
+        : "Change request updated successfully.",
+      data: updated,
+    });
+  } catch (err: any) {
+    console.error("[PUT /me/profile/change-requests/:id] Error:", err?.message || err);
+    return res.status(400).json({ error: err?.message || "Failed to update change request" });
+  }
+});
+
+/**
+ * DELETE /api/v1/me/profile/change-requests/:id
+ * Cancels a DRAFT, PENDING, or CORRECTION_REQUESTED request.
+ */
+employeeSelfServiceRouter.delete("/profile/change-requests/:id", async (req: EmployeeAuthRequest, res: Response) => {
+  const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const userId = req.user!.userId;
+  const { id } = req.params;
+  const { reason } = req.body || {};
+
+  try {
+    const cancelled = await EmployeeChangeRequestService.cancelRequest(
+      tenantId,
+      employeeId,
+      userId,
+      id,
+      reason
+    );
+
+    return res.json({
+      success: true,
+      message: "Change request cancelled successfully.",
+      data: cancelled,
+    });
+  } catch (err: any) {
+    console.error("[DELETE /me/profile/change-requests/:id] Error:", err?.message || err);
+    return res.status(400).json({ error: err?.message || "Failed to cancel change request" });
   }
 });
 
@@ -1765,96 +1837,118 @@ employeeSelfServiceRouter.post("/team/leaves/:id/action", async (req: EmployeeAu
 
 /**
  * POST /api/v1/me/team/profile-changes/:id/action
- * Approves or rejects a team member's sensitive profile change request
+ * Approves, rejects, or requests correction on a team member's profile change request
  */
 employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
+  const tenantId = req.user!.tenantId!;
+  const userId = req.user!.userId;
   const { id } = req.params;
-  const { action, reviewerNotes } = req.body;
+  const { action, reviewerNotes, comments } = req.body;
 
-  if (!["approve", "reject"].includes(action)) {
-    return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
+  if (!["approve", "reject", "request_correction"].includes(action)) {
+    return res.status(400).json({ error: "Action must be 'approve', 'reject', or 'request_correction'" });
   }
 
   try {
-    const changeReq = await db.employeeChangeRequest.findUnique({
-      where: { id },
-      include: { employee: true },
+    const isHrAdmin = Boolean(
+      req.user!.roles?.includes("hr_admin") ||
+      req.user!.roles?.includes("super_admin") ||
+      req.user!.permissions?.includes("hrm.employees.edit")
+    );
+
+    const result = await EmployeeChangeRequestService.processReviewDecision({
+      tenantId,
+      reviewerUserId: userId,
+      reviewerEmployeeId: employeeId,
+      isHrAdmin,
+      requestId: id,
+      action,
+      reviewComments: reviewerNotes || comments,
+      canViewSensitive: false,
     });
 
-    if (!changeReq) {
-      return res.status(404).json({ error: "Change request not found" });
-    }
-
-    if (changeReq.employee?.managerId !== employeeId && !req.user!.roles?.includes("hr_admin") && !req.user!.roles?.includes("super_admin")) {
-      return res.status(403).json({ error: "You are not authorized to review this change request." });
-    }
-
-    const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
-    const updated = await db.employeeChangeRequest.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        reviewedBy: employeeId,
-        reviewedAt: new Date(),
-        reviewComments: reviewerNotes || undefined,
-      },
-    });
-
-    // If approved, update the employee record dynamically
-    if (newStatus === "APPROVED") {
-      const allowedFields = [
-        "pan", "aadhaar", "uan", "esiNumber", "pfNumber", "bankName", "bankAccount", "bankIfsc", "bankBranch",
-        "addressLine1", "addressLine2", "city", "district", "state", "postalCode", "permanentAddress", "presentAddress"
-      ];
-      if (allowedFields.includes(changeReq.fieldKey)) {
-        let parsedVal = changeReq.newValueJson;
-        try {
-          const parsed = JSON.parse(changeReq.newValueJson);
-          if (typeof parsed === "string") parsedVal = parsed;
-        } catch {}
-
-        await db.employee.update({
-          where: { id: changeReq.employeeId },
-          data: {
-            [changeReq.fieldKey]: parsedVal,
-          },
-        });
-      }
-    }
-
-    // Queue outbox event and audit log
-    await OutboxService.createOutboxEvent({
-      tenantId: changeReq.tenantId,
-      eventType: newStatus === "APPROVED" ? "profile.change_approved" : "profile.change_rejected",
-      entityType: "EmployeeChangeRequest",
-      entityId: updated.id,
-      actorId: req.user!.userId,
-      payload: {
-        employeeId: changeReq.employeeId,
-        fieldKey: changeReq.fieldKey,
-        status: newStatus,
-      },
-    });
-
-    await AuditService.logMutation({
-      tenantId: changeReq.tenantId,
-      actorId: req.user!.userId,
-      action: `PROFILE_CHANGE_REQUEST_${newStatus}`,
-      entityType: "EmployeeChangeRequest",
-      entityId: updated.id,
-      newState: { status: newStatus, reviewedBy: employeeId },
-    });
-
-    return res.json({
-      success: true,
-      message: `Change request ${newStatus.toLowerCase()} successfully.`,
-      data: updated,
-    });
+    return res.json(result);
   } catch (err: any) {
-    console.error("[POST /me/team/profile-changes/:id/action] Error:", err);
-    return res.status(500).json({ error: "Failed to process change request decision" });
+    console.error("[POST /me/team/profile-changes/:id/action] Error:", err?.message || err);
+    return res.status(400).json({ error: err?.message || "Failed to process change request decision" });
+  }
+});
+
+// =========================================================================
+// ESS & TEAM: REPORTING MANAGER CHANGES (PHASE 3.4)
+// =========================================================================
+
+employeeSelfServiceRouter.post("/organization/manager-change-request", async (req: EmployeeAuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const actorUserId = req.user!.userId;
+    const { employeeId, newManagerId, effectiveDate, reason, attachmentId } = req.body;
+
+    const targetEmployeeId = employeeId || req.employee!.id;
+
+    const result = await ReportingManagerChangeService.createRequest({
+      tenantId,
+      actorUserId,
+      employeeId: targetEmployeeId,
+      newManagerId: newManagerId || null,
+      effectiveDate,
+      reason,
+      attachmentId,
+      submitNow: true,
+    });
+
+    return res.status(201).json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+employeeSelfServiceRouter.get("/organization/manager-changes", async (req: EmployeeAuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const employeeId = req.employee!.id;
+    const result = await ReportingManagerChangeService.getRequests(tenantId, {
+      ...req.query,
+      employeeId,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+employeeSelfServiceRouter.get("/team/manager-changes", async (req: EmployeeAuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const managerId = req.employee!.id;
+    const result = await ReportingManagerChangeService.getRequests(tenantId, {
+      ...req.query,
+      managerId,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+employeeSelfServiceRouter.post("/team/manager-changes/:id/action", async (req: EmployeeAuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user!.tenantId!;
+    const actorUserId = req.user!.userId;
+    const { action, comments } = req.body;
+
+    const result = await ReportingManagerChangeService.reviewRequest({
+      tenantId,
+      actorUserId,
+      requestId: req.params.id,
+      action,
+      comments,
+    });
+
+    return res.json({ success: true, ...result });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
   }
 });
 

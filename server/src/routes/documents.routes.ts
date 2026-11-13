@@ -5,6 +5,10 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { StorageFactory } from "../services/factories/storage.factory";
 import { AuditService } from "../services/audit.service";
+import { DocumentComplianceService } from "../services/document-compliance.service.js";
+import { DocumentExpiryService } from "../services/document-expiry.service.js";
+import { OutboxService } from "../services/outbox.service.js";
+import { NotificationService } from "../services/notification.service.js";
 
 export const documentsRouter = Router();
 
@@ -279,6 +283,59 @@ documentsRouter.post("/", requireAuth, async (req: AuthRequest, res: Response) =
   }
 });
 
+// GET /api/documents/compliance/summary (HR Compliance Dashboard Stats & Breakdown)
+documentsRouter.get("/compliance/summary", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const departmentId = req.query.departmentId as string | undefined;
+    const summary = await DocumentComplianceService.getTenantComplianceSummary(tenantId, {
+      departmentId: departmentId && departmentId !== "all" ? departmentId : undefined,
+    });
+
+    return res.json(summary);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to calculate document compliance summary." });
+  }
+});
+
+// GET /api/documents/compliance/expiring (Expiring and Expired Documents List)
+documentsRouter.get("/compliance/expiring", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { days, stage, departmentId, search, page, limit } = req.query;
+    const result = await DocumentComplianceService.getExpiringDocumentsList(tenantId, {
+      days: days !== undefined ? Number(days) : undefined,
+      stage: stage as string | undefined,
+      departmentId: departmentId && departmentId !== "all" ? (departmentId as string) : undefined,
+      search: search as string | undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch expiring documents list." });
+  }
+});
+
+// GET /api/documents/compliance/employee/:id (Individual Employee Document Checklist & Status)
+documentsRouter.get("/compliance/employee/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const { id: employeeId } = req.params;
+    const detail = await DocumentComplianceService.getEmployeeDocumentCompliance(tenantId, employeeId);
+    return res.json(detail);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch employee document compliance." });
+  }
+});
+
 // GET /api/documents/:id (Single document details with privacy check)
 documentsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -492,8 +549,8 @@ documentsRouter.post("/:id/sign", requireAuth, async (req: AuthRequest, res: Res
   }
 });
 
-// PUT /api/documents/:id/verify (Verify Document / Mark Approved)
-documentsRouter.put("/:id/verify", requireAuth, async (req: AuthRequest, res: Response) => {
+// Handle Verify Document (Verification & Certification)
+async function handleVerifyDocument(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
@@ -540,7 +597,11 @@ documentsRouter.put("/:id/verify", requireAuth, async (req: AuthRequest, res: Re
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to verify document." });
   }
-});
+}
+
+// PUT & POST /api/documents/:id/verify (Verify Document / Mark Approved)
+documentsRouter.put("/:id/verify", requireAuth, handleVerifyDocument);
+documentsRouter.post("/:id/verify", requireAuth, handleVerifyDocument);
 
 // POST /api/documents/:id/reject (HR rejects document with mandatory reason)
 documentsRouter.post("/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
@@ -613,6 +674,190 @@ documentsRouter.post("/:id/reject", requireAuth, async (req: AuthRequest, res: R
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to reject document." });
+  }
+});
+
+// POST /api/documents/:id/renew (Submit Document Renewal)
+documentsRouter.post("/:id/renew", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const currentUserId = req.user?.userId;
+    const userRoles = req.user?.roles || [];
+    const isSuperAdmin = userRoles.includes("super_admin");
+    const isTenantAdmin = userRoles.includes("tenant_admin") || userRoles.includes("admin");
+    const isHr = userRoles.includes("hr_admin") || userRoles.includes("hr");
+
+    let currentEmpId: string | undefined;
+    if (currentUserId) {
+      const emp = await prisma.employee.findFirst({
+        where: { tenantId, userId: currentUserId },
+        select: { id: true },
+      });
+      currentEmpId = emp?.id;
+    }
+
+    const predecessor = await prisma.companyDocument.findUnique({
+      where: { id },
+      include: {
+        employee: {
+          select: { id: true, userId: true, firstName: true, lastName: true },
+        },
+      },
+    });
+
+    if (!predecessor || predecessor.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Predecessor document not found." });
+    }
+
+    // Permission check: HR/Admin OR document owner
+    const isOwner = predecessor.employeeId && predecessor.employeeId === currentEmpId;
+    const canRenew = isSuperAdmin || isTenantAdmin || isHr || isOwner;
+
+    if (!canRenew) {
+      return res.status(403).json({
+        error: "Forbidden: You are not authorized to renew this document.",
+      });
+    }
+
+    const {
+      fileUrl,
+      fileName,
+      fileSize = "1.5 MB",
+      fileType = "application/pdf",
+      expiryDate,
+      notes,
+      title,
+    } = req.body;
+
+    if (!fileUrl && !fileName) {
+      return res.status(400).json({ error: "Replacement file (fileUrl or fileName) is required for document renewal." });
+    }
+
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const newDocCode = `DOC-RNW-${randomSuffix}`;
+    const renewalTitle = title || predecessor.title;
+    const renewalExpiry = expiryDate ? new Date(expiryDate) : null;
+
+    // Execute atomic update + insert
+    const [updatedPredecessor, newDocument] = await prisma.$transaction([
+      prisma.companyDocument.update({
+        where: { id: predecessor.id },
+        data: {
+          status: "superseded",
+          notes: predecessor.notes
+            ? `${predecessor.notes}\n[Superseded by renewal ${newDocCode} on ${new Date().toISOString()}]`
+            : `[Superseded by renewal ${newDocCode} on ${new Date().toISOString()}]`,
+        },
+      }),
+      prisma.companyDocument.create({
+        data: {
+          tenantId,
+          employeeId: predecessor.employeeId,
+          documentTypeId: predecessor.documentTypeId,
+          documentCode: newDocCode,
+          title: renewalTitle,
+          category: predecessor.category,
+          fileName: fileName || `${renewalTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-renewal.pdf`,
+          fileSize,
+          fileType,
+          fileUrl: fileUrl || null,
+          requiresSignature: false,
+          status: "pending_verification",
+          expiryDate: renewalExpiry,
+          notes: notes ? `Renewal submission for predecessor ${predecessor.documentCode}: ${notes}` : `Renewal submission for predecessor ${predecessor.documentCode}`,
+        },
+        include: {
+          employee: { include: { department: true } },
+          documentType: true,
+        },
+      }),
+    ]);
+
+    // Audit logging
+    try {
+      await AuditService.logMutation({
+        tenantId,
+        actorId: currentUserId || "system",
+        action: "DOCUMENT_RENEWAL_SUBMITTED",
+        entityType: "CompanyDocument",
+        entityId: newDocument.id,
+        metadata: {
+          predecessorId: predecessor.id,
+          predecessorCode: predecessor.documentCode,
+          newDocumentCode: newDocument.documentCode,
+          employeeId: predecessor.employeeId,
+        },
+      });
+    } catch (auditErr: any) {
+      console.warn("[documents.renew] Audit log creation failed:", auditErr.message);
+    }
+
+    // Transactional Outbox Event
+    try {
+      await OutboxService.createOutboxEvent({
+        tenantId,
+        eventType: "DOCUMENT_RENEWAL_SUBMITTED",
+        entityType: "CompanyDocument",
+        entityId: newDocument.id,
+        actorId: currentUserId,
+        payload: {
+          predecessorId: predecessor.id,
+          predecessorCode: predecessor.documentCode,
+          newDocumentId: newDocument.id,
+          newDocumentCode: newDocument.documentCode,
+          employeeId: predecessor.employeeId,
+          title: newDocument.title,
+          expiryDate: newDocument.expiryDate,
+        },
+      });
+    } catch (outboxErr: any) {
+      console.warn("[documents.renew] Outbox event creation failed:", outboxErr.message);
+    }
+
+    // In-app notifications
+    try {
+      const hrRoles = await prisma.userRole.findMany({
+        where: {
+          tenantId,
+          role: { in: ["hr_admin", "super_admin"] },
+        },
+        select: { userId: true },
+        take: 5,
+      });
+
+      const empName = predecessor.employee
+        ? `${predecessor.employee.firstName || ""} ${predecessor.employee.lastName || ""}`.trim()
+        : "An employee";
+
+      for (const hr of hrRoles) {
+        await NotificationService.createNotification({
+          tenantId,
+          userId: hr.userId,
+          title: `Document Renewal Submitted: ${newDocument.title}`,
+          message: `${empName} has submitted a renewal document for verification.`,
+          type: "DOCUMENT_RENEWAL_PENDING",
+          actionUrl: "/hr/documents/compliance",
+          metadata: {
+            documentId: newDocument.id,
+            predecessorId: predecessor.id,
+          },
+        });
+      }
+    } catch (notifErr: any) {
+      console.warn("[documents.renew] Notification failed:", notifErr.message);
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: `Document renewal submitted successfully (${newDocument.documentCode}). Predecessor superseded and renewal submitted for verification.`,
+      document: newDocument,
+      predecessor: updatedPredecessor,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to renew document." });
   }
 });
 

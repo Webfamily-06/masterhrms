@@ -153,6 +153,7 @@ import { publicFilesRouter } from "./routes/public-files.routes";
 import { webdavRouter } from "./routes/webdav.routes";
 import { appConfigRouter } from "./routes/app-config.routes";
 import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes";
+import { hrProfileChangesRouter } from "./routes/hr-profile-changes.routes";
 import { companyProfileRouter } from "./routes/company-profile.routes";
 import { SettingsService } from "./services/settings/settings.service";
 import { getUploadsRoot } from "./services/media/media.service";
@@ -455,6 +456,12 @@ app.use("/api", appConfigRouter);
 // Employee Self-Service (ESS) Routes (/api/v1/me & /api/me)
 app.use("/api/v1/me", employeeSelfServiceRouter);
 app.use("/api/me", employeeSelfServiceRouter);
+
+// HR Profile Change Requests Queue (/api/v1/hr/requests/profile-changes & aliases)
+app.use("/api/v1/hr/requests/profile-changes", hrProfileChangesRouter);
+app.use("/api/hr/requests/profile-changes", hrProfileChangesRouter);
+app.use("/api/v1/hr/profile-changes", hrProfileChangesRouter);
+app.use("/api/hr/profile-changes", hrProfileChangesRouter);
 
 // Company Profile & GST (Phase 2 Wave 2.1)
 app.use("/api/v1/company-profile", companyProfileRouter);

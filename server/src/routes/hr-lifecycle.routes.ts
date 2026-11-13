@@ -3,6 +3,7 @@ import { requireAuth, AuthRequest, requireRole } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { LifecycleService } from "../services/lifecycle.service";
+import { ProbationService } from "../services/probation.service.js";
 import { AuditService } from "../services/audit.service";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 
@@ -443,44 +444,115 @@ hrLifecycleRouter.put("/exits/:id/finalize", requireHrAdmin, async (req: AuthReq
 // =========================================================================
 // 10. PROBATION MANAGEMENT (HR-LC-10)
 // =========================================================================
+hrLifecycleRouter.get("/probation/overview", requireHrAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const overview = await ProbationService.getProbationOverview(tenantId);
+    return res.json(overview);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch probation overview." });
+  }
+});
+
 hrLifecycleRouter.get("/probation", requireHrAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const db = getTenantDb();
+    const now = new Date();
     const probations = await db.probationRecord.findMany({
       where: { tenantId },
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true, position: true } },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            position: true,
+            department: { select: { id: true, name: true } },
+            manager: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
       },
       orderBy: { endDate: "asc" },
     });
-    return res.json(probations);
+
+    const evaluated = probations.map((p) => {
+      const cls = ProbationService.classifyProbation(p, now);
+      return {
+        ...p,
+        classification: cls.classification,
+        daysRemaining: cls.daysRemaining,
+        isOverdue: cls.isOverdue,
+        isDueSoon: cls.isDueSoon,
+        stage: cls.stage,
+      };
+    });
+
+    return res.json(evaluated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch probation records." });
   }
 });
 
-hrLifecycleRouter.put("/probation/:id/extend", requireHrAdmin, async (req: AuthRequest, res: Response) => {
+// Handler for probation extension
+async function handleExtendProbation(req: AuthRequest, res: Response) {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
     const { extensionDays, remarks } = req.body;
-    const updated = await LifecycleService.extendProbation(tenantId, actorId, req.params.id, parseInt(extensionDays), remarks);
+    const updated = await LifecycleService.extendProbation(
+      tenantId,
+      actorId,
+      req.params.id,
+      parseInt(extensionDays, 10),
+      remarks
+    );
     return res.json(updated);
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Failed to extend probation." });
   }
-});
+}
 
-hrLifecycleRouter.put("/probation/:id/confirm", requireHrAdmin, async (req: AuthRequest, res: Response) => {
+hrLifecycleRouter.put("/probation/:id/extend", requireHrAdmin, handleExtendProbation);
+hrLifecycleRouter.post("/probation/:id/extend", requireHrAdmin, handleExtendProbation);
+
+// Handler for probation confirmation (with automated letter generation)
+async function handleConfirmProbation(req: AuthRequest, res: Response) {
   try {
     const tenantId = req.user?.tenantId!;
     const actorId = req.user?.userId || "system";
     const { performanceRating, remarks } = req.body;
-    const updated = await LifecycleService.confirmProbation(tenantId, actorId, req.params.id, performanceRating, remarks);
-    return res.json(updated);
+    const result = await ProbationService.confirmProbationWithLetter({
+      tenantId,
+      actorUserId: actorId,
+      probationId: req.params.id,
+      performanceRating,
+      remarks,
+    });
+    return res.json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message || "Failed to confirm probation." });
+  }
+}
+
+hrLifecycleRouter.put("/probation/:id/confirm", requireHrAdmin, handleConfirmProbation);
+hrLifecycleRouter.post("/probation/:id/confirm", requireHrAdmin, handleConfirmProbation);
+
+// Manager Review Submission
+hrLifecycleRouter.post("/probation/:id/manager-review", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const updated = await ProbationService.submitManagerReview({
+      tenantId,
+      actorUserId: actorId,
+      probationId: req.params.id,
+      review: req.body,
+    });
+    return res.json(updated);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to submit manager review." });
   }
 });
 

@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { documentService } from "../services/document.service.js";
+import { ContractLifecycleService } from "../services/contract-lifecycle.service.js";
 
 export const hrDocumentsRouter = Router();
 
@@ -200,6 +201,16 @@ hrDocumentsRouter.delete("/contract-types/:id", requireAuth, async (req: AuthReq
 });
 
 // Employee Contracts
+hrDocumentsRouter.get("/contracts/overview", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const overview = await ContractLifecycleService.getContractOverview(tenantId);
+    return res.json(overview);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 hrDocumentsRouter.get("/contracts", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
@@ -208,7 +219,19 @@ hrDocumentsRouter.get("/contracts", requireAuth, async (req: AuthRequest, res: R
       status: req.query.status as string,
       contractTypeId: req.query.contractTypeId as string,
     });
-    return res.json(contracts);
+    const now = new Date();
+    const evaluated = contracts.map((c: any) => {
+      const cls = ContractLifecycleService.classifyContract(c, now);
+      return {
+        ...c,
+        classification: cls.classification,
+        daysRemaining: cls.daysRemaining,
+        isExpired: cls.isExpired,
+        isExpiringSoon: cls.isExpiringSoon,
+        stage: cls.stage,
+      };
+    });
+    return res.json(evaluated);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -219,6 +242,23 @@ hrDocumentsRouter.post("/contracts", requireAuth, async (req: AuthRequest, res: 
     const tenantId = req.user?.tenantId!;
     const contract = await documentService.createContract(tenantId, req.body);
     return res.status(201).json(contract);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /contracts/:id/renew (Contract Renewal Lifecycle)
+hrDocumentsRouter.post("/contracts/:id/renew", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const result = await ContractLifecycleService.renewContract({
+      tenantId,
+      actorUserId: actorId,
+      predecessorId: req.params.id,
+      renewal: req.body,
+    });
+    return res.status(201).json(result);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
   }

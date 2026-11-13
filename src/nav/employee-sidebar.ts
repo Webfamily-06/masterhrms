@@ -69,6 +69,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       EMPLOYEE_CHAT_NAV_GROUP,
       { label: "Notifications", path: "/me/notifications", icon: "ph-bell" },
       { label: "My Profile", path: "/me/profile", icon: "ph-user" },
+      { label: "Profile Change Requests", path: "/me/profile/change-requests", icon: "ph-file-text" },
       { label: "Employee Directory", path: "/me/employees", icon: "ph-users" },
       {
         label: "Organization",

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  FileText,
   User,
   Phone,
   Briefcase,
@@ -357,15 +358,23 @@ export function MyProfilePage() {
                   Modifying statutory or banking fields requires HR verification and approval.
                 </CardDescription>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenChangeRequest("bank", "bankAccount")}
-                className="h-7 text-xs gap-1"
-              >
-                <Send className="h-3 w-3" />
-                Request Update
-              </Button>
+              <div className="flex items-center gap-2">
+                <Link to={"/me/profile/change-requests" as any}>
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1 border-primary/40 text-primary">
+                    <FileText className="h-3 w-3" />
+                    Request Centre
+                  </Button>
+                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenChangeRequest("bank", "bankAccount")}
+                  className="h-7 text-xs gap-1"
+                >
+                  <Send className="h-3 w-3" />
+                  Request Update
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="space-y-2">
