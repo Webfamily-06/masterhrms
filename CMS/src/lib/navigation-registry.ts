@@ -76,12 +76,33 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "id": "hr-approvals",
     "portal": "hr",
     "module": "approvals",
-    "label": "Approvals",
+    "label": "Approval",
     "route": "/hr/approvals",
     "icon": "FileCheck",
     "order": 35,
     "section": "Overview",
-    "permission": "hr.manage"
+    "children": [
+      {
+        "id": "hr-approvals-queue",
+        "portal": "hr",
+        "module": "approvals",
+        "label": "Approvals",
+        "route": "/hr/approvals",
+        "icon": "FileCheck",
+        "order": 1,
+        "permission": "hr.manage"
+      },
+      {
+        "id": "hr-profile-changes",
+        "portal": "hr",
+        "module": "approvals",
+        "label": "Profile Change Requests",
+        "route": "/hr/requests/profile-changes",
+        "icon": "ClipboardCheck",
+        "order": 2,
+        "permission": "hr.employees.view"
+      }
+    ]
   },
   {
     "id": "hr-employees",

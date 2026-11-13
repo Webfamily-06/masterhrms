@@ -108,6 +108,47 @@ export class LeaveService {
       warnings.push("An overlapping leave application already exists for this period.");
     }
 
+    // 3b. Workforce Category & Contract Tenure Boundary Enforcement
+    const empRecord = await rawPrisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { employmentCategory: true, employmentType: true },
+    });
+
+    if (empRecord) {
+      if (
+        empRecord.employmentCategory === "vendor_outsourced" ||
+        empRecord.employmentCategory === "consultant_freelancer"
+      ) {
+        warnings.push(
+          "External contractors and consultants under Accounts Payable cannot apply for statutory paid employee leaves. Please submit invoice adjustments or timesheet notes."
+        );
+      }
+
+      const activeContract = await rawPrisma.employeeContract.findFirst({
+        where: { tenantId, employeeId, status: "active" },
+        orderBy: { startDate: "desc" },
+      });
+
+      if (activeContract) {
+        const cStart = new Date(activeContract.startDate);
+        cStart.setUTCHours(0, 0, 0, 0);
+        if (start < cStart) {
+          warnings.push(
+            `Leave start date cannot precede active contract start date (${cStart.toISOString().slice(0, 10)}).`
+          );
+        }
+        if (activeContract.endDate) {
+          const cEnd = new Date(activeContract.endDate);
+          cEnd.setUTCHours(23, 59, 59, 999);
+          if (end > cEnd) {
+            warnings.push(
+              `Leave end date cannot exceed active contract expiry date (${cEnd.toISOString().slice(0, 10)}).`
+            );
+          }
+        }
+      }
+    }
+
     // 4. Calculate day by day
     const breakdown: DayBreakdown[] = [];
     let deductibleDays = 0;

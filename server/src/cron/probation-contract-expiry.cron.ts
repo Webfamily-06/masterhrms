@@ -114,11 +114,12 @@ export async function runProbationContractExpiryCron(
         }
 
         // ── 2. CONTRACT EXPIRY MONITORING & REMINDERS ───────────────────
+        const settings = await ContractLifecycleService.getTenantExpirySettings(tenantId, db);
         const candidateContracts = await db.employeeContract.findMany({
           where: {
             tenantId,
             endDate: { not: null },
-            status: { notIn: ["renewed", "superseded", "terminated"] },
+            status: { notIn: ["renewed", "superseded", "terminated", "converted"] },
           },
           include: {
             employee: {
@@ -136,7 +137,7 @@ export async function runProbationContractExpiryCron(
 
         for (const contract of candidateContracts) {
           try {
-            const cls = ContractLifecycleService.classifyContract(contract, referenceDate);
+            const cls = ContractLifecycleService.classifyContract(contract, referenceDate, settings.reminderIntervals);
 
             // Auto-transition past due contracts to 'expired'
             if (cls.isExpired && contract.status !== "expired") {
@@ -154,6 +155,7 @@ export async function runProbationContractExpiryCron(
                 stage: cls.stage,
                 daysRemaining: cls.daysRemaining || 0,
                 dbOverride: db,
+                settings,
               });
 
               if (dispatchRes.dispatched) {

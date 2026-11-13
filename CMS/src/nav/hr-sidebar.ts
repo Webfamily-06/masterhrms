@@ -51,7 +51,14 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       { label: "Dashboard", path: "/hr/dashboard", icon: "ph-squares-four", permission: "hrm.dashboard.view" },
       { label: "Calendar", path: "/hr/calendar", icon: "ph-calendar", permission: "hrm.dashboard.view" },
-      { label: "Approvals", path: "/hr/approvals", icon: "ph-check-circle", permission: "hrm.manage" },
+      {
+        label: "Approval",
+        icon: "ph-check-circle",
+        children: [
+          { label: "Approvals", path: "/hr/approvals", permission: "hrm.manage" },
+          { label: "Profile Change Requests", path: "/hr/requests/profile-changes", permission: "hrm.employees.view" },
+        ],
+      },
       { label: "Notifications", path: "/hr/notifications", icon: "ph-bell", permission: "hrm.dashboard.view" },
     ],
   },
@@ -92,12 +99,6 @@ export const hrSidebar: HRMenuItem[] = [
         label: "Employees",
         path: "/hr/employees",
         icon: "ph-users",
-        permission: "hrm.employees.view",
-      },
-      {
-        label: "Profile Change Requests",
-        path: "/hr/requests/profile-changes",
-        icon: "ph-clipboard-text",
         permission: "hrm.employees.view",
       },
       {

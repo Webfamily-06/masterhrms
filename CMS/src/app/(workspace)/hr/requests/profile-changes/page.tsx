@@ -200,13 +200,13 @@ export default function CMSHRProfileChangeRequestsPage() {
   };
 
   return (
-    <div className="flex-1 space-y-6 p-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       <PageHeader
         title="Profile Change Requests Queue"
         description="Review, verify, and approve employee profile change submissions across the organization."
         breadcrumbs={[
           { label: "HR Workspace", href: "/hr" },
-          { label: "Employees", href: "/hr/employees" },
+          { label: "Approval", href: "/hr/approvals" },
           { label: "Profile Change Requests" },
         ]}
         actions={
@@ -220,7 +220,7 @@ export default function CMSHRProfileChangeRequestsPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Total Submissions" value={summary.total || 0} variant="default" />
         <StatCard label="Pending Approval" value={summary.pending || 0} variant="warning" />
         <StatCard label="Needs Correction" value={summary.correctionRequested || 0} variant="purple" />
@@ -269,12 +269,12 @@ export default function CMSHRProfileChangeRequestsPage() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
             <Select
               value={selectedCategory}
               onValueChange={(val) => { setSelectedCategory(val); setPage(1); }}
             >
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-full sm:w-[180px] h-9">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -287,11 +287,11 @@ export default function CMSHRProfileChangeRequestsPage() {
               </SelectContent>
             </Select>
 
-            <div className="relative w-full md:w-64">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search employee..."
-                className="pl-8 h-9"
+                className="pl-8 h-9 w-full"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
               />

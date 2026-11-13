@@ -314,8 +314,8 @@ employeeSelfServiceRouter.get("/dashboard", async (req: EmployeeAuthRequest, res
   const tenantId = req.user!.tenantId!;
 
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     // 1. Attendance today
     const attendanceToday = await db.attendance.findFirst({
@@ -327,20 +327,30 @@ employeeSelfServiceRouter.get("/dashboard", async (req: EmployeeAuthRequest, res
       orderBy: { createdAt: "desc" },
     });
 
-    // 2. Active announcements
+    // 2. Active announcements (scoped to employee eligibility)
     const announcements = await db.announcement.findMany({
       where: {
         tenantId,
+        status: "published",
+        publishDate: { lte: new Date() },
+        OR: [
+          { targetType: "all_company" },
+          ...(req.employee?.departmentId ? [{ targetType: "department", targetDepartmentId: req.employee.departmentId }] : []),
+          ...(req.employee?.branchId ? [{ targetType: "branch", targetBranchId: req.employee.branchId }] : []),
+        ],
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
       take: 5,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        category: true,
-        isPinned: true,
-        createdAt: true,
+      include: {
+        categoryModel: true,
+        acknowledgements: {
+          where: { employeeId },
+          select: { id: true, acknowledgedAt: true },
+        },
+        views: {
+          where: { employeeId },
+          select: { id: true, viewCount: true },
+        },
       },
     });
 
@@ -431,8 +441,7 @@ employeeSelfServiceRouter.post("/attendance/check-in", async (req: EmployeeAuthR
   const employeeId = req.employee!.id;
   const tenantId = req.user!.tenantId!;
   const now = new Date();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
   try {
     const existing = await db.attendance.findFirst({
@@ -496,8 +505,7 @@ employeeSelfServiceRouter.post("/attendance/check-out", async (req: EmployeeAuth
   const employeeId = req.employee!.id;
   const tenantId = req.user!.tenantId!;
   const now = new Date();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
   try {
     const existing = await db.attendance.findFirst({
@@ -579,8 +587,8 @@ employeeSelfServiceRouter.post("/regularizations", async (req: EmployeeAuthReque
   }
 
   try {
-    const targetDate = new Date(attendanceDate);
-    targetDate.setHours(0, 0, 0, 0);
+    const d = new Date(attendanceDate);
+    const targetDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 
     const record = await db.attendanceRegularization.create({
       data: {
@@ -2072,20 +2080,73 @@ employeeSelfServiceRouter.get("/organization/announcements", async (req: Employe
   const tenantId = req.user!.tenantId!;
   const employeeId = req.employee!.id;
   const departmentId = req.employee!.departmentId;
+  const branchId = req.employee!.branchId;
+
+  const { tab = "all", category, search } = req.query;
 
   try {
+    const now = new Date();
+    const where: any = {
+      tenantId,
+      OR: [
+        { targetType: "all_company" },
+        ...(departmentId ? [{ targetType: "department", targetDepartmentId: departmentId }] : []),
+        ...(branchId ? [{ targetType: "branch", targetBranchId: branchId }] : []),
+      ],
+    };
+
+    if (tab === "high_priority") {
+      where.status = "published";
+      where.publishDate = { lte: now };
+      where.priority = { in: ["urgent", "high"] };
+    } else if (tab === "featured") {
+      where.status = "published";
+      where.publishDate = { lte: now };
+      where.isPinned = true;
+    } else if (tab === "upcoming") {
+      where.OR = [
+        { status: "scheduled" },
+        { publishDate: { gt: now } },
+      ];
+    } else {
+      // "all" - standard active published feed
+      where.status = "published";
+      where.publishDate = { lte: now };
+    }
+
+    if (category && category !== "all") {
+      where.OR = [
+        { category: String(category) },
+        { categoryId: String(category) },
+      ];
+    }
+
+    if (search) {
+      const q = String(search);
+      where.AND = [
+        {
+          OR: [
+            { title: { contains: q, mode: "insensitive" } },
+            { summary: { contains: q, mode: "insensitive" } },
+            { content: { contains: q, mode: "insensitive" } },
+          ],
+        },
+      ];
+    }
+
     const announcements = await db.announcement.findMany({
-      where: {
-        tenantId,
-        OR: [
-          { targetType: "all_company" },
-          ...(departmentId ? [{ targetType: "department", targetDepartmentId: departmentId }] : []),
-        ],
-      },
+      where,
       include: {
+        categoryModel: true,
+        targetDepartment: true,
+        targetBranch: true,
         acknowledgements: {
           where: { employeeId },
-          select: { id: true, acknowledgedAt: true },
+          select: { id: true, acknowledgedAt: true, comments: true },
+        },
+        views: {
+          where: { employeeId },
+          select: { id: true, viewedAt: true, viewCount: true },
         },
       },
       orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
@@ -2095,6 +2156,10 @@ employeeSelfServiceRouter.get("/organization/announcements", async (req: Employe
       ...a,
       hasAcknowledged: a.acknowledgements.length > 0,
       acknowledgedAt: a.acknowledgements[0]?.acknowledgedAt || null,
+      ackComments: a.acknowledgements[0]?.comments || null,
+      hasViewed: a.views.length > 0,
+      myViewCount: a.views[0]?.viewCount || 0,
+      myLastViewedAt: a.views[0]?.viewedAt || null,
     }));
 
     return res.json({
@@ -2104,6 +2169,47 @@ employeeSelfServiceRouter.get("/organization/announcements", async (req: Employe
   } catch (err: any) {
     console.error("[GET /me/organization/announcements] Error:", err);
     return res.status(500).json({ error: "Failed to fetch announcements" });
+  }
+});
+
+// =========================================================================
+// P2 ESS: RECORD VIEW (POST /api/v1/me/organization/announcements/:id/view)
+// =========================================================================
+employeeSelfServiceRouter.post("/organization/announcements/:id/view", async (req: EmployeeAuthRequest, res: Response) => {
+  const db = rawPrisma || prisma;
+  const tenantId = req.user!.tenantId!;
+  const employeeId = req.employee!.id;
+  const announcementId = req.params.id;
+
+  try {
+    await db.announcementView.upsert({
+      where: {
+        announcementId_employeeId: {
+          announcementId,
+          employeeId,
+        },
+      },
+      create: {
+        tenantId,
+        announcementId,
+        employeeId,
+        viewCount: 1,
+      },
+      update: {
+        viewCount: { increment: 1 },
+        lastViewedAt: new Date(),
+      },
+    });
+
+    await db.announcement.update({
+      where: { id: announcementId },
+      data: { viewCount: { increment: 1 } },
+    });
+
+    return res.json({ success: true, message: "Announcement view recorded" });
+  } catch (err: any) {
+    console.error("[POST /me/organization/announcements/:id/view] Error:", err);
+    return res.status(500).json({ error: "Failed to record view" });
   }
 });
 
@@ -2135,7 +2241,7 @@ employeeSelfServiceRouter.post("/organization/announcements/:id/acknowledge", as
         tenantId,
         announcementId,
         employeeId,
-        comments: req.body?.comments || null,
+        comments: req.body?.comments || "Acknowledged and agreed.",
       },
     });
 

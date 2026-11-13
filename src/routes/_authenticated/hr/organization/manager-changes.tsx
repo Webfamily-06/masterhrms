@@ -50,7 +50,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/hr/organization/manager-changes" as any)({
+export const Route = createFileRoute("/_authenticated/hr/organization/manager-changes")({
   component: HrManagerChangesPage,
   head: () => ({
     meta: [{ title: "Reporting Manager Changes — Master HRMS" }],

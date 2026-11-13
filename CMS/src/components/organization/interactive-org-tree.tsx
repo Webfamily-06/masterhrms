@@ -50,8 +50,12 @@ import {
   Layers,
   Award,
   History,
+  Download,
+  ImageIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { sanitizeDocumentForCanvas, sanitizeOklchColorString } from "@/lib/canvas-oklch-converter";
 
 // Types matching backend OrganizationTreeService
 export interface OrgTreeNode {
@@ -419,6 +423,117 @@ export function InteractiveOrgTree() {
     maxHierarchyDepth: 1,
   };
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  const handleExportTree = async (format: "png" | "pdf") => {
+    if (!treeContainerRef.current) return;
+    try {
+      setIsExporting(true);
+      toast.info(`Preparing full organization hierarchy ${format.toUpperCase()} export...`);
+
+      // 1. Temporarily expand all collapsed nodes so complete tree is captured
+      const prevCollapsed = new Set(collapsedNodes);
+      setCollapsedNodes(new Set());
+
+      // Wait for layout and SVG connector recalculation
+      await new Promise((r) => setTimeout(r, 450));
+
+      const targetEl = treeContainerRef.current;
+      const html2canvasModule = await import("html2canvas");
+      const html2canvas = html2canvasModule.default || html2canvasModule;
+
+      // Wrap getComputedStyle on host window and iframe window to intercept and convert any oklch/oklab colors
+      const patchWindowComputedStyle = (win: Window) => {
+        const orig = win.getComputedStyle;
+        win.getComputedStyle = function (el: Element, pseudo?: string | null) {
+          const style = orig.call(win, el, pseudo);
+          return new Proxy(style, {
+            get(target, prop) {
+              const val = (target as any)[prop];
+              if (typeof val === "string" && (val.includes("oklch") || val.includes("oklab"))) {
+                return sanitizeOklchColorString(val);
+              }
+              if (prop === "getPropertyValue") {
+                return (propertyName: string) => {
+                  const v = target.getPropertyValue(propertyName);
+                  return typeof v === "string" && (v.includes("oklch") || v.includes("oklab"))
+                    ? sanitizeOklchColorString(v)
+                    : v;
+                };
+              }
+              return typeof val === "function" ? val.bind(target) : val;
+            },
+          });
+        };
+        return () => {
+          win.getComputedStyle = orig;
+        };
+      };
+
+      const restoreHost = patchWindowComputedStyle(window);
+
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await html2canvas(targetEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+          logging: false,
+          windowWidth: targetEl.scrollWidth + 100,
+          windowHeight: targetEl.scrollHeight + 100,
+          onclone: (clonedDoc: Document, clonedEl: HTMLElement) => {
+            const cloneWin = clonedDoc.defaultView;
+            if (cloneWin && cloneWin !== window) {
+              patchWindowComputedStyle(cloneWin);
+            }
+            sanitizeDocumentForCanvas(clonedDoc, clonedEl);
+          },
+        });
+      } finally {
+        restoreHost();
+      }
+
+      if (format === "png") {
+        const link = document.createElement("a");
+        link.download = `organization-tree-${new Date().toISOString().slice(0, 10)}.png`;
+        link.href = canvas.toDataURL("image/png");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("Organization Tree exported as PNG successfully!");
+      } else {
+        const { jsPDF } = await import("jspdf");
+        const imgData = canvas.toDataURL("image/png");
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+
+        const pdfWidth = Math.max(842, canvasWidth * 0.5);
+        const pdfHeight = Math.max(595, canvasHeight * 0.5);
+        const orientation = canvasWidth >= canvasHeight ? "landscape" : "portrait";
+
+        const pdf = new jsPDF({
+          orientation,
+          unit: "pt",
+          format: [pdfWidth, pdfHeight],
+        });
+
+        pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
+        toast.success("Organization Tree exported as PDF successfully!");
+      }
+
+      // Restore collapsed nodes
+      setCollapsedNodes(prevCollapsed);
+    } catch (err: any) {
+      console.error("HTML2CANVAS EXPORT ERROR:", err, err?.stack);
+      toast.error("Failed to export organization tree: " + (err.message || err));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const orgChartNodes: OrgTreeNode[] = employeeTreeData?.orgChart || [];
   const orphanNodes: OrgTreeNode[] = employeeTreeData?.unassigned || [];
   const departmentNodes: DepartmentTreeNode[] = departmentTreeData?.departments || [];
@@ -473,6 +588,56 @@ export function InteractiveOrgTree() {
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </Button>
+
+          {/* Export Dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              disabled={isExporting}
+              className="gap-1.5 text-xs font-semibold h-10 sm:h-8 border-input shadow-xs"
+            >
+              <Download className="h-3.5 w-3.5 text-indigo-600" />
+              <span>{isExporting ? "Exporting..." : "Export Chart"}</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </Button>
+            {isExportMenuOpen && (
+              <div
+                className="absolute right-0 mt-1 w-52 rounded-lg border bg-popover text-popover-foreground shadow-lg z-50 py-1 text-xs"
+                onMouseLeave={() => setIsExportMenuOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportTree("png");
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/70 transition-colors"
+                >
+                  <ImageIcon className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Export as PNG</p>
+                    <p className="text-[10px] text-muted-foreground">High-resolution image (.png)</p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportTree("pdf");
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-muted/70 transition-colors"
+                >
+                  <img src="/pdf.svg" alt="PDF" className="h-4 w-4 shrink-0 object-contain" />
+                  <div>
+                    <p className="font-semibold text-foreground">Export as PDF</p>
+                    <p className="text-[10px] text-muted-foreground">Full hierarchy document (.pdf)</p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1676,6 +1841,16 @@ function EmployeeCard({
             : "bg-muted-foreground/30"
         )}
       />
+
+      {/* Top Connector Anchor Dot (Visual joining point for inbound lines) */}
+      {node.depth > 0 && (
+        <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-card border-2 border-indigo-500 z-20 shadow-xs pointer-events-none" />
+      )}
+
+      {/* Bottom Connector Anchor Dot (Visual joining point for outbound lines) */}
+      {hasSubordinates && !isCollapsed && (
+        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-card border-2 border-indigo-500 z-20 shadow-xs pointer-events-none" />
+      )}
 
       {/* Top Row: Avatar + Status + Code */}
       <div className="flex items-center justify-between gap-2 pt-1 mb-2">

@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { useCurrentProfile } from "@/lib/session";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { EmployeeAnnouncementsWidget } from "@/components/announcements/employee-announcements-widget";
 import {
   Dialog,
   DialogContent,
@@ -531,6 +532,9 @@ export default function EmployeeDashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Company Announcements Widget ── */}
+      <EmployeeAnnouncementsWidget />
 
       {/* ── Section 2: Punch Clock & Daily Hours Tracking ── */}
       <div className="grid grid-cols-12 gap-4">

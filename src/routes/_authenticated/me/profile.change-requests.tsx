@@ -50,7 +50,7 @@ import {
   Info,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/me/profile/change-requests" as any)({
+export const Route = createFileRoute("/_authenticated/me/profile/change-requests")({
   component: ProfileChangeRequestsPage,
   head: () => ({
     meta: [{ title: "Profile Change Requests — Master HRMS" }],

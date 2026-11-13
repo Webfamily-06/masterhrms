@@ -299,6 +299,44 @@ export const api = {
     }),
   upload: <T = any>(endpoint: string, formData: FormData) =>
     apiRequest<T>(endpoint, { method: "POST", body: formData }),
+  getBlob: async (endpoint: string): Promise<Blob> => {
+    let clean = endpoint.trim();
+    let url = clean;
+    if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+      if (typeof window !== "undefined") {
+        url = clean.startsWith("/") ? clean : `/${clean}`;
+      } else {
+        const base = (API_BASE || "").replace(/\/+$/, "");
+        url = clean.startsWith("/api") ? `${base.replace(/\/api$/, "")}${clean}` : `${base}/${clean.replace(/^\/+/, "")}`;
+      }
+    }
+    const token = getAuthToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await fetch(url, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || `Download failed with HTTP ${res.status}`);
+    }
+    return res.blob();
+  },
+  download: async (endpoint: string, defaultFilename: string): Promise<void> => {
+    const blob = await api.getBlob(endpoint);
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = defaultFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(downloadUrl);
+  },
 };
 
 /**

@@ -38,6 +38,8 @@ const EMPLOYEE_SUBMENU_KEY_MAP: Record<string, string> = {
 };
 
 const HR_SUBMENU_KEY_MAP: Record<string, string> = {
+  Approval: "hrApprovals",
+  Approvals: "hrApprovals",
   Organization: "hrOrg",
   Attendance: "hrAttendance",
   "Leave Management": "hrLeave",
@@ -75,6 +77,7 @@ const HR_ICON_MAP: Record<string, string> = {
   Calendar: "ph-calendar",
   "My Tasks": "ph-check-square",
   "Team Chat": "ph-chat-circle-dots",
+  Approval: "ph-check-circle",
   Approvals: "ph-check-circle",
   Notifications: "ph-bell",
 
@@ -190,6 +193,7 @@ export function DreamsSidebar({
     meDocs: false,
     meMedia: false,
     // HR portal submenus
+    hrApprovals: false,
     hrOrg: false,
     hrAttendance: false,
     hrLeave: false,
@@ -230,6 +234,7 @@ export function DreamsSidebar({
     if (currentPath.startsWith("/me/documents")) setOpenMenus((p) => ({ ...p, meDocs: true }));
     if (currentPath.startsWith("/me/media")) setOpenMenus((p) => ({ ...p, meMedia: true }));
     if (currentPath.startsWith("/me/chat")) setOpenMenus((p) => ({ ...p, meChat: true }));
+    if (currentPath.startsWith("/hr/approvals") || currentPath.startsWith("/hr/requests/profile-changes")) setOpenMenus((p) => ({ ...p, hrApprovals: true }));
     if (currentPath.startsWith("/hr/organization")) setOpenMenus((p) => ({ ...p, hrOrg: true }));
     if (currentPath.startsWith("/hr/attendance")) setOpenMenus((p) => ({ ...p, hrAttendance: true }));
     if (currentPath.startsWith("/hr/leave")) setOpenMenus((p) => ({ ...p, hrLeave: true }));

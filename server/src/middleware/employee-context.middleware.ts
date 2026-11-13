@@ -10,6 +10,7 @@ export interface EmployeeAuthRequest extends AuthRequest {
     lastName: string;
     email: string;
     departmentId: string | null;
+    branchId?: string | null;
     designationId: string | null;
     managerId: string | null;
     status: string;
@@ -47,6 +48,7 @@ export async function requireEmployee(
         lastName: true,
         email: true,
         departmentId: true,
+        branchId: true,
         designationId: true,
         managerId: true,
         status: true,

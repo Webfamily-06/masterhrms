@@ -345,11 +345,17 @@ export class DocumentService {
     employeeId?: string;
     status?: string;
     contractTypeId?: string;
+    category?: string;
+    paymentWorkflow?: string;
+    supplierId?: string;
   } = {}) {
     const where: any = { tenantId };
     if (options.employeeId) where.employeeId = options.employeeId;
     if (options.status) where.status = options.status;
     if (options.contractTypeId) where.contractTypeId = options.contractTypeId;
+    if (options.category && options.category !== "ALL") where.category = options.category;
+    if (options.paymentWorkflow && options.paymentWorkflow !== "ALL") where.paymentWorkflow = options.paymentWorkflow;
+    if (options.supplierId) where.supplierId = options.supplierId;
 
     return this.getClient().employeeContract.findMany({
       where,
@@ -360,9 +366,11 @@ export class DocumentService {
             firstName: true,
             lastName: true,
             employeeCode: true,
+            employmentCategory: true,
           },
         },
         contractType: true,
+        supplier: true,
       },
       orderBy: { startDate: 'desc' },
     });
@@ -378,9 +386,11 @@ export class DocumentService {
             firstName: true,
             lastName: true,
             employeeCode: true,
+            employmentCategory: true,
           },
         },
         contractType: true,
+        supplier: true,
       },
     });
     if (!c) throw new Error('Contract not found');
@@ -389,23 +399,44 @@ export class DocumentService {
 
   async createContract(tenantId: string, data: {
     employeeId: string;
+    contractNumber?: string;
     contractTypeId?: string;
+    category?: string;
+    paymentWorkflow?: string;
+    supplierId?: string;
     title: string;
     startDate: string | Date;
     endDate?: string | Date;
     salary?: number;
+    hourlyRate?: number;
+    billingFrequency?: string;
+    noticePeriodDays?: number;
+    autoRenew?: boolean;
     notes?: string;
   }) {
-    return this.getClient().employeeContract.create({
+    const startDate = new Date(data.startDate);
+    const generatedNumber = data.contractNumber || `CNT-${startDate.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const category = data.category || "direct_contract";
+    const paymentWorkflow = data.paymentWorkflow || (category === "vendor_outsourced" || category === "consultant_freelancer" ? "ACCOUNTS_PAYABLE" : "PAYROLL");
+
+    const created = await this.getClient().employeeContract.create({
       data: {
         tenantId,
         employeeId: data.employeeId,
-        contractTypeId: data.contractTypeId,
+        contractNumber: generatedNumber,
+        contractTypeId: data.contractTypeId || null,
+        category,
+        paymentWorkflow,
+        supplierId: data.supplierId || null,
         title: data.title,
-        startDate: new Date(data.startDate),
+        startDate,
         endDate: data.endDate ? new Date(data.endDate) : null,
         salary: data.salary ? Number(data.salary) : null,
-        notes: data.notes,
+        hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : null,
+        billingFrequency: data.billingFrequency || "monthly",
+        noticePeriodDays: data.noticePeriodDays ?? 30,
+        autoRenew: data.autoRenew ?? false,
+        notes: data.notes || null,
         status: 'active',
       },
       include: {
@@ -415,19 +446,53 @@ export class DocumentService {
             firstName: true,
             lastName: true,
             employeeCode: true,
+            employmentCategory: true,
           },
         },
         contractType: true,
+        supplier: true,
       },
     });
+
+    // Auto-sync employee's category, supplier, and employmentType
+    try {
+      const empUpdate: any = {
+        employmentCategory: category,
+      };
+      if (data.supplierId) empUpdate.supplierId = data.supplierId;
+      if (category === "intern") {
+        empUpdate.employmentType = "intern";
+      } else if (category === "permanent") {
+        empUpdate.employmentType = "full_time";
+      } else {
+        empUpdate.employmentType = "contract";
+      }
+
+      await this.getClient().employee.update({
+        where: { id: data.employeeId },
+        data: empUpdate,
+      });
+    } catch (empSyncErr: any) {
+      console.warn("[documentService] Failed to sync employee attributes:", empSyncErr.message);
+    }
+
+    return created;
   }
 
   async updateContract(tenantId: string, id: string, data: {
-    title?: string;
+    contractNumber?: string;
     contractTypeId?: string;
+    category?: string;
+    paymentWorkflow?: string;
+    supplierId?: string;
+    title?: string;
     startDate?: string | Date;
     endDate?: string | Date;
     salary?: number;
+    hourlyRate?: number;
+    billingFrequency?: string;
+    noticePeriodDays?: number;
+    autoRenew?: boolean;
     notes?: string;
     status?: string;
   }) {
@@ -438,11 +503,42 @@ export class DocumentService {
     if (data.startDate) updateData.startDate = new Date(data.startDate);
     if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
     if (data.salary !== undefined) updateData.salary = data.salary ? Number(data.salary) : null;
+    if (data.hourlyRate !== undefined) updateData.hourlyRate = data.hourlyRate ? Number(data.hourlyRate) : null;
 
-    return this.getClient().employeeContract.update({
+    const updated = await this.getClient().employeeContract.update({
       where: { id },
       data: updateData,
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            employmentCategory: true,
+          },
+        },
+        contractType: true,
+        supplier: true,
+      },
     });
+
+    // Auto-sync employee category/supplier if updated
+    if (data.category || data.supplierId !== undefined) {
+      try {
+        const empUpdate: any = {};
+        if (data.category) empUpdate.employmentCategory = data.category;
+        if (data.supplierId !== undefined) empUpdate.supplierId = data.supplierId || null;
+        await this.getClient().employee.update({
+          where: { id: c.employeeId },
+          data: empUpdate,
+        });
+      } catch (err: any) {
+        console.warn("[documentService] Failed to sync employee on update:", err.message);
+      }
+    }
+
+    return updated;
   }
 
   async deleteContract(tenantId: string, id: string) {

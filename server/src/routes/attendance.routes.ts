@@ -817,11 +817,9 @@ attendanceRouter.get("/daily-report", requireAuth, async (req: AuthRequest, res:
 
     const { date, status, sort = "desc" } = req.query;
 
-    const targetDate = date ? new Date(String(date)) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
-
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
+    const d = date ? new Date(String(date)) : new Date();
+    const targetDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const nextDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
 
     const where: any = {
       tenantId,

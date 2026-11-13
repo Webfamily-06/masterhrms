@@ -217,6 +217,9 @@ export class PayrollOrchestratorService {
     const employees = await db.employee.findMany({
       where: {
         tenantId,
+        employmentCategory: {
+          notIn: ["vendor_outsourced", "consultant_freelancer"],
+        },
         OR: [
           { status: "active" },
           {
@@ -445,6 +448,22 @@ export class PayrollOrchestratorService {
       loanByEmp.set(loan.employeeId, loan);
     }
 
+    // Fetch approved expense claims for payroll addition (Stage 9: Reimbursements)
+    const approvedClaims = await db.expenseClaim.findMany({
+      where: {
+        tenantId,
+        status: "finance_approved",
+        reimbursementMethod: "payroll_addition",
+        payrollRunId: null,
+      },
+    });
+    const claimsByEmp = new Map<string, any[]>();
+    for (const claim of approvedClaims) {
+      const list = claimsByEmp.get(claim.employeeId) || [];
+      list.push(claim);
+      claimsByEmp.set(claim.employeeId, list);
+    }
+
     let batchTotalGross = new Decimal(0);
     let batchTotalNet = new Decimal(0);
     let batchTotalDeductions = new Decimal(0);
@@ -488,6 +507,13 @@ export class PayrollOrchestratorService {
       const overtimeAmount = approvedOtHours > 0 ? hourlyRate * 2 * approvedOtHours : 0;
 
       // Stage 8: Statutory Deductions & Proration
+      // Stage 9: Reimbursements
+      const empClaims = claimsByEmp.get(emp.id) || [];
+      const reimbursementAmount = empClaims.reduce(
+        (sum: number, c: any) => sum + Number(c.amount || 0),
+        0
+      );
+
       const breakdown = computeEmployeePayrollBreakdown(
         {
           id: emp.id,
@@ -515,6 +541,7 @@ export class PayrollOrchestratorService {
           periodYear: run.periodYear,
           structureComponents: customComponents && customComponents.length > 0 ? customComponents : undefined,
           overtimeAmount,
+          reimbursements: reimbursementAmount,
         }
       );
 
@@ -542,6 +569,8 @@ export class PayrollOrchestratorService {
         lopDays,
         approvedOtHours,
         loanDeduction,
+        reimbursementAmount,
+        empClaims,
         breakdown,
         gross: finalGross,
         net: finalNet,
@@ -574,6 +603,8 @@ export class PayrollOrchestratorService {
             breakdown: {
               ...item.breakdown,
               loanRecovery: item.loanDeduction,
+              reimbursements: item.reimbursementAmount,
+              claimIds: item.empClaims.map((c: any) => c.id),
               attendance: {
                 monthDays,
                 payableDays: item.payableDays,
@@ -602,6 +633,8 @@ export class PayrollOrchestratorService {
               payslipId: payslip.id,
               ...item.breakdown,
               loanRecovery: item.loanDeduction,
+              reimbursements: item.reimbursementAmount,
+              claimIds: item.empClaims.map((c: any) => c.id),
               prorationFactor: item.emp.prorationFactor,
             },
           },
@@ -1329,7 +1362,8 @@ export class PayrollOrchestratorService {
               });
 
               if (!existingInstallment) {
-                const newBalance = Math.max(0, Number(loan.outstandingBalance) - loanRecovery);
+                const actualRecovery = Math.min(loanRecovery, Number(loan.outstandingBalance));
+                const newBalance = Math.max(0, Number(loan.outstandingBalance) - actualRecovery);
                 await tx.employeeLoan.update({
                   where: { id: loan.id },
                   data: {
@@ -1338,26 +1372,69 @@ export class PayrollOrchestratorService {
                   },
                 });
 
-                // Create installment record linked to payrollRunId
-                const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
-                await tx.loanInstallment.create({
-                  data: {
+                // Check if a scheduled installment already exists for this period
+                const pendingInstallment = await tx.loanInstallment.findFirst({
+                  where: {
                     loanId: loan.id,
-                    tenantId,
-                    installmentNumber: count + 1,
                     periodMonth: run.periodMonth,
                     periodYear: run.periodYear,
-                    emiAmount: loanRecovery,
-                    principalComponent: loanRecovery,
-                    interestComponent: 0,
-                    status: "paid",
-                    payrollRunId: runId,
-                    deductedAt: new Date(),
+                    status: { in: ["pending", "unpaid"] },
                   },
                 });
+
+                if (pendingInstallment) {
+                  await tx.loanInstallment.update({
+                    where: { id: pendingInstallment.id },
+                    data: {
+                      status: "paid",
+                      payrollRunId: runId,
+                      deductedAt: new Date(),
+                      emiAmount: actualRecovery,
+                      principalComponent: actualRecovery,
+                    },
+                  });
+                } else {
+                  // Create installment record linked to payrollRunId
+                  const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
+                  await tx.loanInstallment.create({
+                    data: {
+                      loanId: loan.id,
+                      tenantId,
+                      installmentNumber: count + 1,
+                      periodMonth: run.periodMonth,
+                      periodYear: run.periodYear,
+                      emiAmount: actualRecovery,
+                      principalComponent: actualRecovery,
+                      interestComponent: 0,
+                      status: "paid",
+                      payrollRunId: runId,
+                      deductedAt: new Date(),
+                    },
+                  });
+                }
               }
             }
           }
+        }
+
+        // Mark authorized expense claims as reimbursed (Stage 9: Reimbursements)
+        const allClaimIds: string[] = [];
+        for (const slip of run.payslips) {
+          const breakdown = slip.breakdown as any;
+          if (Array.isArray(breakdown?.claimIds) && breakdown.claimIds.length > 0) {
+            allClaimIds.push(...breakdown.claimIds);
+          }
+        }
+        if (allClaimIds.length > 0) {
+          await tx.expenseClaim.updateMany({
+            where: { id: { in: allClaimIds } },
+            data: {
+              status: "reimbursed",
+              payrollRunId: runId,
+              payrollMonth: `${run.periodYear}-${String(run.periodMonth).padStart(2, "0")}`,
+              reimbursedAt: new Date(),
+            },
+          });
         }
 
         // Update cycle to OUTPUTS_GENERATED

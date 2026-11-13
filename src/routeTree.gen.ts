@@ -319,6 +319,7 @@ import { Route as AuthenticatedHrChatGroupsRouteImport } from './routes/_authent
 import { Route as AuthenticatedHrDocumentsIndexRouteImport } from './routes/_authenticated/hr/documents/index'
 import { Route as AuthenticatedHrDocumentsAcknowledgementsRouteImport } from './routes/_authenticated/hr/documents/acknowledgements'
 import { Route as AuthenticatedHrDocumentsCategoriesRouteImport } from './routes/_authenticated/hr/documents/categories'
+import { Route as AuthenticatedHrDocumentsComplianceRouteImport } from './routes/_authenticated/hr/documents/compliance'
 import { Route as AuthenticatedHrDocumentsContractTemplatesRouteImport } from './routes/_authenticated/hr/documents/contract-templates'
 import { Route as AuthenticatedHrDocumentsContractTypesRouteImport } from './routes/_authenticated/hr/documents/contract-types'
 import { Route as AuthenticatedHrDocumentsContractsRouteImport } from './routes/_authenticated/hr/documents/contracts'
@@ -366,6 +367,7 @@ import { Route as AuthenticatedHrOrganizationDepartmentsRouteImport } from './ro
 import { Route as AuthenticatedHrOrganizationDesignationsRouteImport } from './routes/_authenticated/hr/organization/designations'
 import { Route as AuthenticatedHrOrganizationDocumentTypesRouteImport } from './routes/_authenticated/hr/organization/document-types'
 import { Route as AuthenticatedHrOrganizationHolidaysRouteImport } from './routes/_authenticated/hr/organization/holidays'
+import { Route as AuthenticatedHrOrganizationManagerChangesRouteImport } from './routes/_authenticated/hr/organization/manager-changes'
 import { Route as AuthenticatedHrOrganizationStructureRouteImport } from './routes/_authenticated/hr/organization/structure'
 import { Route as AuthenticatedHrOrganizationTreeRouteImport } from './routes/_authenticated/hr/organization/tree'
 import { Route as AuthenticatedHrPayrollIndexRouteImport } from './routes/_authenticated/hr/payroll/index'
@@ -419,6 +421,7 @@ import { Route as AuthenticatedHrReportsPerformanceRouteImport } from './routes/
 import { Route as AuthenticatedHrReportsRecruitmentRouteImport } from './routes/_authenticated/hr/reports/recruitment'
 import { Route as AuthenticatedHrReportsStatutoryRouteImport } from './routes/_authenticated/hr/reports/statutory'
 import { Route as AuthenticatedHrReportsTrainingRouteImport } from './routes/_authenticated/hr/reports/training'
+import { Route as AuthenticatedHrRequestsProfileChangesRouteImport } from './routes/_authenticated/hr/requests.profile-changes'
 import { Route as AuthenticatedHrTodoGanttRouteImport } from './routes/_authenticated/hr/todo.gantt'
 import { Route as AuthenticatedHrTrainingIndexRouteImport } from './routes/_authenticated/hr/training/index'
 import { Route as AuthenticatedHrTrainingEmployeeTrainingsRouteImport } from './routes/_authenticated/hr/training/employee-trainings'
@@ -476,6 +479,7 @@ import { Route as AuthenticatedMePerformanceCyclesRouteImport } from './routes/_
 import { Route as AuthenticatedMePerformanceGoalsRouteImport } from './routes/_authenticated/me/performance/goals'
 import { Route as AuthenticatedMePerformanceIndicatorsRouteImport } from './routes/_authenticated/me/performance/indicators'
 import { Route as AuthenticatedMePerformanceReviewsRouteImport } from './routes/_authenticated/me/performance/reviews'
+import { Route as AuthenticatedMeProfileChangeRequestsRouteImport } from './routes/_authenticated/me/profile.change-requests'
 import { Route as AuthenticatedMeRecruitmentIndexRouteImport } from './routes/_authenticated/me/recruitment/index'
 import { Route as AuthenticatedMeRecruitmentAssessmentsRouteImport } from './routes/_authenticated/me/recruitment/assessments'
 import { Route as AuthenticatedMeRecruitmentCareerRouteImport } from './routes/_authenticated/me/recruitment/career'
@@ -2304,6 +2308,12 @@ const AuthenticatedHrDocumentsCategoriesRoute =
     path: '/documents/categories',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
+const AuthenticatedHrDocumentsComplianceRoute =
+  AuthenticatedHrDocumentsComplianceRouteImport.update({
+    id: '/documents/compliance',
+    path: '/documents/compliance',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
 const AuthenticatedHrDocumentsContractTemplatesRoute =
   AuthenticatedHrDocumentsContractTemplatesRouteImport.update({
     id: '/documents/contract-templates',
@@ -2584,6 +2594,12 @@ const AuthenticatedHrOrganizationHolidaysRoute =
   AuthenticatedHrOrganizationHolidaysRouteImport.update({
     id: '/organization/holidays',
     path: '/organization/holidays',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrOrganizationManagerChangesRoute =
+  AuthenticatedHrOrganizationManagerChangesRouteImport.update({
+    id: '/organization/manager-changes',
+    path: '/organization/manager-changes',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
 const AuthenticatedHrOrganizationStructureRoute =
@@ -2902,6 +2918,12 @@ const AuthenticatedHrReportsTrainingRoute =
   AuthenticatedHrReportsTrainingRouteImport.update({
     id: '/reports/training',
     path: '/reports/training',
+    getParentRoute: () => AuthenticatedHrRoute,
+  } as any)
+const AuthenticatedHrRequestsProfileChangesRoute =
+  AuthenticatedHrRequestsProfileChangesRouteImport.update({
+    id: '/requests/profile-changes',
+    path: '/requests/profile-changes',
     getParentRoute: () => AuthenticatedHrRoute,
   } as any)
 const AuthenticatedHrTodoGanttRoute =
@@ -3245,6 +3267,12 @@ const AuthenticatedMePerformanceReviewsRoute =
     id: '/performance/reviews',
     path: '/performance/reviews',
     getParentRoute: () => AuthenticatedMeRoute,
+  } as any)
+const AuthenticatedMeProfileChangeRequestsRoute =
+  AuthenticatedMeProfileChangeRequestsRouteImport.update({
+    id: '/change-requests',
+    path: '/change-requests',
+    getParentRoute: () => AuthenticatedMeProfileRoute,
   } as any)
 const AuthenticatedMeRecruitmentIndexRoute =
   AuthenticatedMeRecruitmentIndexRouteImport.update({
@@ -3875,7 +3903,7 @@ export interface FileRoutesByFullPath {
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
-  '/me/profile': typeof AuthenticatedMeProfileRoute
+  '/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
   '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -3973,6 +4001,7 @@ export interface FileRoutesByFullPath {
   '/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
+  '/hr/documents/compliance': typeof AuthenticatedHrDocumentsComplianceRoute
   '/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
   '/hr/documents/contract-types': typeof AuthenticatedHrDocumentsContractTypesRoute
   '/hr/documents/contracts': typeof AuthenticatedHrDocumentsContractsRoute
@@ -4015,6 +4044,7 @@ export interface FileRoutesByFullPath {
   '/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
   '/hr/organization/holidays': typeof AuthenticatedHrOrganizationHolidaysRoute
+  '/hr/organization/manager-changes': typeof AuthenticatedHrOrganizationManagerChangesRoute
   '/hr/organization/structure': typeof AuthenticatedHrOrganizationStructureRoute
   '/hr/organization/tree': typeof AuthenticatedHrOrganizationTreeRoute
   '/hr/payroll/components': typeof AuthenticatedHrPayrollComponentsRoute
@@ -4065,6 +4095,7 @@ export interface FileRoutesByFullPath {
   '/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/hr/requests/profile-changes': typeof AuthenticatedHrRequestsProfileChangesRoute
   '/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
@@ -4113,6 +4144,7 @@ export interface FileRoutesByFullPath {
   '/me/performance/goals': typeof AuthenticatedMePerformanceGoalsRoute
   '/me/performance/indicators': typeof AuthenticatedMePerformanceIndicatorsRoute
   '/me/performance/reviews': typeof AuthenticatedMePerformanceReviewsRoute
+  '/me/profile/change-requests': typeof AuthenticatedMeProfileChangeRequestsRoute
   '/me/recruitment/assessments': typeof AuthenticatedMeRecruitmentAssessmentsRoute
   '/me/recruitment/career': typeof AuthenticatedMeRecruitmentCareerRoute
   '/me/recruitment/interview-rounds': typeof AuthenticatedMeRecruitmentInterviewRoundsRoute
@@ -4408,7 +4440,7 @@ export interface FileRoutesByTo {
   '/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
-  '/me/profile': typeof AuthenticatedMeProfileRoute
+  '/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
   '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -4506,6 +4538,7 @@ export interface FileRoutesByTo {
   '/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
+  '/hr/documents/compliance': typeof AuthenticatedHrDocumentsComplianceRoute
   '/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
   '/hr/documents/contract-types': typeof AuthenticatedHrDocumentsContractTypesRoute
   '/hr/documents/contracts': typeof AuthenticatedHrDocumentsContractsRoute
@@ -4548,6 +4581,7 @@ export interface FileRoutesByTo {
   '/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
   '/hr/organization/holidays': typeof AuthenticatedHrOrganizationHolidaysRoute
+  '/hr/organization/manager-changes': typeof AuthenticatedHrOrganizationManagerChangesRoute
   '/hr/organization/structure': typeof AuthenticatedHrOrganizationStructureRoute
   '/hr/organization/tree': typeof AuthenticatedHrOrganizationTreeRoute
   '/hr/payroll/components': typeof AuthenticatedHrPayrollComponentsRoute
@@ -4598,6 +4632,7 @@ export interface FileRoutesByTo {
   '/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/hr/requests/profile-changes': typeof AuthenticatedHrRequestsProfileChangesRoute
   '/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
@@ -4646,6 +4681,7 @@ export interface FileRoutesByTo {
   '/me/performance/goals': typeof AuthenticatedMePerformanceGoalsRoute
   '/me/performance/indicators': typeof AuthenticatedMePerformanceIndicatorsRoute
   '/me/performance/reviews': typeof AuthenticatedMePerformanceReviewsRoute
+  '/me/profile/change-requests': typeof AuthenticatedMeProfileChangeRequestsRoute
   '/me/recruitment/assessments': typeof AuthenticatedMeRecruitmentAssessmentsRoute
   '/me/recruitment/career': typeof AuthenticatedMeRecruitmentCareerRoute
   '/me/recruitment/interview-rounds': typeof AuthenticatedMeRecruitmentInterviewRoundsRoute
@@ -4948,7 +4984,7 @@ export interface FileRoutesById {
   '/_authenticated/me/helpdesk': typeof AuthenticatedMeHelpdeskRoute
   '/_authenticated/me/media': typeof AuthenticatedMeMediaRoute
   '/_authenticated/me/notifications': typeof AuthenticatedMeNotificationsRoute
-  '/_authenticated/me/profile': typeof AuthenticatedMeProfileRoute
+  '/_authenticated/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
   '/_authenticated/me/team': typeof AuthenticatedMeTeamRoute
   '/_authenticated/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/_authenticated/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -5046,6 +5082,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/chat/groups': typeof AuthenticatedHrChatGroupsRoute
   '/_authenticated/hr/documents/acknowledgements': typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   '/_authenticated/hr/documents/categories': typeof AuthenticatedHrDocumentsCategoriesRoute
+  '/_authenticated/hr/documents/compliance': typeof AuthenticatedHrDocumentsComplianceRoute
   '/_authenticated/hr/documents/contract-templates': typeof AuthenticatedHrDocumentsContractTemplatesRoute
   '/_authenticated/hr/documents/contract-types': typeof AuthenticatedHrDocumentsContractTypesRoute
   '/_authenticated/hr/documents/contracts': typeof AuthenticatedHrDocumentsContractsRoute
@@ -5088,6 +5125,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/organization/designations': typeof AuthenticatedHrOrganizationDesignationsRoute
   '/_authenticated/hr/organization/document-types': typeof AuthenticatedHrOrganizationDocumentTypesRoute
   '/_authenticated/hr/organization/holidays': typeof AuthenticatedHrOrganizationHolidaysRoute
+  '/_authenticated/hr/organization/manager-changes': typeof AuthenticatedHrOrganizationManagerChangesRoute
   '/_authenticated/hr/organization/structure': typeof AuthenticatedHrOrganizationStructureRoute
   '/_authenticated/hr/organization/tree': typeof AuthenticatedHrOrganizationTreeRoute
   '/_authenticated/hr/payroll/components': typeof AuthenticatedHrPayrollComponentsRoute
@@ -5138,6 +5176,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/reports/recruitment': typeof AuthenticatedHrReportsRecruitmentRoute
   '/_authenticated/hr/reports/statutory': typeof AuthenticatedHrReportsStatutoryRoute
   '/_authenticated/hr/reports/training': typeof AuthenticatedHrReportsTrainingRoute
+  '/_authenticated/hr/requests/profile-changes': typeof AuthenticatedHrRequestsProfileChangesRoute
   '/_authenticated/hr/todo/gantt': typeof AuthenticatedHrTodoGanttRoute
   '/_authenticated/hr/training/employee-trainings': typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   '/_authenticated/hr/training/programs': typeof AuthenticatedHrTrainingProgramsRoute
@@ -5186,6 +5225,7 @@ export interface FileRoutesById {
   '/_authenticated/me/performance/goals': typeof AuthenticatedMePerformanceGoalsRoute
   '/_authenticated/me/performance/indicators': typeof AuthenticatedMePerformanceIndicatorsRoute
   '/_authenticated/me/performance/reviews': typeof AuthenticatedMePerformanceReviewsRoute
+  '/_authenticated/me/profile/change-requests': typeof AuthenticatedMeProfileChangeRequestsRoute
   '/_authenticated/me/recruitment/assessments': typeof AuthenticatedMeRecruitmentAssessmentsRoute
   '/_authenticated/me/recruitment/career': typeof AuthenticatedMeRecruitmentCareerRoute
   '/_authenticated/me/recruitment/interview-rounds': typeof AuthenticatedMeRecruitmentInterviewRoundsRoute
@@ -5585,6 +5625,7 @@ export interface FileRouteTypes {
     | '/hr/chat/groups'
     | '/hr/documents/acknowledgements'
     | '/hr/documents/categories'
+    | '/hr/documents/compliance'
     | '/hr/documents/contract-templates'
     | '/hr/documents/contract-types'
     | '/hr/documents/contracts'
@@ -5627,6 +5668,7 @@ export interface FileRouteTypes {
     | '/hr/organization/designations'
     | '/hr/organization/document-types'
     | '/hr/organization/holidays'
+    | '/hr/organization/manager-changes'
     | '/hr/organization/structure'
     | '/hr/organization/tree'
     | '/hr/payroll/components'
@@ -5677,6 +5719,7 @@ export interface FileRouteTypes {
     | '/hr/reports/recruitment'
     | '/hr/reports/statutory'
     | '/hr/reports/training'
+    | '/hr/requests/profile-changes'
     | '/hr/todo/gantt'
     | '/hr/training/employee-trainings'
     | '/hr/training/programs'
@@ -5725,6 +5768,7 @@ export interface FileRouteTypes {
     | '/me/performance/goals'
     | '/me/performance/indicators'
     | '/me/performance/reviews'
+    | '/me/profile/change-requests'
     | '/me/recruitment/assessments'
     | '/me/recruitment/career'
     | '/me/recruitment/interview-rounds'
@@ -6118,6 +6162,7 @@ export interface FileRouteTypes {
     | '/hr/chat/groups'
     | '/hr/documents/acknowledgements'
     | '/hr/documents/categories'
+    | '/hr/documents/compliance'
     | '/hr/documents/contract-templates'
     | '/hr/documents/contract-types'
     | '/hr/documents/contracts'
@@ -6160,6 +6205,7 @@ export interface FileRouteTypes {
     | '/hr/organization/designations'
     | '/hr/organization/document-types'
     | '/hr/organization/holidays'
+    | '/hr/organization/manager-changes'
     | '/hr/organization/structure'
     | '/hr/organization/tree'
     | '/hr/payroll/components'
@@ -6210,6 +6256,7 @@ export interface FileRouteTypes {
     | '/hr/reports/recruitment'
     | '/hr/reports/statutory'
     | '/hr/reports/training'
+    | '/hr/requests/profile-changes'
     | '/hr/todo/gantt'
     | '/hr/training/employee-trainings'
     | '/hr/training/programs'
@@ -6258,6 +6305,7 @@ export interface FileRouteTypes {
     | '/me/performance/goals'
     | '/me/performance/indicators'
     | '/me/performance/reviews'
+    | '/me/profile/change-requests'
     | '/me/recruitment/assessments'
     | '/me/recruitment/career'
     | '/me/recruitment/interview-rounds'
@@ -6657,6 +6705,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/chat/groups'
     | '/_authenticated/hr/documents/acknowledgements'
     | '/_authenticated/hr/documents/categories'
+    | '/_authenticated/hr/documents/compliance'
     | '/_authenticated/hr/documents/contract-templates'
     | '/_authenticated/hr/documents/contract-types'
     | '/_authenticated/hr/documents/contracts'
@@ -6699,6 +6748,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/organization/designations'
     | '/_authenticated/hr/organization/document-types'
     | '/_authenticated/hr/organization/holidays'
+    | '/_authenticated/hr/organization/manager-changes'
     | '/_authenticated/hr/organization/structure'
     | '/_authenticated/hr/organization/tree'
     | '/_authenticated/hr/payroll/components'
@@ -6749,6 +6799,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/reports/recruitment'
     | '/_authenticated/hr/reports/statutory'
     | '/_authenticated/hr/reports/training'
+    | '/_authenticated/hr/requests/profile-changes'
     | '/_authenticated/hr/todo/gantt'
     | '/_authenticated/hr/training/employee-trainings'
     | '/_authenticated/hr/training/programs'
@@ -6797,6 +6848,7 @@ export interface FileRouteTypes {
     | '/_authenticated/me/performance/goals'
     | '/_authenticated/me/performance/indicators'
     | '/_authenticated/me/performance/reviews'
+    | '/_authenticated/me/profile/change-requests'
     | '/_authenticated/me/recruitment/assessments'
     | '/_authenticated/me/recruitment/career'
     | '/_authenticated/me/recruitment/interview-rounds'
@@ -9096,6 +9148,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHrDocumentsCategoriesRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
+    '/_authenticated/hr/documents/compliance': {
+      id: '/_authenticated/hr/documents/compliance'
+      path: '/documents/compliance'
+      fullPath: '/hr/documents/compliance'
+      preLoaderRoute: typeof AuthenticatedHrDocumentsComplianceRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
     '/_authenticated/hr/documents/contract-templates': {
       id: '/_authenticated/hr/documents/contract-templates'
       path: '/documents/contract-templates'
@@ -9423,6 +9482,13 @@ declare module '@tanstack/react-router' {
       path: '/organization/holidays'
       fullPath: '/hr/organization/holidays'
       preLoaderRoute: typeof AuthenticatedHrOrganizationHolidaysRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/organization/manager-changes': {
+      id: '/_authenticated/hr/organization/manager-changes'
+      path: '/organization/manager-changes'
+      fullPath: '/hr/organization/manager-changes'
+      preLoaderRoute: typeof AuthenticatedHrOrganizationManagerChangesRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
     '/_authenticated/hr/organization/structure': {
@@ -9794,6 +9860,13 @@ declare module '@tanstack/react-router' {
       path: '/reports/training'
       fullPath: '/hr/reports/training'
       preLoaderRoute: typeof AuthenticatedHrReportsTrainingRouteImport
+      parentRoute: typeof AuthenticatedHrRoute
+    }
+    '/_authenticated/hr/requests/profile-changes': {
+      id: '/_authenticated/hr/requests/profile-changes'
+      path: '/requests/profile-changes'
+      fullPath: '/hr/requests/profile-changes'
+      preLoaderRoute: typeof AuthenticatedHrRequestsProfileChangesRouteImport
       parentRoute: typeof AuthenticatedHrRoute
     }
     '/_authenticated/hr/todo/gantt': {
@@ -10194,6 +10267,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/me/performance/reviews'
       preLoaderRoute: typeof AuthenticatedMePerformanceReviewsRouteImport
       parentRoute: typeof AuthenticatedMeRoute
+    }
+    '/_authenticated/me/profile/change-requests': {
+      id: '/_authenticated/me/profile/change-requests'
+      path: '/change-requests'
+      fullPath: '/me/profile/change-requests'
+      preLoaderRoute: typeof AuthenticatedMeProfileChangeRequestsRouteImport
+      parentRoute: typeof AuthenticatedMeProfileRoute
     }
     '/_authenticated/me/recruitment/': {
       id: '/_authenticated/me/recruitment/'
@@ -11433,6 +11513,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrAttendanceTimesheetsRoute: typeof AuthenticatedHrAttendanceTimesheetsRoute
   AuthenticatedHrDocumentsAcknowledgementsRoute: typeof AuthenticatedHrDocumentsAcknowledgementsRoute
   AuthenticatedHrDocumentsCategoriesRoute: typeof AuthenticatedHrDocumentsCategoriesRoute
+  AuthenticatedHrDocumentsComplianceRoute: typeof AuthenticatedHrDocumentsComplianceRoute
   AuthenticatedHrDocumentsContractTemplatesRoute: typeof AuthenticatedHrDocumentsContractTemplatesRoute
   AuthenticatedHrDocumentsContractTypesRoute: typeof AuthenticatedHrDocumentsContractTypesRoute
   AuthenticatedHrDocumentsContractsRoute: typeof AuthenticatedHrDocumentsContractsRoute
@@ -11475,6 +11556,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrOrganizationDesignationsRoute: typeof AuthenticatedHrOrganizationDesignationsRoute
   AuthenticatedHrOrganizationDocumentTypesRoute: typeof AuthenticatedHrOrganizationDocumentTypesRoute
   AuthenticatedHrOrganizationHolidaysRoute: typeof AuthenticatedHrOrganizationHolidaysRoute
+  AuthenticatedHrOrganizationManagerChangesRoute: typeof AuthenticatedHrOrganizationManagerChangesRoute
   AuthenticatedHrOrganizationStructureRoute: typeof AuthenticatedHrOrganizationStructureRoute
   AuthenticatedHrOrganizationTreeRoute: typeof AuthenticatedHrOrganizationTreeRoute
   AuthenticatedHrPayrollComponentsRoute: typeof AuthenticatedHrPayrollComponentsRoute
@@ -11525,6 +11607,7 @@ interface AuthenticatedHrRouteChildren {
   AuthenticatedHrReportsRecruitmentRoute: typeof AuthenticatedHrReportsRecruitmentRoute
   AuthenticatedHrReportsStatutoryRoute: typeof AuthenticatedHrReportsStatutoryRoute
   AuthenticatedHrReportsTrainingRoute: typeof AuthenticatedHrReportsTrainingRoute
+  AuthenticatedHrRequestsProfileChangesRoute: typeof AuthenticatedHrRequestsProfileChangesRoute
   AuthenticatedHrTrainingEmployeeTrainingsRoute: typeof AuthenticatedHrTrainingEmployeeTrainingsRoute
   AuthenticatedHrTrainingProgramsRoute: typeof AuthenticatedHrTrainingProgramsRoute
   AuthenticatedHrTrainingSessionsRoute: typeof AuthenticatedHrTrainingSessionsRoute
@@ -11584,6 +11667,8 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
     AuthenticatedHrDocumentsAcknowledgementsRoute,
   AuthenticatedHrDocumentsCategoriesRoute:
     AuthenticatedHrDocumentsCategoriesRoute,
+  AuthenticatedHrDocumentsComplianceRoute:
+    AuthenticatedHrDocumentsComplianceRoute,
   AuthenticatedHrDocumentsContractTemplatesRoute:
     AuthenticatedHrDocumentsContractTemplatesRoute,
   AuthenticatedHrDocumentsContractTypesRoute:
@@ -11650,6 +11735,8 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
     AuthenticatedHrOrganizationDocumentTypesRoute,
   AuthenticatedHrOrganizationHolidaysRoute:
     AuthenticatedHrOrganizationHolidaysRoute,
+  AuthenticatedHrOrganizationManagerChangesRoute:
+    AuthenticatedHrOrganizationManagerChangesRoute,
   AuthenticatedHrOrganizationStructureRoute:
     AuthenticatedHrOrganizationStructureRoute,
   AuthenticatedHrOrganizationTreeRoute: AuthenticatedHrOrganizationTreeRoute,
@@ -11728,6 +11815,8 @@ const AuthenticatedHrRouteChildren: AuthenticatedHrRouteChildren = {
     AuthenticatedHrReportsRecruitmentRoute,
   AuthenticatedHrReportsStatutoryRoute: AuthenticatedHrReportsStatutoryRoute,
   AuthenticatedHrReportsTrainingRoute: AuthenticatedHrReportsTrainingRoute,
+  AuthenticatedHrRequestsProfileChangesRoute:
+    AuthenticatedHrRequestsProfileChangesRoute,
   AuthenticatedHrTrainingEmployeeTrainingsRoute:
     AuthenticatedHrTrainingEmployeeTrainingsRoute,
   AuthenticatedHrTrainingProgramsRoute: AuthenticatedHrTrainingProgramsRoute,
@@ -11769,6 +11858,21 @@ const AuthenticatedMeChatRouteChildren: AuthenticatedMeChatRouteChildren = {
 const AuthenticatedMeChatRouteWithChildren =
   AuthenticatedMeChatRoute._addFileChildren(AuthenticatedMeChatRouteChildren)
 
+interface AuthenticatedMeProfileRouteChildren {
+  AuthenticatedMeProfileChangeRequestsRoute: typeof AuthenticatedMeProfileChangeRequestsRoute
+}
+
+const AuthenticatedMeProfileRouteChildren: AuthenticatedMeProfileRouteChildren =
+  {
+    AuthenticatedMeProfileChangeRequestsRoute:
+      AuthenticatedMeProfileChangeRequestsRoute,
+  }
+
+const AuthenticatedMeProfileRouteWithChildren =
+  AuthenticatedMeProfileRoute._addFileChildren(
+    AuthenticatedMeProfileRouteChildren,
+  )
+
 interface AuthenticatedMeTodoRouteChildren {
   AuthenticatedMeTodoGanttRoute: typeof AuthenticatedMeTodoGanttRoute
 }
@@ -11792,7 +11896,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeHelpdeskRoute: typeof AuthenticatedMeHelpdeskRoute
   AuthenticatedMeMediaRoute: typeof AuthenticatedMeMediaRoute
   AuthenticatedMeNotificationsRoute: typeof AuthenticatedMeNotificationsRoute
-  AuthenticatedMeProfileRoute: typeof AuthenticatedMeProfileRoute
+  AuthenticatedMeProfileRoute: typeof AuthenticatedMeProfileRouteWithChildren
   AuthenticatedMeTeamRoute: typeof AuthenticatedMeTeamRoute
   AuthenticatedMeTodoRoute: typeof AuthenticatedMeTodoRouteWithChildren
   AuthenticatedMeIndexRoute: typeof AuthenticatedMeIndexRoute
@@ -11869,7 +11973,7 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeHelpdeskRoute: AuthenticatedMeHelpdeskRoute,
   AuthenticatedMeMediaRoute: AuthenticatedMeMediaRoute,
   AuthenticatedMeNotificationsRoute: AuthenticatedMeNotificationsRoute,
-  AuthenticatedMeProfileRoute: AuthenticatedMeProfileRoute,
+  AuthenticatedMeProfileRoute: AuthenticatedMeProfileRouteWithChildren,
   AuthenticatedMeTeamRoute: AuthenticatedMeTeamRoute,
   AuthenticatedMeTodoRoute: AuthenticatedMeTodoRouteWithChildren,
   AuthenticatedMeIndexRoute: AuthenticatedMeIndexRoute,

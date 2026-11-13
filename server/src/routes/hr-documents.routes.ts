@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { prisma, rawPrisma } from "../prisma.js";
 import { requireAuth, AuthRequest } from "../middleware/auth.js";
 import { documentService } from "../services/document.service.js";
 import { ContractLifecycleService } from "../services/contract-lifecycle.service.js";
@@ -200,6 +201,49 @@ hrDocumentsRouter.delete("/contract-types/:id", requireAuth, async (req: AuthReq
   }
 });
 
+// Employee Contracts Settings
+hrDocumentsRouter.get("/contracts/vendors", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const suppliers = await rawPrisma.supplier.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        name: true,
+        gstin: true,
+        email: true,
+        phone: true,
+        city: true,
+      },
+      orderBy: { name: "asc" },
+    });
+    return res.json(suppliers);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+hrDocumentsRouter.get("/contracts/settings", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const settings = await ContractLifecycleService.getTenantExpirySettings(tenantId);
+    return res.json(settings);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+hrDocumentsRouter.put("/contracts/settings", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const settings = await ContractLifecycleService.updateTenantExpirySettings(tenantId, req.body, actorId);
+    return res.json(settings);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 // Employee Contracts
 hrDocumentsRouter.get("/contracts/overview", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -218,10 +262,14 @@ hrDocumentsRouter.get("/contracts", requireAuth, async (req: AuthRequest, res: R
       employeeId: req.query.employeeId as string,
       status: req.query.status as string,
       contractTypeId: req.query.contractTypeId as string,
+      category: req.query.category as string,
+      paymentWorkflow: req.query.paymentWorkflow as string,
+      supplierId: req.query.supplierId as string,
     });
     const now = new Date();
+    const settings = await ContractLifecycleService.getTenantExpirySettings(tenantId);
     const evaluated = contracts.map((c: any) => {
-      const cls = ContractLifecycleService.classifyContract(c, now);
+      const cls = ContractLifecycleService.classifyContract(c, now, settings.reminderIntervals);
       return {
         ...c,
         classification: cls.classification,
@@ -259,6 +307,82 @@ hrDocumentsRouter.post("/contracts/:id/renew", requireAuth, async (req: AuthRequ
       renewal: req.body,
     });
     return res.status(201).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /contracts/:id/convert (Convert to Permanent Employment)
+hrDocumentsRouter.post("/contracts/:id/convert", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const result = await ContractLifecycleService.convertContractToPermanent({
+      tenantId,
+      contractId: req.params.id,
+      actorUserId: actorId,
+      salary: req.body.salary,
+      notes: req.body.notes,
+    });
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /contracts/:id/amend (Amend Active Contract)
+hrDocumentsRouter.post("/contracts/:id/amend", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const result = await ContractLifecycleService.amendContract({
+      tenantId,
+      contractId: req.params.id,
+      actorUserId: actorId,
+      amendment: req.body,
+    });
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /contracts/:id/terminate (Terminate Contract)
+hrDocumentsRouter.post("/contracts/:id/terminate", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const result = await ContractLifecycleService.terminateContract({
+      tenantId,
+      contractId: req.params.id,
+      actorUserId: actorId,
+      reason: req.body.reason,
+    });
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /contracts/:id/payable-voucher (Workflow B: Accounts Payable Purchase Voucher)
+hrDocumentsRouter.post("/contracts/:id/payable-voucher", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId!;
+    const actorId = req.user?.userId || "system";
+    const { period, amount, invoiceNumber, notes } = req.body;
+    if (!period || amount === undefined) {
+      return res.status(400).json({ error: "Billing period and amount are required." });
+    }
+    const voucher = await ContractLifecycleService.createVendorPayableVoucher({
+      tenantId,
+      contractId: req.params.id,
+      period,
+      amount: Number(amount),
+      invoiceNumber,
+      notes,
+      actorUserId: actorId,
+    });
+    return res.status(201).json(voucher);
   } catch (err: any) {
     return res.status(400).json({ error: err.message });
   }

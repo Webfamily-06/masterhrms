@@ -41,7 +41,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/hr/documents/compliance" as any)({
+export const Route = createFileRoute("/_authenticated/hr/documents/compliance")({
   component: HrDocumentCompliancePage,
 });
 

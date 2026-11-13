@@ -478,7 +478,7 @@ app.use("/api", workspaceRoutingRouter);
 app.use("/api/workspace", workspaceRouter);
 app.use("/api/cms", cmsRouter);
 app.use("/api/dashboard", dashboardRouter); // Aggregation endpoint — replaces N individual calls
-app.use("/api/employees", employeesRouter);
+app.use(["/api/employees", "/api/v1/employees", "/api/hr/employees", "/api/v1/hr/employees"], employeesRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/leave", leaveRouter);
 app.use("/api/leaves", leaveRouter);
