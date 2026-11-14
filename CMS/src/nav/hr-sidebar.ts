@@ -143,7 +143,6 @@ export const hrSidebar: HRMenuItem[] = [
           { label: "Balances", path: "/hr/leave/balances", permission: "hrm.leave.view" },
           { label: "Policies", path: "/hr/leave/policies", permission: "hrm.leave.view" },
           { label: "Leave Types", path: "/hr/leave/types", permission: "hrm.leave.view" },
-          { label: "Leave Calendar", path: "/hr/leave/calendar", permission: "hrm.leave.view" },
           { label: "Encashment & Comp-off", path: "/hr/leave/encashment-compoff", permission: "hrm.leave.view" },
         ],
       },

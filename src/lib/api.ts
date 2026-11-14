@@ -249,7 +249,12 @@ export const api = {
     return apiRequest<T>(url, { method: "GET" });
   },
   post: <T = any>(endpoint: string, body?: any) =>
-    apiRequest<T>(endpoint, { method: "POST", body: JSON.stringify(body) }),
+    apiRequest<T>(endpoint, {
+      method: "POST",
+      body: body instanceof FormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+    }),
+  upload: <T = any>(endpoint: string, formData: FormData) =>
+    apiRequest<T>(endpoint, { method: "POST", body: formData }),
   put: <T = any>(endpoint: string, body?: any) =>
     apiRequest<T>(endpoint, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T = any>(endpoint: string, body?: any) =>
@@ -259,8 +264,6 @@ export const api = {
       method: "DELETE",
       ...(options?.data ? { body: JSON.stringify(options.data) } : {}),
     }),
-  upload: <T = any>(endpoint: string, formData: FormData) =>
-    apiRequest<T>(endpoint, { method: "POST", body: formData }),
   getBlob: async (endpoint: string): Promise<Blob> => {
     let clean = endpoint.trim();
     let url = clean;

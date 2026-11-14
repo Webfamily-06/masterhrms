@@ -498,37 +498,45 @@ model LeaveType {
   id                 String                   @id @default(uuid()) @db.VarChar(36)
   tenantId           String                   @map("tenant_id") @db.VarChar(36)
   name               String                   @db.VarChar(100)
+  description        String?
   daysPerYear        Int                      @default(0) @map("days_per_year")
   color              String?                  @db.VarChar(50)
+  status             String                   @default("active") @db.VarChar(20)
   createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at")
   code               String?                  @db.VarChar(50)
   halfDayAllowed     Boolean                  @default(true) @map("half_day_allowed")
   isPaid             Boolean                  @default(true) @map("is_paid")
   sandwichRule       Boolean                  @default(false) @map("sandwich_rule")
   encashmentRequests LeaveEncashmentRequest[]
   leaveRequests      LeaveRequest[]
+  leavePolicies      LeavePolicy[]
   tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("leave_types")
 }
 
 model LeaveRequest {
-  id          String      @id @default(uuid()) @db.VarChar(36)
-  tenantId    String      @map("tenant_id") @db.VarChar(36)
-  employeeId  String      @map("employee_id") @db.VarChar(36)
-  leaveTypeId String?     @map("leave_type_id") @db.VarChar(36)
-  approverId  String?     @map("approver_id") @db.VarChar(36)
-  startDate   DateTime    @map("start_date") @db.Date
-  endDate     DateTime    @map("end_date") @db.Date
-  days        Decimal     @default(1.0) @db.Decimal(4, 1)
-  status      LeaveStatus @default(pending)
-  reason      String?
-  approvedAt  DateTime?   @map("approved_at")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  employee    Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType   LeaveType?  @relation(fields: [leaveTypeId], references: [id])
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id              String      @id @default(uuid()) @db.VarChar(36)
+  tenantId        String      @map("tenant_id") @db.VarChar(36)
+  employeeId      String      @map("employee_id") @db.VarChar(36)
+  leaveTypeId     String?     @map("leave_type_id") @db.VarChar(36)
+  approverId      String?     @map("approver_id") @db.VarChar(36)
+  startDate       DateTime    @map("start_date") @db.Date
+  endDate         DateTime    @map("end_date") @db.Date
+  days            Decimal     @default(1.0) @db.Decimal(4, 1)
+  status          LeaveStatus @default(pending)
+  reason          String?
+  halfDay         Boolean     @default(false) @map("half_day")
+  halfDaySession  String?     @map("half_day_session") @db.VarChar(20)
+  attachmentUrl   String?     @map("attachment_url") @db.VarChar(500)
+  rejectionReason String?     @map("rejection_reason")
+  approvedAt      DateTime?   @map("approved_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType       LeaveType?  @relation(fields: [leaveTypeId], references: [id])
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status])
   @@index([tenantId, employeeId])
@@ -568,26 +576,37 @@ model AttendancePolicy {
 }
 
 model LeavePolicy {
-  id                 String   @id @default(uuid()) @db.VarChar(36)
-  tenantId           String   @map("tenant_id") @db.VarChar(36)
-  name               String   @db.VarChar(100)
-  code               String   @db.VarChar(50)
-  description        String?
-  branchId           String?  @map("branch_id") @db.VarChar(36)
-  departmentId       String?  @map("department_id") @db.VarChar(36)
-  noticeDays         Int      @default(2) @map("notice_days")
-  sandwichRule       Boolean  @default(false) @map("sandwich_rule")
-  maxConsecutiveDays Int      @default(14) @map("max_consecutive_days")
-  blackoutDates      String?  @map("blackout_dates")
-  isDefault          Boolean  @default(false) @map("is_default")
-  version            Int      @default(1)
-  effectiveFrom      DateTime @default(now()) @map("effective_from") @db.Date
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(uuid()) @db.VarChar(36)
+  tenantId            String     @map("tenant_id") @db.VarChar(36)
+  name                String     @db.VarChar(100)
+  code                String     @db.VarChar(50)
+  description         String?
+  leaveTypeId         String?    @map("leave_type_id") @db.VarChar(36)
+  branchId            String?    @map("branch_id") @db.VarChar(36)
+  departmentId        String?    @map("department_id") @db.VarChar(36)
+  noticeDays          Int        @default(2) @map("notice_days")
+  sandwichRule        Boolean    @default(false) @map("sandwich_rule")
+  maxConsecutiveDays  Int        @default(14) @map("max_consecutive_days")
+  blackoutDates       String?    @map("blackout_dates")
+  carryForwardEnabled Boolean    @default(false) @map("carry_forward_enabled")
+  maxCarryForwardDays Int        @default(0) @map("max_carry_forward_days")
+  requiresApproval    Boolean    @default(true) @map("requires_approval")
+  status              String     @default("active") @db.VarChar(20)
+  accrualFrequency    String     @default("yearly") @map("accrual_frequency") @db.VarChar(20)
+  probationAllowed    Boolean    @default(true) @map("probation_allowed")
+  isDefault           Boolean    @default(false) @map("is_default")
+  version             Int        @default(1)
+  effectiveFrom       DateTime   @default(now()) @map("effective_from") @db.Date
+  effectiveTo         DateTime?  @map("effective_to") @db.Date
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  leaveType           LeaveType? @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
+  tenant              Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, code, version])
   @@index([tenantId, isDefault])
+  @@index([tenantId, leaveTypeId])
+  @@index([tenantId, status])
   @@map("leave_policies")
 }
 
