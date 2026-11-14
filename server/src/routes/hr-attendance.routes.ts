@@ -1736,6 +1736,10 @@ hrAttendanceRouter.get("/settings/sandwich-policy", async (req: AuthRequest, res
 // PATCH /api/v1/hr/attendance/settings/sandwich-policy
 hrAttendanceRouter.patch("/settings/sandwich-policy", async (req: AuthRequest, res: Response) => {
   try {
+    const elevatedRoles = ["super_admin", "admin", "hr_admin", "hr_manager", "HR Manager", "Workspace Admin", "tenant_admin"];
+    if (!req.user?.roles?.some((r) => elevatedRoles.includes(r))) {
+      return res.status(403).json({ error: "Forbidden: HR Administrator role required to modify organization sandwich policy." });
+    }
     const tenantId = req.tenantId!;
     const { enabled } = req.body;
     if (typeof enabled !== "boolean") {

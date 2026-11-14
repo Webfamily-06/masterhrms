@@ -202,11 +202,14 @@ export type ChatMode = "chats" | "groups" | "contacts" | "calls";
 
 export interface ChatMessageAttachment {
   id?: string;
+  mediaId?: string;
   name: string;
   originalName?: string;
   size: number;
   mimeType: string;
   url: string;
+  signedPreviewUrl?: string;
+  signedDownloadUrl?: string;
   path?: string;
   folder?: string;
 }
@@ -247,6 +250,8 @@ export interface ChatMessageUrlPreview {
 
 export interface ChatMessageVoiceNote {
   url: string;
+  signedUrl?: string;
+  mediaId?: string;
   durationSeconds: number;
   size?: number;
 }
@@ -254,7 +259,9 @@ export interface ChatMessageVoiceNote {
 export interface ChatMessagePollOption {
   id: string;
   text: string;
-  votes: string[];
+  votes?: string[];
+  voteCount?: number;
+  hasVoted?: boolean;
 }
 
 export interface ChatMessagePoll {
@@ -263,6 +270,8 @@ export interface ChatMessagePoll {
   isClosed?: boolean;
   allowMultiple?: boolean;
   isMultiSelect?: boolean;
+  isAnonymous?: boolean;
+  totalVotes?: number;
   createdAt?: string;
 }
 
@@ -295,6 +304,8 @@ export interface ChatMessageItem {
   pinnedById?: string;
   isEdited?: boolean;
   editedAt?: string;
+  editHistory?: Array<{ content: string; editedAt: string }>;
+  seenBy?: Array<{ userId: string; name: string; readAt?: string }>;
   isDeletedForEveryone?: boolean;
   isForwarded?: boolean;
   forwardedFromSender?: string | null;
@@ -319,6 +330,11 @@ export interface ConversationSummaryItem {
   groupId?: string;
   isPinned?: boolean;
   isMuted?: boolean;
+  isArchived?: boolean;
+  markedUnread?: boolean;
+  notificationLevel?: "all" | "mentions" | "none";
+  mutedUntil?: string | null;
+  isAnnouncementOnly?: boolean;
   ownerId?: string;
 }
 
@@ -326,6 +342,9 @@ export interface ContactItem {
   id: string;
   userId?: string;
   employeeId?: string | null;
+  employeeCode?: string | null;
+  branch?: string | null;
+  managerName?: string | null;
   name: string;
   avatarLetter: string;
   avatarColor: string;
@@ -346,6 +365,8 @@ export interface ParticipantProfile {
   userId?: string;
   employeeId?: string | null;
   employeeCode?: string | null;
+  branch?: string | null;
+  managerName?: string | null;
   name: string;
   email: string;
   phone?: string | null;
@@ -363,6 +384,10 @@ export interface GroupItem {
   id: string;
   name: string;
   description?: string;
+  category?: string;
+  isAnnouncementOnly?: boolean;
+  isArchived?: boolean;
+  inviteToken?: string | null;
   avatarLetter: string;
   avatarColor: string;
   avatarUrl?: string | null;
@@ -519,7 +544,14 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     eventType: m.eventType,
     eventMetadata: m.eventMetadata,
     mentions: m.mentions,
-    attachments: isDeleted ? [] : (rawAttachments || []),
+    attachments: isDeleted
+      ? []
+      : (rawAttachments || []).map((att: any) => ({
+          ...att,
+          url: att.signedPreviewUrl || att.url,
+          signedPreviewUrl: att.signedPreviewUrl || att.url,
+          signedDownloadUrl: att.signedDownloadUrl || att.signedPreviewUrl || att.url,
+        })),
     replyToId: m.replyToId,
     replyTo: m.replyTo,
     isPinned: m.isPinned || false,
@@ -527,12 +559,18 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     pinnedById: m.pinnedById,
     isEdited: m.isEdited || false,
     editedAt: m.editedAt,
+    editHistory: Array.isArray(m.editHistory) ? m.editHistory : [],
+    seenBy: Array.isArray(m.seenBy) ? m.seenBy : [],
     isDeletedForEveryone: isDeleted,
     isForwarded: Boolean(m.isForwarded || m.eventMetadata?.isForwarded || m.replyTo?.isForwarded),
     forwardedFromSender: m.forwardedFromSender || m.eventMetadata?.forwardedFromSender || null,
     reactions: isDeleted ? {} : (rawReactions || {}),
     urlPreviews: isDeleted ? [] : (m.urlPreviews || []),
-    voiceNote: isDeleted ? undefined : rawVoiceNote,
+    voiceNote: isDeleted
+      ? undefined
+      : rawVoiceNote
+      ? { ...rawVoiceNote, url: rawVoiceNote.signedUrl || rawVoiceNote.url }
+      : undefined,
     poll: isDeleted ? undefined : rawPoll,
   };
 }
@@ -607,7 +645,7 @@ function formatFileSize(bytes: number) {
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPACT INLINE VOICE NOTE PLAYER
 // ─────────────────────────────────────────────────────────────────────────────
-function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
+function VoiceNotePlayer({ voiceNote, isSent = false }: { voiceNote: ChatMessageVoiceNote; isSent?: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(voiceNote.durationSeconds || 0);
@@ -647,10 +685,10 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
   const effectiveDuration = duration || voiceNote.durationSeconds || 0;
 
   return (
-    <div data-testid="voice-note-player" className="flex items-center gap-2.5 py-1 min-w-[210px] select-none">
+    <div data-testid="voice-note-player" className="flex items-center gap-2.5 py-1 min-w-[190px] sm:min-w-[210px] select-none">
       <audio
         ref={audioRef}
-        src={voiceNote.url}
+        src={voiceNote.signedUrl || voiceNote.url}
         preload="metadata"
         onLoadedMetadata={() => {
           if (audioRef.current && audioRef.current.duration && !isNaN(audioRef.current.duration)) {
@@ -671,18 +709,29 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
         size="icon"
         variant="ghost"
         onClick={togglePlay}
-        className="size-8 rounded-full bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary flex-shrink-0"
+        className={cn(
+          "size-8 rounded-full flex-shrink-0",
+          isSent
+            ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
+            : "bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary"
+        )}
       >
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 fill-current ml-0.5" />}
       </Button>
       <div className="flex-1 space-y-1 min-w-0">
         <div
           onClick={handleSeek}
-          className="h-2 w-full bg-muted-foreground/20 rounded-full overflow-hidden cursor-pointer relative group/scrub"
+          className={cn(
+            "h-2 w-full rounded-full overflow-hidden cursor-pointer relative group/scrub",
+            isSent ? "bg-primary-foreground/25" : "bg-muted-foreground/20"
+          )}
           title="Click to seek"
         >
           <div
-            className="h-full bg-primary dark:bg-primary/20 transition-all duration-100"
+            className={cn(
+              "h-full transition-all duration-100",
+              isSent ? "bg-primary-foreground" : "bg-primary dark:bg-primary"
+            )}
             style={{
               width: `${
                 effectiveDuration > 0
@@ -692,14 +741,22 @@ function VoiceNotePlayer({ voiceNote }: { voiceNote: ChatMessageVoiceNote }) {
             }}
           />
         </div>
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+        <div className={cn(
+          "flex items-center justify-between text-[10px] font-mono",
+          isSent ? "text-primary-foreground/85" : "text-muted-foreground"
+        )}>
           <span>{formatDuration(Math.floor(currentTime))}</span>
           <div className="flex items-center gap-1.5">
             <span>{formatDuration(effectiveDuration)}</span>
             <button
               type="button"
               onClick={cycleSpeed}
-              className="text-[9px] px-1 py-0.2 rounded bg-muted/60 hover:bg-muted font-sans font-semibold text-foreground/80 cursor-pointer"
+              className={cn(
+                "text-[9px] px-1 py-0.2 rounded font-sans font-semibold cursor-pointer",
+                isSent
+                  ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
+                  : "bg-muted/60 hover:bg-muted text-foreground/80"
+              )}
               title="Playback speed"
             >
               {playbackRate}x
@@ -758,7 +815,16 @@ export function UnifiedChatApp({
   const [activeGroupId, setActiveGroupId] = useState<string>("");
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterFilter, setFilterFilter] = useState<"all" | "unread">("all");
+  const [filterFilter, setFilterFilter] = useState<"all" | "unread" | "archived">("all");
+  const [contactDepartmentFilter, setContactDepartmentFilter] = useState("all");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [newGroupIsAnnouncementOnly, setNewGroupIsAnnouncementOnly] = useState(false);
+  const [groupCreateTab, setGroupCreateTab] = useState<"custom" | "org">("custom");
+  const [selectedOrgTemplateKey, setSelectedOrgTemplateKey] = useState("");
+  const [joinInviteOpen, setJoinInviteOpen] = useState(false);
+  const [joinInviteToken, setJoinInviteToken] = useState("");
+  const [activeInviteToken, setActiveInviteToken] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
@@ -890,6 +956,7 @@ export function UnifiedChatApp({
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [pollAllowMultiple, setPollAllowMultiple] = useState(false);
+  const [pollIsAnonymous, setPollIsAnonymous] = useState(false);
 
   // Voice Note Recording & Preview
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
@@ -1074,14 +1141,22 @@ export function UnifiedChatApp({
   const meetingScreenStreamRef = useRef<MediaStream | null>(null);
   const handledGroupEventsRef = useRef<Set<string>>(new Set());
 
-  // Fetch initial SFU configuration and STUN/TURN diagnostics
+  // Fetch initial SFU configuration and STUN/TURN diagnostics & mark Chat App mounted
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      (window as any).__HRMS_CHAT_APP_MOUNTED__ = true;
+    }
     api
       .get("/api/chat/meetings/config")
       .then((res: any) => {
         setMeetingSfuConfig(res?.data || res);
       })
       .catch(() => {});
+    return () => {
+      if (typeof window !== "undefined") {
+        (window as any).__HRMS_CHAT_APP_MOUNTED__ = false;
+      }
+    };
   }, []);
 
   // Test Speaker Playback Chime
@@ -1321,9 +1396,9 @@ export function UnifiedChatApp({
     }
   }, []);
 
-  // Manage incoming call ringtone lifecycle
+  // Manage incoming group meeting ringtone lifecycle (1:1 incoming call ringtone is handled by IncomingCallProvider)
   useEffect(() => {
-    if (incomingCall) {
+    if (incomingGroupMeeting) {
       startRingtone();
     } else {
       stopRingtone();
@@ -1331,7 +1406,7 @@ export function UnifiedChatApp({
     return () => {
       stopRingtone();
     };
-  }, [incomingCall, startRingtone, stopRingtone]);
+  }, [incomingGroupMeeting, startRingtone, stopRingtone]);
 
   // Call History view filters, server pagination & modals
   const [callTypeFilter, setCallTypeFilter] = useState("all");
@@ -1421,6 +1496,10 @@ export function UnifiedChatApp({
         return {
           id: item.id,
           userId: item.userId || item.id,
+          employeeId: item.employeeId || null,
+          employeeCode: item.employeeCode || null,
+          branch: item.branch || null,
+          managerName: item.managerName || null,
           name: item.name || "Colleague",
           email: item.email || "",
           phone: item.phone || "",
@@ -1437,6 +1516,47 @@ export function UnifiedChatApp({
         };
       });
     },
+  });
+
+  // Global Chat & File Search Query
+  const {
+    data: globalSearchData = { messages: [], files: [] },
+    isFetching: isGlobalSearching,
+  } = useQuery<{ messages: any[]; files: any[] }>({
+    queryKey: ["chat", "global-search", globalSearchQuery],
+    queryFn: async () => {
+      const q = globalSearchQuery.trim();
+      if (q.length < 2) return { messages: [], files: [] };
+      const res: any = await api.get(`/api/chat/search?q=${encodeURIComponent(q)}&limit=25`);
+      const payload = res?.data || res || {};
+      return {
+        messages: Array.isArray(payload.messages) ? payload.messages : [],
+        files: Array.isArray(payload.files) ? payload.files : [],
+      };
+    },
+    enabled: globalSearchOpen && globalSearchQuery.trim().length >= 2,
+  });
+
+  // HRMS Dynamic Org Group Templates Query
+  const { data: orgTemplatesData = [] } = useQuery<any[]>({
+    queryKey: ["chat", "org-group-templates"],
+    queryFn: async () => {
+      try {
+        const res: any = await api.get("/api/chat/hrms/group-templates");
+        const payload = res?.data || res || {};
+        if (Array.isArray(payload.templates)) return payload.templates;
+        const flat: any[] = [];
+        for (const cat of ["departments", "branches", "projects", "special"]) {
+          if (Array.isArray(payload[cat])) {
+            payload[cat].forEach((item: any) => flat.push(item));
+          }
+        }
+        return flat;
+      } catch {
+        return [];
+      }
+    },
+    enabled: createGroupOpen && groupCreateTab === "org",
   });
 
   // Conversations Query
@@ -1472,6 +1592,11 @@ export function UnifiedChatApp({
           groupId: !isDirect ? (c.groupId || c.id) : undefined,
           isPinned: Boolean(c.isPinned),
           isMuted: Boolean(c.isMuted),
+          isArchived: Boolean(c.isArchived),
+          markedUnread: Boolean(c.markedUnread),
+          notificationLevel: c.notificationLevel || "all",
+          mutedUntil: c.mutedUntil || null,
+          isAnnouncementOnly: Boolean(c.isAnnouncementOnly),
           ownerId: c.ownerId,
         };
       });
@@ -1494,6 +1619,10 @@ export function UnifiedChatApp({
         id: g.id,
         name: g.name,
         description: g.description,
+        category: g.category || "custom",
+        isAnnouncementOnly: Boolean(g.isAnnouncementOnly),
+        isArchived: Boolean(g.isArchived),
+        inviteToken: g.inviteToken || null,
         avatarLetter: g.name.charAt(0).toUpperCase(),
         avatarColor: getAvatarColor(g.name),
         avatarUrl: g.avatarUrl || null,
@@ -2266,7 +2395,12 @@ export function UnifiedChatApp({
         groupId: activeGroupId,
         callType,
       });
-      setMeetingSfuConfig((tokenResponse as any)?.data || tokenResponse);
+      const tokenPayload = (tokenResponse as any)?.data || tokenResponse;
+      setMeetingSfuConfig((prev) => ({
+        ...(prev || { configured: true, provider: "livekit" }),
+        ...tokenPayload,
+        configured: Boolean(tokenPayload?.configured ?? Boolean(tokenPayload?.token && tokenPayload?.url) ?? prev?.configured),
+      }));
     } catch (err: any) {
       if (meetingSessionStarted) {
         getSocketClient().emit("group-call:leave", { callId });
@@ -2285,7 +2419,10 @@ export function UnifiedChatApp({
   };
 
   const handleAcceptGroupMeeting = async (incomingOverride?: any) => {
-    const meetingData = incomingOverride || incomingGroupMeeting;
+    const meetingData =
+      incomingOverride && typeof incomingOverride === "object" && typeof incomingOverride.callId === "string"
+        ? incomingOverride
+        : incomingGroupMeeting;
     if (!meetingData) return;
     stopRingtone();
     setIncomingGroupMeeting(null);
@@ -2337,7 +2474,12 @@ export function UnifiedChatApp({
         groupId: meetingData.groupId,
         callType: meetingData.callType,
       }).then((res) => {
-        setMeetingSfuConfig((res as any)?.data || res);
+        const tokenPayload = (res as any)?.data || res;
+        setMeetingSfuConfig((prev) => ({
+          ...(prev || { configured: true, provider: "livekit" }),
+          ...tokenPayload,
+          configured: Boolean(tokenPayload?.configured ?? Boolean(tokenPayload?.token && tokenPayload?.url) ?? prev?.configured),
+        }));
       }).catch((err) => {
         console.warn("Failed to fetch meeting token:", err);
       });
@@ -2742,7 +2884,15 @@ export function UnifiedChatApp({
           return {
             ...old,
             messages: old.messages.map((m: any) =>
-              m.id === msg.id ? { ...m, content: msg.content, isEdited: true, editedAt: msg.editedAt } : m
+              m.id === msg.id
+                ? {
+                    ...m,
+                    content: msg.content,
+                    isEdited: true,
+                    editedAt: msg.editedAt,
+                    editHistory: Array.isArray(msg.editHistory) ? msg.editHistory : m.editHistory,
+                  }
+                : m
             ),
           };
         });
@@ -2823,16 +2973,23 @@ export function UnifiedChatApp({
       }
     };
 
-    const handleReadReceipt = (data: { threadId: string; userId: string }) => {
+    const handleReadReceipt = (data: { threadId: string; userId: string; readerName?: string }) => {
       if (data?.userId === currentUserId) return;
       if (data?.threadId === activeThreadId) {
         queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
           if (!old || !old.messages) return old;
           let changed = false;
           const nextMessages = old.messages.map((m: any) => {
-            if (m.senderId === currentUserId && m.deliveryStatus !== "seen") {
-              changed = true;
-              return { ...m, deliveryStatus: "seen", status: "read" };
+            if (m.senderId === currentUserId) {
+              const prevSeen = Array.isArray(m.seenBy) ? m.seenBy : [];
+              const alreadyInSeen = prevSeen.some((s: any) => s.userId === data.userId);
+              const updatedSeen = alreadyInSeen
+                ? prevSeen
+                : [...prevSeen, { userId: data.userId, name: data.readerName || "Member", readAt: new Date().toISOString() }];
+              if (m.deliveryStatus !== "seen" || !alreadyInSeen) {
+                changed = true;
+                return { ...m, deliveryStatus: "seen", status: "read", seenBy: updatedSeen };
+              }
             }
             return m;
           });
@@ -2907,10 +3064,9 @@ export function UnifiedChatApp({
       }
 
       setIncomingCall((current) => {
-        // Socket.IO and Pusher can both deliver the same invitation. Keep one
-        // visible incoming-call dialog and one timeout/ringtone.
+        // FullScreenIncomingCall (IncomingCallProvider) handles the 1:1 modal & ringtone globally;
+        // keep call metadata synced here for WebRTC SDP offer/answer negotiation.
         if (current?.callId === data.callId) return current;
-        startRingtone();
         return {
           callId: data.callId,
           fromUserId: data.fromUserId,
@@ -3194,6 +3350,53 @@ export function UnifiedChatApp({
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
 
+    const handleSystemEvent = (data: any) => {
+      handleGroupUpdate(data);
+      if (data?.message) {
+        handleIncomingMessage(data.message);
+      }
+    };
+
+    const handleRoomRevoked = (data: any) => {
+      const revokedThreadId = data?.threadId || (data?.groupId ? `group_${data.groupId}` : "");
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (revokedThreadId && (revokedThreadId === activeThreadId || data?.groupId === activeGroupId)) {
+        toast.info(data?.reason === "group_archived" ? "This group has been archived." : "Your access to this group has ended.");
+        setActiveThreadId("");
+        setActiveGroupId("");
+      }
+    };
+
+    const handleSocketReconnect = async () => {
+      if (activeThreadId) {
+        socket.emit("chat:join", { threadId: activeThreadId });
+        try {
+          const cached: any = queryClient.getQueryData(["chat", "messages", activeThreadId]);
+          const list: any[] = Array.isArray(cached?.messages) ? cached.messages : [];
+          const lastServerMsg = [...list].reverse().find((m) => m.id && !String(m.id).startsWith("temp_"));
+          const afterParam = lastServerMsg?.id ? `?after=${encodeURIComponent(lastServerMsg.id)}&limit=50` : `?limit=25`;
+          const res: any = await api.get(`/api/chat/conversations/${activeThreadId}/messages${afterParam}`);
+          const missedRaw = Array.isArray(res) ? res : res?.messages || res?.data || [];
+          if (missedRaw.length > 0) {
+            const missedFormatted = missedRaw.map((m: any) => formatMessageItem(m, currentUserId));
+            queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+              const existing: any[] = Array.isArray(old?.messages) ? old.messages : [];
+              const map = new Map<string, any>();
+              existing.forEach((m) => map.set(m.id, m));
+              missedFormatted.forEach((m: any) => map.set(m.id, m));
+              return { ...(old || {}), messages: Array.from(map.values()) };
+            });
+          }
+        } catch {}
+      }
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "presence"] });
+    };
+
+    socket.on("connect", handleSocketReconnect);
+    socket.on("chat:room_revoked", handleRoomRevoked);
     socket.on("chat:message", handleIncomingMessage);
     socket.on("chat:message_edited", handleMessageEdited);
     socket.on("chat:message_deleted", handleMessageDeleted);
@@ -3205,12 +3408,7 @@ export function UnifiedChatApp({
     socket.on("presence:update", handlePresenceUpdate);
     socket.on("chat:group_created", handleGroupUpdate);
     socket.on("chat:group_updated", handleGroupUpdate);
-    socket.on("chat:system_event", (data: any) => {
-      handleGroupUpdate(data);
-      if (data?.message) {
-        handleIncomingMessage(data.message);
-      }
-    });
+    socket.on("chat:system_event", handleSystemEvent);
 
     // Call signaling events
     socket.on("call:incoming", handleIncomingCall);
@@ -3296,6 +3494,8 @@ export function UnifiedChatApp({
       if (eventName === "chat:typing") handleTypingEvent(data);
       if (eventName === "chat:read") handleReadReceipt(data);
       if (eventName === "chat:delivered") handleDeliveredReceipt(data);
+      if (eventName === "chat:group_created" || eventName === "chat:group_updated") handleGroupUpdate(data);
+      if (eventName === "chat:room_revoked") handleRoomRevoked(data);
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
 
@@ -3303,6 +3503,8 @@ export function UnifiedChatApp({
       if (activeThreadId) {
         socket.emit("chat:leave", { threadId: activeThreadId });
       }
+      socket.off("connect", handleSocketReconnect);
+      socket.off("chat:room_revoked", handleRoomRevoked);
       socket.off("chat:message", handleIncomingMessage);
       socket.off("chat:message_edited", handleMessageEdited);
       socket.off("chat:message_deleted", handleMessageDeleted);
@@ -3314,18 +3516,26 @@ export function UnifiedChatApp({
       socket.off("presence:update", handlePresenceUpdate);
       socket.off("chat:group_created", handleGroupUpdate);
       socket.off("chat:group_updated", handleGroupUpdate);
-      socket.off("chat:system_event");
+      socket.off("chat:system_event", handleSystemEvent);
 
       socket.off("call:incoming", handleIncomingCall);
+      socket.off("call.incoming", handleIncomingCall);
       socket.off("call:accepted", handleCallAccepted);
+      socket.off("call.accepted", handleCallAccepted);
       socket.off("call:rejected", handleCallRejected);
+      socket.off("call.rejected", handleCallRejected);
       socket.off("call:cancelled", handleCallCancelled);
+      socket.off("call.cancelled", handleCallCancelled);
       socket.off("call:busy", handleCallBusy);
       socket.off("call:timeout", handleCallTimeout);
+      socket.off("call.timeout", handleCallTimeout);
       socket.off("call:signal", handleCallSignal);
       socket.off("call:ended", handleCallEnded);
+      socket.off("call.ended", handleCallEnded);
       socket.off("call:error", handleCallError);
       socket.off("call:media-state", handleMediaState);
+      socket.off("call.participant.reconnecting", handleParticipantReconnecting);
+      socket.off("call:participant:reconnecting", handleParticipantReconnecting);
       socket.off("call.participant.joined", handleParticipantJoined);
       socket.off("call:participant:joined", handleParticipantJoined);
       socket.off("call.participant_invited", handleParticipantInvited);
@@ -3417,7 +3627,13 @@ export function UnifiedChatApp({
 
   // Create Group
   const createGroupMutation = useMutation({
-    mutationFn: async (data: { name: string; description: string; memberIds: string[]; avatarUrl?: string }) => {
+    mutationFn: async (data: {
+      name: string;
+      description: string;
+      memberIds: string[];
+      avatarUrl?: string;
+      isAnnouncementOnly?: boolean;
+    }) => {
       const res: any = await api.post("/api/chat/groups", data);
       return res?.group || res;
     },
@@ -3428,6 +3644,7 @@ export function UnifiedChatApp({
       setNewGroupDescription("");
       setNewGroupAvatarUrl("");
       setNewGroupAvatarMediaId("");
+      setNewGroupIsAnnouncementOnly(false);
       setSelectedGroupMemberIds([]);
       setGroupFormError("");
       queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
@@ -3446,13 +3663,151 @@ export function UnifiedChatApp({
     },
   });
 
+  // Create Dynamic HRMS Organization Group
+  const createOrgGroupMutation = useMutation({
+    mutationFn: async (data: {
+      templateType: string;
+      sourceEntityId?: string;
+      name?: string;
+      description?: string;
+      isAnnouncementOnly?: boolean;
+    }) => {
+      const res: any = await api.post("/api/chat/hrms/groups/from-org", data);
+      return res?.group || res?.data?.group || res;
+    },
+    onSuccess: (group) => {
+      toast.success(`Organization group "${group.name}" ready!`);
+      setCreateGroupOpen(false);
+      setSelectedOrgTemplateKey("");
+      setNewGroupIsAnnouncementOnly(false);
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (group?.id) {
+        setActiveThreadId(`group_${group.id}`);
+        setActiveThreadTitle(group.name);
+        setActiveThreadType("group");
+        setActiveGroupId(group.id);
+        setActiveTargetUserId("");
+        handleModeSelect("groups");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || err?.message || "Failed to create organization group");
+    },
+  });
+
+  // Per-Conversation User Preferences (Mute, Archive, Mark Unread, Notification Level)
+  const updateConversationPreferenceMutation = useMutation({
+    mutationFn: async (data: {
+      threadId: string;
+      isMuted?: boolean;
+      mutedUntil?: string | null;
+      isArchived?: boolean;
+      markedUnread?: boolean;
+      notificationLevel?: "all" | "mentions" | "none";
+    }) => {
+      const { threadId, ...body } = data;
+      return api.patch(`/api/chat/conversations/${encodeURIComponent(threadId)}/preferences`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      toast.success("Conversation preferences updated");
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to update conversation preferences");
+    },
+  });
+
+  // Archive Group (Owner/Admin)
+  const archiveGroupMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      return api.post(`/api/chat/groups/${groupId}/archive`, {});
+    },
+    onSuccess: () => {
+      toast.success("Group archived");
+      setActiveThreadId("");
+      setActiveGroupId("");
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to archive group");
+    },
+  });
+
+  // Invite Link Management
+  const generateInviteLinkMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      const res: any = await api.post(`/api/chat/groups/${groupId}/invite-link`, {});
+      return res?.data || res;
+    },
+    onSuccess: (data: any) => {
+      const token = data?.inviteToken || data?.token || "";
+      setActiveInviteToken(token || null);
+      if (token && typeof navigator !== "undefined" && navigator.clipboard) {
+        navigator.clipboard.writeText(token).catch(() => {});
+      }
+      toast.success("Invite token generated and copied to clipboard");
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to generate invite token");
+    },
+  });
+
+  const revokeInviteLinkMutation = useMutation({
+    mutationFn: async (groupId: string) => {
+      return api.delete(`/api/chat/groups/${groupId}/invite-link`);
+    },
+    onSuccess: () => {
+      setActiveInviteToken(null);
+      toast.success("Group invite link revoked");
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Failed to revoke invite link");
+    },
+  });
+
+  const joinGroupByInviteMutation = useMutation({
+    mutationFn: async (inviteToken: string) => {
+      const res: any = await api.post("/api/chat/groups/join-by-invite", { inviteToken });
+      return res?.group || res?.data?.group || res;
+    },
+    onSuccess: (group: any) => {
+      toast.success(`Joined group "${group?.name || "Group"}"!`);
+      setJoinInviteOpen(false);
+      setJoinInviteToken("");
+      queryClient.invalidateQueries({ queryKey: ["chat", "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (group?.id) {
+        setActiveThreadId(`group_${group.id}`);
+        setActiveThreadTitle(group.name || "Group");
+        setActiveThreadType("group");
+        setActiveGroupId(group.id);
+        handleModeSelect("groups");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.error || "Invalid or expired invite token");
+    },
+  });
+
   // Update Group Profile
   const updateGroupMutation = useMutation({
-    mutationFn: async (data: { groupId: string; name?: string; description?: string; avatarUrl?: string }) => {
+    mutationFn: async (data: {
+      groupId: string;
+      name?: string;
+      description?: string;
+      avatarUrl?: string;
+      isAnnouncementOnly?: boolean;
+    }) => {
       return api.patch(`/api/chat/groups/${data.groupId}`, {
         name: data.name,
         description: data.description,
         avatarUrl: data.avatarUrl,
+        ...(data.isAnnouncementOnly !== undefined ? { isAnnouncementOnly: data.isAnnouncementOnly } : {}),
       });
     },
     onSuccess: (updatedGroup: any) => {
@@ -3866,9 +4221,18 @@ export function UnifiedChatApp({
         if (vt) vt.enabled = false;
       }
 
-      // Create WebRTC Peer Connection with STUN
+      // Resolve ICE/TURN servers from authoritative backend endpoint with STUN fallback
+      let rtcIceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+      try {
+        const iceRes: any = await api.get("/api/calls/ice-servers");
+        const fetched = iceRes?.iceServers || iceRes?.data?.iceServers;
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          rtcIceServers = fetched;
+        }
+      } catch {}
+
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: rtcIceServers,
       });
       peerConnectionRef.current = pc;
 
@@ -4178,8 +4542,17 @@ export function UnifiedChatApp({
       setIsVideoOff(!stream || !stream.getVideoTracks().some((t) => t.enabled));
       setActiveCallModalOpen(true);
 
+      let rtcIceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+      try {
+        const iceRes: any = await api.get("/api/calls/ice-servers");
+        const fetched = iceRes?.iceServers || iceRes?.data?.iceServers;
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          rtcIceServers = fetched;
+        }
+      } catch {}
+
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: rtcIceServers,
       });
       peerConnectionRef.current = pc;
 
@@ -4884,7 +5257,7 @@ export function UnifiedChatApp({
     if (!attachments || attachments.length === 0) return;
     setActiveViewer({
       items: attachments.map((a) => ({
-        url: a.url,
+        url: a.signedPreviewUrl || a.url,
         name: a.name || a.fileName || "Attachment",
         size: a.size || a.fileSize,
         mimeType: a.mimeType,
@@ -5168,6 +5541,39 @@ export function UnifiedChatApp({
     }
   };
 
+  const retryFailedMessage = async (failedMsg: ChatMessageItem) => {
+    const tempId = failedMsg.clientTempId || failedMsg.id;
+    setOptimisticMessages((prev) =>
+      prev.map((m) => ((m.clientTempId || m.id) === tempId ? { ...m, status: "pending" } : m))
+    );
+    try {
+      const res: any = await api.post("/api/chat/messages", {
+        threadId: activeThreadId,
+        content: failedMsg.content,
+        clientTempId: tempId,
+        recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
+        groupId: activeThreadType === "group" ? activeGroupId : undefined,
+        replyToId: failedMsg.replyTo?.id || failedMsg.replyToId,
+        mentions: failedMsg.mentions || [],
+      });
+      const canonicalMsg = formatMessageItem(res?.message || res, currentUserId);
+      setOptimisticMessages((prev) =>
+        prev.filter((m) => m.clientTempId !== tempId && m.id !== tempId && m.id !== canonicalMsg.id)
+      );
+      queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
+        const list = Array.isArray(old?.messages) ? old.messages : [];
+        if (list.some((m: any) => m.id === canonicalMsg.id)) return old;
+        return { ...(old || {}), messages: [...list, canonicalMsg] };
+      });
+      toast.success("Message delivered");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error || "Retry failed");
+      setOptimisticMessages((prev) =>
+        prev.map((m) => ((m.clientTempId || m.id) === tempId ? { ...m, status: "failed" } : m))
+      );
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -5392,6 +5798,27 @@ export function UnifiedChatApp({
           if (m.id !== messageId || !m.poll) return m;
           const poll = typeof m.poll === "string" ? JSON.parse(m.poll) : m.poll;
           const allowMultiple = Boolean(poll.allowMultiple || poll.isMultiSelect);
+          if (poll.isAnonymous) {
+            const updatedOptions = (poll.options || []).map((opt: any) => {
+              const curCount = typeof opt.voteCount === "number" ? opt.voteCount : 0;
+              const curVoted = Boolean(opt.hasVoted);
+              if (opt.id === optionId) {
+                return {
+                  ...opt,
+                  hasVoted: !curVoted,
+                  voteCount: curVoted ? Math.max(0, curCount - 1) : curCount + 1,
+                };
+              } else if (!allowMultiple && curVoted) {
+                return {
+                  ...opt,
+                  hasVoted: false,
+                  voteCount: Math.max(0, curCount - 1),
+                };
+              }
+              return opt;
+            });
+            return { ...m, poll: { ...poll, options: updatedOptions } };
+          }
           const updatedOptions = (poll.options || []).map((opt: any) => {
             const votes: string[] = Array.isArray(opt.votes) ? [...opt.votes] : [];
             if (opt.id === optionId) {
@@ -5474,12 +5901,14 @@ export function UnifiedChatApp({
       isClosed: false,
       allowMultiple: pollAllowMultiple,
       isMultiSelect: pollAllowMultiple,
+      isAnonymous: pollIsAnonymous,
     };
 
     setCreatePollOpen(false);
     setPollQuestion("");
     setPollOptions(["", ""]);
     setPollAllowMultiple(false);
+    setPollIsAnonymous(false);
 
     try {
       const res: any = await api.post("/api/chat/messages", {
@@ -5581,40 +6010,65 @@ export function UnifiedChatApp({
   const filteredPersonalConversations = useMemo(() => {
     return personalConversations.filter((c) => {
       const matchSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchFilter = filterFilter === "unread" ? c.unreadCount > 0 : true;
+      if (filterFilter === "archived") return matchSearch && Boolean(c.isArchived);
+      if (c.isArchived) return false;
+      const matchFilter =
+        filterFilter === "unread" ? c.unreadCount > 0 || Boolean(c.markedUnread) : true;
       return matchSearch && matchFilter;
     });
   }, [personalConversations, searchQuery, filterFilter]);
 
   // Clean group names
   const cleanGroups = useMemo(() => {
-    return groups.map((g) => ({
-      ...g,
-      name: cleanPersonName(g.name),
-    }));
+    return groups
+      .filter((g) => !g.isArchived)
+      .map((g) => ({
+        ...g,
+        name: cleanPersonName(g.name),
+      }));
   }, [groups]);
 
   // Filtered Lists
   const filteredConversations = useMemo(() => {
     return conversations.filter((c) => {
       const matchSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchFilter = filterFilter === "unread" ? c.unreadCount > 0 : true;
+      if (filterFilter === "archived") return matchSearch && Boolean(c.isArchived);
+      if (c.isArchived) return false;
+      const matchFilter =
+        filterFilter === "unread" ? c.unreadCount > 0 || Boolean(c.markedUnread) : true;
       return matchSearch && matchFilter;
     });
   }, [conversations, searchQuery, filterFilter]);
 
   const filteredGroups = useMemo(() => {
-    return groups.filter((g) => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    return groups.filter((g) => !g.isArchived && g.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [groups, searchQuery]);
 
+  const contactDepartments = useMemo(() => {
+    const set = new Set<string>();
+    contacts.forEach((c) => {
+      if (c.department && c.department.trim()) set.add(c.department.trim());
+    });
+    return Array.from(set).sort();
+  }, [contacts]);
+
   const filteredContacts = useMemo(() => {
-    return contacts.filter(
-      (c) =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.department?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [contacts, searchQuery]);
+    return contacts.filter((c) => {
+      const matchesDept =
+        contactDepartmentFilter === "all" ||
+        (c.department || "").toLowerCase() === contactDepartmentFilter.toLowerCase();
+      if (!matchesDept) return false;
+      const q = searchQuery.toLowerCase();
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.department?.toLowerCase().includes(q) ||
+        c.designation?.toLowerCase().includes(q) ||
+        c.employeeCode?.toLowerCase().includes(q) ||
+        c.branch?.toLowerCase().includes(q)
+      );
+    });
+  }, [contacts, searchQuery, contactDepartmentFilter]);
 
   const dialogFilteredContacts = useMemo(() => {
     return contacts.filter(
@@ -5675,9 +6129,25 @@ export function UnifiedChatApp({
         <div className="p-3 border-b border-border bg-card">
           <div className="flex items-center justify-between mb-2.5">
             <h2 className="text-base font-bold text-foreground font-sans">
-              {mode === "chats" ? "Personal Chats" : mode === "groups" ? "Group Chats" : "Call Logs"}
+              {mode === "chats"
+                ? "Personal Chats"
+                : mode === "groups"
+                ? "Group Chats"
+                : mode === "contacts"
+                ? "Directory"
+                : "Call Logs"}
             </h2>
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                data-testid="btn-global-chat-search"
+                onClick={() => setGlobalSearchOpen(true)}
+                className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                title="Global Search across messages & files"
+              >
+                <Search className="size-4" />
+              </Button>
               {mode === "chats" && (
                 <Button
                   variant="ghost"
@@ -5690,15 +6160,27 @@ export function UnifiedChatApp({
                 </Button>
               )}
               {mode === "groups" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCreateGroupOpen(true)}
-                  className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
-                  title="Create Group"
-                >
-                  <Plus className="size-4" />
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    data-testid="btn-join-group-invite"
+                    onClick={() => setJoinInviteOpen(true)}
+                    className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                    title="Join Group via Invite Token"
+                  >
+                    <UserPlus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setCreateGroupOpen(true)}
+                    className="size-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted"
+                    title="Create Group"
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </>
               )}
               {mode === "calls" && (
                 <Button
@@ -5786,7 +6268,7 @@ export function UnifiedChatApp({
           </div>
 
           {mode === "chats" && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap">
               <button
                 onClick={() => setFilterFilter("all")}
                 className={cn(
@@ -5809,7 +6291,35 @@ export function UnifiedChatApp({
               >
                 Unread
               </button>
+              <button
+                onClick={() => setFilterFilter("archived")}
+                data-testid="filter-archived-chats"
+                className={cn(
+                  "px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer",
+                  filterFilter === "archived"
+                    ? "bg-primary text-primary-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                )}
+              >
+                Archived
+              </button>
             </div>
+          )}
+
+          {mode === "contacts" && contactDepartments.length > 0 && (
+            <select
+              value={contactDepartmentFilter}
+              onChange={(e) => setContactDepartmentFilter(e.target.value)}
+              aria-label="Filter contacts by department"
+              className="w-full h-7.5 rounded-md border border-border/70 bg-muted/30 px-2 text-xs font-sans text-foreground"
+            >
+              <option value="all">All Departments ({contacts.length})</option>
+              {contactDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
           )}
         </div>
 
@@ -5880,6 +6390,7 @@ export function UnifiedChatApp({
                         <div className="flex items-center justify-between mb-0.5">
                           <h4 className="text-xs font-semibold text-foreground truncate flex items-center gap-1">
                             {item.isPinned && <Pin className="size-3 text-primary flex-shrink-0" />}
+                            {item.isMuted && <BellOff className="size-3 text-muted-foreground flex-shrink-0" />}
                             <span className="truncate">{item.title}</span>
                           </h4>
                           <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-1">
@@ -5891,25 +6402,75 @@ export function UnifiedChatApp({
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-1">
-                        <button
-                          title={item.isPinned ? "Unpin conversation" : "Pin conversation"}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            togglePinConversationMutation.mutate(item.threadId);
-                          }}
-                          className={cn(
-                            "p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-opacity",
-                            item.isPinned ? "text-primary opacity-100" : "opacity-0 group-hover:opacity-100"
-                          )}
-                        >
-                          <Pin className="size-3.5" />
-                        </button>
-                        {item.unreadCount > 0 && (
+                      <div className="flex items-center gap-0.5">
+                        {(item.unreadCount > 0 || item.markedUnread) && (
                           <Badge className="bg-primary text-primary-foreground text-[10px] h-4.5 px-1.5 rounded-full flex-shrink-0">
-                            {item.unreadCount}
+                            {item.unreadCount > 0 ? item.unreadCount : "•"}
                           </Badge>
                         )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="Conversation options"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-70 group-hover:opacity-100 transition-opacity"
+                            >
+                              <MoreVertical className="size-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 font-sans text-xs" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuItem onClick={() => togglePinConversationMutation.mutate(item.threadId)}>
+                              <Pin className="size-3.5 mr-2" />
+                              {item.isPinned ? "Unpin Conversation" : "Pin Conversation"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateConversationPreferenceMutation.mutate({
+                                  threadId: item.threadId,
+                                  markedUnread: !item.markedUnread && item.unreadCount === 0,
+                                })
+                              }
+                            >
+                              <MessageSquare className="size-3.5 mr-2" />
+                              {item.markedUnread || item.unreadCount > 0 ? "Mark as Read" : "Mark as Unread"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateConversationPreferenceMutation.mutate({
+                                  threadId: item.threadId,
+                                  isMuted: !item.isMuted,
+                                })
+                              }
+                            >
+                              {item.isMuted ? <Bell className="size-3.5 mr-2" /> : <BellOff className="size-3.5 mr-2" />}
+                              {item.isMuted ? "Unmute Notifications" : "Mute Notifications"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateConversationPreferenceMutation.mutate({
+                                  threadId: item.threadId,
+                                  notificationLevel: item.notificationLevel === "mentions" ? "all" : "mentions",
+                                })
+                              }
+                            >
+                              <Sliders className="size-3.5 mr-2" />
+                              {item.notificationLevel === "mentions" ? "Notify: All Messages" : "Notify: Mentions Only"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() =>
+                                updateConversationPreferenceMutation.mutate({
+                                  threadId: item.threadId,
+                                  isArchived: !item.isArchived,
+                                })
+                              }
+                            >
+                              <FolderOpen className="size-3.5 mr-2" />
+                              {item.isArchived ? "Unarchive Chat" : "Archive Chat"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   );
@@ -6079,9 +6640,18 @@ export function UnifiedChatApp({
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-semibold text-foreground truncate">{contact.name}</h4>
+                        <h4 className="text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
+                          <span className="truncate">{contact.name}</span>
+                          {contact.employeeCode && (
+                            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-muted text-muted-foreground shrink-0">
+                              {contact.employeeCode}
+                            </span>
+                          )}
+                        </h4>
                         <p className="text-[11px] text-muted-foreground truncate">{contact.designation}</p>
-                        <p className="text-[10px] text-muted-foreground/80 truncate">{contact.department}</p>
+                        <p className="text-[10px] text-muted-foreground/80 truncate">
+                          {[contact.department, contact.branch].filter(Boolean).join(" • ")}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-1">
@@ -6704,12 +7274,12 @@ export function UnifiedChatApp({
 
                 <button
                   onClick={() => {
-                    setShowInfo((prev) => {
-                      const next = !prev;
-                      if (next) setMobilePane("details");
-                      else setMobilePane("chat");
-                      return next;
-                    });
+                    if (typeof window !== "undefined" && window.innerWidth < 1280) {
+                      setShowInfo(true);
+                      setMobilePane((prev) => (prev === "details" ? "chat" : "details"));
+                    } else {
+                      setShowInfo((prev) => !prev);
+                    }
                   }}
                   className={cn(
                     "p-2 rounded-lg transition-colors cursor-pointer",
@@ -6981,7 +7551,7 @@ export function UnifiedChatApp({
                               {/* Voice Note Player */}
                               {msg.voiceNote && (
                                 <div className="mt-2">
-                                  <VoiceNotePlayer voiceNote={msg.voiceNote} />
+                                  <VoiceNotePlayer voiceNote={msg.voiceNote} isSent={isSent} />
                                 </div>
                               )}
 
@@ -6991,19 +7561,21 @@ export function UnifiedChatApp({
                                   {msg.attachments.map((att, aIdx) => {
                                     const isImage = att.mimeType?.startsWith("image/");
                                     const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
+                                    const previewSrc = att.signedPreviewUrl || att.url;
+                                    const downloadHref = att.signedDownloadUrl || att.signedPreviewUrl || att.url;
 
                                     return isImage ? (
                                       <div
                                         key={aIdx}
                                         onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                        className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-xs"
+                                        className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-[240px] sm:max-w-xs"
                                       >
                                         <img
-                                          src={att.url}
+                                          src={previewSrc}
                                           alt={att.name}
                                           className="max-h-48 w-auto object-cover group-hover/img:scale-105 transition-transform"
                                         />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-foreground text-xs gap-1">
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
                                           <Eye className="size-4" /> View Full
                                         </div>
                                       </div>
@@ -7011,7 +7583,7 @@ export function UnifiedChatApp({
                                       <div
                                         key={aIdx}
                                         onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                        className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
+                                        className="flex items-center gap-2 p-2 rounded bg-card text-foreground border border-border/70 max-w-[240px] sm:max-w-xs cursor-pointer hover:bg-muted/60 transition-colors"
                                       >
                                         {isPdf ? (
                                           <FileText className="size-5 text-destructive flex-shrink-0" />
@@ -7027,7 +7599,7 @@ export function UnifiedChatApp({
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             const link = document.createElement("a");
-                                            link.href = att.url;
+                                            link.href = downloadHref;
                                             link.download = att.name;
                                             link.click();
                                           }}
@@ -7044,45 +7616,67 @@ export function UnifiedChatApp({
 
                               {/* Poll Card */}
                               {msg.poll && (
-                                <div className="mt-2 p-3 rounded-lg bg-card text-foreground border border-border/80 space-y-2 min-w-[240px]">
-                                  <div className="flex items-center justify-between">
+                                <div className="mt-2 p-3 rounded-lg bg-card text-foreground border border-border/80 space-y-2 min-w-[210px] sm:min-w-[240px]">
+                                  <div className="flex items-center justify-between gap-2">
                                     <h5 className="font-semibold text-xs flex items-center gap-1.5">
-                                      <BarChart2 className="size-3.5 text-primary" />
+                                      <BarChart2 className="size-3.5 text-primary shrink-0" />
                                       <span>{msg.poll.question}</span>
                                     </h5>
-                                    {msg.poll.isClosed && (
-                                      <Badge variant="secondary" className="text-[9px]">Closed</Badge>
-                                    )}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {msg.poll.isAnonymous && (
+                                        <Badge variant="outline" className="text-[9px]">Anonymous</Badge>
+                                      )}
+                                      {msg.poll.isClosed && (
+                                        <Badge variant="secondary" className="text-[9px]">Closed</Badge>
+                                      )}
+                                    </div>
                                   </div>
 
                                   {(() => {
                                     const isMulti = Boolean(msg.poll.allowMultiple || msg.poll.isMultiSelect);
+                                    const isAnon = Boolean(msg.poll.isAnonymous);
                                     const allVoterIds = new Set<string>();
                                     (msg.poll.options || []).forEach((o: any) => {
                                       if (Array.isArray(o.votes)) {
                                         o.votes.forEach((v: string) => allVoterIds.add(v));
                                       }
                                     });
-                                    const distinctVotersCount = allVoterIds.size;
                                     const totalSelections = (msg.poll.options || []).reduce(
-                                      (sum: number, o: any) => sum + (Array.isArray(o.votes) ? o.votes.length : (typeof o.votes === "number" ? o.votes : 0)),
+                                      (sum: number, o: any) =>
+                                        sum +
+                                        (typeof o.voteCount === "number"
+                                          ? o.voteCount
+                                          : Array.isArray(o.votes)
+                                          ? o.votes.length
+                                          : typeof o.votes === "number"
+                                          ? o.votes
+                                          : 0),
                                       0
                                     );
+                                    const distinctVotersCount = isAnon
+                                      ? (typeof msg.poll.totalVotes === "number" ? msg.poll.totalVotes : totalSelections)
+                                      : allVoterIds.size;
                                     const denominator = isMulti ? Math.max(distinctVotersCount, 1) : Math.max(totalSelections, 1);
 
                                     return (
                                       <>
                                         <div className="space-y-1.5">
                                           {(msg.poll.options || []).map((opt: any) => {
-                                            const optionVotes = Array.isArray(opt.votes)
-                                              ? opt.votes.length
-                                              : typeof opt.votes === "number"
-                                              ? opt.votes
-                                              : 0;
+                                            const optionVotes =
+                                              typeof opt.voteCount === "number"
+                                                ? opt.voteCount
+                                                : Array.isArray(opt.votes)
+                                                ? opt.votes.length
+                                                : typeof opt.votes === "number"
+                                                ? opt.votes
+                                                : 0;
                                             const pct = (distinctVotersCount > 0 || totalSelections > 0)
                                               ? Math.round((optionVotes / denominator) * 100)
                                               : 0;
-                                            const hasVoted = Array.isArray(opt.votes) && opt.votes.includes(currentUserId);
+                                            const hasVoted =
+                                              typeof opt.hasVoted === "boolean"
+                                                ? opt.hasVoted
+                                                : Array.isArray(opt.votes) && opt.votes.includes(currentUserId);
 
                                             return (
                                               <div
@@ -7092,23 +7686,23 @@ export function UnifiedChatApp({
                                                 }}
                                                 className={cn(
                                                   "p-2 rounded border border-border/60 relative overflow-hidden transition-colors cursor-pointer select-none",
-                                                  hasVoted && "border-primary/30 bg-primary/40 dark:bg-primary/20"
+                                                  hasVoted && "border-primary/40 bg-primary/15 dark:bg-primary/20"
                                                 )}
                                               >
                                                 <div
-                                                  className="absolute inset-y-0 left-0 bg-primary/40 dark:bg-primary/20 pointer-events-none"
+                                                  className="absolute inset-y-0 left-0 bg-primary/20 dark:bg-primary/20 pointer-events-none"
                                                   style={{ width: `${Math.min(pct, 100)}%` }}
                                                 />
-                                                <div className="relative flex items-center justify-between text-xs">
-                                                  <div className="flex items-center gap-1.5">
+                                                <div className="relative flex items-center justify-between text-xs gap-2">
+                                                  <div className="flex items-center gap-1.5 min-w-0">
                                                     {hasVoted ? (
-                                                      <CheckSquare className="size-3.5 text-primary" />
+                                                      <CheckSquare className="size-3.5 text-primary shrink-0" />
                                                     ) : (
-                                                      <Square className="size-3.5 text-muted-foreground" />
+                                                      <Square className="size-3.5 text-muted-foreground shrink-0" />
                                                     )}
-                                                    <span className="font-medium">{opt.text}</span>
+                                                    <span className="font-medium truncate">{opt.text}</span>
                                                   </div>
-                                                  <span className="text-[11px] font-mono text-muted-foreground">
+                                                  <span className="text-[11px] font-mono text-muted-foreground shrink-0">
                                                     {optionVotes} ({pct}%)
                                                   </span>
                                                 </div>
@@ -7139,9 +7733,36 @@ export function UnifiedChatApp({
                                 </div>
                               )}
 
-                              {/* Edited label */}
+                              {/* Edited label & Edit History Popover */}
                               {msg.isEdited && (
-                                <span className="text-[9px] opacity-75 ml-1.5">(edited)</span>
+                                msg.editHistory && msg.editHistory.length > 0 ? (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="text-[9px] opacity-80 hover:opacity-100 underline ml-1.5 cursor-pointer"
+                                        title="View edit history"
+                                      >
+                                        (edited)
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-64 p-2.5 text-xs font-sans space-y-1.5" align="end">
+                                      <p className="font-semibold text-[11px] border-b border-border pb-1">Edit History</p>
+                                      <div className="max-h-36 overflow-y-auto space-y-1.5">
+                                        {msg.editHistory.map((h, hIdx) => (
+                                          <div key={hIdx} className="p-1.5 rounded bg-muted/60 text-[11px]">
+                                            <p className="text-foreground break-words">{h.content}</p>
+                                            <span className="text-[9px] text-muted-foreground font-mono">
+                                              {h.editedAt ? new Date(h.editedAt).toLocaleString() : ""}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ) : (
+                                  <span className="text-[9px] opacity-75 ml-1.5">(edited)</span>
+                                )
                               )}
                             </>
                           )}
@@ -7228,11 +7849,52 @@ export function UnifiedChatApp({
                           {isSent && (
                             <>
                               {msg.status === "failed" ? (
-                                <span className="text-destructive font-medium">Failed</span>
+                                <span className="inline-flex items-center gap-1 text-destructive font-medium">
+                                  <span>Failed</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => retryFailedMessage(msg)}
+                                    className="underline hover:text-destructive/80 cursor-pointer"
+                                  >
+                                    Retry
+                                  </button>
+                                </span>
                               ) : msg.status === "pending" ? (
                                 <Clock className="size-3 text-muted-foreground animate-spin" />
                               ) : msg.deliveryStatus === "seen" || msg.status === "read" ? (
-                                <span title="Seen"><CheckCheck className="size-3.5 text-primary dark:text-primary" /></span>
+                                activeThreadType === "group" && msg.seenBy && msg.seenBy.length > 0 ? (
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center gap-0.5 text-primary hover:underline cursor-pointer"
+                                        title="View seen roster"
+                                      >
+                                        <CheckCheck className="size-3.5 text-primary dark:text-primary" />
+                                        <span>Seen ({msg.seenBy.length})</span>
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-48 p-2 text-xs font-sans" align="end">
+                                      <p className="font-semibold text-[11px] border-b border-border pb-1 mb-1">
+                                        Seen by {msg.seenBy.length}
+                                      </p>
+                                      <div className="max-h-32 overflow-y-auto space-y-1">
+                                        {msg.seenBy.map((s) => (
+                                          <div key={s.userId} className="flex items-center justify-between text-[11px]">
+                                            <span className="truncate font-medium">{s.name}</span>
+                                            {s.readAt && (
+                                              <span className="text-[9px] text-muted-foreground font-mono ml-1">
+                                                {new Date(s.readAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ) : (
+                                  <span title="Seen"><CheckCheck className="size-3.5 text-primary dark:text-primary" /></span>
+                                )
                               ) : msg.deliveryStatus === "delivered" || msg.status === "delivered" ? (
                                 <span title="Delivered"><CheckCheck className="size-3.5 text-muted-foreground" /></span>
                               ) : (
@@ -7242,12 +7904,12 @@ export function UnifiedChatApp({
                           )}
                         </div>
 
-                        {/* Message Action Context Menu (Hover or Click) */}
+                        {/* Message Action Context Menu (Hover or Click — inside bubble bounds to prevent mobile overflow) */}
                         {!msg.isDeletedForEveryone && (
                           <div
                             className={cn(
-                              "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-card/90 backdrop-blur-xs border border-border rounded-lg shadow-sm px-1 py-0.5 z-10",
-                              isSent ? "-left-28" : "-right-28",
+                              "absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-card/95 backdrop-blur-xs border border-border rounded-lg shadow-sm px-1 py-0.5 z-10",
+                              isSent ? "right-0" : "left-0",
                               reactionPickerMessageId === msg.id && "opacity-100"
                             )}
                           >
@@ -7710,8 +8372,21 @@ export function UnifiedChatApp({
                   </Button>
                 </div>
               </div>
+            ) : activeThreadType === "group" &&
+              activeGroup?.isAnnouncementOnly &&
+              activeGroup.ownerId !== currentUserId &&
+              !activeGroup.members?.some(
+                (m) => m.userId === currentUserId && ["owner", "admin", "moderator"].includes(m.role)
+              ) ? (
+              <div
+                data-testid="banner-announcement-only"
+                className="p-3 border-t border-border bg-muted/40 text-center text-xs text-muted-foreground flex items-center justify-center gap-2"
+              >
+                <LockIcon className="size-3.5 text-primary shrink-0" />
+                <span>Announcement-only channel — only group admins and moderators can post messages.</span>
+              </div>
             ) : (
-              <div className="p-3 border-t border-border bg-card flex items-center gap-2 relative">
+              <div className="p-2 sm:p-3 border-t border-border bg-card flex items-center gap-1 sm:gap-2 relative">
                 {/* Mentions Autocomplete Popover */}
                 {mentionQuery !== null && activeThreadType === "group" && activeGroup && (
                   <div className="absolute bottom-14 left-12 bg-popover text-popover-foreground border border-border rounded-xl shadow-xl p-1 w-64 z-50 text-xs font-sans">
@@ -7906,10 +8581,12 @@ export function UnifiedChatApp({
       {/* ─────────────────────────────────────────────────────────────────── */}
       {showInfo && activeThreadId && mode !== "calls" && (
         <aside className={cn(
-          "w-full md:w-[300px] lg:w-[320px] flex-shrink-0 border-l border-border bg-card flex-col overflow-y-auto",
-          mobilePane === "details" ? "flex" : "hidden xl:flex"
+          "w-full sm:w-[320px] xl:w-[320px] flex-shrink-0 border-l border-border bg-card flex-col overflow-y-auto",
+          mobilePane === "details"
+            ? "fixed inset-y-0 right-0 z-40 flex shadow-2xl xl:static xl:z-auto xl:shadow-none"
+            : "hidden xl:flex"
         )}>
-          <div className="md:hidden flex items-center gap-2 p-3 border-b border-border">
+          <div className="xl:hidden flex items-center gap-2 p-3 border-b border-border">
             <button
               type="button"
               data-testid="btn-mobile-back-to-chat"
@@ -8161,13 +8838,44 @@ export function UnifiedChatApp({
 
                   <div className="space-y-1">
                     <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                      Department
+                      Department &amp; Branch
                     </span>
                     <p className="text-foreground font-medium flex items-center gap-2">
                       <Building className="size-3.5 text-muted-foreground flex-shrink-0" />
-                      <span>{participantProfile?.department || activeContact?.department || "—"}</span>
+                      <span>
+                        {[
+                          participantProfile?.department || activeContact?.department,
+                          participantProfile?.branch || activeContact?.branch,
+                        ]
+                          .filter(Boolean)
+                          .join(" • ") || "—"}
+                      </span>
                     </p>
                   </div>
+
+                  {(participantProfile?.employeeCode || activeContact?.employeeCode) && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                        Employee Code
+                      </span>
+                      <p className="text-foreground font-mono text-xs flex items-center gap-2">
+                        <Briefcase className="size-3.5 text-muted-foreground flex-shrink-0" />
+                        <span>{participantProfile?.employeeCode || activeContact?.employeeCode}</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {(participantProfile?.managerName || activeContact?.managerName) && (
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                        Reporting Manager
+                      </span>
+                      <p className="text-foreground font-medium flex items-center gap-2">
+                        <User className="size-3.5 text-muted-foreground flex-shrink-0" />
+                        <span>{participantProfile?.managerName || activeContact?.managerName}</span>
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : isEditingGroupSidebar ? (
                 <div className="space-y-3">
@@ -8251,26 +8959,103 @@ export function UnifiedChatApp({
                       Group Administration
                     </span>
 
-                    {/* Edit Group Button (Owner/Admin only) */}
+                    {/* Edit Group & Admin Controls (Owner/Admin only) */}
                     {(activeGroup?.ownerId === currentUserId ||
                       activeGroup?.members?.some(
                         (m) => m.userId === currentUserId && (m.role === "owner" || m.role === "admin")
                       )) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs justify-start gap-2"
-                        onClick={() => {
-                          setEditGroupName(activeGroup.name);
-                          setEditGroupDescription(activeGroup.description || "");
-                          setEditGroupAvatarUrl(activeGroup.avatarUrl || "");
-                          setEditGroupAvatarMediaId("");
-                          setIsEditingGroupSidebar(true);
-                        }}
-                      >
-                        <Edit3 className="size-3.5 text-primary" />
-                        <span>Edit Group Details</span>
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs justify-start gap-2"
+                          onClick={() => {
+                            if (!activeGroup) return;
+                            setEditGroupName(activeGroup.name);
+                            setEditGroupDescription(activeGroup.description || "");
+                            setEditGroupAvatarUrl(activeGroup.avatarUrl || "");
+                            setEditGroupAvatarMediaId("");
+                            setIsEditingGroupSidebar(true);
+                          }}
+                        >
+                          <Edit3 className="size-3.5 text-primary" />
+                          <span>Edit Group Details</span>
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs justify-start gap-2"
+                          onClick={() =>
+                            activeGroup &&
+                            updateGroupMutation.mutate({
+                              groupId: activeGroup.id,
+                              isAnnouncementOnly: !activeGroup.isAnnouncementOnly,
+                            })
+                          }
+                        >
+                          <LockIcon className="size-3.5 text-primary" />
+                          <span>
+                            {activeGroup?.isAnnouncementOnly
+                              ? "Disable Announcement-Only Mode"
+                              : "Enable Announcement-Only Mode"}
+                          </span>
+                        </Button>
+
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs justify-start gap-1.5"
+                            onClick={() => activeGroup && generateInviteLinkMutation.mutate(activeGroup.id)}
+                          >
+                            <Copy className="size-3.5 text-primary" />
+                            <span>
+                              {activeInviteToken || activeGroup?.inviteToken ? "Rotate Invite Token" : "Create Invite Token"}
+                            </span>
+                          </Button>
+                          {(activeInviteToken || activeGroup?.inviteToken) && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs text-destructive px-2"
+                              title="Revoke invite link"
+                              onClick={() => activeGroup && revokeInviteLinkMutation.mutate(activeGroup.id)}
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+
+                        {(activeInviteToken || activeGroup?.inviteToken) && (
+                          <div className="p-2 rounded bg-muted/60 border border-border text-[10px] font-mono flex items-center justify-between gap-2">
+                            <span className="truncate">{activeInviteToken || activeGroup?.inviteToken}</span>
+                            <button
+                              type="button"
+                              className="text-primary hover:underline font-sans font-semibold shrink-0 cursor-pointer"
+                              onClick={() => {
+                                const tok = activeInviteToken || activeGroup?.inviteToken || "";
+                                if (tok && navigator.clipboard) {
+                                  navigator.clipboard.writeText(tok);
+                                  toast.success("Invite token copied");
+                                }
+                              }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full text-xs justify-start gap-2 text-warning hover:bg-warning/10"
+                          onClick={() => activeGroup && archiveGroupMutation.mutate(activeGroup.id)}
+                        >
+                          <FolderOpen className="size-3.5" />
+                          <span>Archive Group</span>
+                        </Button>
+                      </>
                     )}
 
                     {/* Mute/Unmute Notifications */}
@@ -8506,7 +9291,7 @@ export function UnifiedChatApp({
                         </div>
                       </div>
                       <a
-                        href={f.url}
+                        href={f.signedDownloadUrl || f.signedPreviewUrl || f.url}
                         download={f.name}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -8605,12 +9390,91 @@ export function UnifiedChatApp({
           </DialogHeader>
 
           <div className="py-2 space-y-3 font-sans">
+            <div className="grid grid-cols-2 gap-1 p-1 bg-muted/60 rounded-lg border border-border/50 text-xs">
+              <button
+                type="button"
+                onClick={() => setGroupCreateTab("custom")}
+                className={cn(
+                  "py-1.5 rounded-md font-semibold transition-all cursor-pointer",
+                  groupCreateTab === "custom"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Custom Group
+              </button>
+              <button
+                type="button"
+                data-testid="tab-create-org-group"
+                onClick={() => setGroupCreateTab("org")}
+                className={cn(
+                  "py-1.5 rounded-md font-semibold transition-all cursor-pointer",
+                  groupCreateTab === "org"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                From HRMS Organization
+              </button>
+            </div>
+
             {groupFormError && (
               <div className="p-2.5 text-xs rounded bg-destructive/10 text-destructive flex items-center gap-2">
                 <AlertCircle className="size-4 flex-shrink-0" />
                 <span>{groupFormError}</span>
               </div>
             )}
+
+            {groupCreateTab === "org" ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Automatically provision a group populated from your live HRMS Departments, Branches, Projects, or Leadership roster.
+                </p>
+                <div className="max-h-[240px] overflow-y-auto space-y-1.5 border border-border rounded-md p-2">
+                  {orgTemplatesData.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-6">
+                      No organization templates found for this tenant.
+                    </p>
+                  ) : (
+                    orgTemplatesData.map((tpl: any, idx: number) => {
+                      const key = `${tpl.templateType || tpl.category || "department"}::${tpl.sourceEntityId || tpl.id || tpl.name || idx}`;
+                      const selected = selectedOrgTemplateKey === key;
+                      return (
+                        <div
+                          key={key}
+                          onClick={() => setSelectedOrgTemplateKey(key)}
+                          className={cn(
+                            "p-2 rounded-md border flex items-center justify-between cursor-pointer text-xs",
+                            selected
+                              ? "border-primary bg-primary/10 text-foreground font-semibold"
+                              : "border-border/60 hover:bg-muted/60"
+                          )}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate">{tpl.name || tpl.label}</p>
+                            <span className="text-[10px] text-muted-foreground capitalize">
+                              {tpl.templateType || tpl.category || "Organization"} • {tpl.memberCount ?? 0} members
+                            </span>
+                          </div>
+                          {selected && <Check className="size-4 text-primary shrink-0" />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="org-group-announcement"
+                    checked={newGroupIsAnnouncementOnly}
+                    onCheckedChange={(checked) => setNewGroupIsAnnouncementOnly(Boolean(checked))}
+                  />
+                  <Label htmlFor="org-group-announcement" className="text-xs cursor-pointer">
+                    Announcement-only channel (Admins post only)
+                  </Label>
+                </div>
+              </div>
+            ) : (
+              <>
 
             {/* Group Avatar Selection */}
             <div className="space-y-1.5">
@@ -8805,6 +9669,19 @@ export function UnifiedChatApp({
                 })}
               </div>
             </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <Checkbox
+                id="custom-group-announcement"
+                checked={newGroupIsAnnouncementOnly}
+                onCheckedChange={(checked) => setNewGroupIsAnnouncementOnly(Boolean(checked))}
+              />
+              <Label htmlFor="custom-group-announcement" className="text-xs cursor-pointer">
+                Announcement-only channel (Admins &amp; Moderators post only)
+              </Label>
+            </div>
+              </>
+            )}
           </div>
 
           <DialogFooter className="font-sans">
@@ -8814,8 +9691,26 @@ export function UnifiedChatApp({
             <Button
               size="sm"
               className="bg-primary hover:bg-primary text-primary-foreground font-sans"
-              disabled={createGroupMutation.isPending}
+              disabled={createGroupMutation.isPending || createOrgGroupMutation.isPending}
               onClick={() => {
+                if (groupCreateTab === "org") {
+                  if (!selectedOrgTemplateKey) {
+                    setGroupFormError("Please select an organization template.");
+                    return;
+                  }
+                  const chosen = orgTemplatesData.find((tpl: any, idx: number) => {
+                    const k = `${tpl.templateType || tpl.category || "department"}::${tpl.sourceEntityId || tpl.id || tpl.name || idx}`;
+                    return k === selectedOrgTemplateKey;
+                  });
+                  if (!chosen) return;
+                  createOrgGroupMutation.mutate({
+                    templateType: chosen.templateType || chosen.category || "department",
+                    sourceEntityId: chosen.sourceEntityId || chosen.id,
+                    name: chosen.name || chosen.label,
+                    isAnnouncementOnly: newGroupIsAnnouncementOnly,
+                  });
+                  return;
+                }
                 if (!newGroupName.trim()) {
                   setGroupFormError("Please enter a group name.");
                   return;
@@ -8829,10 +9724,11 @@ export function UnifiedChatApp({
                   description: newGroupDescription.trim(),
                   memberIds: selectedGroupMemberIds,
                   avatarUrl: newGroupAvatarUrl.trim() || undefined,
+                  isAnnouncementOnly: newGroupIsAnnouncementOnly,
                 });
               }}
             >
-              {createGroupMutation.isPending ? "Creating..." : "Create Group"}
+              {createGroupMutation.isPending || createOrgGroupMutation.isPending ? "Creating..." : "Create Group"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -10001,15 +10897,28 @@ export function UnifiedChatApp({
               )}
             </div>
 
-            <div className="flex items-center gap-2 pt-2 border-t">
-              <Checkbox
-                id="poll-multiple"
-                checked={pollAllowMultiple}
-                onCheckedChange={(checked) => setPollAllowMultiple(Boolean(checked))}
-              />
-              <Label htmlFor="poll-multiple" className="text-xs cursor-pointer font-medium">
-                Allow multiple answers
-              </Label>
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="poll-multiple"
+                  checked={pollAllowMultiple}
+                  onCheckedChange={(checked) => setPollAllowMultiple(Boolean(checked))}
+                />
+                <Label htmlFor="poll-multiple" className="text-xs cursor-pointer font-medium">
+                  Allow multiple answers
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="poll-anonymous"
+                  data-testid="checkbox-poll-anonymous"
+                  checked={pollIsAnonymous}
+                  onCheckedChange={(checked) => setPollIsAnonymous(Boolean(checked))}
+                />
+                <Label htmlFor="poll-anonymous" className="text-xs cursor-pointer font-medium">
+                  Anonymous voting (hide individual voter identities)
+                </Label>
+              </div>
             </div>
           </div>
 
@@ -10023,6 +10932,146 @@ export function UnifiedChatApp({
               className="bg-primary hover:bg-primary text-primary-foreground font-sans"
             >
               Create Poll
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* GLOBAL CHAT & FILE SEARCH DIALOG */}
+      <Dialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen}>
+        <DialogContent className="sm:max-w-lg font-sans">
+          <DialogHeader>
+            <DialogTitle className="font-sans flex items-center gap-2">
+              <Search className="size-4 text-primary" />
+              <span>Search Messages &amp; Shared Files</span>
+            </DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Search across all direct messages and groups you are authorized to access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1 font-sans">
+            <Input
+              data-testid="input-global-chat-search"
+              value={globalSearchQuery}
+              onChange={(e) => setGlobalSearchQuery(e.target.value)}
+              placeholder="Type at least 2 characters to search..."
+              className="text-xs h-9"
+              autoFocus
+            />
+            <div className="max-h-80 overflow-y-auto space-y-3">
+              {isGlobalSearching ? (
+                <div className="py-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <RefreshCw className="size-4 animate-spin text-primary" />
+                  <span>Searching authorized threads...</span>
+                </div>
+              ) : globalSearchQuery.trim().length < 2 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Enter keywords to search message content and file attachments.
+                </p>
+              ) : globalSearchData.messages.length === 0 && globalSearchData.files.length === 0 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  No matching messages or files found.
+                </p>
+              ) : (
+                <>
+                  {globalSearchData.messages.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Messages ({globalSearchData.messages.length})
+                      </p>
+                      {globalSearchData.messages.map((m: any) => (
+                        <div
+                          key={m.id}
+                          onClick={() => {
+                            const tId = m.threadId || "";
+                            setActiveThreadId(tId);
+                            setActiveThreadTitle(m.threadTitle || m.senderName || "Conversation");
+                            if (tId.startsWith("group_")) {
+                              setActiveThreadType("group");
+                              setActiveGroupId(tId.replace("group_", ""));
+                              setActiveTargetUserId("");
+                            } else {
+                              setActiveThreadType("direct");
+                              setActiveGroupId("");
+                            }
+                            setMobilePane("chat");
+                            setGlobalSearchOpen(false);
+                          }}
+                          className="p-2.5 rounded-lg border border-border/70 hover:bg-muted/60 cursor-pointer text-xs space-y-0.5"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-foreground">{m.senderName || "Colleague"}</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : ""}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground line-clamp-2">{m.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {globalSearchData.files.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Files ({globalSearchData.files.length})
+                      </p>
+                      {globalSearchData.files.map((f: any, idx: number) => (
+                        <div
+                          key={f.messageId ? `${f.messageId}_${idx}` : idx}
+                          onClick={() => {
+                            if (f.threadId) {
+                              setActiveThreadId(f.threadId);
+                              setMobilePane("chat");
+                              setGlobalSearchOpen(false);
+                            }
+                          }}
+                          className="p-2 rounded-lg border border-border/70 hover:bg-muted/60 cursor-pointer text-xs flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileIcon className="size-4 text-primary shrink-0" />
+                            <span className="font-medium truncate">{f.name || f.fileName || "Attachment"}</span>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{f.senderName || ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* JOIN GROUP VIA INVITE TOKEN DIALOG */}
+      <Dialog open={joinInviteOpen} onOpenChange={setJoinInviteOpen}>
+        <DialogContent className="sm:max-w-sm font-sans">
+          <DialogHeader>
+            <DialogTitle className="font-sans">Join Group via Invite Token</DialogTitle>
+            <DialogDescription className="font-sans text-xs">
+              Paste an invite token shared by a group administrator in your organization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 font-sans">
+            <Input
+              data-testid="input-join-invite-token"
+              value={joinInviteToken}
+              onChange={(e) => setJoinInviteToken(e.target.value)}
+              placeholder="Paste invite token..."
+              className="text-xs font-mono"
+            />
+          </div>
+          <DialogFooter className="font-sans">
+            <Button variant="outline" size="sm" onClick={() => setJoinInviteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!joinInviteToken.trim() || joinGroupByInviteMutation.isPending}
+              onClick={() => joinGroupByInviteMutation.mutate(joinInviteToken.trim())}
+              className="bg-primary hover:bg-primary text-primary-foreground"
+            >
+              {joinGroupByInviteMutation.isPending ? "Joining..." : "Join Group"}
             </Button>
           </DialogFooter>
         </DialogContent>

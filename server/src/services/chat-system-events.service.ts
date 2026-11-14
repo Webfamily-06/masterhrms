@@ -1,9 +1,9 @@
 import { prisma, rawPrisma } from "../prisma";
-import { broadcastToTenant } from "../socket";
-import { PusherService } from "./pusher.service";
+import { ChatService } from "./chat.service";
 
 /**
  * Persists and broadcasts typed chat system events (group lifecycle, call history indications, etc.)
+ * strictly to authorized conversation participants — never to tenant-wide channels.
  */
 export async function recordSystemEvent(
   tenantId: string,
@@ -12,7 +12,8 @@ export async function recordSystemEvent(
   eventType: string,
   content: string,
   metadata: any = {},
-  tx?: any
+  tx?: any,
+  explicitParticipantIds?: string[]
 ) {
   const db = tx || rawPrisma || prisma;
   let actorName = "System";
@@ -50,13 +51,34 @@ export async function recordSystemEvent(
     },
   });
 
-  try {
-    broadcastToTenant(tenantId, "chat:message", { threadId, message: eventMsg });
-    broadcastToTenant(tenantId, "chat:system_event", { threadId, message: eventMsg, eventType });
-    PusherService.triggerTenantEvent(tenantId, "chat:message", { threadId, message: eventMsg }).catch(() => {});
-    PusherService.triggerTenantEvent(tenantId, "chat:system_event", { threadId, message: eventMsg, eventType }).catch(() => {});
-  } catch (err: any) {
-    console.warn("Realtime system event broadcast failed:", err.message);
+  // Only emit after persistence; if inside an uncommitted transaction (`tx`), defer emit to next tick
+  const emitFn = async () => {
+    try {
+      await ChatService.emitToAuthorizedThread({
+        tenantId,
+        threadId,
+        event: "chat:message",
+        payload: { threadId, message: eventMsg },
+        participantUserIds: explicitParticipantIds,
+      });
+      await ChatService.emitToAuthorizedThread({
+        tenantId,
+        threadId,
+        event: "chat:system_event",
+        payload: { threadId, message: eventMsg, eventType },
+        participantUserIds: explicitParticipantIds,
+      });
+    } catch (err: any) {
+      console.warn("Realtime system event broadcast failed:", err.message);
+    }
+  };
+
+  if (tx) {
+    setImmediate(() => {
+      void emitFn();
+    });
+  } else {
+    await emitFn();
   }
 
   return eventMsg;

@@ -269,7 +269,7 @@ export class MeetingSfuService {
         canSubscribe: true,
         canPublishData: true,
         roomAdmin: Boolean(isHost),
-        roomCreate: Boolean(isHost),
+        roomCreate: true,
         hidden: false,
       },
       metadata: JSON.stringify({
@@ -327,7 +327,7 @@ export class MeetingSfuService {
         canSubscribe: true,
         canPublishData: true,
         roomAdmin: Boolean(isHost),
-        roomCreate: Boolean(isHost),
+        roomCreate: true,
         hidden: false,
       },
       metadata: JSON.stringify({
@@ -348,6 +348,121 @@ export class MeetingSfuService {
       expiresAt: expiresAt * 1000,
       iceServers: this.getIceServers(userId, ttlSeconds),
     };
+  }
+
+  /**
+   * Resolves the HTTPS Twirp base URL for LiveKit RoomService API from LIVEKIT_URL.
+   */
+  public static getHttpApiBaseUrl(): string | null {
+    const config = this.getConfig();
+    if (!config.url) return null;
+    if (config.url.startsWith("wss://")) return `https://${config.url.slice(6).replace(/\/+$/, "")}`;
+    if (config.url.startsWith("ws://")) return `http://${config.url.slice(5).replace(/\/+$/, "")}`;
+    return config.url.replace(/\/+$/, "");
+  }
+
+  /**
+   * Server-side LiveKit RoomService helper: ensures a meeting room is pre-created on LiveKit SFU
+   * so participants joining slightly ahead of the host never encounter room-not-found races.
+   */
+  public static async ensureRoomCreated(
+    tenantId: string,
+    groupId: string,
+    callId: string,
+    maxParticipants: number = 50
+  ): Promise<{ created: boolean; room: string }> {
+    const config = this.getConfig();
+    const baseUrl = this.getHttpApiBaseUrl();
+    const room = this.formatRoomName(tenantId, groupId, callId);
+    if (!config.configured || !config.apiKey || !config.apiSecret || !baseUrl) {
+      return { created: false, room };
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const serverToken = jwt.sign(
+      {
+        iss: config.apiKey,
+        sub: "masterhrms-sfu-controller",
+        nbf: now - 5,
+        exp: now + 60,
+        video: { roomCreate: true, roomAdmin: true, room },
+      },
+      config.apiSecret,
+      { algorithm: "HS256" }
+    );
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const resp = await fetch(`${baseUrl}/twirp/livekit.RoomService/CreateRoom`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serverToken}`,
+        },
+        body: JSON.stringify({
+          name: room,
+          empty_timeout: 300,
+          max_participants: maxParticipants,
+          metadata: JSON.stringify({ tenantId, groupId, callId }),
+        }),
+        signal: controller.signal,
+      });
+      return { created: resp.ok, room };
+    } catch {
+      return { created: false, room };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Server-side LiveKit RoomService helper: closes/deletes the LiveKit room when the host ends the meeting
+   * so all media streams are immediately terminated at the SFU layer.
+   */
+  public static async closeRoom(
+    tenantId: string,
+    groupId: string,
+    callId: string
+  ): Promise<{ closed: boolean; room: string }> {
+    const config = this.getConfig();
+    const baseUrl = this.getHttpApiBaseUrl();
+    const room = this.formatRoomName(tenantId, groupId, callId);
+    if (!config.configured || !config.apiKey || !config.apiSecret || !baseUrl) {
+      return { closed: false, room };
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const serverToken = jwt.sign(
+      {
+        iss: config.apiKey,
+        sub: "masterhrms-sfu-controller",
+        nbf: now - 5,
+        exp: now + 60,
+        video: { roomCreate: true, roomAdmin: true, room },
+      },
+      config.apiSecret,
+      { algorithm: "HS256" }
+    );
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const resp = await fetch(`${baseUrl}/twirp/livekit.RoomService/DeleteRoom`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${serverToken}`,
+        },
+        body: JSON.stringify({ room }),
+        signal: controller.signal,
+      });
+      return { closed: resp.ok, room };
+    } catch {
+      return { closed: false, room };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**

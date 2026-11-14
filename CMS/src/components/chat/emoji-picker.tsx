@@ -77,7 +77,7 @@ export function EmojiPicker({ onSelectEmoji, onClose, className = "" }: EmojiPic
 
   return (
     <div
-      className={`w-72 sm:w-80 h-96 flex flex-col bg-popover text-popover-foreground border border-border rounded-xl shadow-xl overflow-hidden font-sans select-none ${className}`}
+      className={`w-[min(320px,calc(100vw-1.5rem))] max-h-[min(384px,65vh)] h-80 sm:h-96 flex flex-col bg-popover text-popover-foreground border border-border rounded-xl shadow-xl overflow-hidden font-sans select-none ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       {/* Search Bar */}

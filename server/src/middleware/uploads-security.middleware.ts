@@ -2,6 +2,7 @@ import path from "path";
 import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "../lib/jwt";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
+import { ChatService } from "../services/chat.service";
 
 const PUBLIC_UPLOAD_PREFIXES = [
   "system/branding/",
@@ -141,9 +142,33 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
         });
       }
 
-      // 2. TASK-P1-03: Object-Level Authorization (BOLA Guard) for Confidential Documents
+      // 2. Chat Attachment Strict Participant & FileAcl Authorization (even HR/Admins cannot read private 1:1 DM files)
       const folderLower = (mediaFile.folder || "").toLowerCase();
       const pathLower = subPath.toLowerCase();
+      const isChatMedia =
+        (mediaFile as any).systemModule === "chat" ||
+        folderLower.includes("communication") ||
+        folderLower.includes("organization chat") ||
+        pathLower.includes("communication/") ||
+        pathLower.includes("chat/");
+
+      if (isChatMedia) {
+        const roleNames = user.roles.map((r) => r.role);
+        const chatAllowed = await ChatService.authorizeChatMediaAccess({
+          mediaFile,
+          tenantId: mediaFile.tenantId || userTenantId || "",
+          userId: user.id,
+          roles: roleNames,
+        });
+        if (!chatAllowed) {
+          return res.status(403).json({
+            error: "Forbidden: You are not authorized to access this chat attachment.",
+            code: "UNAUTHORIZED_CHAT_MEDIA_ACCESS",
+          });
+        }
+      }
+
+      // 3. TASK-P1-03: Object-Level Authorization (BOLA Guard) for Confidential Documents
       const isConfidential = SENSITIVE_DOCUMENT_FOLDERS.some(
         (f) => folderLower.includes(f) || pathLower.includes(f)
       );
@@ -163,7 +188,25 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
         const userPermissions: string[] = (decoded as any).permissions || [];
         const hasDocPermission = userPermissions.includes("hrm.documents.view_all") || userPermissions.includes("hrm.employees.view");
 
-        if (!isOwner && !hasDocPermission) {
+        let isSubordinateLeaveAttachment = false;
+        if (!isOwner && !hasDocPermission && employee && userTenantId) {
+          const linkedLeave = await db.leaveRequest
+            .findFirst({
+              where: {
+                tenantId: userTenantId,
+                attachmentUrl: { contains: subPath },
+                OR: [
+                  { employeeId: employee.id },
+                  { employee: { managerId: employee.id } },
+                ],
+              },
+              select: { id: true },
+            })
+            .catch(() => null);
+          isSubordinateLeaveAttachment = Boolean(linkedLeave);
+        }
+
+        if (!isOwner && !hasDocPermission && !isSubordinateLeaveAttachment) {
           return res.status(403).json({
             error: "Forbidden: You are not authorized to view this confidential document.",
             code: "UNAUTHORIZED_DOCUMENT_ACCESS",
@@ -171,11 +214,22 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
         }
       }
     } else {
+      const pathLower = subPath.toLowerCase();
+      if (pathLower.includes("communication/") || pathLower.includes("chat/")) {
+        return res.status(404).json({ error: "Requested chat attachment not found or access denied." });
+      }
       // If file exists on disk but has no MediaFile record, only Super Admin or HR can access
       if (!isSuper && !isHrOrAdmin) {
         return res.status(404).json({ error: "Requested asset not found or access denied." });
       }
     }
+
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox"
+    );
+    res.setHeader("Cache-Control", "private, max-age=300");
 
     return next();
   } catch (_err: any) {

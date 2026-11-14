@@ -2,7 +2,8 @@
 import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapData } from "@/lib/api";
+import { invalidateLeaveApplications, extractLeaveErrorMessage } from "@/lib/leave-helpers";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -69,7 +70,7 @@ function MeApprovalsPage() {
     queryFn: async () => {
       try {
         const res: any = await api.get("/api/v1/me/team/approvals");
-        return res?.data || { leaves: [], regularizations: [], changeRequests: [] };
+        return unwrapData(res) || { leaves: [], regularizations: [], changeRequests: [] };
       } catch {
         return { leaves: [], regularizations: [], changeRequests: [] };
       }
@@ -101,6 +102,7 @@ function MeApprovalsPage() {
     onSuccess: (_, vars) => {
       toast.success(vars.action === "approve" ? "Leave request approved successfully" : "Leave request rejected");
       queryClient.invalidateQueries({ queryKey: ["me-team-approvals"] });
+      invalidateLeaveApplications(queryClient);
       closeDecisionModal();
     },
     onError: (err: any) => {
@@ -115,6 +117,7 @@ function MeApprovalsPage() {
     onSuccess: (_, vars) => {
       toast.success(vars.action === "approve" ? "Regularization approved & sync complete" : "Regularization rejected");
       queryClient.invalidateQueries({ queryKey: ["me-team-approvals"] });
+      invalidateLeaveApplications(queryClient);
       closeDecisionModal();
     },
     onError: (err: any) => {
@@ -129,6 +132,7 @@ function MeApprovalsPage() {
     onSuccess: (_, vars) => {
       toast.success(vars.action === "approve" ? "Profile update approved" : "Profile update rejected");
       queryClient.invalidateQueries({ queryKey: ["me-team-approvals"] });
+      invalidateLeaveApplications(queryClient);
       closeDecisionModal();
     },
     onError: (err: any) => {

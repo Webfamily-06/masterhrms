@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PhoneOff, Mic, MicOff, Maximize2, Video, VideoOff, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getSocketClient, isSocketDisabled } from "@/lib/socket";
 
 export interface ActiveCallState {
   callId: string;
@@ -123,20 +124,42 @@ export function FloatingMiniCallWidget() {
     window.dispatchEvent(new CustomEvent("hrms:active-call-maximize", { detail: activeCall }));
 
     if (!window.location.pathname.includes("/chat")) {
-      window.location.href = `/chat?callId=${encodeURIComponent(activeCall.callId)}`;
+      let prefix = "/tenant";
+      try {
+        const userRaw = localStorage.getItem("hrms_user");
+        if (userRaw) {
+          const u = JSON.parse(userRaw);
+          if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
+            prefix = "/hr";
+          } else if (u.roles?.includes("employee")) {
+            prefix = "/me";
+          }
+        }
+      } catch {}
+      window.location.href = `${prefix}/chat?callId=${encodeURIComponent(activeCall.callId)}`;
     }
   }, [activeCall]);
 
   const handleEndCall = useCallback(() => {
     if (!activeCall) return;
     const callId = activeCall.callId;
+    const wasConnected = activeCall.status === "connected";
     setActiveCall(null);
 
     // Notify backend and WebRTC coordinator
     window.dispatchEvent(new CustomEvent("hrms:active-call-hangup", { detail: { callId } }));
+    try {
+      if (!isSocketDisabled()) {
+        const socket = getSocketClient();
+        if (socket) {
+          socket.emit(wasConnected ? "call:hangup" : "call:cancel", { callId });
+        }
+      }
+    } catch {}
     const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
     if (token) {
-      fetch(`/api/calls/${encodeURIComponent(callId)}/cancel`, {
+      const endpoint = wasConnected ? "end" : "cancel";
+      fetch(`/api/calls/${encodeURIComponent(callId)}/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -170,10 +193,18 @@ export function FloatingMiniCallWidget() {
 
         const container = pipWindow.document.createElement("div");
         container.className = "p-4 bg-slate-900 text-white flex flex-col items-center justify-between h-full font-sans";
-        container.innerHTML = `
-          <div style="font-weight: bold; font-size: 14px;">${activeCall?.callerName || "Call"}</div>
-          <div style="color: #10b981; font-family: monospace; font-size: 12px; margin-top: 4px;">In Call</div>
-        `;
+        const nameEl = pipWindow.document.createElement("div");
+        nameEl.style.fontWeight = "bold";
+        nameEl.style.fontSize = "14px";
+        nameEl.textContent = activeCall?.callerName || "Call";
+        const statusEl = pipWindow.document.createElement("div");
+        statusEl.style.color = "#10b981";
+        statusEl.style.fontFamily = "monospace";
+        statusEl.style.fontSize = "12px";
+        statusEl.style.marginTop = "4px";
+        statusEl.textContent = "In Call";
+        container.appendChild(nameEl);
+        container.appendChild(statusEl);
         pipWindow.document.body.appendChild(container);
         return;
       } catch (e) {

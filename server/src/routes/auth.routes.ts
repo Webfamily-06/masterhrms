@@ -1501,25 +1501,49 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       enabledModules = ERP_MODULES.map((m) => m.key);
       activeAddons = ["*"];
     } else if (tenantId) {
-        const tenantMods = await db.tenantModule.findMany({
-          where: { tenantId },
-        });
+        const [tenantMods, sub, tenantAddons, initialAssignment] = await Promise.all([
+          db.tenantModule.findMany({
+            where: { tenantId },
+          }),
+          db.tenantSubscription.findFirst({
+            where: {
+              tenantId,
+              status: { in: ["active", "trialing", "trial"] },
+            },
+            orderBy: { createdAt: "desc" },
+            include: { plan: true },
+          }),
+          db.tenantAddon.findMany({
+            where: {
+              tenantId,
+              status: { in: ["active", "trial"] },
+            },
+          }),
+          db.userRoleAssignment.findUnique({
+            where: {
+              userId_tenantId: {
+                userId: user!.id,
+                tenantId,
+              },
+            },
+            include: {
+              role: {
+                include: {
+                  permissions: {
+                    include: { permission: true },
+                  },
+                },
+              },
+            },
+          }),
+        ]);
+
         const disabledKeySet = new Set(
           tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
         );
         const explicitlyEnabledSet = new Set(
           tenantMods.filter((m) => m.isEnabled).map((m) => m.moduleKey)
         );
-
-        // Active subscription & plan feature entitlement resolution
-        const sub = await db.tenantSubscription.findFirst({
-          where: {
-            tenantId,
-            status: { in: ["active", "trialing", "trial"] },
-          },
-          orderBy: { createdAt: "desc" },
-          include: { plan: true },
-        });
 
         const isSubActive = Boolean(sub && (!sub.expiresAt || new Date(sub.expiresAt) > new Date()));
         const isSovereignOrGrowth = isSubActive && Boolean(
@@ -1538,12 +1562,6 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           ? (sub.plan.includedAddonIds as any[]).map((a) => String(a).toLowerCase())
           : [];
 
-        const tenantAddons = await db.tenantAddon.findMany({
-          where: {
-            tenantId,
-            status: { in: ["active", "trial"] },
-          },
-        });
         const activeAddonSlugs = new Set(
           tenantAddons
             .filter((a) => !a.trialEndsAt || new Date(a.trialEndsAt) > new Date())
@@ -1585,23 +1603,7 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
         }
         // Uninstalled optional add-ons are strictly not injected into enabledModules.
         // Add-ons must be explicitly installed by the tenant to be enabled.
-        let assignment = await db.userRoleAssignment.findUnique({
-          where: {
-            userId_tenantId: {
-              userId: user!.id,
-              tenantId,
-            },
-          },
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: { permission: true },
-                },
-              },
-            },
-          },
-        });
+        let assignment = initialAssignment;
 
         const isAdminUser =
           (roles as string[]).includes("admin") ||

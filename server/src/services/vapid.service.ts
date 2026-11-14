@@ -148,9 +148,13 @@ export class VapidService {
     // 3. Generate 16-byte random salt
     const salt = crypto.randomBytes(16);
 
-    // 4. Derive pseudo-random key (PRK) using HKDF with user auth secret as salt
-    // auth_info = "WebPush: info" || 0x00
-    const authInfo = Buffer.from("WebPush: info\0", "utf8");
+    // 4. Derive pseudo-random key (PRK / IKM) using HKDF with user auth secret as salt
+    // Per RFC 8291 Section 3.3: key_info = "WebPush: info" || 0x00 || ua_public || as_public
+    const authInfo = Buffer.concat([
+      Buffer.from("WebPush: info\0", "utf8"),
+      userPublicKey,
+      localPublicKey,
+    ]);
     const prk = crypto.hkdfSync("sha256", sharedSecret, userAuthSecret, authInfo, 32);
 
     // 5. Derive CEK (16 bytes) and nonce (12 bytes)

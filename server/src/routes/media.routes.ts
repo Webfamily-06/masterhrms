@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import { requireAuth } from "../middleware/auth";
 import { MediaService } from "../services/media/media.service";
+import { ChatService } from "../services/chat.service";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -85,13 +86,23 @@ mediaRouter.get("/", requireAuth, async (req: any, res) => {
     }
 
     const folder = req.query.folder ? String(req.query.folder) : undefined;
+    const currentUserId = req.user?.userId || req.user?.id || "";
 
     const mediaList = await MediaService.listMedia({
       tenantId,
       folder,
     });
 
-    return res.json(mediaList);
+    // Never expose private chat attachments in generic workspace media listings unless uploaded by caller
+    const filtered = mediaList.filter((file: any) => {
+      const isChatFile =
+        file.systemModule === "chat" ||
+        String(file.folder || "").toLowerCase().includes("communication");
+      if (!isChatFile) return true;
+      return file.uploadedBy === currentUserId;
+    });
+
+    return res.json(filtered);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to list media" });
   }
@@ -100,15 +111,17 @@ mediaRouter.get("/", requireAuth, async (req: any, res) => {
 /**
  * GET /api/v1/media/:id
  * Retrieve a single media file record with usages.
- * Enforces strict tenant authorization (Tenant A cannot access Tenant B or Platform media).
+ * Enforces strict tenant authorization (Tenant A cannot access Tenant B or Platform media)
+ * and thread participant / FileAcl authorization for chat attachments.
  */
 mediaRouter.get("/:id", requireAuth, async (req: any, res) => {
   try {
     const id = req.params.id;
     const isSuper = req.user?.roles?.includes("super_admin");
     const userTenantId = req.user?.tenantId || null;
+    const currentUserId = req.user?.userId || req.user?.id || "";
 
-    const file = await MediaService.getMedia(id);
+    const file: any = await MediaService.getMedia(id);
     if (!file) {
       return res.status(404).json({ error: "Media file not found" });
     }
@@ -119,6 +132,24 @@ mediaRouter.get("/:id", requireAuth, async (req: any, res) => {
       }
       if (file.tenantId !== userTenantId) {
         return res.status(403).json({ error: "Forbidden: Access denied to media from another workspace" });
+      }
+    }
+
+    const isChatFile =
+      file.systemModule === "chat" ||
+      String(file.folder || "").toLowerCase().includes("communication");
+    if (isChatFile) {
+      const chatAllowed = await ChatService.authorizeChatMediaAccess({
+        mediaFile: file,
+        tenantId: file.tenantId || userTenantId || "",
+        userId: currentUserId,
+        roles: req.user?.roles || [],
+      });
+      if (!chatAllowed) {
+        return res.status(403).json({
+          error: "Forbidden: You are not authorized to access this chat attachment.",
+          code: "UNAUTHORIZED_CHAT_MEDIA_ACCESS",
+        });
       }
     }
 
@@ -139,6 +170,23 @@ mediaRouter.delete("/:id", requireAuth, async (req: any, res) => {
     const force = req.query.force === "true" || req.query.force === "1";
     const isSuper = req.user?.roles?.includes("super_admin");
     const requestedByTenantId = isSuper ? null : req.user?.tenantId;
+    const currentUserId = req.user?.userId || req.user?.id || "";
+
+    const existingFile: any = await MediaService.getMedia(id);
+    if (existingFile) {
+      const isChatFile =
+        existingFile.systemModule === "chat" ||
+        String(existingFile.folder || "").toLowerCase().includes("communication");
+      const isAdmin = req.user?.roles?.some((r: string) =>
+        ["super_admin", "tenant_admin", "hr_admin", "admin"].includes(r)
+      );
+      if (isChatFile && !isAdmin && existingFile.uploadedBy !== currentUserId) {
+        return res.status(403).json({
+          error: "Forbidden: Only the uploader or workspace administrator can delete this chat attachment.",
+          code: "UNAUTHORIZED_CHAT_MEDIA_DELETE",
+        });
+      }
+    }
 
     const result = await MediaService.deleteMedia(id, {
       force,

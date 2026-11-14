@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
 import { UnifiedChatApp } from "@/components/chat/unified-chat-app";
 
 export const Route = createFileRoute("/_authenticated/me/chat")({
@@ -9,6 +9,10 @@ export const Route = createFileRoute("/_authenticated/me/chat")({
 });
 
 export function MeChatPage() {
+  const location = useLocation();
+  if (/\/chat\/(groups|contacts|calls)(\/|$)/.test(location.pathname)) {
+    return <Outlet />;
+  }
   return <UnifiedChatApp initialMode="chats" workspacePrefix="/me" />;
 }
 

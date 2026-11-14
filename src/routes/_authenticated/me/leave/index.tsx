@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
+import { formatLeaveDays } from "@/lib/leave-helpers";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -23,21 +24,42 @@ export const Route = createFileRoute("/_authenticated/me/leave/")({
 });
 
 export function MeLeaveOverviewPage() {
-  const { data: leaveData } = useQuery({
-    queryKey: ["me-leaves-overview"],
+  const currentYear = new Date().getUTCFullYear();
+
+  const { data: applications = [] } = useQuery({
+    queryKey: ["me-leave-overview", "applications", currentYear],
     queryFn: async () => {
       try {
-        const res: any = await api.get("/api/v1/leaves/my-requests");
-        return Array.isArray(res?.data) ? res.data : [];
+        const res = await api.get("/api/v1/me/leave/applications", {
+          params: { year: currentYear },
+        });
+        return unwrapArray<any>(res);
       } catch {
         return [];
       }
     },
   });
 
-  const requests: any[] = leaveData || [];
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
-  const approvedCount = requests.filter((r) => r.status === "approved").length;
+  const { data: balances = [] } = useQuery({
+    queryKey: ["me-leave-overview", "balances", currentYear],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/api/v1/me/leave/balance", {
+          params: { year: currentYear },
+        });
+        return unwrapArray<any>(res);
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const pendingCount = applications.filter((r: any) => r.status === "pending").length;
+  const approvedDays = balances.reduce((sum: number, b: any) => sum + Number(b.used || 0), 0);
+  const availablePaidDays = balances
+    .filter((b: any) => b.isPaid !== false)
+    .reduce((sum: number, b: any) => sum + Number(b.available || 0), 0);
+  const activeTypesCount = balances.filter((b: any) => b.status !== "inactive").length;
 
   const modules = [
     {
@@ -49,14 +71,14 @@ export function MeLeaveOverviewPage() {
     },
     {
       title: "Leave Balance",
-      description: "Detailed breakdown of casual, sick, annual, and earned leave quotas remaining.",
+      description: "Detailed breakdown of active leave entitlements, used days, and ledger history.",
       href: "/me/leave/balance",
       icon: PieChart,
       color: "text-emerald-500",
     },
     {
       title: "Leave Policies",
-      description: "Understand accrual schedules, carry-forward limits, and blackout period rules.",
+      description: "Understand accrual schedules, carry-forward limits, notice rules, and eligibility.",
       href: "/me/leave/policies",
       icon: ShieldCheck,
       color: "text-purple-500",
@@ -71,11 +93,11 @@ export function MeLeaveOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <PageHeader
           title="Leave & Time-Off Overview"
-          description="Track your available leave balance, submit new applications, and check company leave rules."
+          description="Track your live leave balances, submit new applications, and review company leave policies."
         />
         <Button asChild className="gap-2 self-start sm:self-auto">
           <Link to={"/me/leave/applications" as any}>
@@ -87,8 +109,8 @@ export function MeLeaveOverviewPage() {
 
       <StatsOverviewGrid>
         <StatCard
-          title="Available Balance"
-          value="18 Days"
+          title="Available Paid Balance"
+          value={`${formatLeaveDays(availablePaidDays)} Days`}
           icon={<Calendar className="h-5 w-5" />}
           description="Paid time-off remaining"
         />
@@ -96,19 +118,19 @@ export function MeLeaveOverviewPage() {
           title="Pending Requests"
           value={pendingCount}
           icon={<Clock className="h-5 w-5" />}
-          description="Awaiting manager sign-off"
+          description="Awaiting manager / HR review"
         />
         <StatCard
-          title="Approved This Year"
-          value={approvedCount || 4}
+          title="Used This Year"
+          value={`${formatLeaveDays(approvedDays)} Days`}
           icon={<CheckCircle2 className="h-5 w-5" />}
-          description="Total taken days"
+          description={`Approved in ${currentYear}`}
         />
         <StatCard
-          title="Sick Leave Quota"
-          value="10 Days"
+          title="Active Categories"
+          value={activeTypesCount}
           icon={<PieChart className="h-5 w-5" />}
-          description="Available for use"
+          description="Configured leave entitlements"
         />
       </StatsOverviewGrid>
 
@@ -116,11 +138,14 @@ export function MeLeaveOverviewPage() {
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           Leave Management Modules
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {modules.map((m) => {
             const Icon = m.icon;
             return (
-              <Card key={m.href} className="hover:border-primary/50 transition-colors flex flex-col justify-between">
+              <Card
+                key={m.href}
+                className="hover:border-primary/50 transition-colors flex flex-col justify-between"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <div className="p-2 rounded-lg bg-muted">

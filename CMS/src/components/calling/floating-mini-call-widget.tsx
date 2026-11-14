@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { PhoneOff, Mic, MicOff, Maximize2, Video, VideoOff, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getSocketClient, isSocketDisabled } from "@/lib/socket";
 
 export interface ActiveCallState {
   callId: string;
@@ -19,6 +20,7 @@ export function FloatingMiniCallWidget() {
   const [isOnChatPage, setIsOnChatPage] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Monitor current route path to determine if full chat screen is visible
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -30,6 +32,7 @@ export function FloatingMiniCallWidget() {
     window.addEventListener("popstate", checkRoute);
     window.addEventListener("hashchange", checkRoute);
 
+    // Periodic check in case SPA router transitions without full page reload
     const interval = setInterval(checkRoute, 500);
 
     return () => {
@@ -39,6 +42,7 @@ export function FloatingMiniCallWidget() {
     };
   }, []);
 
+  // Listen to active call events across SPA route transitions
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -82,6 +86,7 @@ export function FloatingMiniCallWidget() {
     window.addEventListener("hrms:active-call-update", handleCallUpdate);
     window.addEventListener("hrms:active-call-end", handleCallEnd);
 
+    // Sync media stream if attached to window.__HRMS_REMOTE_STREAM__
     const streamSync = setInterval(() => {
       const remoteStream = (window as any).__HRMS_REMOTE_STREAM__;
       if (videoRef.current && remoteStream && videoRef.current.srcObject !== remoteStream) {
@@ -97,6 +102,7 @@ export function FloatingMiniCallWidget() {
     };
   }, []);
 
+  // Increment duration timer if active call is running outside chat page
   useEffect(() => {
     if (!activeCall || activeCall.status !== "connected") return;
     const timer = setInterval(() => {
@@ -118,19 +124,42 @@ export function FloatingMiniCallWidget() {
     window.dispatchEvent(new CustomEvent("hrms:active-call-maximize", { detail: activeCall }));
 
     if (!window.location.pathname.includes("/chat")) {
-      window.location.href = `/chat?callId=${encodeURIComponent(activeCall.callId)}`;
+      let prefix = "/tenant";
+      try {
+        const userRaw = localStorage.getItem("hrms_user");
+        if (userRaw) {
+          const u = JSON.parse(userRaw);
+          if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
+            prefix = "/hr";
+          } else if (u.roles?.includes("employee")) {
+            prefix = "/me";
+          }
+        }
+      } catch {}
+      window.location.href = `${prefix}/chat?callId=${encodeURIComponent(activeCall.callId)}`;
     }
   }, [activeCall]);
 
   const handleEndCall = useCallback(() => {
     if (!activeCall) return;
     const callId = activeCall.callId;
+    const wasConnected = activeCall.status === "connected";
     setActiveCall(null);
 
+    // Notify backend and WebRTC coordinator
     window.dispatchEvent(new CustomEvent("hrms:active-call-hangup", { detail: { callId } }));
+    try {
+      if (!isSocketDisabled()) {
+        const socket = getSocketClient();
+        if (socket) {
+          socket.emit(wasConnected ? "call:hangup" : "call:cancel", { callId });
+        }
+      }
+    } catch {}
     const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
     if (token) {
-      fetch(`/api/calls/${encodeURIComponent(callId)}/cancel`, {
+      const endpoint = wasConnected ? "end" : "cancel";
+      fetch(`/api/calls/${encodeURIComponent(callId)}/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -140,9 +169,11 @@ export function FloatingMiniCallWidget() {
     }
   }, [activeCall]);
 
+  // Mobile & Desktop Native Picture-in-Picture Trigger
   const handleToggleNativePiP = useCallback(async () => {
     if (typeof window === "undefined") return;
 
+    // 1. Desktop Chromium Document Picture-in-Picture
     if ("documentPictureInPicture" in window && (window as any).documentPictureInPicture?.requestWindow) {
       try {
         const pipWindow = await (window as any).documentPictureInPicture.requestWindow({
@@ -150,6 +181,7 @@ export function FloatingMiniCallWidget() {
           height: 220,
         });
 
+        // Copy styles to Document PiP window
         [...document.styleSheets].forEach((styleSheet) => {
           try {
             const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join("");
@@ -161,10 +193,18 @@ export function FloatingMiniCallWidget() {
 
         const container = pipWindow.document.createElement("div");
         container.className = "p-4 bg-slate-900 text-white flex flex-col items-center justify-between h-full font-sans";
-        container.innerHTML = `
-          <div style="font-weight: bold; font-size: 14px;">${activeCall?.callerName || "Call"}</div>
-          <div style="color: #10b981; font-family: monospace; font-size: 12px; margin-top: 4px;">In Call</div>
-        `;
+        const nameEl = pipWindow.document.createElement("div");
+        nameEl.style.fontWeight = "bold";
+        nameEl.style.fontSize = "14px";
+        nameEl.textContent = activeCall?.callerName || "Call";
+        const statusEl = pipWindow.document.createElement("div");
+        statusEl.style.color = "#10b981";
+        statusEl.style.fontFamily = "monospace";
+        statusEl.style.fontSize = "12px";
+        statusEl.style.marginTop = "4px";
+        statusEl.textContent = "In Call";
+        container.appendChild(nameEl);
+        container.appendChild(statusEl);
         pipWindow.document.body.appendChild(container);
         return;
       } catch (e) {
@@ -172,6 +212,7 @@ export function FloatingMiniCallWidget() {
       }
     }
 
+    // 2. HTMLVideoElement PiP (Android Chrome & iOS Safari video track)
     if (videoRef.current && "requestPictureInPicture" in videoRef.current) {
       try {
         if (document.pictureInPictureElement) {
@@ -186,6 +227,7 @@ export function FloatingMiniCallWidget() {
     }
   }, [activeCall]);
 
+  // Determine visibility: Show floating widget when call is active AND (user is NOT on /chat OR isMinimized is true)
   const shouldShow = activeCall && (!isOnChatPage || activeCall.isMinimized);
   if (!shouldShow) return null;
 
@@ -211,6 +253,7 @@ export function FloatingMiniCallWidget() {
     >
       {isVideo ? (
         <div className="flex flex-col gap-2.5">
+          {/* Video Container */}
           <div className="relative w-56 sm:w-64 aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center">
             <video
               ref={videoRef}
@@ -236,12 +279,14 @@ export function FloatingMiniCallWidget() {
                 </span>
               </div>
             )}
+            {/* Header chip on video */}
             <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-xs text-[10px] text-emerald-400 font-mono flex items-center gap-1.5 border border-emerald-500/30">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>{formatTime(activeCall.durationSeconds)}</span>
             </div>
           </div>
 
+          {/* Action Toolbar */}
           <div className="flex items-center justify-between px-1">
             <div className="min-w-0 pr-1">
               <p className="text-xs font-semibold truncate max-w-[110px] text-white">
@@ -296,6 +341,7 @@ export function FloatingMiniCallWidget() {
           </div>
         </div>
       ) : (
+        /* Audio Mini Card */
         <div className="flex items-center gap-3">
           <div className="relative">
             {activeCall.callerAvatar ? (

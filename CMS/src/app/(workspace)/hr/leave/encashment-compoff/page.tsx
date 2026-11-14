@@ -1,8 +1,8 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { extractLeaveErrorMessage, formatLeaveDays, invalidateLeaveBalances } from "@/lib/leave-helpers";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,14 +13,11 @@ import { toast } from "sonner";
 import {
   Banknote,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   RefreshCw,
   Search,
   Coins,
 } from "lucide-react";
-
-
 
 export default function HrLeaveEncashmentCompOffPage() {
   const queryClient = useQueryClient();
@@ -31,21 +28,21 @@ export default function HrLeaveEncashmentCompOffPage() {
     queryKey: ["hr-encashment-compoff"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/leave/encashment-compoff");
-      return res.data;
+      return unwrapArray<any>(res);
     },
   });
 
   const actionMutation = useMutation({
     mutationFn: async ({ id, action, comments }: { id: string; action: "approve" | "reject"; comments?: string }) => {
       const res = await api.post(`/api/v1/hr/leave/encashment-compoff/${id}/action`, { action, comments });
-      return res.data;
+      return unwrapData(res);
     },
-    onSuccess: (_, vars) => {
+    onSuccess: async (_, vars) => {
       toast.success(`Encashment request ${vars.action === "approve" ? "approved" : "rejected"}`);
       queryClient.invalidateQueries({ queryKey: ["hr-encashment-compoff"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-leave-balances"] });
+      await invalidateLeaveBalances(queryClient);
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to process encashment request"),
+    onError: (err: any) => toast.error(extractLeaveErrorMessage(err, "Failed to process encashment request")),
   });
 
   const pendingCount = requests.filter((r: any) => r.status === "PENDING").length;
@@ -66,7 +63,7 @@ export default function HrLeaveEncashmentCompOffPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Leave Encashment & Comp-Off"
         description="Verify employee leave quota encashments and compensatory off claims with ledger debit safety."
@@ -77,18 +74,18 @@ export default function HrLeaveEncashmentCompOffPage() {
         </Button>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Requests" value={requests.length} icon={<Coins className="w-5 h-5 text-blue-500" />} />
         <StatCard label="Pending Review" value={pendingCount} icon={<AlertCircle className="w-5 h-5 text-amber-500" />} className="border-amber-200 bg-amber-50/20" />
         <StatCard label="Approved Requests" value={approvedCount} icon={<CheckCircle2 className="w-5 h-5 text-emerald-500" />} className="border-emerald-200 bg-emerald-50/20" />
-        <StatCard label="Encashed Days" value={`${totalEncashDays} days`} icon={<Banknote className="w-5 h-5 text-purple-500" />} />
+        <StatCard label="Encashed Days" value={`${formatLeaveDays(totalEncashDays)} days`} icon={<Banknote className="w-5 h-5 text-purple-500" />} />
       </div>
 
       <Card>
         <CardHeader className="pb-3 border-b">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle className="text-base font-semibold">Encashment & Comp-Off Registry</CardTitle>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-muted-foreground" />
                 <Input
@@ -98,7 +95,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                   className="pl-8 h-9 w-48 text-sm"
                 />
               </div>
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg text-xs font-medium">
+              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg text-xs font-medium overflow-x-auto">
                 {["all", "PENDING", "APPROVED", "REJECTED"].map((st) => (
                   <button
                     key={st}
@@ -142,10 +139,10 @@ export default function HrLeaveEncashmentCompOffPage() {
                         <div className="text-xs text-muted-foreground">{r.employee?.employeeCode} • {r.employee?.department?.name || "General"}</div>
                       </td>
                       <td className="py-3 px-4">
-                        <Badge variant="outline">{r.leaveType?.name || "Earned Leave"}</Badge>
+                        <Badge variant="outline">{r.leaveType?.name || "Leave"}</Badge>
                       </td>
                       <td className="py-3 px-4 font-mono font-semibold">
-                        {r.daysRequested} days
+                        {formatLeaveDays(r.daysRequested)} days
                       </td>
                       <td className="py-3 px-4 font-mono text-xs">
                         {new Date(r.createdAt).toLocaleDateString()}
@@ -161,7 +158,7 @@ export default function HrLeaveEncashmentCompOffPage() {
                           }
                           className="capitalize text-xs"
                         >
-                          {r.status.toLowerCase()}
+                          {String(r.status || "").toLowerCase()}
                         </Badge>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">

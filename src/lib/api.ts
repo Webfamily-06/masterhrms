@@ -224,7 +224,7 @@ export async function apiRequest<T = any>(
       data.error || `Request failed with status ${response.status}`,
       response.status,
       data.code,
-      data.details
+      data.details ?? data
     );
   }
 

@@ -171,6 +171,31 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
     const now = Date.now();
     const sixtySecondsAgo = new Date(now - 60000);
 
+    // Idempotency guard: if Socket.IO `call:invite` already registered this exact `callId`, do not create a duplicate DB session
+    if (passedCallId) {
+      const existingActive = activeCalls.get(passedCallId);
+      if (existingActive && existingActive.tenantId === tenantId && existingActive.callerId === callerId) {
+        return res.status(200).json({
+          success: true,
+          deduplicated: true,
+          callId: passedCallId,
+          status: existingActive.status,
+        });
+      }
+      const existingHistory = await db.callHistoryRecord.findFirst({
+        where: { tenantId, callSessionId: passedCallId },
+        select: { id: true, status: true },
+      });
+      if (existingHistory) {
+        return res.status(200).json({
+          success: true,
+          deduplicated: true,
+          callId: passedCallId,
+          status: existingHistory.status,
+        });
+      }
+    }
+
     // Busy check: in-memory and database
     let busyUserId: string | null = null;
     for (const [, session] of activeCalls) {

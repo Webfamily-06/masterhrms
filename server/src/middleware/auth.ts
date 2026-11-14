@@ -1,9 +1,26 @@
-export const authAccountCache = new Map<string, { account: any; userPermissions: string[]; expiresAt: number }>();
+export const authAccountCache = new Map<
+  string,
+  {
+    account: any;
+    userPermissions: string[];
+    roleAssignment?: any;
+    roleAssignmentLoaded?: boolean;
+    expiresAt: number;
+  }
+>();
+
+const tenantModuleCache = new Map<string, { disabledModules: Set<string>; expiresAt: number }>();
 
 export function invalidateAuthCache(userId?: string, tenantId?: string) {
   if (!userId && !tenantId) {
     authAccountCache.clear();
+    tenantModuleCache.clear();
     return;
+  }
+  if (tenantId) {
+    tenantModuleCache.delete(tenantId);
+  } else {
+    tenantModuleCache.clear();
   }
   for (const key of Array.from(authAccountCache.keys())) {
     const [uId, tId] = key.split(":");
@@ -47,7 +64,6 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   if (!token) {
     return res.status(401).json({ error: "Unauthorized: Missing or invalid token format" });
   }
-    console.log(`[PERF_AUTH] reached requireAuth: ${Date.now() - (req as any)._tStart}ms`);
   try {
     const decoded = verifyToken(token);
     if ((decoded as any).mfaPending) return res.status(401).json({ error: "Complete two-factor verification first." });
@@ -203,6 +219,9 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
     req.tenantId = tenantId ?? undefined;
 
     let userPermissions: string[] = cachedPermissions || (Array.isArray(decoded.permissions) ? [...decoded.permissions] : []);
+    let resolvedAssignment: any = cachedEntry?.roleAssignmentLoaded ? cachedEntry.roleAssignment : undefined;
+    let roleAssignmentLoaded = Boolean(cachedEntry?.roleAssignmentLoaded);
+
     if (!cachedPermissions && tenantId && userId) {
       try {
         const db = rawPrisma || prisma;
@@ -216,6 +235,8 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
             },
           },
         });
+        resolvedAssignment = assignment;
+        roleAssignmentLoaded = true;
         if (assignment?.role?.permissions) {
           const roleCodes = assignment.role.permissions.map((rp: any) => rp.permission.code);
           userPermissions = Array.from(new Set([...userPermissions, ...roleCodes]));
@@ -243,7 +264,18 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       ]));
     }
 
-    authAccountCache.set(cacheKey, { account, userPermissions, expiresAt: Date.now() + 60000 });
+    const effectiveCacheKey = `${userId}:${tenantId || decoded.tenantId || "default"}`;
+    const cacheRecord = {
+      account,
+      userPermissions,
+      roleAssignment: resolvedAssignment,
+      roleAssignmentLoaded,
+      expiresAt: Date.now() + 60000,
+    };
+    authAccountCache.set(cacheKey, cacheRecord);
+    if (effectiveCacheKey !== cacheKey) {
+      authAccountCache.set(effectiveCacheKey, cacheRecord);
+    }
     req.user = {
       ...decoded,
       sessionId: session.id,
@@ -307,51 +339,64 @@ export function requirePermission(permissionCode: string) {
     }
 
     try {
-      // 2. Check if Module is enabled in this workspace
+      // 2. Check if Module is enabled in this workspace (cached 60s per tenant, cleared by invalidateAuthCache)
       const moduleKey = permissionCode.split(".")[0];
-      let tenantMod: any = null;
       const db = rawPrisma || prisma;
-      try {
-        tenantMod = await db.tenantModule.findUnique({
-          where: {
-            tenantId_moduleKey: {
-              tenantId,
-              moduleKey,
-            },
-          },
-        });
-      } catch {
-        tenantMod = null;
+      let modEntry = tenantModuleCache.get(tenantId);
+      if (!modEntry || modEntry.expiresAt <= Date.now()) {
+        try {
+          const mods = await db.tenantModule.findMany({
+            where: { tenantId, isEnabled: false },
+            select: { moduleKey: true },
+          });
+          modEntry = {
+            disabledModules: new Set(mods.map((m: any) => m.moduleKey)),
+            expiresAt: Date.now() + 60000,
+          };
+          tenantModuleCache.set(tenantId, modEntry);
+        } catch {
+          modEntry = { disabledModules: new Set(), expiresAt: Date.now() + 15000 };
+        }
       }
 
-      if (tenantMod && !tenantMod.isEnabled) {
+      if (modEntry.disabledModules.has(moduleKey)) {
         return res.status(403).json({
           error: "Forbidden: The " + moduleKey.toUpperCase() + " module is currently disabled for this workspace",
         });
       }
 
-      // 3. Resolve User Role Assignment
+      // 3. Resolve User Role Assignment (reuse cached assignment from requireAuth when fresh)
+      const cacheKey = `${req.user.userId}:${tenantId}`;
+      const cachedAuth = authAccountCache.get(cacheKey);
       let assignment: any = null;
-      try {
-        assignment = await db.userRoleAssignment.findUnique({
-          where: {
-            userId_tenantId: {
-              userId: req.user.userId,
-              tenantId,
+      if (cachedAuth && cachedAuth.expiresAt > Date.now() && cachedAuth.roleAssignmentLoaded) {
+        assignment = cachedAuth.roleAssignment;
+      } else {
+        try {
+          assignment = await db.userRoleAssignment.findUnique({
+            where: {
+              userId_tenantId: {
+                userId: req.user.userId,
+                tenantId,
+              },
             },
-          },
-          include: {
-            role: {
-              include: {
-                permissions: {
-                  include: { permission: true },
+            include: {
+              role: {
+                include: {
+                  permissions: {
+                    include: { permission: true },
+                  },
                 },
               },
             },
-          },
-        });
-      } catch {
-        assignment = null;
+          });
+          if (cachedAuth && cachedAuth.expiresAt > Date.now()) {
+            cachedAuth.roleAssignment = assignment;
+            cachedAuth.roleAssignmentLoaded = true;
+          }
+        } catch {
+          assignment = null;
+        }
       }
 
       if (!assignment || !assignment.role || !assignment.role.isActive) {

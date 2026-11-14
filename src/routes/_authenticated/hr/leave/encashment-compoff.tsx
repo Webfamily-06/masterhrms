@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { extractLeaveErrorMessage, invalidateLeaveBalances } from "@/lib/leave-helpers";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,21 +33,21 @@ export default function HrLeaveEncashmentCompOffPage() {
     queryKey: ["hr-encashment-compoff"],
     queryFn: async () => {
       const res = await api.get("/api/v1/hr/leave/encashment-compoff");
-      return res.data;
+      return unwrapArray<any>(res);
     },
   });
 
   const actionMutation = useMutation({
     mutationFn: async ({ id, action, comments }: { id: string; action: "approve" | "reject"; comments?: string }) => {
       const res = await api.post(`/api/v1/hr/leave/encashment-compoff/${id}/action`, { action, comments });
-      return res.data;
+      return unwrapData(res);
     },
-    onSuccess: (_, vars) => {
+    onSuccess: async (_, vars) => {
       toast.success(`Encashment request ${vars.action === "approve" ? "approved" : "rejected"}`);
       queryClient.invalidateQueries({ queryKey: ["hr-encashment-compoff"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-leave-balances"] });
+      await invalidateLeaveBalances(queryClient);
     },
-    onError: (err: any) => toast.error(err.response?.data?.error || "Failed to process encashment request"),
+    onError: (err: any) => toast.error(extractLeaveErrorMessage(err, "Failed to process encashment request")),
   });
 
   const pendingCount = requests.filter((r: any) => r.status === "PENDING").length;

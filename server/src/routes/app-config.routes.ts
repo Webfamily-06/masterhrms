@@ -75,11 +75,14 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       isTenantHost: isTenantHost || Boolean(resolvedTenantId),
     });
 
-    // Resolve branding from SettingsService using the resolved scope and tenantId
-    const resolved = await resolveBranding({
-      scope: resolution.scope,
-      tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
-    });
+    // Resolve branding and maintenance status concurrently
+    const [resolved, maintConfig] = await Promise.all([
+      resolveBranding({
+        scope: resolution.scope,
+        tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
+      }),
+      getPlatformMaintenanceConfig(),
+    ]);
 
     const branding = {
       logoLight: resolved.logoLightUrl,
@@ -94,7 +97,6 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       supportEmail: resolved.supportEmail,
     };
 
-    const maintConfig = await getPlatformMaintenanceConfig();
     const maintEvaluation = evaluateMaintenanceStatus(maintConfig);
 
     const config = {

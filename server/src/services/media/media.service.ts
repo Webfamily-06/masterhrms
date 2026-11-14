@@ -27,7 +27,12 @@ export class MediaService {
   /**
    * Validate buffer headers for safety (Images, PDFs, Office Documents, Plain Text, CSV, Audio)
    */
-  static validateImageBuffer(buffer: Buffer, declaredMime?: string, originalName?: string): {
+  static validateImageBuffer(
+    buffer: Buffer,
+    declaredMime?: string,
+    originalName?: string,
+    context?: { isChat?: boolean }
+  ): {
     isValid: boolean;
     mimeType: string;
     extension: string;
@@ -97,22 +102,33 @@ export class MediaService {
       return { isValid: true, mimeType: "image/x-icon", extension: ".ico" };
     }
 
-    // 6. SVG check: look for <svg and reject malicious scripts
+    // 6. SVG check: look for <svg and reject malicious scripts / chat SVGs
     const textSample = buffer.toString("utf8", 0, Math.min(buffer.length, 2048)).toLowerCase();
     if (textSample.includes("<svg") || ext === ".svg") {
+      if (context?.isChat) {
+        return {
+          isValid: false,
+          mimeType: "",
+          extension: "",
+          error: "SVG uploads are disabled in chat attachments for XSS protection. Please upload PNG, JPG, WebP, or PDF.",
+        };
+      }
       const fullText = buffer.toString("utf8").toLowerCase();
       if (
         fullText.includes("<script") ||
+        fullText.includes("<foreignobject") ||
+        fullText.includes("<iframe") ||
+        fullText.includes("<embed") ||
+        fullText.includes("<object") ||
         fullText.includes("javascript:") ||
-        fullText.includes("onload=") ||
-        fullText.includes("onerror=") ||
-        fullText.includes("xlink:href=\"data:text/html")
+        fullText.includes("data:text/html") ||
+        /\bon[a-z]+\s*=/i.test(fullText)
       ) {
         return {
           isValid: false,
           mimeType: "",
           extension: "",
-          error: "Malicious script tags detected in SVG file",
+          error: "Malicious script or active content detected in SVG file",
         };
       }
       return { isValid: true, mimeType: "image/svg+xml", extension: ".svg" };
@@ -184,14 +200,13 @@ export class MediaService {
       return { isValid: true, mimeType: "application/msword", extension: ".doc" };
     }
 
-    // 10. WebM / Matroska (Audio or Video): 1A 45 DF A3 or declared webm extension
+    // 10. WebM / Matroska (Audio or Video): strict EBML magic header 1A 45 DF A3
     if (
-      (buffer.length >= 4 &&
-        buffer[0] === 0x1a &&
-        buffer[1] === 0x45 &&
-        buffer[2] === 0xdf &&
-        buffer[3] === 0xa3) ||
-      (ext === ".webm" || ext === ".weba" || declaredMime === "audio/webm" || declaredMime === "video/webm")
+      buffer.length >= 4 &&
+      buffer[0] === 0x1a &&
+      buffer[1] === 0x45 &&
+      buffer[2] === 0xdf &&
+      buffer[3] === 0xa3
     ) {
       if (ext === ".weba" || declaredMime?.startsWith("audio/")) {
         return { isValid: true, mimeType: "audio/webm", extension: ".webm" };
@@ -221,14 +236,18 @@ export class MediaService {
       return { isValid: true, mimeType: "audio/wav", extension: ".wav" };
     }
 
-    // 14. MP4 / M4A / AAC Audio
-    if (
-      (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") ||
-      (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0)
-    ) {
+    // 14. MP4 / M4A / MOV / AAC (ISO Base Media File Format `ftyp` or ADTS AAC)
+    if (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") {
       if (ext === ".m4a" || ext === ".aac" || declaredMime?.startsWith("audio/")) {
-        return { isValid: true, mimeType: "audio/mp4", extension: ext || ".m4a" };
+        return { isValid: true, mimeType: "audio/mp4", extension: ext === ".aac" ? ".aac" : ".m4a" };
       }
+      if (ext === ".mov" || declaredMime === "video/quicktime") {
+        return { isValid: true, mimeType: "video/quicktime", extension: ".mov" };
+      }
+      return { isValid: true, mimeType: "video/mp4", extension: ".mp4" };
+    }
+    if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0) {
+      return { isValid: true, mimeType: "audio/aac", extension: ".aac" };
     }
 
     // 14. Text & CSV Files (Ensure valid utf8 without null bytes)
@@ -260,13 +279,18 @@ export class MediaService {
   /**
    * Alias for backwards compatibility
    */
-  static validateMediaBuffer(buffer: Buffer, declaredMime?: string, originalName?: string) {
-    return this.validateImageBuffer(buffer, declaredMime, originalName);
+  static validateMediaBuffer(
+    buffer: Buffer,
+    declaredMime?: string,
+    originalName?: string,
+    context?: { isChat?: boolean }
+  ) {
+    return this.validateImageBuffer(buffer, declaredMime, originalName, context);
   }
 
   /**
    * Save an uploaded file to local disk and create MediaFile record.
-   * Performs deduplication within the target tenant scope when checksum & filename match.
+   * Performs deduplication within the target tenant+folder scope for non-chat assets.
    */
   static async uploadMedia(
     buffer: Buffer,
@@ -277,34 +301,46 @@ export class MediaService {
       uploadedBy?: string;
       tags?: string[];
       mimeType?: string;
+      systemModule?: string;
+      skipDeduplication?: boolean;
     } = {}
   ) {
-    const validation = this.validateImageBuffer(buffer, options.mimeType, originalName);
+    const folder = (options.folder || "system/branding")
+      .replace(/[^a-zA-Z0-9_\-\/]/g, "")
+      .replace(/\.\./g, "");
+    const isChatUpload =
+      options.systemModule === "chat" ||
+      folder.toLowerCase().includes("communication") ||
+      (Array.isArray(options.tags) && options.tags.includes("chat"));
+
+    const validation = this.validateImageBuffer(buffer, options.mimeType, originalName, {
+      isChat: isChatUpload,
+    });
     if (!validation.isValid) {
       throw new Error(validation.error || "Invalid file");
     }
 
     const checksumSha = computeSha256(buffer);
 
-    // Deduplication check within the same scope
-    const existing = await prisma.mediaFile.findFirst({
-      where: {
-        tenantId: options.tenantId || null,
-        checksumSha,
-        fileName: originalName,
-        deletedAt: null,
-      },
-      include: {
-        usages: true,
-      },
-    });
-    if (existing) {
-      return existing;
+    // Never deduplicate private chat attachments across threads/users (each thread has independent FileAcl & lifecycle)
+    if (!isChatUpload && !options.skipDeduplication) {
+      const existing = await prisma.mediaFile.findFirst({
+        where: {
+          tenantId: options.tenantId || null,
+          folder,
+          checksumSha,
+          fileName: originalName,
+          deletedAt: null,
+        },
+        include: {
+          usages: true,
+        },
+      });
+      if (existing) {
+        return existing;
+      }
     }
 
-    const folder = (options.folder || "system/branding")
-      .replace(/[^a-zA-Z0-9_\-\/]/g, "")
-      .replace(/\.\./g, "");
     const uploadsRoot = getUploadsRoot();
     const targetDir = path.join(uploadsRoot, folder);
     const uniqueFileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}${validation.extension}`;
@@ -319,7 +355,10 @@ export class MediaService {
       // Write file to disk
       await fs.promises.writeFile(fullDiskPath, buffer);
     } catch (fsErr: any) {
-      console.warn("⚠️ [MediaService] Disk write warning (read-only filesystem or tmp limitation):", fsErr?.message);
+      console.warn("⚠️ [MediaService] Disk write warning:", fsErr?.message);
+      if (!process.env.VERCEL) {
+        throw new Error(`Failed to write uploaded media to persistent storage: ${fsErr?.message || "disk error"}`);
+      }
     }
 
     // Save record to DB
@@ -336,7 +375,10 @@ export class MediaService {
         folder,
         tags: options.tags || ["branding"],
         uploadedBy: options.uploadedBy || "system",
-      },
+        ...(isChatUpload || options.systemModule
+          ? { systemModule: options.systemModule || "chat" }
+          : {}),
+      } as any,
       include: {
         usages: true,
       },

@@ -1,4 +1,4 @@
-import { rawPrisma } from "../prisma.js";
+import { rawPrisma } from "../prisma";
 
 export interface SandwichLeaveEvaluation {
   employeeId: string;
@@ -27,7 +27,7 @@ export class SandwichLeaveService {
     policyName?: string;
   }> {
     const defaultLeavePolicy = await rawPrisma.leavePolicy.findFirst({
-      where: { tenantId, isDefault: true },
+      where: { tenantId, isDefault: true, status: "active" },
     });
 
     if (defaultLeavePolicy) {
@@ -39,7 +39,7 @@ export class SandwichLeaveService {
     }
 
     const anyPolicy = await rawPrisma.leavePolicy.findFirst({
-      where: { tenantId },
+      where: { tenantId, status: "active" },
       orderBy: { createdAt: "asc" },
     });
 
@@ -91,22 +91,31 @@ export class SandwichLeaveService {
   }
 
   /**
-   * Evaluate sandwich leave for an employee within a given date range.
-   * If sandwichRule is enabled, detects intervening weekly offs and holidays
-   * where the immediately preceding scheduled working day AND immediately succeeding
-   * scheduled working day were approved full-day leaves.
+   * Evaluate sandwich leave for an employee within or adjacent to a given date range.
+   * When `proposedRangeAsLeave` is true (e.g. during dry-run / application submit),
+   * also detects intervening non-working days between an existing approved/pending full-day leave
+   * and the newly proposed full-day leave range (e.g. Friday leave + Monday leave -> Sat/Sun sandwich).
    */
   static async evaluateEmployeeSandwichLeave(
     tenantId: string,
     employeeId: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
+    options?: {
+      sandwichRuleOverride?: boolean;
+      proposedRangeAsLeave?: boolean;
+      excludeRequestId?: string;
+    }
   ): Promise<SandwichLeaveEvaluation> {
-    const policySetting = await this.getSandwichPolicySetting(tenantId);
-    const employee = await rawPrisma.employee.findUnique({
-      where: { id: employeeId },
-      include: { branch: true, department: true },
-    });
+    const [policySetting, employee] = await Promise.all([
+      options?.sandwichRuleOverride !== undefined
+        ? Promise.resolve({ sandwichRuleEnabled: options.sandwichRuleOverride })
+        : this.getSandwichPolicySetting(tenantId),
+      rawPrisma.employee.findFirst({
+        where: { id: employeeId, tenantId },
+        include: { branch: true, department: true },
+      }),
+    ]);
 
     if (!employee) {
       throw new Error(`Employee with ID ${employeeId} not found`);
@@ -125,32 +134,64 @@ export class SandwichLeaveService {
       };
     }
 
-    // Extended search range: 7 days before and 7 days after to detect boundaries
-    const searchStart = new Date(startDate);
-    searchStart.setUTCDate(searchStart.getUTCDate() - 7);
-    const searchEnd = new Date(endDate);
-    searchEnd.setUTCDate(searchEnd.getUTCDate() + 7);
+    const normStart = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+    const normEnd = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
 
-    // Fetch approved leaves
-    const approvedLeaves = await rawPrisma.leaveRequest.findMany({
-      where: {
-        tenantId,
-        employeeId,
-        status: "approved",
-        startDate: { lte: searchEnd },
-        endDate: { gte: searchStart },
-      },
-      include: { leaveType: true },
-    });
+    // Extended search range: 10 days before and 10 days after to detect adjacent weekly offs / holidays
+    const searchStart = new Date(normStart);
+    searchStart.setUTCDate(searchStart.getUTCDate() - 10);
+    const searchEnd = new Date(normEnd);
+    searchEnd.setUTCDate(searchEnd.getUTCDate() + 10);
+
+    const [existingLeaves, holidays, shiftRosters, attendancePolicy] = await Promise.all([
+      rawPrisma.leaveRequest.findMany({
+        where: {
+          tenantId,
+          employeeId,
+          status: "approved",
+          ...(options?.excludeRequestId ? { id: { not: options.excludeRequestId } } : {}),
+          startDate: { lte: searchEnd },
+          endDate: { gte: searchStart },
+        },
+        include: { leaveType: true },
+      }),
+      rawPrisma.holiday.findMany({
+        where: {
+          tenantId,
+          status: "active",
+          date: { gte: searchStart, lte: searchEnd },
+        },
+      }),
+      rawPrisma.shiftRoster.findMany({
+        where: {
+          tenantId,
+          employeeId,
+          rosterDate: { gte: searchStart, lte: searchEnd },
+        },
+      }),
+      rawPrisma.attendancePolicy.findFirst({
+        where: {
+          tenantId,
+          OR: [
+            { branchId: employee.branchId, departmentId: employee.departmentId },
+            { branchId: employee.branchId, departmentId: null },
+            { isDefault: true },
+          ],
+        },
+        orderBy: { isDefault: "asc" },
+      }),
+    ]);
 
     // Build map of leave days (ignoring half-day leaves for sandwich triggers)
-    const approvedLeaveDays = new Map<string, { fullDay: boolean; leaveType: string }>();
-    for (const l of approvedLeaves) {
-      const isHalfDay = Number(l.days) < 1.0;
+    const fullLeaveDays = new Map<string, { fullDay: boolean; leaveType: string; isProposed?: boolean }>();
+    for (const l of existingLeaves) {
+      const isHalfDay = l.halfDay || Number(l.days) < 1.0;
       const cur = new Date(l.startDate);
+      cur.setUTCHours(0, 0, 0, 0);
       const endL = new Date(l.endDate);
+      endL.setUTCHours(0, 0, 0, 0);
       while (cur <= endL) {
-        approvedLeaveDays.set(cur.toISOString().slice(0, 10), {
+        fullLeaveDays.set(cur.toISOString().slice(0, 10), {
           fullDay: !isHalfDay,
           leaveType: l.leaveType?.name || "Leave",
         });
@@ -158,14 +199,20 @@ export class SandwichLeaveService {
       }
     }
 
-    // Fetch holidays
-    const holidays = await rawPrisma.holiday.findMany({
-      where: {
-        tenantId,
-        status: "active",
-        date: { gte: searchStart, lte: searchEnd },
-      },
-    });
+    if (options?.proposedRangeAsLeave) {
+      const pCur = new Date(normStart);
+      while (pCur <= normEnd) {
+        const dStr = pCur.toISOString().slice(0, 10);
+        if (!fullLeaveDays.has(dStr)) {
+          fullLeaveDays.set(dStr, {
+            fullDay: true,
+            leaveType: "Proposed Leave",
+            isProposed: true,
+          });
+        }
+        pCur.setUTCDate(pCur.getUTCDate() + 1);
+      }
+    }
 
     const holidayMap = new Map<string, string>();
     for (const h of holidays) {
@@ -175,30 +222,10 @@ export class SandwichLeaveService {
       }
     }
 
-    // Fetch shift rosters and attendance policy for working day schedule
-    const shiftRosters = await rawPrisma.shiftRoster.findMany({
-      where: {
-        tenantId,
-        employeeId,
-        rosterDate: { gte: searchStart, lte: searchEnd },
-      },
-    });
     const rosterMap = new Map<string, string>();
     for (const r of shiftRosters) {
       rosterMap.set(new Date(r.rosterDate).toISOString().slice(0, 10), r.status);
     }
-
-    const attendancePolicy = await rawPrisma.attendancePolicy.findFirst({
-      where: {
-        tenantId,
-        OR: [
-          { branchId: employee.branchId, departmentId: employee.departmentId },
-          { branchId: employee.branchId, departmentId: null },
-          { isDefault: true },
-        ],
-      },
-      orderBy: { isDefault: "asc" },
-    });
 
     const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
     const workingDaysConfig = (attendancePolicy?.workingDays || "Mon,Tue,Wed,Thu,Fri").toLowerCase();
@@ -225,17 +252,25 @@ export class SandwichLeaveService {
     const details: SandwichLeaveEvaluation["details"] = [];
     const sandwichDates: string[] = [];
 
-    // Scan each day in the requested target range [startDate, endDate]
-    const cur = new Date(startDate);
-    const end = new Date(endDate);
+    // When evaluating a proposed range, also scan up to 5 days immediately outside [normStart, normEnd]
+    // to catch adjacent weekend/holiday bridges between an existing leave and the proposed leave
+    const scanStart = new Date(normStart);
+    const scanEnd = new Date(normEnd);
+    if (options?.proposedRangeAsLeave) {
+      scanStart.setUTCDate(scanStart.getUTCDate() - 5);
+      scanEnd.setUTCDate(scanEnd.getUTCDate() + 5);
+    }
 
-    while (cur <= end) {
+    const startIso = normStart.toISOString().slice(0, 10);
+    const endIso = normEnd.toISOString().slice(0, 10);
+
+    const cur = new Date(scanStart);
+    while (cur <= scanEnd) {
       const curStr = cur.toISOString().slice(0, 10);
       const nonWorkCheck = isNonWorkingDay(cur);
 
       if (nonWorkCheck.isNonWorking) {
-        // Find preceding scheduled working day
-        let prevWorkDay: Date | null = new Date(cur);
+        const prevWorkDay = new Date(cur);
         let foundPrev = false;
         for (let i = 1; i <= 7; i++) {
           prevWorkDay.setUTCDate(prevWorkDay.getUTCDate() - 1);
@@ -245,8 +280,7 @@ export class SandwichLeaveService {
           }
         }
 
-        // Find succeeding scheduled working day
-        let nextWorkDay: Date | null = new Date(cur);
+        const nextWorkDay = new Date(cur);
         let foundNext = false;
         for (let i = 1; i <= 7; i++) {
           nextWorkDay.setUTCDate(nextWorkDay.getUTCDate() + 1);
@@ -256,22 +290,31 @@ export class SandwichLeaveService {
           }
         }
 
-        if (foundPrev && foundNext && prevWorkDay && nextWorkDay) {
-          const prevLeave = approvedLeaveDays.get(prevWorkDay.toISOString().slice(0, 10));
-          const nextLeave = approvedLeaveDays.get(nextWorkDay.toISOString().slice(0, 10));
+        if (foundPrev && foundNext) {
+          const prevStr = prevWorkDay.toISOString().slice(0, 10);
+          const nextStr = nextWorkDay.toISOString().slice(0, 10);
+          const prevLeave = fullLeaveDays.get(prevStr);
+          const nextLeave = fullLeaveDays.get(nextStr);
 
-          // Only trigger if both preceding and succeeding work days had FULL-DAY approved leaves
           if (prevLeave?.fullDay && nextLeave?.fullDay) {
-            sandwichDates.push(curStr);
-            details.push({
-              date: curStr,
-              type: nonWorkCheck.type,
-              name: nonWorkCheck.name,
-              priorLeaveDate: prevWorkDay.toISOString().slice(0, 10),
-              nextLeaveDate: nextWorkDay.toISOString().slice(0, 10),
-              deducted: true,
-              reason: `Sandwich Leave: Intervening ${nonWorkCheck.type} between approved leaves on ${prevWorkDay.toISOString().slice(0, 10)} and ${nextWorkDay.toISOString().slice(0, 10)}`,
-            });
+            // If scanning outside [normStart, normEnd], only include if one side touches the proposed range
+            const insideTarget = curStr >= startIso && curStr <= endIso;
+            const touchesProposed =
+              Boolean(prevLeave.isProposed && !nextLeave.isProposed) ||
+              Boolean(!prevLeave.isProposed && nextLeave.isProposed);
+
+            if (insideTarget || touchesProposed) {
+              sandwichDates.push(curStr);
+              details.push({
+                date: curStr,
+                type: nonWorkCheck.type,
+                name: nonWorkCheck.name,
+                priorLeaveDate: prevStr,
+                nextLeaveDate: nextStr,
+                deducted: true,
+                reason: `Sandwich Leave: Intervening ${nonWorkCheck.type} between leaves on ${prevStr} and ${nextStr}`,
+              });
+            }
           }
         }
       }

@@ -262,7 +262,7 @@ export async function apiRequest<T = any>(
       data.error || `Request failed with status ${response.status}`,
       response.status,
       data.code,
-      data.details
+      data.details ?? data
     );
   }
 
@@ -287,11 +287,20 @@ export const api = {
     return apiRequest<T>(url, { method: "GET" });
   },
   post: <T = any>(endpoint: string, body?: any) =>
-    apiRequest<T>(endpoint, { method: "POST", body: JSON.stringify(body) }),
+    apiRequest<T>(endpoint, {
+      method: "POST",
+      body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   put: <T = any>(endpoint: string, body?: any) =>
-    apiRequest<T>(endpoint, { method: "PUT", body: JSON.stringify(body) }),
+    apiRequest<T>(endpoint, {
+      method: "PUT",
+      body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   patch: <T = any>(endpoint: string, body?: any) =>
-    apiRequest<T>(endpoint, { method: "PATCH", body: JSON.stringify(body) }),
+    apiRequest<T>(endpoint, {
+      method: "PATCH",
+      body: body instanceof FormData ? body : body !== undefined ? JSON.stringify(body) : undefined,
+    }),
   delete: <T = any>(endpoint: string, options?: { data?: any }) =>
     apiRequest<T>(endpoint, {
       method: "DELETE",

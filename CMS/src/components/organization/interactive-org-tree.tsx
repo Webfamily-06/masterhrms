@@ -55,7 +55,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { sanitizeDocumentForCanvas, sanitizeOklchColorString } from "@/lib/canvas-oklch-converter";
+import {
+  computeConnectorGeometry,
+  exportOrganizationTreeVisual,
+} from "@/lib/org-tree-exporter";
 
 // Types matching backend OrganizationTreeService
 export interface OrgTreeNode {
@@ -132,6 +135,8 @@ export function InteractiveOrgTree() {
   const [isDragging, setIsDragging] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const treeContainerRef = useRef<HTMLDivElement>(null);
+  const employeeExportWrapperRef = useRef<HTMLDivElement>(null);
+  const departmentExportWrapperRef = useRef<HTMLDivElement>(null);
 
   // Touch and pointer gesture tracking refs
   const hasMovedRef = useRef<boolean>(false);
@@ -427,261 +432,58 @@ export function InteractiveOrgTree() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   const handleExportTree = async (format: "png" | "pdf") => {
-    if (!treeContainerRef.current) return;
+    const activeTarget =
+      viewMode === "department"
+        ? departmentExportWrapperRef.current
+        : orphanNodes.length > 0 && employeeExportWrapperRef.current
+        ? employeeExportWrapperRef.current
+        : treeContainerRef.current;
+
+    if (!activeTarget) return;
+
+    const prevCollapsed = new Set(collapsedNodes);
+    const hadCollapsedNodes = prevCollapsed.size > 0;
+
     try {
       setIsExporting(true);
       toast.info(`Preparing full organization hierarchy ${format.toUpperCase()} export...`);
 
-      // 1. Temporarily expand all collapsed nodes so complete tree is captured
-      const prevCollapsed = new Set(collapsedNodes);
-      setCollapsedNodes(new Set());
-
-      // Wait for layout, font readiness and SVG connector recalculation
-      await new Promise((r) => setTimeout(r, 600));
-      if (typeof document !== "undefined" && (document as any).fonts?.ready) {
-        try {
-          await (document as any).fonts.ready;
-        } catch {}
-      }
-
-      const targetEl = treeContainerRef.current;
-      const html2canvasModule = await import("html2canvas");
-      const html2canvas = html2canvasModule.default || html2canvasModule;
-
-      // Wrap getComputedStyle on host window and iframe window to intercept and convert any oklch/oklab colors
-      const patchWindowComputedStyle = (win: Window) => {
-        const orig = win.getComputedStyle;
-        win.getComputedStyle = function (el: Element, pseudo?: string | null) {
-          const style = orig.call(win, el, pseudo);
-          return new Proxy(style, {
-            get(target, prop) {
-              const val = (target as any)[prop];
-              if (typeof val === "string" && (val.includes("oklch") || val.includes("oklab"))) {
-                return sanitizeOklchColorString(val);
-              }
-              if (prop === "getPropertyValue") {
-                return (propertyName: string) => {
-                  const v = target.getPropertyValue(propertyName);
-                  return typeof v === "string" && (v.includes("oklch") || v.includes("oklab"))
-                    ? sanitizeOklchColorString(v)
-                    : v;
-                };
-              }
-              return typeof val === "function" ? val.bind(target) : val;
-            },
-          });
-        };
-        return () => {
-          win.getComputedStyle = orig;
-        };
-      };
-
-      const restoreHost = patchWindowComputedStyle(window);
-
-      let canvas: HTMLCanvasElement;
-      try {
-        canvas = await html2canvas(targetEl, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-          logging: false,
-          scrollX: 0,
-          scrollY: 0,
-          onclone: (clonedDoc: Document, clonedEl: HTMLElement) => {
-            const cloneWin = clonedDoc.defaultView;
-            if (cloneWin && cloneWin !== window) {
-              patchWindowComputedStyle(cloneWin);
-            }
-            sanitizeDocumentForCanvas(clonedDoc, clonedEl);
-
-            // 1. Reset zoom and pan transforms on the cloned tree hierarchy
-            const transformParent = clonedEl.closest('[data-testid="org-canvas-transform"]') as HTMLElement | null;
-            if (transformParent) {
-              transformParent.style.transform = "none";
-              transformParent.style.width = "max-content";
-              transformParent.style.minWidth = "100%";
-              transformParent.style.padding = "24px";
-            }
-
-            // 2. Prevent card clipping: unconstrain heights, allow natural expansion, ensure crisp text rendering
-            clonedEl.style.width = "max-content";
-            clonedEl.style.minWidth = "100%";
-            clonedEl.style.padding = "32px";
-            clonedEl.style.backgroundColor = "#ffffff";
-
-            const cards = clonedEl.querySelectorAll<HTMLElement>('[data-node-id], .interactive-node');
-            cards.forEach((card) => {
-              card.style.height = "auto";
-              card.style.minHeight = "fit-content";
-              card.style.overflow = "visible";
-              card.style.boxSizing = "border-box";
-              card.style.transform = "none";
-
-              // Ensure titles, department badges and sub-text wrap gracefully rather than clipping
-              const textEls = card.querySelectorAll<HTMLElement>("h4, p, span");
-              textEls.forEach((txt) => {
-                txt.style.overflow = "visible";
-                txt.style.textOverflow = "clip";
-              });
-            });
-
-            // 3. Ensure SVG connectors have visible overflow and clean dimensions matching cards
-            const svgs = clonedEl.querySelectorAll<SVGElement>("svg");
-            svgs.forEach((svg) => {
-              svg.style.overflow = "visible";
-              svg.setAttribute("overflow", "visible");
-            });
-          },
-        });
-      } finally {
-        restoreHost();
-      }
-
-      if (format === "png") {
-        const link = document.createElement("a");
-        link.download = `organization-tree-${new Date().toISOString().slice(0, 10)}.png`;
-        link.href = canvas.toDataURL("image/png");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        toast.success("Organization Tree exported as PNG successfully!");
+      // Temporarily expand collapsed branches only if needed so complete hierarchy is captured
+      if (hadCollapsedNodes) {
+        setCollapsedNodes(new Set());
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        );
+        await new Promise((r) => setTimeout(r, 240));
       } else {
-        const { jsPDF } = await import("jspdf");
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-
-        // Target standard A4 Landscape (842 x 595 pt) with 30pt margins
-        const targetPageWidth = 842;
-        const targetPageHeight = 595;
-        const margin = 30;
-        const headerSpace = 36;
-        const printableWidth = targetPageWidth - margin * 2;
-        const printableHeight = targetPageHeight - margin * 2 - headerSpace;
-
-        // Sizing logic: determine scale factor required to fit into standard A4 Landscape printable area
-        const scaleX = printableWidth / canvasWidth;
-        const scaleY = printableHeight / canvasHeight;
-        const singlePageScale = Math.min(scaleX, scaleY);
-
-        // If the entire hierarchy fits comfortably on a single standard page with reasonable readability (>= 0.60)
-        // or if canvas size is relatively compact, render as a single crisp A4 Landscape page.
-        // Otherwise, split into multi-page horizontal/vertical tiles preserving 100% card readability.
-        if (singlePageScale >= 0.55) {
-          const pdf = new jsPDF({
-            orientation: "landscape",
-            unit: "pt",
-            format: "a4",
-          });
-
-          const renderedWidth = canvasWidth * singlePageScale;
-          const renderedHeight = canvasHeight * singlePageScale;
-          const xOffset = margin + (printableWidth - renderedWidth) / 2;
-          const yOffset = margin + headerSpace + (printableHeight - renderedHeight) / 2;
-
-          // Standard MasterHRMS Report Header
-          pdf.setFontSize(14);
-          pdf.setFont("helvetica", "bold");
-          pdf.setTextColor(30, 41, 59);
-          pdf.text("Organization Hierarchy Structure", margin, margin + 12);
-
-          pdf.setFontSize(9);
-          pdf.setFont("helvetica", "normal");
-          pdf.setTextColor(100, 116, 139);
-          pdf.text(
-            `Generated on: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}  |  MasterHRMS Enterprise`,
-            margin,
-            margin + 26
-          );
-
-          const imgData = canvas.toDataURL("image/png");
-          pdf.addImage(imgData, "PNG", xOffset, yOffset, renderedWidth, renderedHeight);
-          pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
-        } else {
-          // Multi-page Tiling: slice canvas into readable sections across multiple standard A4 Landscape pages
-          const pdf = new jsPDF({
-            orientation: "landscape",
-            unit: "pt",
-            format: "a4",
-          });
-
-          // Establish a high-readability target scale (approx 0.70x to 0.85x canvas native size)
-          const tileScale = Math.min(0.85, Math.max(0.65, singlePageScale * 1.5));
-          const sliceSourceWidth = Math.floor(printableWidth / tileScale);
-          const sliceSourceHeight = Math.floor(printableHeight / tileScale);
-
-          const cols = Math.ceil(canvasWidth / sliceSourceWidth);
-          const rows = Math.ceil(canvasHeight / sliceSourceHeight);
-          const totalPages = cols * rows;
-          let currentPage = 0;
-
-          // Temporary slicing canvas
-          const sliceCanvas = document.createElement("canvas");
-          sliceCanvas.width = sliceSourceWidth;
-          sliceCanvas.height = sliceSourceHeight;
-          const sliceCtx = sliceCanvas.getContext("2d");
-
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              currentPage++;
-              if (currentPage > 1) {
-                pdf.addPage("a4", "landscape");
-              }
-
-              const sx = c * sliceSourceWidth;
-              const sy = r * sliceSourceHeight;
-              const sWidth = Math.min(sliceSourceWidth, canvasWidth - sx);
-              const sHeight = Math.min(sliceSourceHeight, canvasHeight - sy);
-
-              if (sliceCtx) {
-                sliceCtx.fillStyle = "#ffffff";
-                sliceCtx.fillRect(0, 0, sliceSourceWidth, sliceSourceHeight);
-                sliceCtx.drawImage(
-                  canvas,
-                  sx, sy, sWidth, sHeight,
-                  0, 0, sWidth, sHeight
-                );
-              }
-
-              // Page Header & Breadcrumb
-              pdf.setFontSize(13);
-              pdf.setFont("helvetica", "bold");
-              pdf.setTextColor(30, 41, 59);
-              pdf.text("Organization Hierarchy Structure", margin, margin + 12);
-
-              pdf.setFontSize(8.5);
-              pdf.setFont("helvetica", "normal");
-              pdf.setTextColor(100, 116, 139);
-              pdf.text(
-                `Generated on: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}  |  Section (Col ${c + 1}/${cols}, Row ${r + 1}/${rows})  |  Page ${currentPage} of ${totalPages}`,
-                margin,
-                margin + 26
-              );
-
-              const sliceData = sliceCanvas.toDataURL("image/png");
-              pdf.addImage(
-                sliceData,
-                "PNG",
-                margin,
-                margin + headerSpace,
-                sWidth * tileScale,
-                sHeight * tileScale
-              );
-            }
-          }
-
-          pdf.save(`organization-tree-${new Date().toISOString().slice(0, 10)}.pdf`);
-        }
-
-        toast.success("Organization Tree exported as PDF successfully!");
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       }
 
-      // Restore collapsed nodes
-      setCollapsedNodes(prevCollapsed);
+      const sourceRoot =
+        viewMode === "department"
+          ? departmentExportWrapperRef.current
+          : orphanNodes.length > 0 && employeeExportWrapperRef.current
+          ? employeeExportWrapperRef.current
+          : treeContainerRef.current;
+
+      if (!sourceRoot) return;
+
+      await exportOrganizationTreeVisual({
+        format,
+        sourceRoot,
+        treeContainerEl: viewMode === "employee" ? treeContainerRef.current : null,
+        canvasViewportEl: canvasRef.current,
+        orgChartNodes,
+      });
+
+      toast.success(`Organization Tree exported as ${format.toUpperCase()} successfully!`);
     } catch (err: any) {
-      console.error("HTML2CANVAS EXPORT ERROR:", err, err?.stack);
+      console.error("ORG TREE EXPORT ERROR:", err, err?.stack);
       toast.error("Failed to export organization tree: " + (err.message || err));
     } finally {
+      if (hadCollapsedNodes) {
+        setCollapsedNodes(prevCollapsed);
+      }
       setIsExporting(false);
     }
   };
@@ -1147,7 +949,7 @@ export function InteractiveOrgTree() {
           {/* VIEW 1: EMPLOYEE REPORTING HIERARCHY (Reference Image 1) */}
           {/* ======================================================== */}
           {viewMode === "employee" && (
-            <div className="space-y-12">
+            <div ref={employeeExportWrapperRef} className="space-y-12">
               {isEmpLoading ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-3 bg-card/80 p-8 rounded-xl border shadow-sm">
                   <RefreshCw className="h-6 w-6 animate-spin text-primary" />
@@ -1164,7 +966,11 @@ export function InteractiveOrgTree() {
                   </p>
                 </div>
               ) : (
-                <div ref={treeContainerRef} className="relative w-fit min-w-full flex flex-wrap items-start justify-center gap-16 p-4">
+                <div
+                  ref={treeContainerRef}
+                  data-tree-container="true"
+                  className="relative w-fit min-w-full flex flex-wrap items-start justify-center gap-16 p-4"
+                >
                   <TreeConnectors
                     containerRef={treeContainerRef}
                     nodes={orgChartNodes}
@@ -1187,7 +993,10 @@ export function InteractiveOrgTree() {
               {/* Orphan / Standalone Staff Notice if any */}
               {orphanNodes.length > 0 && (
                 <div className="mt-16 pt-8 border-t border-border/80 w-full max-w-4xl text-center">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold mb-6">
+                  <div
+                    data-orphan-badge="true"
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold mb-6"
+                  >
                     <span>Unlinked Staff ({orphanNodes.length})</span>
                     <span className="text-[10px] font-normal opacity-80">
                       Employees without a mapped manager in current scope
@@ -1232,10 +1041,16 @@ export function InteractiveOrgTree() {
                   </p>
                 </div>
               ) : (
-                <div className="w-full max-w-5xl flex flex-col items-center space-y-8">
+                <div
+                  ref={departmentExportWrapperRef}
+                  className="w-full max-w-5xl flex flex-col items-center space-y-8"
+                >
                   {/* Organization Root Card */}
                   <div className="flex flex-col items-center">
-                    <div className="rounded-xl border-2 border-purple-500/40 bg-card p-4 shadow-md text-center min-w-[280px]">
+                    <div
+                      data-dept-root="true"
+                      className="rounded-xl border-2 border-purple-500/40 bg-card p-4 shadow-md text-center min-w-[280px]"
+                    >
                       <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 mb-2 font-bold">
                         <Building2 className="h-5 w-5" />
                       </div>
@@ -1250,7 +1065,10 @@ export function InteractiveOrgTree() {
                   </div>
 
                   {/* Connected Department Cards Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+                  <div
+                    data-dept-grid="true"
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full"
+                  >
                     {departmentNodes.map((dept) => (
                       <DepartmentCard
                         key={dept.id}
@@ -1754,86 +1572,20 @@ interface TreeConnectorsProps {
 }
 
 function TreeConnectors({ containerRef, nodes, collapsedNodes, scale }: TreeConnectorsProps) {
-  const [paths, setPaths] = useState<string[]>([]);
+  const [geometry, setGeometry] = useState<{ paths: string[]; w: number; h: number }>({
+    paths: [],
+    w: 1,
+    h: 1,
+  });
 
   const calculateConnectors = useCallback(() => {
     if (!containerRef.current) return;
-    const container = containerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const newPaths: string[] = [];
-
-    function traverse(node: OrgTreeNode) {
-      if (collapsedNodes.has(node.id)) return;
-      if (!node.subordinates || node.subordinates.length === 0) return;
-
-      const parentEl = container.querySelector<HTMLElement>(`[data-node-id="${node.id}"]`);
-      if (!parentEl) return;
-
-      const parentRect = parentEl.getBoundingClientRect();
-      const parentX = (parentRect.left - containerRect.left) / scale + parentRect.width / (2 * scale);
-      const parentBottom = (parentRect.bottom - containerRect.top) / scale;
-
-      const visibleChildEls: Array<{ el: HTMLElement; node: OrgTreeNode }> = [];
-      for (const sub of node.subordinates) {
-        const childEl = container.querySelector<HTMLElement>(`[data-node-id="${sub.id}"]`);
-        if (childEl) {
-          visibleChildEls.push({ el: childEl, node: sub });
-        }
-      }
-
-      if (visibleChildEls.length === 0) return;
-
-      const childCoords = visibleChildEls.map(({ el }) => {
-        const r = el.getBoundingClientRect();
-        return {
-          x: (r.left - containerRect.left) / scale + r.width / (2 * scale),
-          top: (r.top - containerRect.top) / scale,
-        };
-      });
-
-      if (childCoords.length === 1) {
-        const child = childCoords[0];
-        if (Math.abs(parentX - child.x) < 2) {
-          newPaths.push(
-            `M ${parentX.toFixed(1)} ${parentBottom.toFixed(1)} L ${child.x.toFixed(1)} ${child.top.toFixed(1)}`
-          );
-        } else {
-          const midY = (parentBottom + child.top) / 2;
-          newPaths.push(
-            `M ${parentX.toFixed(1)} ${parentBottom.toFixed(1)} V ${midY.toFixed(1)} H ${child.x.toFixed(1)} V ${child.top.toFixed(1)}`
-          );
-        }
-      } else {
-        const minX = Math.min(...childCoords.map((c) => c.x));
-        const maxX = Math.max(...childCoords.map((c) => c.x));
-        const minTop = Math.min(...childCoords.map((c) => c.top));
-        const busY = parentBottom + Math.max(16, (minTop - parentBottom) / 2);
-
-        // 1. Vertical stem from parent bottom anchor to bus line
-        newPaths.push(`M ${parentX.toFixed(1)} ${parentBottom.toFixed(1)} V ${busY.toFixed(1)}`);
-
-        // 2. Horizontal bus bar spanning from leftmost child to rightmost child
-        const busLeft = Math.min(minX, parentX);
-        const busRight = Math.max(maxX, parentX);
-        newPaths.push(`M ${busLeft.toFixed(1)} ${busY.toFixed(1)} H ${busRight.toFixed(1)}`);
-
-        // 3. Vertical branches from horizontal bus to each child top anchor
-        for (const child of childCoords) {
-          newPaths.push(`M ${child.x.toFixed(1)} ${busY.toFixed(1)} V ${child.top.toFixed(1)}`);
-        }
-      }
-
-      // Recurse for visible children
-      for (const sub of node.subordinates) {
-        traverse(sub);
-      }
-    }
-
-    for (const root of nodes) {
-      traverse(root);
-    }
-
-    setPaths(newPaths);
+    const result = computeConnectorGeometry(containerRef.current, nodes, collapsedNodes);
+    setGeometry({
+      paths: result.paths,
+      w: result.svgWidth,
+      h: result.svgHeight,
+    });
   }, [containerRef, nodes, collapsedNodes, scale]);
 
   useLayoutEffect(() => {
@@ -1865,14 +1617,18 @@ function TreeConnectors({ containerRef, nodes, collapsedNodes, scale }: TreeConn
     };
   }, [calculateConnectors]);
 
-  if (paths.length === 0) return null;
+  if (geometry.paths.length === 0) return null;
 
   return (
     <svg
+      data-tree-connectors="true"
+      width={geometry.w}
+      height={geometry.h}
+      viewBox={`0 0 ${geometry.w} ${geometry.h}`}
       className="absolute inset-0 pointer-events-none z-0 w-full h-full overflow-visible"
       style={{ overflow: "visible" }}
     >
-      {paths.map((d, i) => (
+      {geometry.paths.map((d, i) => (
         <path
           key={i}
           d={d}
@@ -2008,7 +1764,12 @@ function EmployeeCard({
       <div className="flex items-center justify-between gap-2 pt-1 mb-2">
         <div className="flex items-center gap-2">
           {/* Avatar with Image & Initials Fallback */}
-          <Avatar className="h-9 w-9 border border-border shadow-xs shrink-0">
+          <Avatar
+            data-avatar-url={node.avatarUrl || ""}
+            data-avatar-alt={node.name}
+            data-avatar-initials={`${node.firstName.charAt(0)}${node.lastName.charAt(0)}`}
+            className="h-9 w-9 border border-border shadow-xs shrink-0"
+          >
             {node.avatarUrl && (
               <AvatarImage
                 src={node.avatarUrl}
@@ -2116,6 +1877,7 @@ interface DepartmentCardProps {
 function DepartmentCard({ department, onSelectDepartment, hasMovedRef }: DepartmentCardProps) {
   return (
     <div
+      data-dept-card={department.id}
       onClick={(e) => {
         if (hasMovedRef?.current) {
           e.preventDefault();

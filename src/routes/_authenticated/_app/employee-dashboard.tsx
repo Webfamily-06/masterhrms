@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { invalidateLeaveApplications, extractLeaveErrorMessage, formatLeaveDays } from "@/lib/leave-helpers";
 import { useCurrentProfile } from "@/lib/session";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -50,7 +51,7 @@ export default function EmployeeDashboardPage() {
   const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const [leaveForm, setLeaveForm] = useState({
     employeeName: profile?.full_name || "",
-    leaveTypeId: "Medical Leave",
+    leaveTypeId: "",
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date().toISOString().slice(0, 10),
     days: 1,
@@ -128,7 +129,7 @@ export default function EmployeeDashboardPage() {
     queryFn: async () => {
       try {
         const res: any = await api.get("/api/v1/me/leave-balance");
-        return Array.isArray(res?.data) ? res.data : [];
+        return unwrapArray<any>(res);
       } catch {
         return [];
       }
@@ -193,22 +194,22 @@ export default function EmployeeDashboardPage() {
         if (e.message) throw e;
       }
 
-      return await api.post("/api/leaves", {
+      return await api.post("/api/v1/me/leave/applications", {
         leaveTypeId: payload.leaveTypeId,
         startDate: payload.startDate,
         endDate: payload.endDate,
-        days: payload.days,
-        reason: payload.reason,
+        reason: payload.reason || "Submitted from Employee Dashboard",
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Leave request submitted successfully!");
       setLeaveModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["my-leaves"] });
       queryClient.invalidateQueries({ queryKey: ["my-leave-balances"] });
+      await invalidateLeaveApplications(queryClient);
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to submit leave request.");
+      toast.error(extractLeaveErrorMessage(err, "Failed to submit leave request."));
     },
   });
 
@@ -825,10 +826,12 @@ export default function EmployeeDashboardPage() {
                 onChange={(e) => setLeaveForm({ ...leaveForm, leaveTypeId: e.target.value })}
                 className="w-full px-3 py-2 border border-border-color rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="Medical Leave">Medical Leave</option>
-                <option value="Casual Leave">Casual Leave</option>
-                <option value="Annual Leave">Annual Leave</option>
-                <option value="Maternity / Paternity">Maternity / Paternity</option>
+                <option value="">-- Select Leave Type --</option>
+                {leaveBalances.map((lb: any) => (
+                  <option key={lb.leaveTypeId} value={lb.leaveTypeId}>
+                    {lb.leaveTypeName} (Available: {formatLeaveDays(lb.availableDays ?? lb.available ?? 0)}d)
+                  </option>
+                ))}
               </select>
             </div>
 

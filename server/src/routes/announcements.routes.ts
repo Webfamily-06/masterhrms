@@ -4,11 +4,24 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { getTenantDb } from "../context/tenant-context";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { ChatService } from "../services/chat.service";
+import { broadcastToUser } from "../socket";
 
 export const announcementsRouter = Router();
 
 // Controlled Pilot Integration: Enforce Request-Scoped Tenant Context on all announcement endpoints
 announcementsRouter.use(requireAuth, resolveTenantContext);
+
+function requireAnnouncementManagePermission(req: AuthRequest, res: Response): boolean {
+  if (!ChatService.hasChatPermission(req.user, "chat.announcements")) {
+    res.status(403).json({
+      error: "Forbidden: Only HR managers or workspace administrators can manage official announcements.",
+      code: "ANNOUNCEMENT_MANAGE_FORBIDDEN",
+    });
+    return false;
+  }
+  return true;
+}
 
 // Auto-seed default categories if none exist for tenant
 async function ensureSeedCategories(tenantId: string, db: any) {
@@ -233,6 +246,19 @@ async function notifyEligibleEmployees(tenantId: string, announcement: any, db: 
         data: notificationsToCreate,
         skipDuplicates: true,
       });
+
+      for (const item of notificationsToCreate) {
+        broadcastToUser(item.userId, "announcement:published", {
+          id: announcement.id,
+          type: "official_announcement",
+          title: announcement.title,
+          summary: announcement.summary,
+          priority: announcement.priority,
+          category: announcement.category,
+          acknowledgementRequired: announcement.acknowledgementRequired,
+          publishDate: announcement.publishDate,
+        });
+      }
     }
   } catch (err) {
     console.error("[notifyEligibleEmployees] Failed to generate notifications:", err);
@@ -278,6 +304,7 @@ announcementsRouter.get("/categories", async (req: AuthRequest, res: Response) =
  */
 announcementsRouter.post("/categories", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
@@ -327,6 +354,7 @@ announcementsRouter.post("/categories", async (req: AuthRequest, res: Response) 
  */
 announcementsRouter.put("/categories/:id", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
@@ -380,6 +408,7 @@ announcementsRouter.put("/categories/:id", async (req: AuthRequest, res: Respons
  */
 announcementsRouter.delete("/categories/:id", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
@@ -633,6 +662,7 @@ announcementsRouter.get("/summary/stats", async (req: AuthRequest, res: Response
  */
 announcementsRouter.get("/:id/analytics", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
@@ -838,6 +868,7 @@ announcementsRouter.get("/:id", async (req: AuthRequest, res: Response) => {
  */
 announcementsRouter.post("/", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
     const db = getTenantDb(req);
@@ -931,6 +962,7 @@ announcementsRouter.post("/", async (req: AuthRequest, res: Response) => {
  */
 announcementsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
@@ -1011,6 +1043,7 @@ announcementsRouter.put("/:id", async (req: AuthRequest, res: Response) => {
  */
 announcementsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
@@ -1032,6 +1065,7 @@ announcementsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
  */
 announcementsRouter.post("/bulk", async (req: AuthRequest, res: Response) => {
   try {
+    if (!requireAnnouncementManagePermission(req, res)) return;
     const tenantId = req.user?.tenantId;
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
@@ -1083,15 +1117,31 @@ announcementsRouter.post("/:id/view", async (req: AuthRequest, res: Response) =>
     if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
 
     const db = getTenantDb(req);
+    const ann = await db.announcement.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!ann) return res.status(404).json({ error: "Announcement not found." });
 
-    // Identify employee
-    let employeeId = req.body?.employeeId;
-    if (!employeeId && req.user?.id) {
-      const emp = await db.employee.findFirst({
-        where: { tenantId, userId: req.user.id },
+    // Resolve employee strictly from authenticated JWT user (prevent cross-employee view spoofing)
+    const callerUserId = req.user?.userId || (req.user as any)?.id;
+    const callerEmp = callerUserId
+      ? await db.employee.findFirst({
+          where: { tenantId, userId: callerUserId },
+          select: { id: true },
+        })
+      : null;
+
+    let employeeId: string | undefined = callerEmp?.id;
+    if (req.body?.employeeId && req.body.employeeId !== callerEmp?.id) {
+      if (!ChatService.hasChatPermission(req.user, "chat.announcements")) {
+        return res.status(403).json({
+          error: "Forbidden: Cannot record announcement view on behalf of another employee.",
+          code: "ANNOUNCEMENT_VIEW_SPOOF_FORBIDDEN",
+        });
+      }
+      const targetEmp = await db.employee.findFirst({
+        where: { id: String(req.body.employeeId), tenantId },
         select: { id: true },
       });
-      if (emp) employeeId = emp.id;
+      if (targetEmp) employeeId = targetEmp.id;
     }
 
     if (!employeeId) {
@@ -1143,18 +1193,35 @@ announcementsRouter.post("/:id/acknowledge", async (req: AuthRequest, res: Respo
   try {
     const { id } = req.params;
     const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
     const db = getTenantDb(req);
 
-    let employeeId = req.body?.employeeId;
-    if (!employeeId && req.user?.id) {
-      const emp = await db.employee.findFirst({
-        where: { tenantId, userId: req.user.id },
+    const ann = await db.announcement.findFirst({ where: { id, tenantId }, select: { id: true } });
+    if (!ann) return res.status(404).json({ error: "Announcement not found." });
+
+    const callerUserId = req.user?.userId || (req.user as any)?.id;
+    const callerEmp = callerUserId
+      ? await db.employee.findFirst({
+          where: { tenantId, userId: callerUserId },
+          select: { id: true },
+        })
+      : null;
+
+    let employeeId: string | undefined = callerEmp?.id;
+    if (req.body?.employeeId && req.body.employeeId !== callerEmp?.id) {
+      if (!ChatService.hasChatPermission(req.user, "chat.announcements")) {
+        return res.status(403).json({
+          error: "Forbidden: Cannot forge compliance acknowledgement on behalf of another employee.",
+          code: "ANNOUNCEMENT_ACK_SPOOF_FORBIDDEN",
+        });
+      }
+      const targetEmp = await db.employee.findFirst({
+        where: { id: String(req.body.employeeId), tenantId },
         select: { id: true },
       });
-      if (emp) employeeId = emp.id;
+      if (targetEmp) employeeId = targetEmp.id;
     }
 
-    if (!tenantId) return res.status(400).json({ error: "Tenant context required." });
     if (!employeeId) return res.status(400).json({ error: "Employee identification required." });
 
     const acknowledgement = await db.announcementAcknowledgement.upsert({

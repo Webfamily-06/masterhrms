@@ -137,12 +137,24 @@ export class OutboxService {
           };
 
           if (io) {
-            // 1. Dispatch to tenant room
-            io.to(`tenant:${event.tenantId}`).emit("domain:event", envelope);
-            io.to(`tenant:${event.tenantId}`).emit(event.eventType, envelope);
+            const isPrivateCommEvent =
+              event.eventType.startsWith("CHAT_") ||
+              event.eventType.startsWith("chat:") ||
+              event.eventType.startsWith("CALL_") ||
+              event.eventType.startsWith("call:") ||
+              event.entityType === "ChatMessage" ||
+              event.entityType === "Call";
 
-            // 2. Dispatch to specific record room if subscribed
-            io.to(`record:${event.entityType}:${event.entityId}`).emit(event.eventType, envelope);
+            // 1. Dispatch non-private domain events to tenant room
+            if (!isPrivateCommEvent && event.tenantId) {
+              io.to(`tenant:${event.tenantId}`).emit("domain:event", envelope);
+              io.to(`tenant:${event.tenantId}`).emit(event.eventType, envelope);
+            }
+
+            // 2. Dispatch to tenant-qualified record room if subscribed
+            if (!isPrivateCommEvent && event.tenantId && event.entityType && event.entityId) {
+              io.to(`tenant:${event.tenantId}:record:${event.entityType}:${event.entityId}`).emit(event.eventType, envelope);
+            }
 
             // 3. Dispatch to targeted user room if present in metadata/payload
             const recipientUserId =

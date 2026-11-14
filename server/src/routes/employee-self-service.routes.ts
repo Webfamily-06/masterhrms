@@ -14,6 +14,7 @@ import { AwardNominationService } from "../services/award-nomination.service";
 import { AwardCertificateService } from "../services/award-certificate.service";
 import { EmployeeChangeRequestService } from "../services/employee-change-request.service";
 import { ReportingManagerChangeService } from "../services/reporting-manager-change.service";
+import { LeaveService, LeaveHttpError } from "../services/leave.service";
 
 export const employeeSelfServiceRouter = Router();
 
@@ -650,124 +651,73 @@ employeeSelfServiceRouter.post("/regularizations/:id/withdraw", async (req: Empl
 
 /**
  * POST /api/v1/me/leaves/validate
- * Dry-run leave balance and policy validation
+ * Dry-run leave balance and policy validation via authoritative LeaveService
  */
 employeeSelfServiceRouter.post("/leaves/validate", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const tenantId = req.user!.tenantId!;
-  const { leaveTypeId, startDate, endDate } = req.body;
+  const tenantId = req.tenantId || req.user!.tenantId!;
+  const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, excludeRequestId } = req.body;
 
   if (!leaveTypeId || !startDate || !endDate) {
     return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
   }
 
   try {
-    const validLeaveType = await db.leaveType.findFirst({
-      where: { id: leaveTypeId, tenantId },
+    const preview = await LeaveService.validateDryRun({
+      tenantId,
+      employeeId,
+      leaveTypeId,
+      startDate,
+      endDate,
+      halfDay: Boolean(halfDay),
+      halfDaySession,
+      reason,
+      excludeRequestId,
+      bypassNoticePeriod: false,
     });
-    if (!validLeaveType) {
-      return res.status(404).json({
-        valid: false,
-        blockingIssues: ["Leave type not found in this workspace."],
-      });
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (end < start) {
-      return res.status(400).json({
-        valid: false,
-        blockingIssues: ["End date cannot be prior to start date."],
-      });
-    }
-
-    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-    // Check for overlapping leaves
-    const overlap = await db.leaveRequest.findFirst({
-      where: {
-        tenantId,
-        employeeId,
-        status: { in: ["pending", "approved"] },
-        OR: [
-          { startDate: { lte: end }, endDate: { gte: start } },
-        ],
-      },
-    });
-
-    const blockingIssues: string[] = [];
-    if (overlap) {
-      blockingIssues.push("You already have an active leave request overlapping these dates.");
-    }
 
     return res.json({
       success: true,
-      valid: blockingIssues.length === 0,
-      calculatedDays: diffDays,
-      sandwichDaysAdded: 0,
-      blockingIssues,
+      ...preview,
+      valid: preview.isValid,
+      calculatedDays: preview.totalDays,
+      sandwichDaysAdded: preview.sandwichDaysCount,
+      blockingIssues: preview.warnings,
     });
   } catch (err: any) {
-    console.error("[POST /me/leaves/validate] Error:", err);
-    return res.status(500).json({ error: "Failed to validate leave application" });
+    if (err instanceof LeaveHttpError) {
+      return res.status(err.status).json({
+        valid: false,
+        error: err.message,
+        blockingIssues: [err.message],
+      });
+    }
+    return res.status(400).json({
+      valid: false,
+      error: err.message || "Failed to validate leave application",
+      blockingIssues: [err.message || "Failed to validate leave application"],
+    });
   }
 });
 
 /**
  * GET /api/v1/me/leave-balance
- * Returns detailed leave entitlements and balances
+ * Returns detailed leave entitlements and live ledger-derived balances
  */
 employeeSelfServiceRouter.get("/leave-balance", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const tenantId = req.user!.tenantId!;
+  const tenantId = req.tenantId || req.user!.tenantId!;
+  const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
 
   try {
-    const leaveTypes = await db.leaveType.findMany({
-      where: { tenantId },
-      select: {
-        id: true,
-        name: true,
-        daysPerYear: true,
-        color: true,
-      },
-    });
-
-    const usedLeaves = await db.leaveRequest.findMany({
-      where: {
-        tenantId,
-        employeeId,
-        status: { in: ["pending", "approved"] },
-      },
-      select: {
-        leaveTypeId: true,
-        days: true,
-        status: true,
-      },
-    });
-
-    const balances = leaveTypes.map((type) => {
-      const typeUsed = usedLeaves.filter((l) => l.leaveTypeId === type.id);
-      const approvedDays = typeUsed
-        .filter((l) => l.status === "approved")
-        .reduce((sum, l) => sum + Number(l.days || 0), 0);
-      const pendingDays = typeUsed
-        .filter((l) => l.status === "pending")
-        .reduce((sum, l) => sum + Number(l.days || 0), 0);
-      const totalAccrued = type.daysPerYear || 12;
-      const available = Math.max(0, totalAccrued - approvedDays - pendingDays);
-
-      return {
-        leaveTypeId: type.id,
-        leaveTypeName: type.name,
-        color: type.color || "#FF6B00",
-        totalAccrued,
-        approvedDays,
-        pendingDays,
-        availableDays: available,
-      };
-    });
+    const detailed = await LeaveService.getEmployeeDetailedBalances(tenantId, employeeId, year);
+    const balances = detailed.map((b) => ({
+      ...b,
+      totalAccrued: b.total,
+      approvedDays: b.used,
+      pendingDays: b.pending,
+      availableDays: b.available,
+    }));
 
     return res.json({ success: true, data: balances });
   } catch (err: any) {
@@ -783,19 +733,22 @@ employeeSelfServiceRouter.get("/leave-balance", async (req: EmployeeAuthRequest,
 employeeSelfServiceRouter.get("/leaves", async (req: EmployeeAuthRequest, res: Response) => {
   const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const tenantId = req.user!.tenantId!;
+  const tenantId = req.tenantId || req.user!.tenantId!;
 
   try {
     const leaves = await db.leaveRequest.findMany({
       where: { tenantId, employeeId },
       include: {
         leaveType: {
-          select: { id: true, name: true, color: true, daysPerYear: true },
+          select: { id: true, name: true, color: true, daysPerYear: true, isPaid: true },
         },
       },
       orderBy: { createdAt: "desc" },
     });
-    return res.json({ success: true, data: leaves });
+    return res.json({
+      success: true,
+      data: leaves.map((l) => ({ ...l, days: Number(l.days) })),
+    });
   } catch (err: any) {
     console.error("[GET /me/leaves] Error:", err);
     return res.status(500).json({ error: "Failed to fetch leaves" });
@@ -804,49 +757,39 @@ employeeSelfServiceRouter.get("/leaves", async (req: EmployeeAuthRequest, res: R
 
 /**
  * POST /api/v1/me/leaves
- * Submits authoritative leave application for current employee
+ * Submits authoritative leave application for current employee via LeaveService
  */
 employeeSelfServiceRouter.post("/leaves", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
   const employeeId = req.employee!.id;
-  const tenantId = req.user!.tenantId!;
-  const { leaveTypeId, startDate, endDate, days, reason } = req.body;
+  const tenantId = req.tenantId || req.user!.tenantId!;
+  const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, attachmentUrl } = req.body;
 
   if (!leaveTypeId || !startDate || !endDate) {
     return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
   }
 
   try {
-    const validLeaveType = await db.leaveType.findFirst({
-      where: { id: leaveTypeId, tenantId },
-    });
-    if (!validLeaveType) {
-      return res.status(404).json({ error: "Leave type not found in this workspace" });
-    }
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const calcDays = Number(days) || Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-
-    const leave = await db.leaveRequest.create({
-      data: {
-        tenantId,
-        employeeId,
+    const leave = await LeaveService.submitApplication(
+      tenantId,
+      employeeId,
+      {
         leaveTypeId,
-        startDate: start,
-        endDate: end,
-        days: calcDays,
-        reason: reason || null,
-        status: "pending",
+        startDate,
+        endDate,
+        halfDay: Boolean(halfDay),
+        halfDaySession,
+        reason: String(reason || "Employee Self-Service Leave Request").trim(),
+        attachmentUrl: attachmentUrl || undefined,
       },
-      include: {
-        leaveType: { select: { id: true, name: true, color: true } },
-      },
-    });
+      req.user!.userId,
+      { bypassNoticePeriod: false }
+    );
     return res.status(201).json({ success: true, data: leave });
   } catch (err: any) {
-    console.error("[POST /me/leaves] Error:", err);
-    return res.status(500).json({ error: "Failed to apply for leave" });
+    if (err instanceof LeaveHttpError) {
+      return res.status(err.status).json({ error: err.message, code: err.code, details: err.details });
+    }
+    return res.status(400).json({ error: err.message || "Failed to apply for leave" });
   }
 });
 
@@ -1795,11 +1738,10 @@ employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: E
 
 /**
  * POST /api/v1/me/team/leaves/:id/action
- * Approves or rejects a team member's leave request
+ * Approves or rejects a team member's leave request via authoritative LeaveService
  */
 employeeSelfServiceRouter.post("/team/leaves/:id/action", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
-  const employeeId = req.employee!.id;
+  const tenantId = req.tenantId || req.user!.tenantId!;
   const { id } = req.params;
   const { action, comments } = req.body;
 
@@ -1808,38 +1750,29 @@ employeeSelfServiceRouter.post("/team/leaves/:id/action", async (req: EmployeeAu
   }
 
   try {
-    const leave = await db.leaveRequest.findUnique({
-      where: { id },
-      include: { employee: true },
-    });
-
-    if (!leave) {
-      return res.status(404).json({ error: "Leave request not found" });
-    }
-
-    if (leave.employee.managerId !== employeeId && !req.user!.roles?.includes("hr_admin") && !req.user!.roles?.includes("super_admin")) {
-      return res.status(403).json({ error: "You are not authorized to approve this request." });
-    }
-
-    const newStatus = action === "approve" ? "approved" : "rejected";
-    const updated = await db.leaveRequest.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        approverId: employeeId,
-        approvedAt: new Date(),
-        reason: comments ? `${leave.reason}\n[Manager Note: ${comments}]` : leave.reason,
-      },
-    });
+    const updated = await LeaveService.decideApplication(
+      tenantId,
+      id,
+      action,
+      req.user!.userId,
+      comments,
+      req.user!.roles
+    );
 
     return res.json({
       success: true,
-      message: `Leave request ${newStatus} successfully.`,
+      message: `Leave request ${updated.status} successfully.`,
       data: updated,
     });
   } catch (err: any) {
+    if (err instanceof LeaveHttpError) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    if (err?.code === "PERIOD_LOCKED") {
+      return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+    }
     console.error("[POST /me/team/leaves/:id/action] Error:", err);
-    return res.status(500).json({ error: "Failed to process leave decision" });
+    return res.status(500).json({ error: err.message || "Failed to process leave decision" });
   }
 });
 

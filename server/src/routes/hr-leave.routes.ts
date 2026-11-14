@@ -1,61 +1,124 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import { rawPrisma } from "../prisma";
 import { requireAuth, requirePermission, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
-import { LeaveService } from "../services/leave.service";
+import { LeaveService, LeaveHttpError } from "../services/leave.service";
 import { AuditService } from "../services/audit.service";
-import { OutboxService } from "../services/outbox.service";
 
 export const hrLeaveRouter = Router();
 
 hrLeaveRouter.use(requireAuth, resolveTenantContext);
 
+function sendLeaveError(res: Response, err: any, fallbackStatus: number = 500) {
+  if (err?.code === "PERIOD_LOCKED") {
+    return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+  }
+  if (err instanceof LeaveHttpError || typeof err?.status === "number") {
+    return res.status(err.status || 400).json({
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+      ...(err.details ? { details: err.details, ...err.details } : {}),
+    });
+  }
+  return res.status(fallbackStatus).json({ error: err?.message || "Internal server error" });
+}
+
+/**
+ * Restricts HR configuration & manual balance admin actions strictly to elevated HR / Workspace Admin roles,
+ * even when standard Employee roles possess `hrm.leave.create` for self-service submissions.
+ */
+function requireHrAdminRole(req: AuthRequest, res: Response, next: NextFunction) {
+  if (!LeaveService.isElevatedHrUser(req.user?.roles)) {
+    return res.status(403).json({
+      error: "Forbidden: HR Administrator privileges are required for this action.",
+      code: "HR_ADMIN_REQUIRED",
+    });
+  }
+  next();
+}
+
+/**
+ * Resolves caller employee & reporting scope when caller is not an elevated HR Admin.
+ */
+async function resolveCallerScope(req: AuthRequest, tenantId: string) {
+  const isElevatedHR = LeaveService.isElevatedHrUser(req.user?.roles);
+  if (isElevatedHR) {
+    return { isElevatedHR: true, callerEmpId: null as string | null };
+  }
+  const callerEmp = await rawPrisma.employee.findFirst({
+    where: { tenantId, userId: req.user!.userId },
+    select: { id: true },
+  });
+  return {
+    isElevatedHR: false,
+    callerEmpId: callerEmp?.id || null,
+  };
+}
+
 // =========================================================================
-// 1. LEAVE APPLICATIONS (List, Matrix, Submit, Action, Cancel, Dry-Run)
+// 1. LEAVE APPLICATIONS (List, Detail, Matrix, Dry-Run, Submit, Edit, Decide, Cancel, Reverse)
 // =========================================================================
 
 // GET /api/v1/hr/leave/applications
 hrLeaveRouter.get("/applications", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const pagination = parsePaginationParams(req, "createdAt", 50);
-    const { status, employeeId, leaveTypeId } = req.query;
+    const pagination = parsePaginationParams(req, "createdAt", 25);
+    const { status, employeeId, leaveTypeId, year, month } = req.query;
 
-    const userRoles = req.user?.roles || [];
-    const isElevatedHR =
-      userRoles.includes("admin") ||
-      userRoles.includes("hr_admin") ||
-      userRoles.includes("Workspace Admin") ||
-      userRoles.includes("HR Manager");
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    const andFilters: any[] = [{ tenantId }];
 
-    const where: any = { tenantId };
-
-    // Manager / Manage Own vs Manage All Scope Enforcement
     if (!isElevatedHR) {
-      const callerEmp = await rawPrisma.employee.findFirst({
-        where: { tenantId, userId: req.user!.userId },
-        select: { id: true },
+      if (!callerEmpId) {
+        return res.json(formatPaginatedResponse([], 0, pagination));
+      }
+      andFilters.push({
+        OR: [{ employeeId: callerEmpId }, { employee: { managerId: callerEmpId } }],
       });
-      if (callerEmp) {
-        where.OR = [
-          { employeeId: callerEmp.id },
-          { employee: { managerId: callerEmp.id } },
-        ];
+    }
+
+    if (status && status !== "all") {
+      andFilters.push({ status: String(status) });
+    }
+    if (employeeId && employeeId !== "all") {
+      andFilters.push({ employeeId: String(employeeId) });
+    }
+    if (leaveTypeId && leaveTypeId !== "all") {
+      andFilters.push({ leaveTypeId: String(leaveTypeId) });
+    }
+    if (year) {
+      const y = parseInt(String(year), 10);
+      if (!Number.isNaN(y)) {
+        const m = month ? parseInt(String(month), 10) : null;
+        const rangeStart = m && m >= 1 && m <= 12 ? new Date(Date.UTC(y, m - 1, 1)) : new Date(Date.UTC(y, 0, 1));
+        const rangeEnd =
+          m && m >= 1 && m <= 12
+            ? new Date(Date.UTC(y, m, 0, 23, 59, 59, 999))
+            : new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+        andFilters.push({
+          startDate: { lte: rangeEnd },
+          endDate: { gte: rangeStart },
+        });
       }
     }
 
-    if (status && status !== "all") where.status = String(status);
-    if (employeeId && employeeId !== "all") where.employeeId = String(employeeId);
-    if (leaveTypeId && leaveTypeId !== "all") where.leaveTypeId = String(leaveTypeId);
-
     if (pagination.search) {
-      where.OR = [
-        { employee: { firstName: { contains: pagination.search, mode: "insensitive" } } },
-        { employee: { lastName: { contains: pagination.search, mode: "insensitive" } } },
-        { employee: { employeeCode: { contains: pagination.search, mode: "insensitive" } } },
-      ];
+      andFilters.push({
+        OR: [
+          { reason: { contains: pagination.search, mode: "insensitive" } },
+          { employee: { firstName: { contains: pagination.search, mode: "insensitive" } } },
+          { employee: { lastName: { contains: pagination.search, mode: "insensitive" } } },
+          { employee: { employeeCode: { contains: pagination.search, mode: "insensitive" } } },
+          { leaveType: { name: { contains: pagination.search, mode: "insensitive" } } },
+        ],
+      });
     }
+
+    const where = andFilters.length === 1 ? andFilters[0] : { AND: andFilters };
+    const allowedSortFields = ["createdAt", "startDate", "endDate", "days", "status"];
+    const sortField = allowedSortFields.includes(pagination.sortField) ? pagination.sortField : "createdAt";
 
     const [total, records] = await Promise.all([
       rawPrisma.leaveRequest.count({ where }),
@@ -69,6 +132,7 @@ hrLeaveRouter.get("/applications", requirePermission("hrm.leave.view"), async (r
               lastName: true,
               employeeCode: true,
               position: true,
+              managerId: true,
               branch: { select: { id: true, name: true } },
               department: { select: { id: true, name: true } },
               user: { select: { profile: { select: { avatarUrl: true } } } },
@@ -76,15 +140,47 @@ hrLeaveRouter.get("/applications", requirePermission("hrm.leave.view"), async (r
           },
           leaveType: true,
         },
-        orderBy: { createdAt: pagination.sortType },
+        orderBy: { [sortField]: pagination.sortType },
         skip: pagination.skip,
         take: pagination.limit,
       }),
     ]);
 
-    return res.json(formatPaginatedResponse(records, total, pagination));
+    // Batch resolve approver names (approverId may reference User.id or Employee.id)
+    const approverIds = Array.from(
+      new Set(records.map((r) => r.approverId).filter((x): x is string => Boolean(x)))
+    );
+    const [approverUsers, approverEmps] =
+      approverIds.length > 0
+        ? await Promise.all([
+            rawPrisma.user.findMany({
+              where: { id: { in: approverIds } },
+              select: { id: true, email: true, profile: { select: { fullName: true } } },
+            }),
+            rawPrisma.employee.findMany({
+              where: { id: { in: approverIds }, tenantId },
+              select: { id: true, firstName: true, lastName: true },
+            }),
+          ])
+        : [[], []];
+
+    const approverNameMap = new Map<string, string>();
+    for (const u of approverUsers) {
+      approverNameMap.set(u.id, u.profile?.fullName || u.email);
+    }
+    for (const e of approverEmps) {
+      approverNameMap.set(e.id, `${e.firstName} ${e.lastName}`.trim());
+    }
+
+    const enriched = records.map((r) => ({
+      ...r,
+      days: Number(r.days),
+      approverName: r.approverId ? approverNameMap.get(r.approverId) || null : null,
+    }));
+
+    return res.json(formatPaginatedResponse(enriched, total, pagination));
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
@@ -96,34 +192,104 @@ hrLeaveRouter.get("/applications/matrix", requirePermission("hrm.leave.view"), a
     const year = parseInt(String(req.query.year || now.getUTCFullYear()), 10);
     const month = parseInt(String(req.query.month || now.getUTCMonth() + 1), 10); // 1-12
     const targetEmployeeId = req.query.employeeId ? String(req.query.employeeId) : undefined;
+    const search = req.query.search ? String(req.query.search).trim() : "";
 
-    const userRoles = req.user?.roles || [];
-    const isElevatedHR =
-      userRoles.includes("admin") ||
-      userRoles.includes("hr_admin") ||
-      userRoles.includes("Workspace Admin") ||
-      userRoles.includes("HR Manager");
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
 
-    // Calculate month boundary
     const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
     const daysInMonth = endOfMonth.getUTCDate();
 
-    // 1. Fetch holidays for the month
-    const holidays = await rawPrisma.holiday.findMany({
-      where: {
-        tenantId,
-        date: { gte: startOfMonth, lte: endOfMonth },
-        status: "active",
-      },
-      select: { date: true, name: true },
-    });
+    const empAndFilters: any[] = [{ tenantId, status: "active" }];
+    if (!isElevatedHR) {
+      if (!callerEmpId) {
+        return res.json({ year, month, daysInMonth, days: [], employees: [], allEmployees: [], leaveTypes: [] });
+      }
+      empAndFilters.push({
+        OR: [{ id: callerEmpId }, { managerId: callerEmpId }],
+      });
+    }
+    const baseEmpWhere = empAndFilters.length === 1 ? empAndFilters[0] : { AND: empAndFilters };
+
+    const filteredEmpAnd = [...empAndFilters];
+    if (targetEmployeeId && targetEmployeeId !== "all") {
+      filteredEmpAnd.push({ id: targetEmployeeId });
+    }
+    if (search) {
+      filteredEmpAnd.push({
+        OR: [
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
+          { employeeCode: { contains: search, mode: "insensitive" } },
+          { department: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      });
+    }
+    const empWhere = filteredEmpAnd.length === 1 ? filteredEmpAnd[0] : { AND: filteredEmpAnd };
+
+    const statusParam = req.query.status ? String(req.query.status) : "all";
+    const statusFilter: any = statusParam === "all" ? { in: ["approved", "pending"] } : statusParam;
+
+    const leavesWhere: any = {
+      tenantId,
+      status: statusFilter,
+      startDate: { lte: endOfMonth },
+      endDate: { gte: startOfMonth },
+      ...(targetEmployeeId && targetEmployeeId !== "all" ? { employeeId: targetEmployeeId } : {}),
+    };
+
+    // Execute ALL 5 independent reads in parallel (was 4 sequential round-trips!)
+    const [holidays, employees, allScopedEmployees, leaveTypes, leaves] = await Promise.all([
+      rawPrisma.holiday.findMany({
+        where: {
+          tenantId,
+          date: { gte: startOfMonth, lte: endOfMonth },
+          status: "active",
+        },
+        select: { date: true, name: true },
+      }),
+      rawPrisma.employee.findMany({
+        where: empWhere,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          position: true,
+          managerId: true,
+          department: { select: { id: true, name: true } },
+          branch: { select: { id: true, name: true } },
+          user: { select: { profile: { select: { avatarUrl: true } } } },
+        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      }),
+      rawPrisma.employee.findMany({
+        where: baseEmpWhere,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          department: { select: { name: true } },
+        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      }),
+      rawPrisma.leaveType.findMany({
+        where: { tenantId, status: "active" },
+        orderBy: { name: "asc" },
+      }),
+      rawPrisma.leaveRequest.findMany({
+        where: leavesWhere,
+        include: { leaveType: true },
+        orderBy: { startDate: "asc" },
+      }),
+    ]);
+
     const holidayMap = new Map<string, string>();
     holidays.forEach((h) => {
       holidayMap.set(h.date.toISOString().slice(0, 10), h.name);
     });
 
-    // 2. Build days descriptor array
     const days = [];
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     for (let d = 1; d <= daysInMonth; d++) {
@@ -142,72 +308,12 @@ hrLeaveRouter.get("/applications/matrix", requirePermission("hrm.leave.view"), a
       });
     }
 
-    // 3. Fetch active employees (with manager reporting scope for non-elevated callers)
-    const empWhere: any = { tenantId, status: "active" };
-    if (!isElevatedHR) {
-      const callerEmp = await rawPrisma.employee.findFirst({
-        where: { tenantId, userId: req.user!.userId },
-        select: { id: true },
-      });
-      if (callerEmp) {
-        empWhere.OR = [
-          { id: callerEmp.id },
-          { managerId: callerEmp.id },
-        ];
-      }
-    }
-    if (targetEmployeeId && targetEmployeeId !== "all") {
-      empWhere.id = targetEmployeeId;
-    }
-
-    const employees = await rawPrisma.employee.findMany({
-      where: empWhere,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        employeeCode: true,
-        position: true,
-        department: { select: { name: true } },
-        branch: { select: { name: true } },
-        user: { select: { profile: { select: { avatarUrl: true } } } },
-      },
-      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-    });
-
-    // 4. Fetch all active leave types for legend
-    const leaveTypes = await rawPrisma.leaveType.findMany({
-      where: { tenantId, status: "active" },
-      orderBy: { name: "asc" },
-    });
-
-    // 5. Fetch leave requests overlapping this month
-    const statusParam = req.query.status ? String(req.query.status) : "all";
-    const statusFilter: any = statusParam === "all" ? { in: ["approved", "pending"] } : statusParam;
-
-    const leavesWhere: any = {
-      tenantId,
-      status: statusFilter,
-      startDate: { lte: endOfMonth },
-      endDate: { gte: startOfMonth },
-    };
-    if (targetEmployeeId && targetEmployeeId !== "all") {
-      leavesWhere.employeeId = targetEmployeeId;
-    }
-
-    const leaves = await rawPrisma.leaveRequest.findMany({
-      where: leavesWhere,
-      include: {
-        leaveType: true,
-      },
-    });
-
-    // Map leaves to employees
     const leavesByEmp = new Map<string, any[]>();
     leaves.forEach((l) => {
       if (!leavesByEmp.has(l.employeeId)) leavesByEmp.set(l.employeeId, []);
       leavesByEmp.get(l.employeeId)!.push({
         id: l.id,
+        employeeId: l.employeeId,
         leaveTypeId: l.leaveTypeId,
         leaveTypeName: l.leaveType?.name || "Leave",
         color: l.leaveType?.color || "#3b82f6",
@@ -219,9 +325,15 @@ hrLeaveRouter.get("/applications/matrix", requirePermission("hrm.leave.view"), a
         halfDaySession: l.halfDaySession,
         status: l.status,
         reason: l.reason,
+        attachmentUrl: l.attachmentUrl,
+        rejectionReason: l.rejectionReason,
+        approvedAt: l.approvedAt,
+        approverId: l.approverId,
+        createdAt: l.createdAt,
       });
     });
 
+    // Every eligible employee row is always displayed even if `leaves` is empty
     const matrixEmployees = employees.map((emp) => ({
       ...emp,
       leaves: leavesByEmp.get(emp.id) || [],
@@ -233,10 +345,11 @@ hrLeaveRouter.get("/applications/matrix", requirePermission("hrm.leave.view"), a
       daysInMonth,
       days,
       employees: matrixEmployees,
+      allEmployees: allScopedEmployees,
       leaveTypes,
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
@@ -244,14 +357,7 @@ hrLeaveRouter.get("/applications/matrix", requirePermission("hrm.leave.view"), a
 hrLeaveRouter.post("/applications/dry-run", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { employeeId, leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason } = req.body;
-
-    if (!employeeId || !leaveTypeId || !startDate || !endDate) {
-      return res.status(400).json({ error: "employeeId, leaveTypeId, startDate, and endDate are required" });
-    }
-
-    const preview = await LeaveService.validateDryRun({
-      tenantId,
+    const {
       employeeId,
       leaveTypeId,
       startDate,
@@ -259,251 +365,480 @@ hrLeaveRouter.post("/applications/dry-run", requirePermission("hrm.leave.view"),
       halfDay,
       halfDaySession,
       reason,
+      excludeRequestId,
+      bypassNoticePeriod,
+    } = req.body;
+
+    if (!employeeId || !leaveTypeId || !startDate || !endDate) {
+      return res.status(400).json({ error: "employeeId, leaveTypeId, startDate, and endDate are required" });
+    }
+
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    if (!isElevatedHR) {
+      const targetEmp = await rawPrisma.employee.findFirst({
+        where: { id: String(employeeId), tenantId },
+        select: { id: true, managerId: true },
+      });
+      if (!targetEmp || (targetEmp.id !== callerEmpId && targetEmp.managerId !== callerEmpId)) {
+        return res.status(403).json({ error: "Forbidden: You cannot evaluate leave for another employee." });
+      }
+    }
+
+    const preview = await LeaveService.validateDryRun({
+      tenantId,
+      employeeId: String(employeeId),
+      leaveTypeId: String(leaveTypeId),
+      startDate,
+      endDate,
+      halfDay: Boolean(halfDay),
+      halfDaySession,
+      reason,
+      excludeRequestId,
+      bypassNoticePeriod: Boolean(isElevatedHR && bypassNoticePeriod),
     });
 
     return res.json(preview);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message });
+    return sendLeaveError(res, err, 400);
   }
 });
 
-// POST /api/v1/hr/leave/applications (HR submits on behalf of an employee)
+// GET /api/v1/hr/leave/applications/:id (Full Detail View with Reviewer & Ledger Info)
+hrLeaveRouter.get("/applications/:id", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+
+    const record = await rawPrisma.leaveRequest.findFirst({
+      where: { id, tenantId },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            position: true,
+            managerId: true,
+            department: { select: { id: true, name: true } },
+            branch: { select: { id: true, name: true } },
+            user: { select: { profile: { select: { avatarUrl: true } } } },
+          },
+        },
+        leaveType: true,
+      },
+    });
+
+    if (!record) {
+      return res.status(404).json({ error: "Leave application not found." });
+    }
+
+    if (
+      !isElevatedHR &&
+      record.employeeId !== callerEmpId &&
+      record.employee.managerId !== callerEmpId
+    ) {
+      return res.status(403).json({ error: "Forbidden: You do not have access to this leave application." });
+    }
+
+    const [ledgerTransactions, approverUser, approverEmp] = await Promise.all([
+      rawPrisma.leaveLedgerEntry.findMany({
+        where: { tenantId, referenceId: id },
+        orderBy: { createdAt: "asc" },
+      }),
+      record.approverId
+        ? rawPrisma.user.findUnique({
+            where: { id: record.approverId },
+            select: { id: true, email: true, profile: { select: { fullName: true } } },
+          })
+        : Promise.resolve(null),
+      record.approverId
+        ? rawPrisma.employee.findFirst({
+            where: { id: record.approverId, tenantId },
+            select: { id: true, firstName: true, lastName: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    const approverName =
+      approverUser?.profile?.fullName ||
+      approverUser?.email ||
+      (approverEmp ? `${approverEmp.firstName} ${approverEmp.lastName}`.trim() : null);
+
+    return res.json({
+      ...record,
+      days: Number(record.days),
+      approverName,
+      ledgerTransactions: ledgerTransactions.map((t) => ({
+        ...t,
+        days: Number(t.days),
+        balance: Number(t.balance),
+      })),
+    });
+  } catch (err: any) {
+    return sendLeaveError(res, err, 500);
+  }
+});
+
+// POST /api/v1/hr/leave/applications (HR submits on behalf of an employee, or self)
 hrLeaveRouter.post("/applications", requirePermission("hrm.leave.create"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { employeeId, leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, attachmentUrl } = req.body;
+    const {
+      employeeId,
+      leaveTypeId,
+      startDate,
+      endDate,
+      halfDay,
+      halfDaySession,
+      reason,
+      attachmentUrl,
+      bypassNoticePeriod,
+    } = req.body;
 
     if (!employeeId || !leaveTypeId || !startDate || !endDate || !reason) {
       return res.status(400).json({ error: "employeeId, leaveTypeId, startDate, endDate, and reason are required" });
     }
 
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    if (!isElevatedHR && employeeId !== callerEmpId) {
+      return res.status(403).json({
+        error: "Forbidden: Only HR Administrators can submit leave applications on behalf of other employees.",
+      });
+    }
+
     const application = await LeaveService.submitApplication(
       tenantId,
-      employeeId,
+      String(employeeId),
       {
-        leaveTypeId,
+        leaveTypeId: String(leaveTypeId),
         startDate,
         endDate,
-        halfDay,
+        halfDay: Boolean(halfDay),
         halfDaySession,
         reason,
         attachmentUrl,
       },
-      req.user!.userId
+      req.user!.userId,
+      { bypassNoticePeriod: Boolean(isElevatedHR && bypassNoticePeriod) }
     );
 
     return res.status(201).json(application);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message });
+    return sendLeaveError(res, err, 400);
+  }
+});
+
+// PUT /api/v1/hr/leave/applications/:id (Edit eligible pending request)
+hrLeaveRouter.put("/applications/:id", requirePermission("hrm.leave.create"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.tenantId!;
+    const { id } = req.params;
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+
+    const updated = await LeaveService.updatePendingApplication(
+      tenantId,
+      id,
+      req.body,
+      req.user!.userId,
+      { callerEmployeeId: callerEmpId || undefined, isElevatedHR }
+    );
+
+    return res.json(updated);
+  } catch (err: any) {
+    return sendLeaveError(res, err, 400);
   }
 });
 
 // POST /api/v1/hr/leave/applications/:id/action (Approve / Reject, alias: /decide)
-hrLeaveRouter.post(["/applications/:id/action", "/applications/:id/decide"], requirePermission("hrm.leave.approve"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const action = req.body.action || req.body.decision;
-    const comments = req.body.comments || req.body.rejectionReason;
+hrLeaveRouter.post(
+  ["/applications/:id/action", "/applications/:id/decide"],
+  requirePermission("hrm.leave.approve"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const action = req.body.action || req.body.decision;
+      const comments = req.body.comments || req.body.rejectionReason;
 
-    if (!action || !["approve", "reject"].includes(action)) {
-      return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
+      if (!action || !["approve", "reject"].includes(action)) {
+        return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
+      }
+
+      const result = await LeaveService.decideApplication(
+        tenantId,
+        id,
+        action,
+        req.user!.userId,
+        comments,
+        req.user?.roles
+      );
+      return res.json(result);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
     }
-
-    const result = await LeaveService.decideApplication(tenantId, id, action, req.user!.userId, comments);
-    return res.json(result);
-  } catch (err: any) {
-    if (err.code === "PERIOD_LOCKED") return res.status(423).json({ error: err.message });
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // POST /api/v1/hr/leave/applications/:id/cancel
-hrLeaveRouter.post("/applications/:id/cancel", requirePermission("hrm.leave.delete"), async (req: AuthRequest, res: Response) => {
+hrLeaveRouter.post("/applications/:id/cancel", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
     const { id } = req.params;
     const { reason } = req.body;
 
+    const existing = await rawPrisma.leaveRequest.findFirst({
+      where: { id, tenantId },
+      include: { employee: { select: { id: true, userId: true, managerId: true } } },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Leave request not found." });
+    }
+
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    const isOwner = Boolean(callerEmpId && existing.employeeId === callerEmpId);
+    const isDirectManager = Boolean(callerEmpId && existing.employee.managerId === callerEmpId);
+
+    if (!isElevatedHR && !isOwner && !isDirectManager) {
+      return res.status(403).json({
+        error: "Forbidden: You are not authorized to cancel this leave application.",
+      });
+    }
+
     const result = await LeaveService.cancelApplication(tenantId, id, req.user!.userId, reason);
     return res.json(result);
   } catch (err: any) {
-    if (err.code === "PERIOD_LOCKED") return res.status(423).json({ error: err.message });
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
+// POST /api/v1/hr/leave/applications/:id/reverse (Authorized HR / Manager Reversal of Approved or Rejected Request)
+hrLeaveRouter.post(
+  "/applications/:id/reverse",
+  requirePermission("hrm.leave.approve"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const reason = req.body.reason || req.body.comments;
+
+      const result = await LeaveService.reverseApplication(
+        tenantId,
+        id,
+        req.user!.userId,
+        reason,
+        req.user?.roles
+      );
+      return res.json(result);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 400);
+    }
+  }
+);
+
 // =========================================================================
-// 2. LEAVE BALANCES & SYNCHRONIZATION (Detailed Cards, Ledger, Sync)
+// 2. LEAVE BALANCES & SYNCHRONIZATION (Detailed Cards, Ledger, Manual Adjust, Sync)
 // =========================================================================
 
-// GET /api/v1/hr/leave/balances (Detailed balance cards matching UI Reference 2)
+// GET /api/v1/hr/leave/balances
 hrLeaveRouter.get("/balances", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getFullYear();
-    const search = req.query.search ? String(req.query.search).trim().toLowerCase() : "";
+    const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
+    const search = req.query.search ? String(req.query.search).trim() : "";
     const targetEmployeeId = req.query.employeeId ? String(req.query.employeeId) : undefined;
+    const leaveTypeId = req.query.leaveTypeId ? String(req.query.leaveTypeId) : undefined;
+    const departmentId = req.query.departmentId ? String(req.query.departmentId) : undefined;
 
-    const userRoles = req.user?.roles || [];
-    const isElevatedHR =
-      userRoles.includes("admin") ||
-      userRoles.includes("hr_admin") ||
-      userRoles.includes("Workspace Admin") ||
-      userRoles.includes("HR Manager");
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "24"), 10) || 24));
+    const skip = (page - 1) * limit;
 
-    const empWhere: any = { tenantId, status: "active" };
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    const baseAnd: any[] = [{ tenantId, status: "active" }];
 
-    // Manager / Manage Own vs Manage All Scope Enforcement
     if (!isElevatedHR) {
-      const callerEmp = await rawPrisma.employee.findFirst({
-        where: { tenantId, userId: req.user!.userId },
-        select: { id: true },
-      });
-      if (callerEmp) {
-        empWhere.OR = [
-          { id: callerEmp.id },
-          { managerId: callerEmp.id },
-        ];
+      if (!callerEmpId) {
+        return res.json({
+          year,
+          leaveTypes: [],
+          allEmployees: [],
+          data: [],
+          meta: { total: 0, page, limit, totalPages: 1 },
+        });
       }
+      baseAnd.push({
+        OR: [{ id: callerEmpId }, { managerId: callerEmpId }],
+      });
     }
+
+    const baseEmpWhere = baseAnd.length === 1 ? baseAnd[0] : { AND: baseAnd };
+    const filterAnd = [...baseAnd];
 
     if (targetEmployeeId && targetEmployeeId !== "all") {
-      empWhere.id = targetEmployeeId;
+      filterAnd.push({ id: targetEmployeeId });
+    }
+    if (departmentId && departmentId !== "all") {
+      filterAnd.push({ departmentId });
     }
     if (search) {
-      empWhere.OR = [
-        { firstName: { contains: search, mode: "insensitive" } },
-        { lastName: { contains: search, mode: "insensitive" } },
-        { employeeCode: { contains: search, mode: "insensitive" } },
-      ];
+      filterAnd.push({
+        OR: [
+          { firstName: { contains: search, mode: "insensitive" } },
+          { lastName: { contains: search, mode: "insensitive" } },
+          { employeeCode: { contains: search, mode: "insensitive" } },
+          { department: { name: { contains: search, mode: "insensitive" } } },
+        ],
+      });
     }
 
-    const employees = await rawPrisma.employee.findMany({
-      where: empWhere,
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        employeeCode: true,
-        position: true,
-        department: { select: { name: true } },
-        user: { select: { profile: { select: { avatarUrl: true } } } },
-      },
-      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
-    });
+    const empWhere = filterAnd.length === 1 ? filterAnd[0] : { AND: filterAnd };
 
-    const activeLeaveTypes = await rawPrisma.leaveType.findMany({
-      where: { tenantId, status: "active" },
-      orderBy: { name: "asc" },
-    });
+    const [totalEmployees, employees, allScopedEmployees] = await Promise.all([
+      rawPrisma.employee.count({ where: empWhere }),
+      rawPrisma.employee.findMany({
+        where: empWhere,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          position: true,
+          department: { select: { id: true, name: true } },
+          user: { select: { profile: { select: { avatarUrl: true } } } },
+        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+        skip,
+        take: limit,
+      }),
+      rawPrisma.employee.findMany({
+        where: baseEmpWhere,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          department: { select: { id: true, name: true } },
+        },
+        orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      }),
+    ]);
 
-    const balances = await Promise.all(
-      employees.map(async (emp) => {
-        const empBalances = await LeaveService.getEmployeeDetailedBalances(tenantId, emp.id, year);
-        return {
-          employeeId: emp.id,
-          employeeName: `${emp.firstName} ${emp.lastName}`.trim(),
-          employeeCode: emp.employeeCode,
-          position: emp.position || "Team Member",
-          department: emp.department?.name || "General",
-          avatarUrl: emp.user?.profile?.avatarUrl || null,
-          balances: empBalances,
-        };
-      })
-    );
+    const bulk = await LeaveService.getBulkEmployeeDetailedBalances(tenantId, employees, year, {
+      leaveTypeId,
+    });
 
     return res.json({
-      year,
-      leaveTypes: activeLeaveTypes,
-      data: balances,
+      year: bulk.year,
+      leaveTypes: bulk.leaveTypes,
+      allEmployees: allScopedEmployees,
+      data: bulk.data,
+      meta: {
+        total: totalEmployees,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(totalEmployees / limit)),
+      },
     });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
-// POST /api/v1/hr/leave/balances/sync (Safe, Idempotent Entitlement Synchronization)
-hrLeaveRouter.post("/balances/sync", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const result = await LeaveService.syncTenantBalances(tenantId, req.user!.userId);
-    return res.json(result);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+// POST /api/v1/hr/leave/balances/sync (Safe, Year-Aware, Idempotent Entitlement Synchronization)
+hrLeaveRouter.post(
+  "/balances/sync",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const year = req.body?.year ? parseInt(String(req.body.year), 10) : undefined;
+      const employeeId = req.body?.employeeId ? String(req.body.employeeId) : undefined;
+      const result = await LeaveService.syncTenantBalances(
+        tenantId,
+        req.user!.userId,
+        year,
+        employeeId
+      );
+      return res.json(result);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
   }
-});
+);
 
-// GET /api/v1/hr/leave/balances/:employeeId/ledger (Immutable Ledger History)
+// GET /api/v1/hr/leave/balances/:employeeId/ledger (Immutable Ledger History with Scope Guard)
 hrLeaveRouter.get("/balances/:employeeId/ledger", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
     const { employeeId } = req.params;
-    const ledger = await LeaveService.getEmployeeLedger(tenantId, employeeId);
-    return res.json(ledger);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
+    const year = req.query.year ? parseInt(String(req.query.year), 10) : undefined;
 
-// POST /api/v1/hr/leave/balances/adjust (Manual Ledger Adjustment)
-hrLeaveRouter.post("/balances/adjust", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { employeeId, leaveTypeId, entryType, days, notes } = req.body;
-
-    if (!employeeId || !leaveTypeId || !entryType || !days || !notes) {
-      return res.status(400).json({ error: "employeeId, leaveTypeId, entryType, days, and notes are required." });
+    const targetEmp = await rawPrisma.employee.findFirst({
+      where: { id: employeeId, tenantId },
+      select: { id: true, managerId: true },
+    });
+    if (!targetEmp) {
+      return res.status(404).json({ error: "Employee not found in this organization." });
     }
 
-    const currentBal = await LeaveService.getEmployeeBalance(tenantId, employeeId, leaveTypeId);
-    const numDays = Number(days);
-    const newBal = entryType === "CREDIT" || entryType === "ACCRUAL" ? currentBal + numDays : Math.max(0, currentBal - numDays);
-
-    const entry = await rawPrisma.$transaction(async (tx) => {
-      const rec = await tx.leaveLedgerEntry.create({
-        data: {
-          tenantId,
-          employeeId,
-          leaveTypeId,
-          entryType,
-          days: numDays,
-          balance: newBal,
-          notes,
-          effectiveAt: new Date(),
-        },
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    if (!isElevatedHR && targetEmp.id !== callerEmpId && targetEmp.managerId !== callerEmpId) {
+      return res.status(403).json({
+        error: "Forbidden: You are not authorized to view another employee's leave ledger.",
       });
+    }
 
-      await AuditService.logAudit(
-        {
-          tenantId,
-          userId: req.user!.userId,
-          action: "LEAVE_BALANCE_MANUAL_ADJUSTMENT",
-          entityType: "LeaveLedgerEntry",
-          entityId: rec.id,
-          afterState: { employeeId, leaveTypeId, entryType, days: numDays, notes },
-        },
-        tx
-      );
-
-      return rec;
-    });
-
-    return res.status(201).json(entry);
+    const ledger = await LeaveService.getEmployeeLedger(
+      tenantId,
+      employeeId,
+      year && !Number.isNaN(year) ? year : undefined
+    );
+    return res.json(ledger);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
+// POST /api/v1/hr/leave/balances/adjust (Manual CREDIT / DEBIT Ledger Adjustment)
+hrLeaveRouter.post(
+  "/balances/adjust",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { employeeId, leaveTypeId, entryType, days, notes, reason, year } = req.body;
+
+      const entry = await LeaveService.adjustBalance(tenantId, {
+        employeeId: String(employeeId || ""),
+        leaveTypeId: String(leaveTypeId || ""),
+        entryType: entryType as "CREDIT" | "DEBIT",
+        days: Number(days),
+        notes: String(notes || reason || "").trim(),
+        year: year ? parseInt(String(year), 10) : undefined,
+        actorUserId: req.user!.userId,
+        actorEmail: (req.user as any)?.email || null,
+      });
+
+      return res.status(201).json(entry);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 400);
+    }
+  }
+);
+
 // =========================================================================
-// 3. LEAVE TYPES CRUD (Matching UI Reference 3: Two-Column Layout)
+// 3. LEAVE TYPES CRUD (Two-Column Reference UI + Smart Referential Integrity Protection)
 // =========================================================================
 
 // GET /api/v1/hr/leave/types
 hrLeaveRouter.get("/types", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { status, search } = req.query;
+    const { status, search, sortBy, sortOrder, page, limit, paginated } = req.query;
 
     const where: any = { tenantId };
     if (status && status !== "all") {
@@ -511,27 +846,81 @@ hrLeaveRouter.get("/types", requirePermission("hrm.leave.view"), async (req: Aut
     }
     if (search) {
       where.OR = [
-        { name: { contains: String(search), mode: "insensitive" } },
-        { code: { contains: String(search), mode: "insensitive" } },
+        { name: { contains: String(search).trim(), mode: "insensitive" } },
+        { code: { contains: String(search).trim(), mode: "insensitive" } },
+        { description: { contains: String(search).trim(), mode: "insensitive" } },
       ];
     }
 
-    const types = await rawPrisma.leaveType.findMany({
-      where,
-      include: {
-        _count: {
-          select: {
-            leaveRequests: true,
-            leavePolicies: true,
+    const validSortField = ["name", "daysPerYear", "status", "createdAt", "code"].includes(String(sortBy))
+      ? String(sortBy)
+      : null;
+    const dir: "asc" | "desc" = String(sortOrder).toLowerCase() === "desc" ? "desc" : "asc";
+    const orderBy: any = validSortField
+      ? [{ [validSortField]: dir }]
+      : [{ status: "asc" }, { name: "asc" }];
+
+    const isPaginated = paginated === "true";
+    const pageNum = Math.max(1, parseInt(String(page || "1"), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit || "20"), 10) || 20));
+
+    const [total, types, ledgerGroups] = await Promise.all([
+      rawPrisma.leaveType.count({ where }),
+      rawPrisma.leaveType.findMany({
+        where,
+        include: {
+          _count: {
+            select: {
+              leaveRequests: true,
+              leavePolicies: true,
+              encashmentRequests: true,
+            },
           },
         },
-      },
-      orderBy: [{ status: "asc" }, { name: "asc" }],
+        orderBy,
+        ...(isPaginated ? { skip: (pageNum - 1) * limitNum, take: limitNum } : {}),
+      }),
+      rawPrisma.leaveLedgerEntry.groupBy({
+        by: ["leaveTypeId"],
+        where: { tenantId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const ledgerCountMap = new Map(ledgerGroups.map((g) => [g.leaveTypeId, g._count._all]));
+    const enrichedTypes = types.map((t) => {
+      const ledgerEntries = ledgerCountMap.get(t.id) || 0;
+      const leaveRequests = t._count?.leaveRequests || 0;
+      const leavePolicies = t._count?.leavePolicies || 0;
+      const encashmentRequests = t._count?.encashmentRequests || 0;
+      return {
+        ...t,
+        _count: {
+          leaveRequests,
+          leavePolicies,
+          encashmentRequests,
+          ledgerEntries,
+        },
+        isReferenced: leaveRequests + leavePolicies + encashmentRequests + ledgerEntries > 0,
+      };
     });
 
-    return res.json(types);
+    res.setHeader("X-Total-Count", String(total));
+    if (isPaginated) {
+      return res.json({
+        data: enrichedTypes,
+        meta: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.max(1, Math.ceil(total / limitNum)),
+        },
+      });
+    }
+
+    return res.json(enrichedTypes);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
@@ -540,214 +929,446 @@ hrLeaveRouter.get("/types/:id", requirePermission("hrm.leave.view"), async (req:
   try {
     const tenantId = req.tenantId!;
     const { id } = req.params;
-    const leaveType = await rawPrisma.leaveType.findFirst({
-      where: { id, tenantId },
-    });
+    const [leaveType, ledgerCount] = await Promise.all([
+      rawPrisma.leaveType.findFirst({
+        where: { id, tenantId },
+        include: {
+          _count: {
+            select: {
+              leaveRequests: true,
+              leavePolicies: true,
+              encashmentRequests: true,
+            },
+          },
+        },
+      }),
+      rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
+    ]);
+
     if (!leaveType) return res.status(404).json({ error: "Leave type not found" });
-    return res.json(leaveType);
+
+    return res.json({
+      ...leaveType,
+      _count: {
+        ...leaveType._count,
+        ledgerEntries: ledgerCount,
+      },
+    });
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
 // POST /api/v1/hr/leave/types
-hrLeaveRouter.post("/types", requirePermission("hrm.leave.create"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { name, code, description, daysPerYear, color, isPaid, sandwichRule, halfDayAllowed, status } = req.body;
+hrLeaveRouter.post(
+  "/types",
+  requirePermission("hrm.leave.create"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { name, code, description, daysPerYear, color, isPaid, sandwichRule, halfDayAllowed, status } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: "Leave type name is required" });
-    }
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: "Leave type name is required" });
+      }
 
-    const duplicate = await rawPrisma.leaveType.findFirst({
-      where: {
+      const trimmedName = String(name).trim();
+      const resolvedCode =
+        code && String(code).trim()
+          ? String(code).trim().toUpperCase()
+          : trimmedName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "LV";
+
+      const parsedDays =
+        daysPerYear !== undefined && daysPerYear !== null && daysPerYear !== ""
+          ? Number(daysPerYear)
+          : 12;
+      if (Number.isNaN(parsedDays) || parsedDays < 0 || parsedDays > 365) {
+        return res.status(400).json({ error: "Maximum days per year must be between 0 and 365." });
+      }
+
+      const duplicate = await rawPrisma.leaveType.findFirst({
+        where: {
+          tenantId,
+          OR: [
+            { name: { equals: trimmedName, mode: "insensitive" } },
+            ...(code && String(code).trim()
+              ? [{ code: { equals: resolvedCode, mode: "insensitive" as const } }]
+              : []),
+          ],
+        },
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          error:
+            duplicate.name.toLowerCase() === trimmedName.toLowerCase()
+              ? `A leave type named "${trimmedName}" already exists for this organization.`
+              : `A leave type with code "${resolvedCode}" already exists for this organization.`,
+          code: "DUPLICATE_LEAVE_TYPE",
+        });
+      }
+
+      const leaveType = await rawPrisma.leaveType.create({
+        data: {
+          tenantId,
+          name: trimmedName,
+          code: resolvedCode,
+          description: description?.trim() || null,
+          daysPerYear: Math.round(parsedDays),
+          color: color || "#3b82f6",
+          isPaid: isPaid !== false,
+          sandwichRule: Boolean(sandwichRule),
+          halfDayAllowed: halfDayAllowed !== false,
+          status: status === "inactive" ? "inactive" : "active",
+        },
+      });
+
+      AuditService.logMutation({
         tenantId,
-        name: { equals: name.trim(), mode: "insensitive" },
-      },
-    });
-    if (duplicate) {
-      return res.status(400).json({ error: `A leave type named "${name.trim()}" already exists for this organization.` });
+        actorId: req.user!.userId,
+        action: "LEAVE_TYPE_CREATED",
+        entityType: "LeaveType",
+        entityId: leaveType.id,
+        newState: leaveType,
+      }).catch(() => {});
+
+      return res.status(201).json(leaveType);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
     }
-
-    const leaveType = await rawPrisma.leaveType.create({
-      data: {
-        tenantId,
-        name: name.trim(),
-        code: code?.trim() || name.slice(0, 3).toUpperCase(),
-        description: description?.trim() || null,
-        daysPerYear: Number(daysPerYear) || 12,
-        color: color || "#3b82f6",
-        isPaid: isPaid !== false,
-        sandwichRule: !!sandwichRule,
-        halfDayAllowed: halfDayAllowed !== false,
-        status: status === "inactive" ? "inactive" : "active",
-      },
-    });
-
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_TYPE_CREATED",
-      entityType: "LeaveType",
-      entityId: leaveType.id,
-      afterState: leaveType,
-    });
-
-    return res.status(201).json(leaveType);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // PUT /api/v1/hr/leave/types/:id
-hrLeaveRouter.put("/types/:id", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const { name, code, description, daysPerYear, color, isPaid, sandwichRule, halfDayAllowed, status } = req.body;
+hrLeaveRouter.put(
+  "/types/:id",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const { name, code, description, daysPerYear, color, isPaid, sandwichRule, halfDayAllowed, status } = req.body;
 
-    const existing = await rawPrisma.leaveType.findFirst({ where: { id, tenantId } });
-    if (!existing) return res.status(404).json({ error: "Leave type not found" });
+      const existing = await rawPrisma.leaveType.findFirst({ where: { id, tenantId } });
+      if (!existing) return res.status(404).json({ error: "Leave type not found" });
 
-    if (name && name.trim().toLowerCase() !== existing.name.toLowerCase()) {
+      if (name !== undefined && !String(name).trim()) {
+        return res.status(400).json({ error: "Leave type name cannot be empty." });
+      }
+
+      const nextName = name !== undefined ? String(name).trim() : existing.name;
+      const nextCode =
+        code !== undefined
+          ? String(code).trim()
+            ? String(code).trim().toUpperCase()
+            : existing.code
+          : existing.code;
+
+      if (daysPerYear !== undefined) {
+        const parsedDays = Number(daysPerYear);
+        if (Number.isNaN(parsedDays) || parsedDays < 0 || parsedDays > 365) {
+          return res.status(400).json({ error: "Maximum days per year must be between 0 and 365." });
+        }
+      }
+
       const duplicate = await rawPrisma.leaveType.findFirst({
         where: {
           tenantId,
           id: { not: id },
-          name: { equals: name.trim(), mode: "insensitive" },
+          OR: [
+            { name: { equals: nextName, mode: "insensitive" } },
+            ...(nextCode ? [{ code: { equals: nextCode, mode: "insensitive" as const } }] : []),
+          ],
         },
       });
       if (duplicate) {
-        return res.status(400).json({ error: `A leave type named "${name.trim()}" already exists for this organization.` });
+        return res.status(409).json({
+          error:
+            duplicate.name.toLowerCase() === nextName.toLowerCase()
+              ? `A leave type named "${nextName}" already exists for this organization.`
+              : `A leave type with code "${nextCode}" already exists for this organization.`,
+          code: "DUPLICATE_LEAVE_TYPE",
+        });
       }
+
+      const updated = await rawPrisma.leaveType.update({
+        where: { id },
+        data: {
+          name: nextName,
+          code: nextCode,
+          description: description !== undefined ? (description ? String(description).trim() : null) : existing.description,
+          daysPerYear: daysPerYear !== undefined ? Math.round(Number(daysPerYear)) : existing.daysPerYear,
+          color: color !== undefined ? color : existing.color,
+          isPaid: isPaid !== undefined ? Boolean(isPaid) : existing.isPaid,
+          sandwichRule: sandwichRule !== undefined ? Boolean(sandwichRule) : existing.sandwichRule,
+          halfDayAllowed: halfDayAllowed !== undefined ? Boolean(halfDayAllowed) : existing.halfDayAllowed,
+          status: status !== undefined && ["active", "inactive"].includes(status) ? status : existing.status,
+        },
+      });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: "LEAVE_TYPE_UPDATED",
+        entityType: "LeaveType",
+        entityId: id,
+        oldState: existing,
+        newState: updated,
+      }).catch(() => {});
+
+      return res.json(updated);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
     }
-
-    const updated = await rawPrisma.leaveType.update({
-      where: { id },
-      data: {
-        name: name ? name.trim() : existing.name,
-        code: code !== undefined ? code?.trim() : existing.code,
-        description: description !== undefined ? description?.trim() : existing.description,
-        daysPerYear: daysPerYear !== undefined ? Number(daysPerYear) : existing.daysPerYear,
-        color: color !== undefined ? color : existing.color,
-        isPaid: isPaid !== undefined ? !!isPaid : existing.isPaid,
-        sandwichRule: sandwichRule !== undefined ? !!sandwichRule : existing.sandwichRule,
-        halfDayAllowed: halfDayAllowed !== undefined ? !!halfDayAllowed : existing.halfDayAllowed,
-        status: status !== undefined ? status : existing.status,
-      },
-    });
-
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_TYPE_UPDATED",
-      entityType: "LeaveType",
-      entityId: id,
-      afterState: updated,
-    });
-
-    return res.json(updated);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
 
 // PATCH /api/v1/hr/leave/types/:id/status
-hrLeaveRouter.patch("/types/:id/status", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const { status } = req.body;
+hrLeaveRouter.patch(
+  "/types/:id/status",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const { status } = req.body;
 
-    if (!status || !["active", "inactive"].includes(status)) {
-      return res.status(400).json({ error: "Status must be 'active' or 'inactive'" });
-    }
+      if (!status || !["active", "inactive"].includes(status)) {
+        return res.status(400).json({ error: "Status must be 'active' or 'inactive'" });
+      }
 
-    const updated = await rawPrisma.leaveType.updateMany({
-      where: { id, tenantId },
-      data: { status },
-    });
+      const existing = await rawPrisma.leaveType.findFirst({ where: { id, tenantId } });
+      if (!existing) return res.status(404).json({ error: "Leave type not found" });
 
-    if (updated.count === 0) return res.status(404).json({ error: "Leave type not found" });
-
-    return res.json({ success: true, id, status });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/v1/hr/leave/types/:id (Safe Deletion)
-hrLeaveRouter.delete("/types/:id", requirePermission("hrm.leave.delete"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-
-    // Check references
-    const [requestCount, ledgerCount, policyCount] = await Promise.all([
-      rawPrisma.leaveRequest.count({ where: { tenantId, leaveTypeId: id } }),
-      rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
-      rawPrisma.leavePolicy.count({ where: { tenantId, leaveTypeId: id } }),
-    ]);
-
-    if (requestCount > 0 || ledgerCount > 0 || policyCount > 0) {
-      return res.status(400).json({
-        error: `Cannot delete leave type: It is referenced by ${requestCount} leave requests, ${ledgerCount} ledger transactions, and ${policyCount} leave policies. Please deactivate it instead.`,
+      const updated = await rawPrisma.leaveType.update({
+        where: { id },
+        data: { status },
       });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: status === "inactive" ? "LEAVE_TYPE_DEACTIVATED" : "LEAVE_TYPE_ACTIVATED",
+        entityType: "LeaveType",
+        entityId: id,
+        oldState: { status: existing.status },
+        newState: { status },
+      }).catch(() => {});
+
+      return res.json({ success: true, id, status, leaveType: updated });
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
     }
-
-    await rawPrisma.leaveType.delete({ where: { id } });
-
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_TYPE_DELETED",
-      entityType: "LeaveType",
-      entityId: id,
-    });
-
-    return res.json({ success: true, message: "Leave type deleted successfully." });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
+
+// GET /api/v1/hr/leave/types/:id/dependencies (Inspect references before delete/deactivate)
+hrLeaveRouter.get(
+  "/types/:id/dependencies",
+  requirePermission("hrm.leave.view"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+
+      const existing = await rawPrisma.leaveType.findFirst({ where: { id, tenantId } });
+      if (!existing) return res.status(404).json({ error: "Leave type not found" });
+
+      const [leaveRequests, ledgerEntries, leavePolicies, encashmentRequests] = await Promise.all([
+        rawPrisma.leaveRequest.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leavePolicy.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveEncashmentRequest.count({ where: { tenantId, leaveTypeId: id } }),
+      ]);
+
+      const totalReferences = leaveRequests + ledgerEntries + leavePolicies + encashmentRequests;
+      return res.json({
+        id: existing.id,
+        name: existing.name,
+        status: existing.status,
+        hasDependencies: totalReferences > 0,
+        inUse: totalReferences > 0,
+        canHardDelete: totalReferences === 0,
+        canDeactivate: existing.status === "active",
+        references: {
+          leaveRequests,
+          ledgerEntries,
+          leavePolicies,
+          encashmentRequests,
+          requestCount: leaveRequests,
+          ledgerCount: ledgerEntries,
+          policyCount: leavePolicies,
+          encashmentCount: encashmentRequests,
+          total: totalReferences,
+        },
+      });
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
+  }
+);
+
+// DELETE /api/v1/hr/leave/types/:id (Strict Tenant Check + Referential Integrity Guard)
+hrLeaveRouter.delete(
+  "/types/:id",
+  requirePermission("hrm.leave.delete"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+
+      // 1. Strict tenant ownership verification BEFORE inspecting or deleting
+      const existing = await rawPrisma.leaveType.findFirst({ where: { id, tenantId } });
+      if (!existing) {
+        return res.status(404).json({ error: "Leave type not found" });
+      }
+
+      // 2. Check all referencing tables in parallel
+      const [requestCount, ledgerCount, policyCount, encashmentCount] = await Promise.all([
+        rawPrisma.leaveRequest.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leavePolicy.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveEncashmentRequest.count({ where: { tenantId, leaveTypeId: id } }),
+      ]);
+
+      if (requestCount > 0 || ledgerCount > 0 || policyCount > 0 || encashmentCount > 0) {
+        const references = {
+          leaveRequests: requestCount,
+          ledgerEntries: ledgerCount,
+          leavePolicies: policyCount,
+          encashmentRequests: encashmentCount,
+        };
+        const parts: string[] = [];
+        if (requestCount > 0) parts.push(`${requestCount} leave request${requestCount === 1 ? "" : "s"}`);
+        if (ledgerCount > 0) parts.push(`${ledgerCount} ledger transaction${ledgerCount === 1 ? "" : "s"}`);
+        if (policyCount > 0) parts.push(`${policyCount} leave polic${policyCount === 1 ? "y" : "ies"}`);
+        if (encashmentCount > 0) parts.push(`${encashmentCount} encashment request${encashmentCount === 1 ? "" : "s"}`);
+
+        const message = `Cannot delete leave type: It is referenced by ${parts.join(", ")}. Please deactivate it instead.`;
+        return res.status(400).json({
+          error: message,
+          code: "LEAVE_TYPE_IN_USE",
+          canDeactivate: existing.status === "active",
+          references,
+          details: {
+            canDeactivate: existing.status === "active",
+            leaveTypeStatus: existing.status,
+            references,
+          },
+        });
+      }
+
+      await rawPrisma.leaveType.delete({ where: { id } });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: "LEAVE_TYPE_DELETED",
+        entityType: "LeaveType",
+        entityId: id,
+        oldState: existing,
+      }).catch(() => {});
+
+      return res.json({ success: true, message: "Leave type deleted successfully." });
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
+  }
+);
 
 // =========================================================================
-// 4. LEAVE POLICIES CRUD (Matching UI Reference 4: Table with Filters)
+// 4. LEAVE POLICIES CRUD (Full Rule Persistence, FK Validation, Sorting, Pagination)
 // =========================================================================
 
 // GET /api/v1/hr/leave/policies
 hrLeaveRouter.get("/policies", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
-    const { status, leaveTypeId, search } = req.query;
+    const { status, leaveTypeId, search, sortBy, sortOrder, page, limit, includeCounts } = req.query;
 
-    const where: any = { tenantId };
+    const baseWhere: any = { tenantId };
+    if (leaveTypeId && leaveTypeId !== "all") {
+      baseWhere.leaveTypeId = String(leaveTypeId);
+    }
+    if (search) {
+      baseWhere.OR = [
+        { name: { contains: String(search).trim(), mode: "insensitive" } },
+        { code: { contains: String(search).trim(), mode: "insensitive" } },
+        { description: { contains: String(search).trim(), mode: "insensitive" } },
+        { leaveType: { name: { contains: String(search).trim(), mode: "insensitive" } } },
+      ];
+    }
+
+    const where: any = { ...baseWhere };
     if (status && status !== "all") {
       where.status = String(status);
     }
-    if (leaveTypeId && leaveTypeId !== "all") {
-      where.leaveTypeId = String(leaveTypeId);
-    }
-    if (search) {
-      where.OR = [
-        { name: { contains: String(search), mode: "insensitive" } },
-        { code: { contains: String(search), mode: "insensitive" } },
-        { description: { contains: String(search), mode: "insensitive" } },
-      ];
+
+    const validSort = ["name", "createdAt", "maxCarryForwardDays", "status", "effectiveFrom"].includes(String(sortBy))
+      ? String(sortBy)
+      : null;
+    const dir: "asc" | "desc" = String(sortOrder).toLowerCase() === "asc" ? "asc" : "desc";
+    const orderBy: any = validSort
+      ? [{ [validSort]: dir }]
+      : [{ isDefault: "desc" }, { createdAt: "desc" }];
+
+    const isPaged = includeCounts === "true" || (page !== undefined && limit !== undefined);
+    const pageNum = Math.max(1, parseInt(String(page || "1"), 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(String(limit || "20"), 10) || 20));
+
+    if (isPaged) {
+      const [policies, totalFiltered, statusGroups] = await Promise.all([
+        rawPrisma.leavePolicy.findMany({
+          where,
+          include: { leaveType: true },
+          orderBy,
+          skip: (pageNum - 1) * limitNum,
+          take: limitNum,
+        }),
+        rawPrisma.leavePolicy.count({ where }),
+        rawPrisma.leavePolicy.groupBy({
+          by: ["status"],
+          where: baseWhere,
+          _count: { _all: true },
+        }),
+      ]);
+
+      let activeCount = 0;
+      let inactiveCount = 0;
+      for (const g of statusGroups) {
+        if (g.status === "active") activeCount += g._count._all;
+        else if (g.status === "inactive") inactiveCount += g._count._all;
+      }
+
+      const enriched = policies.map((p) => LeaveService.enrichPolicy(p));
+      return res.json({
+        data: enriched,
+        counts: {
+          all: activeCount + inactiveCount,
+          active: activeCount,
+          inactive: inactiveCount,
+        },
+        meta: {
+          total: totalFiltered,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.max(1, Math.ceil(totalFiltered / limitNum)),
+        },
+      });
     }
 
     const policies = await rawPrisma.leavePolicy.findMany({
       where,
-      include: {
-        leaveType: true,
-      },
-      orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+      include: { leaveType: true },
+      orderBy,
     });
 
-    return res.json(policies);
+    return res.json(policies.map((p) => LeaveService.enrichPolicy(p)));
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
@@ -761,249 +1382,496 @@ hrLeaveRouter.get("/policies/:id", requirePermission("hrm.leave.view"), async (r
       include: { leaveType: true },
     });
     if (!policy) return res.status(404).json({ error: "Leave policy not found" });
-    return res.json(policy);
+    return res.json(LeaveService.enrichPolicy(policy));
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
 // POST /api/v1/hr/leave/policies
-hrLeaveRouter.post("/policies", requirePermission("hrm.leave.create"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const {
-      name,
-      code,
-      description,
-      leaveTypeId,
-      noticeDays,
-      sandwichRule,
-      maxConsecutiveDays,
-      carryForwardEnabled,
-      maxCarryForwardDays,
-      requiresApproval,
-      status,
-      accrualFrequency,
-      probationAllowed,
-      isDefault,
-      effectiveFrom,
-      effectiveTo,
-    } = req.body;
+hrLeaveRouter.post(
+  "/policies",
+  requirePermission("hrm.leave.create"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const {
+        name,
+        code,
+        description,
+        leaveTypeId,
+        branchId,
+        departmentId,
+        noticeDays,
+        sandwichRule,
+        minDays,
+        maxConsecutiveDays,
+        halfDayAllowed,
+        blackoutDates,
+        carryForward,
+        carryForwardEnabled,
+        maxCarryForwardDays,
+        requiresApproval,
+        status,
+        accrualFrequency,
+        probationAllowed,
+        isDefault,
+        effectiveFrom,
+        effectiveTo,
+      } = req.body;
 
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: "Policy name is required" });
-    }
+      if (!name || !String(name).trim()) {
+        return res.status(400).json({ error: "Policy name is required" });
+      }
+      const trimmedName = String(name).trim();
 
-    const duplicate = await rawPrisma.leavePolicy.findFirst({
-      where: {
-        tenantId,
-        name: { equals: name.trim(), mode: "insensitive" },
-      },
-    });
-    if (duplicate) {
-      return res.status(400).json({ error: `A leave policy named "${name.trim()}" already exists for this organization.` });
-    }
+      // Validate same-tenant LeaveType FK if specified
+      let linkedLeaveType: any = null;
+      const resolvedLeaveTypeId = leaveTypeId && leaveTypeId !== "all" ? String(leaveTypeId) : null;
+      if (resolvedLeaveTypeId) {
+        linkedLeaveType = await rawPrisma.leaveType.findFirst({
+          where: { id: resolvedLeaveTypeId, tenantId },
+        });
+        if (!linkedLeaveType) {
+          return res.status(400).json({
+            error: "Selected leave type does not belong to this organization.",
+            code: "INVALID_LEAVE_TYPE_FK",
+          });
+        }
+      }
 
-    // If marked default, unset existing default
-    if (isDefault) {
-      await rawPrisma.leavePolicy.updateMany({
-        where: { tenantId, isDefault: true },
-        data: { isDefault: false },
-      });
-    }
+      // Validate numeric & date configuration boundaries
+      const parsedMinDays = minDays !== undefined && minDays !== "" ? Number(minDays) : 1;
+      const parsedMaxDays =
+        maxConsecutiveDays !== undefined && maxConsecutiveDays !== "" ? Number(maxConsecutiveDays) : 14;
+      const parsedNoticeDays = noticeDays !== undefined && noticeDays !== "" ? Number(noticeDays) : 0;
+      const rawCarryLimit =
+        maxCarryForwardDays !== undefined ? maxCarryForwardDays : carryForward;
+      const parsedCarryLimit =
+        rawCarryLimit !== undefined && rawCarryLimit !== "" && typeof rawCarryLimit !== "boolean"
+          ? Number(rawCarryLimit)
+          : 0;
 
-    const policy = await rawPrisma.leavePolicy.create({
-      data: {
-        tenantId,
-        name: name.trim(),
-        code: code?.trim() || `LPOL-${Date.now()}`,
-        description: description?.trim() || null,
-        leaveTypeId: leaveTypeId && leaveTypeId !== "all" ? leaveTypeId : null,
-        noticeDays: Number(noticeDays) || 2,
-        sandwichRule: !!sandwichRule,
-        maxConsecutiveDays: Number(maxConsecutiveDays) || 14,
-        carryForwardEnabled: !!carryForwardEnabled,
-        maxCarryForwardDays: Number(maxCarryForwardDays) || 0,
-        requiresApproval: requiresApproval !== false,
-        status: status === "inactive" ? "inactive" : "active",
-        accrualFrequency: accrualFrequency || "yearly",
-        probationAllowed: probationAllowed !== false,
-        isDefault: !!isDefault,
-        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : new Date(),
-        effectiveTo: effectiveTo ? new Date(effectiveTo) : null,
-      },
-      include: { leaveType: true },
-    });
+      if (Number.isNaN(parsedMinDays) || parsedMinDays < 0.5 || parsedMinDays > 365) {
+        return res.status(400).json({ error: "Minimum days per application must be between 0.5 and 365." });
+      }
+      if (Number.isNaN(parsedMaxDays) || parsedMaxDays < 1 || parsedMaxDays > 365) {
+        return res.status(400).json({ error: "Maximum days per application must be between 1 and 365." });
+      }
+      if (parsedMinDays > parsedMaxDays) {
+        return res.status(400).json({
+          error: `Minimum days per application (${parsedMinDays}) cannot exceed maximum days per application (${parsedMaxDays}).`,
+          code: "INVALID_POLICY_MIN_MAX",
+        });
+      }
+      if (Number.isNaN(parsedNoticeDays) || parsedNoticeDays < 0 || parsedNoticeDays > 365) {
+        return res.status(400).json({ error: "Notice period must be between 0 and 365 days." });
+      }
+      if (Number.isNaN(parsedCarryLimit) || parsedCarryLimit < 0 || parsedCarryLimit > 365) {
+        return res.status(400).json({ error: "Carry forward limit must be between 0 and 365 days." });
+      }
 
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_POLICY_CREATED",
-      entityType: "LeavePolicy",
-      entityId: policy.id,
-      afterState: policy,
-    });
+      const effFromDate = effectiveFrom ? new Date(effectiveFrom) : new Date();
+      const effToDate = effectiveTo ? new Date(effectiveTo) : null;
+      if (Number.isNaN(effFromDate.getTime()) || (effToDate && Number.isNaN(effToDate.getTime()))) {
+        return res.status(400).json({ error: "Invalid effective date range." });
+      }
+      if (effToDate && effToDate < effFromDate) {
+        return res.status(400).json({
+          error: "Policy effective end date cannot be earlier than effective start date.",
+          code: "INVALID_POLICY_DATES",
+        });
+      }
 
-    return res.status(201).json(policy);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// PUT /api/v1/hr/leave/policies/:id
-hrLeaveRouter.put("/policies/:id", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const {
-      name,
-      code,
-      description,
-      leaveTypeId,
-      noticeDays,
-      sandwichRule,
-      maxConsecutiveDays,
-      carryForwardEnabled,
-      maxCarryForwardDays,
-      requiresApproval,
-      status,
-      accrualFrequency,
-      probationAllowed,
-      isDefault,
-      effectiveFrom,
-      effectiveTo,
-    } = req.body;
-
-    const existing = await rawPrisma.leavePolicy.findFirst({ where: { id, tenantId } });
-    if (!existing) return res.status(404).json({ error: "Leave policy not found" });
-
-    if (name && name.trim().toLowerCase() !== existing.name.toLowerCase()) {
       const duplicate = await rawPrisma.leavePolicy.findFirst({
         where: {
           tenantId,
-          id: { not: id },
-          name: { equals: name.trim(), mode: "insensitive" },
+          name: { equals: trimmedName, mode: "insensitive" },
         },
       });
       if (duplicate) {
-        return res.status(400).json({ error: `A leave policy named "${name.trim()}" already exists for this organization.` });
-      }
-    }
-
-    if (isDefault && !existing.isDefault) {
-      await rawPrisma.leavePolicy.updateMany({
-        where: { tenantId, isDefault: true },
-        data: { isDefault: false },
-      });
-    }
-
-    const updated = await rawPrisma.leavePolicy.update({
-      where: { id },
-      data: {
-        name: name ? name.trim() : existing.name,
-        code: code !== undefined ? code?.trim() : existing.code,
-        description: description !== undefined ? description?.trim() : existing.description,
-        leaveTypeId: leaveTypeId !== undefined ? (leaveTypeId === "all" ? null : leaveTypeId) : existing.leaveTypeId,
-        noticeDays: noticeDays !== undefined ? Number(noticeDays) : existing.noticeDays,
-        sandwichRule: sandwichRule !== undefined ? !!sandwichRule : existing.sandwichRule,
-        maxConsecutiveDays: maxConsecutiveDays !== undefined ? Number(maxConsecutiveDays) : existing.maxConsecutiveDays,
-        carryForwardEnabled: carryForwardEnabled !== undefined ? !!carryForwardEnabled : existing.carryForwardEnabled,
-        maxCarryForwardDays: maxCarryForwardDays !== undefined ? Number(maxCarryForwardDays) : existing.maxCarryForwardDays,
-        requiresApproval: requiresApproval !== undefined ? !!requiresApproval : existing.requiresApproval,
-        status: status !== undefined ? status : existing.status,
-        accrualFrequency: accrualFrequency !== undefined ? accrualFrequency : existing.accrualFrequency,
-        probationAllowed: probationAllowed !== undefined ? !!probationAllowed : existing.probationAllowed,
-        isDefault: isDefault !== undefined ? !!isDefault : existing.isDefault,
-        effectiveFrom: effectiveFrom ? new Date(effectiveFrom) : existing.effectiveFrom,
-        effectiveTo: effectiveTo !== undefined ? (effectiveTo ? new Date(effectiveTo) : null) : existing.effectiveTo,
-      },
-      include: { leaveType: true },
-    });
-
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_POLICY_UPDATED",
-      entityType: "LeavePolicy",
-      entityId: id,
-      afterState: updated,
-    });
-
-    return res.json(updated);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// PATCH /api/v1/hr/leave/policies/:id/status
-hrLeaveRouter.patch("/policies/:id/status", requirePermission("hrm.leave.edit"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status || !["active", "inactive"].includes(status)) {
-      return res.status(400).json({ error: "Status must be 'active' or 'inactive'" });
-    }
-
-    const updated = await rawPrisma.leavePolicy.updateMany({
-      where: { id, tenantId },
-      data: { status },
-    });
-
-    if (updated.count === 0) return res.status(404).json({ error: "Leave policy not found" });
-
-    return res.json({ success: true, id, status });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/v1/hr/leave/policies/:id
-hrLeaveRouter.delete("/policies/:id", requirePermission("hrm.leave.delete"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-
-    const existing = await rawPrisma.leavePolicy.findFirst({ where: { id, tenantId } });
-    if (!existing) return res.status(404).json({ error: "Leave policy not found" });
-
-    if (existing.isDefault) {
-      return res.status(400).json({ error: "Cannot delete the default organization leave policy." });
-    }
-
-    if (existing.leaveTypeId) {
-      const activeRequests = await rawPrisma.leaveRequest.count({
-        where: { tenantId, leaveTypeId: existing.leaveTypeId },
-      });
-      if (activeRequests > 0) {
         return res.status(400).json({
-          error: `Cannot delete leave policy: It is referenced by ${activeRequests} leave requests. Please deactivate it instead.`,
+          error: `A leave policy named "${trimmedName}" already exists for this organization.`,
+          code: "DUPLICATE_LEAVE_POLICY",
         });
       }
+
+      if (isDefault) {
+        await rawPrisma.leavePolicy.updateMany({
+          where: { tenantId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+
+      const resolvedCarryEnabled =
+        carryForwardEnabled !== undefined ? Boolean(carryForwardEnabled) : parsedCarryLimit > 0;
+
+      const serializedRules = LeaveService.serializePolicyRules(
+        {
+          minDays: parsedMinDays,
+          halfDayAllowed:
+            halfDayAllowed !== undefined
+              ? Boolean(halfDayAllowed)
+              : linkedLeaveType?.halfDayAllowed ?? true,
+          blackoutDates,
+        },
+        null,
+        linkedLeaveType
+      );
+
+      const resolvedCode =
+        code && String(code).trim()
+          ? String(code).trim().toUpperCase()
+          : `LPOL-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 89)}`;
+
+      const policy = await rawPrisma.leavePolicy.create({
+        data: {
+          tenantId,
+          name: trimmedName,
+          code: resolvedCode,
+          description: description?.trim() || null,
+          leaveTypeId: resolvedLeaveTypeId,
+          branchId: branchId && branchId !== "all" ? String(branchId) : null,
+          departmentId: departmentId && departmentId !== "all" ? String(departmentId) : null,
+          noticeDays: Math.round(parsedNoticeDays),
+          sandwichRule: Boolean(sandwichRule),
+          maxConsecutiveDays: Math.round(parsedMaxDays),
+          blackoutDates: serializedRules,
+          carryForwardEnabled: resolvedCarryEnabled,
+          maxCarryForwardDays: resolvedCarryEnabled ? Math.round(parsedCarryLimit) : 0,
+          requiresApproval: requiresApproval !== false,
+          status: status === "inactive" ? "inactive" : "active",
+          accrualFrequency: ["yearly", "monthly", "quarterly"].includes(String(accrualFrequency))
+            ? String(accrualFrequency)
+            : "yearly",
+          probationAllowed: probationAllowed !== false,
+          isDefault: Boolean(isDefault),
+          effectiveFrom: effFromDate,
+          effectiveTo: effToDate,
+        },
+        include: { leaveType: true },
+      });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: "LEAVE_POLICY_CREATED",
+        entityType: "LeavePolicy",
+        entityId: policy.id,
+        newState: policy,
+      }).catch(() => {});
+
+      return res.status(201).json(LeaveService.enrichPolicy(policy));
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
     }
-
-    await rawPrisma.leavePolicy.delete({ where: { id } });
-
-    await AuditService.logAudit({
-      tenantId,
-      userId: req.user!.userId,
-      action: "LEAVE_POLICY_DELETED",
-      entityType: "LeavePolicy",
-      entityId: id,
-    });
-
-    return res.json({ success: true, message: "Leave policy deleted successfully." });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
   }
-});
+);
+
+// PUT /api/v1/hr/leave/policies/:id
+hrLeaveRouter.put(
+  "/policies/:id",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const {
+        name,
+        code,
+        description,
+        leaveTypeId,
+        branchId,
+        departmentId,
+        noticeDays,
+        sandwichRule,
+        minDays,
+        maxConsecutiveDays,
+        halfDayAllowed,
+        blackoutDates,
+        carryForward,
+        carryForwardEnabled,
+        maxCarryForwardDays,
+        requiresApproval,
+        status,
+        accrualFrequency,
+        probationAllowed,
+        isDefault,
+        effectiveFrom,
+        effectiveTo,
+      } = req.body;
+
+      const existing = await rawPrisma.leavePolicy.findFirst({
+        where: { id, tenantId },
+        include: { leaveType: true },
+      });
+      if (!existing) return res.status(404).json({ error: "Leave policy not found" });
+
+      if (name !== undefined && !String(name).trim()) {
+        return res.status(400).json({ error: "Policy name cannot be empty." });
+      }
+      const nextName = name !== undefined ? String(name).trim() : existing.name;
+
+      if (nextName.toLowerCase() !== existing.name.toLowerCase()) {
+        const duplicate = await rawPrisma.leavePolicy.findFirst({
+          where: {
+            tenantId,
+            id: { not: id },
+            name: { equals: nextName, mode: "insensitive" },
+          },
+        });
+        if (duplicate) {
+          return res.status(400).json({
+            error: `A leave policy named "${nextName}" already exists for this organization.`,
+            code: "DUPLICATE_LEAVE_POLICY",
+          });
+        }
+      }
+
+      const nextLeaveTypeId =
+        leaveTypeId !== undefined ? (leaveTypeId === "all" || !leaveTypeId ? null : String(leaveTypeId)) : existing.leaveTypeId;
+
+      let linkedLeaveType = existing.leaveType;
+      if (nextLeaveTypeId) {
+        linkedLeaveType = await rawPrisma.leaveType.findFirst({
+          where: { id: nextLeaveTypeId, tenantId },
+        });
+        if (!linkedLeaveType) {
+          return res.status(400).json({
+            error: "Selected leave type does not belong to this organization.",
+            code: "INVALID_LEAVE_TYPE_FK",
+          });
+        }
+      } else {
+        linkedLeaveType = null;
+      }
+
+      const existingRules = LeaveService.parsePolicyRules(existing, linkedLeaveType);
+      const nextMinDays = minDays !== undefined && minDays !== "" ? Number(minDays) : existingRules.minDays;
+      const nextMaxDays =
+        maxConsecutiveDays !== undefined && maxConsecutiveDays !== ""
+          ? Number(maxConsecutiveDays)
+          : existing.maxConsecutiveDays;
+      const nextNoticeDays =
+        noticeDays !== undefined && noticeDays !== "" ? Number(noticeDays) : existing.noticeDays;
+      const rawNextCarryLimit =
+        maxCarryForwardDays !== undefined ? maxCarryForwardDays : carryForward;
+      const nextCarryLimit =
+        rawNextCarryLimit !== undefined &&
+        rawNextCarryLimit !== "" &&
+        typeof rawNextCarryLimit !== "boolean"
+          ? Number(rawNextCarryLimit)
+          : existing.maxCarryForwardDays;
+
+      if (Number.isNaN(nextMinDays) || nextMinDays < 0.5 || nextMinDays > 365) {
+        return res.status(400).json({ error: "Minimum days per application must be between 0.5 and 365." });
+      }
+      if (Number.isNaN(nextMaxDays) || nextMaxDays < 1 || nextMaxDays > 365) {
+        return res.status(400).json({ error: "Maximum days per application must be between 1 and 365." });
+      }
+      if (nextMinDays > nextMaxDays) {
+        return res.status(400).json({
+          error: `Minimum days per application (${nextMinDays}) cannot exceed maximum days per application (${nextMaxDays}).`,
+          code: "INVALID_POLICY_MIN_MAX",
+        });
+      }
+      if (Number.isNaN(nextNoticeDays) || nextNoticeDays < 0 || nextNoticeDays > 365) {
+        return res.status(400).json({ error: "Notice period must be between 0 and 365 days." });
+      }
+      if (Number.isNaN(nextCarryLimit) || nextCarryLimit < 0 || nextCarryLimit > 365) {
+        return res.status(400).json({ error: "Carry forward limit must be between 0 and 365 days." });
+      }
+
+      const nextEffFrom = effectiveFrom ? new Date(effectiveFrom) : existing.effectiveFrom;
+      const nextEffTo =
+        effectiveTo !== undefined ? (effectiveTo ? new Date(effectiveTo) : null) : existing.effectiveTo;
+      if (nextEffTo && nextEffTo < nextEffFrom) {
+        return res.status(400).json({
+          error: "Policy effective end date cannot be earlier than effective start date.",
+          code: "INVALID_POLICY_DATES",
+        });
+      }
+
+      if (isDefault && !existing.isDefault) {
+        await rawPrisma.leavePolicy.updateMany({
+          where: { tenantId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+
+      const nextCarryEnabled =
+        carryForwardEnabled !== undefined
+          ? Boolean(carryForwardEnabled)
+          : typeof carryForward === "boolean"
+          ? carryForward
+          : rawNextCarryLimit !== undefined
+          ? nextCarryLimit > 0
+          : existing.carryForwardEnabled;
+
+      const serializedRules = LeaveService.serializePolicyRules(
+        {
+          minDays: nextMinDays,
+          halfDayAllowed:
+            halfDayAllowed !== undefined ? Boolean(halfDayAllowed) : existingRules.halfDayAllowed,
+          blackoutDates,
+        },
+        existing.blackoutDates,
+        linkedLeaveType
+      );
+
+      const updated = await rawPrisma.leavePolicy.update({
+        where: { id },
+        data: {
+          name: nextName,
+          code: code !== undefined && String(code).trim() ? String(code).trim().toUpperCase() : existing.code,
+          description: description !== undefined ? (description ? String(description).trim() : null) : existing.description,
+          leaveTypeId: nextLeaveTypeId,
+          branchId: branchId !== undefined ? (branchId && branchId !== "all" ? String(branchId) : null) : existing.branchId,
+          departmentId:
+            departmentId !== undefined
+              ? departmentId && departmentId !== "all"
+                ? String(departmentId)
+                : null
+              : existing.departmentId,
+          noticeDays: Math.round(nextNoticeDays),
+          sandwichRule: sandwichRule !== undefined ? Boolean(sandwichRule) : existing.sandwichRule,
+          maxConsecutiveDays: Math.round(nextMaxDays),
+          blackoutDates: serializedRules,
+          carryForwardEnabled: nextCarryEnabled,
+          maxCarryForwardDays: nextCarryEnabled ? Math.round(nextCarryLimit) : 0,
+          requiresApproval: requiresApproval !== undefined ? Boolean(requiresApproval) : existing.requiresApproval,
+          status: status !== undefined && ["active", "inactive"].includes(status) ? status : existing.status,
+          accrualFrequency:
+            accrualFrequency !== undefined && ["yearly", "monthly", "quarterly"].includes(String(accrualFrequency))
+              ? String(accrualFrequency)
+              : existing.accrualFrequency,
+          probationAllowed: probationAllowed !== undefined ? Boolean(probationAllowed) : existing.probationAllowed,
+          isDefault: isDefault !== undefined ? Boolean(isDefault) : existing.isDefault,
+          effectiveFrom: nextEffFrom,
+          effectiveTo: nextEffTo,
+        },
+        include: { leaveType: true },
+      });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: "LEAVE_POLICY_UPDATED",
+        entityType: "LeavePolicy",
+        entityId: id,
+        oldState: existing,
+        newState: updated,
+      }).catch(() => {});
+
+      return res.json(LeaveService.enrichPolicy(updated));
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
+  }
+);
+
+// PATCH /api/v1/hr/leave/policies/:id/status
+hrLeaveRouter.patch(
+  "/policies/:id/status",
+  requirePermission("hrm.leave.edit"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!status || !["active", "inactive"].includes(status)) {
+        return res.status(400).json({ error: "Status must be 'active' or 'inactive'" });
+      }
+
+      const existing = await rawPrisma.leavePolicy.findFirst({ where: { id, tenantId } });
+      if (!existing) return res.status(404).json({ error: "Leave policy not found" });
+
+      await rawPrisma.leavePolicy.update({
+        where: { id },
+        data: { status },
+      });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: status === "inactive" ? "LEAVE_POLICY_DEACTIVATED" : "LEAVE_POLICY_ACTIVATED",
+        entityType: "LeavePolicy",
+        entityId: id,
+        oldState: { status: existing.status },
+        newState: { status },
+      }).catch(() => {});
+
+      return res.json({ success: true, id, status });
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
+  }
+);
+
+// DELETE /api/v1/hr/leave/policies/:id
+hrLeaveRouter.delete(
+  "/policies/:id",
+  requirePermission("hrm.leave.delete"),
+  requireHrAdminRole,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+
+      const existing = await rawPrisma.leavePolicy.findFirst({ where: { id, tenantId } });
+      if (!existing) return res.status(404).json({ error: "Leave policy not found" });
+
+      if (existing.isDefault) {
+        return res.status(400).json({
+          error: "Cannot delete the default organization leave policy. Please assign another default policy first or deactivate it.",
+          code: "DEFAULT_POLICY_PROTECTED",
+          canDeactivate: existing.status === "active",
+        });
+      }
+
+      if (existing.leaveTypeId) {
+        const activeRequests = await rawPrisma.leaveRequest.count({
+          where: { tenantId, leaveTypeId: existing.leaveTypeId },
+        });
+        if (activeRequests > 0) {
+          return res.status(400).json({
+            error: `Cannot delete leave policy: Its associated leave type has ${activeRequests} historical leave request(s). Please deactivate the policy instead.`,
+            code: "LEAVE_POLICY_IN_USE",
+            canDeactivate: existing.status === "active",
+            details: {
+              canDeactivate: existing.status === "active",
+              leaveRequests: activeRequests,
+            },
+          });
+        }
+      }
+
+      await rawPrisma.leavePolicy.delete({ where: { id } });
+
+      AuditService.logMutation({
+        tenantId,
+        actorId: req.user!.userId,
+        action: "LEAVE_POLICY_DELETED",
+        entityType: "LeavePolicy",
+        entityId: id,
+        oldState: existing,
+      }).catch(() => {});
+
+      return res.json({ success: true, message: "Leave policy deleted successfully." });
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
+  }
+);
 
 // =========================================================================
-// 5. CALENDAR (Preserved endpoint for backward compatibility)
+// 5. CALENDAR (Preserved endpoint for backward compatibility, scoped)
 // =========================================================================
 
-// GET /api/v1/hr/leave/calendar
 hrLeaveRouter.get("/calendar", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
@@ -1012,15 +1880,22 @@ hrLeaveRouter.get("/calendar", requirePermission("hrm.leave.view"), async (req: 
     const year = parseInt(String(req.query.year || now.getUTCFullYear()), 10);
 
     const start = new Date(Date.UTC(year, month - 1, 1));
-    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    const { isElevatedHR, callerEmpId } = await resolveCallerScope(req, tenantId);
+    const where: any = {
+      tenantId,
+      status: "approved",
+      startDate: { lte: end },
+      endDate: { gte: start },
+    };
+    if (!isElevatedHR) {
+      if (!callerEmpId) return res.json([]);
+      where.OR = [{ employeeId: callerEmpId }, { employee: { managerId: callerEmpId } }];
+    }
 
     const leaves = await rawPrisma.leaveRequest.findMany({
-      where: {
-        tenantId,
-        status: "approved",
-        startDate: { lte: end },
-        endDate: { gte: start },
-      },
+      where,
       include: {
         employee: {
           select: {
@@ -1038,7 +1913,7 @@ hrLeaveRouter.get("/calendar", requirePermission("hrm.leave.view"), async (req: 
 
     return res.json(leaves);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
@@ -1046,67 +1921,104 @@ hrLeaveRouter.get("/calendar", requirePermission("hrm.leave.view"), async (req: 
 // 6. ENCASHMENT & COMP-OFF
 // =========================================================================
 
-// GET /api/v1/hr/leave/encashment-compoff
 hrLeaveRouter.get("/encashment-compoff", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.tenantId!;
     const requests = await rawPrisma.leaveEncashmentRequest.findMany({
       where: { tenantId },
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true, department: { select: { name: true } } } },
+        employee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            department: { select: { name: true } },
+          },
+        },
         leaveType: true,
       },
       orderBy: { createdAt: "desc" },
     });
     return res.json(requests);
   } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+    return sendLeaveError(res, err, 500);
   }
 });
 
-// POST /api/v1/hr/leave/encashment-compoff/:id/action
-hrLeaveRouter.post("/encashment-compoff/:id/action", requirePermission("hrm.leave.approve"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const { id } = req.params;
-    const { action, comments } = req.body;
+hrLeaveRouter.post(
+  "/encashment-compoff/:id/action",
+  requirePermission("hrm.leave.approve"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tenantId = req.tenantId!;
+      const { id } = req.params;
+      const { action, comments } = req.body;
 
-    const enc = await rawPrisma.leaveEncashmentRequest.findUnique({ where: { id } });
-    if (!enc || enc.tenantId !== tenantId) {
-      return res.status(404).json({ error: "Encashment request not found" });
-    }
-
-    const updated = await rawPrisma.$transaction(async (tx) => {
-      const rec = await tx.leaveEncashmentRequest.update({
+      const enc = await rawPrisma.leaveEncashmentRequest.findUnique({
         where: { id },
-        data: {
-          status: action === "approve" ? "APPROVED" : "REJECTED",
-          approverId: req.user!.userId,
-          approvedAt: new Date(),
-        },
+        include: { employee: true },
       });
-
-      if (action === "approve") {
-        const currentBal = await LeaveService.getEmployeeBalance(tenantId, enc.employeeId, enc.leaveTypeId);
-        await tx.leaveLedgerEntry.create({
-          data: {
-            tenantId,
-            employeeId: enc.employeeId,
-            leaveTypeId: enc.leaveTypeId,
-            entryType: "ENCASHMENT",
-            days: Number(enc.days),
-            balance: Math.max(0, currentBal - Number(enc.days)),
-            notes: `Encashment approval for request ${id}. ${comments || ""}`.trim(),
-            effectiveAt: new Date(),
-          },
-        });
+      if (!enc || enc.tenantId !== tenantId) {
+        return res.status(404).json({ error: "Encashment request not found" });
       }
 
-      return rec;
-    });
+      await LeaveService.assertReviewerAuthorized(
+        tenantId,
+        req.user!.userId,
+        req.user?.roles,
+        enc.employee
+      );
 
-    return res.json(updated);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message });
+      if (enc.status !== "PENDING") {
+        return res.status(409).json({ error: `Encashment request is already ${enc.status}.` });
+      }
+
+      const updated = await rawPrisma.$transaction(async (tx) => {
+        const rec = await tx.leaveEncashmentRequest.update({
+          where: { id },
+          data: {
+            status: action === "approve" ? "APPROVED" : "REJECTED",
+            approverId: req.user!.userId,
+            approvedAt: new Date(),
+          },
+        });
+
+        if (action === "approve") {
+          const currentBal = await LeaveService.getEmployeeBalance(
+            tenantId,
+            enc.employeeId,
+            enc.leaveTypeId,
+            new Date().getUTCFullYear(),
+            { tx }
+          );
+          if (currentBal < Number(enc.days)) {
+            throw new LeaveHttpError(
+              `Insufficient leave balance for encashment (Available: ${currentBal}, Requested: ${Number(enc.days)}).`,
+              400
+            );
+          }
+          await tx.leaveLedgerEntry.create({
+            data: {
+              tenantId,
+              employeeId: enc.employeeId,
+              leaveTypeId: enc.leaveTypeId,
+              entryType: "ENCASHMENT",
+              days: Number(enc.days),
+              balance: Math.max(0, Number((currentBal - Number(enc.days)).toFixed(2))),
+              referenceId: id,
+              notes: `Encashment approval for request #${id.slice(0, 8)}. ${comments || ""}`.trim().slice(0, 250),
+              effectiveAt: new Date(),
+            },
+          });
+        }
+
+        return rec;
+      });
+
+      return res.json(updated);
+    } catch (err: any) {
+      return sendLeaveError(res, err, 500);
+    }
   }
-});
+);

@@ -149,7 +149,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const ringtoneRef = useRef<RingtonePlayer | null>(null);
   const autoRejectTimerRef = useRef<any>(null);
   const seenCallsRef = useRef<Map<string, number>>(new Map());
+  const actedCallsRef = useRef<Set<string>>(new Set());
+  const incomingCallRef = useRef<IncomingCallInfo | null>(null);
   const isActingRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    incomingCallRef.current = incomingCall;
+  }, [incomingCall]);
 
   const unlockAudio = useCallback(() => {
     ringtoneRef.current?.unlock();
@@ -301,6 +307,12 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   const handleIncomingCallEvent = useCallback((data: any) => {
     if (!data?.callId) return;
 
+    // Defer group meeting modal to UnifiedChatApp when mounted on the Chat page (which renders IncomingGroupMeetingDialog),
+    // while keeping FullScreenIncomingCall active for all 1:1 incoming calls!
+    if (data.isGroup && typeof window !== "undefined" && (window as any).__HRMS_CHAT_APP_MOUNTED__) {
+      return;
+    }
+
     // DEVICE-LEVEL SESSION SECURITY: Validate active authentication on this device
     const token = typeof window !== "undefined"
       ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
@@ -327,10 +339,10 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       return;
     }
 
-    // 2. DEDUPLICATION: Drop duplicate events within 15 seconds across Socket.IO and Pusher
+    // 2. DEDUPLICATION & ACTED-UPON GUARD: Never re-open a call that was already accepted/declined/ended or seen within 30s
     const now = Date.now();
     const lastSeen = seenCallsRef.current.get(data.callId);
-    if (lastSeen && now - lastSeen < 15000 && incomingCall?.callId === data.callId) {
+    if (actedCallsRef.current.has(data.callId) || (lastSeen && now - lastSeen < 30000)) {
       return;
     }
     seenCallsRef.current.set(data.callId, now);
@@ -369,7 +381,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       stopCallAlert();
       setIncomingCall(null);
     }, 60000);
-  }, [incomingCall, stopCallAlert]);
+  }, [stopCallAlert]);
 
   const handleGroupIncoming = useCallback((data: any) => {
     if (!data?.callId) return;
@@ -386,10 +398,14 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   }, [handleIncomingCallEvent]);
 
   const handleCallCancelledEvent = useCallback((data: any) => {
+    const targetId = data?.callId || data?.callSessionId;
+    if (targetId) {
+      actedCallsRef.current.add(targetId);
+    }
     stopCallAlert();
     setIncomingCall((current) => {
-      const targetId = data?.callId || data?.callSessionId;
       if (current && (!targetId || current.callId === targetId)) {
+        actedCallsRef.current.add(current.callId);
         toast.info(`Call from ${current.callerName} ended.`);
         return null;
       }
@@ -398,10 +414,14 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   }, [stopCallAlert]);
 
   const handleAnsweredElsewhere = useCallback((data: any) => {
+    const targetId = data?.callId || data?.callSessionId;
+    if (targetId) {
+      actedCallsRef.current.add(targetId);
+    }
     stopCallAlert();
     setIncomingCall((current) => {
-      const targetId = data?.callId || data?.callSessionId;
       if (current && (!targetId || current.callId === targetId)) {
+        actedCallsRef.current.add(current.callId);
         toast.info("Call answered on another device.");
         return null;
       }
@@ -416,6 +436,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     setIsAccepting(true);
 
     const call = incomingCall;
+    actedCallsRef.current.add(call.callId);
     stopCallAlert();
     setIncomingCall(null);
 
@@ -515,6 +536,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     setIsDeclining(true);
 
     const call = incomingCall;
+    actedCallsRef.current.add(call.callId);
     stopCallAlert();
     setIncomingCall(null);
 
@@ -698,13 +720,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
         const body = await res.json();
         if (body?.success && body?.hasPendingCall && body?.data) {
           handleIncomingCallEvent(body.data);
-        } else if (body?.success && !body?.hasPendingCall && incomingCall) {
+        } else if (body?.success && !body?.hasPendingCall && incomingCallRef.current) {
           stopCallAlert();
           setIncomingCall(null);
         }
       }
     } catch {}
-  }, [handleIncomingCallEvent, incomingCall, stopCallAlert]);
+  }, [handleIncomingCallEvent, stopCallAlert]);
 
   useEffect(() => {
     checkPendingCall();

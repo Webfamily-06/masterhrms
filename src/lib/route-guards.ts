@@ -175,7 +175,11 @@ export function evaluateRouteAccess(
       ["hr_admin", "hr_manager", "manager", "hr", "admin", "tenant_admin"].includes(r)
     );
     const hasHrPerm = auth.permissions.some(
-      (p) => p.startsWith("hr.") || p.startsWith("employees.") || p.startsWith("attendance.")
+      (p) =>
+        p.startsWith("hr.") ||
+        p.startsWith("hrm.") ||
+        p.startsWith("employees.") ||
+        p.startsWith("attendance.")
     );
     if (!hasHrRole && !hasHrPerm) {
       return {

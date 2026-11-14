@@ -466,6 +466,19 @@ export function useRealtimeSocket() {
             userChannel.bind("call:ended", dispatchPusherEvent("call:ended"));
             userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
             userChannel.bind("call:media-state", dispatchPusherEvent("call:media-state"));
+            userChannel.bind("group-call:incoming", dispatchPusherEvent("group-call:incoming"));
+            userChannel.bind("group-call:ended", dispatchPusherEvent("group-call:ended"));
+            userChannel.bind("chat:message", dispatchPusherEvent("chat:message"));
+            userChannel.bind("chat:message_edited", dispatchPusherEvent("chat:message_edited"));
+            userChannel.bind("chat:message_deleted", dispatchPusherEvent("chat:message_deleted"));
+            userChannel.bind("chat:reaction", dispatchPusherEvent("chat:reaction"));
+            userChannel.bind("chat:poll_updated", dispatchPusherEvent("chat:poll_updated"));
+            userChannel.bind("chat:typing", dispatchPusherEvent("chat:typing"));
+            userChannel.bind("chat:read", dispatchPusherEvent("chat:read"));
+            userChannel.bind("chat:delivered", dispatchPusherEvent("chat:delivered"));
+            userChannel.bind("chat:group_created", dispatchPusherEvent("chat:group_created"));
+            userChannel.bind("chat:group_updated", dispatchPusherEvent("chat:group_updated"));
+            userChannel.bind("chat:room_revoked", dispatchPusherEvent("chat:room_revoked"));
             userChannel.bind("calendar:reminder-due", (data: any) => {
               onNotification({
                 id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,
@@ -520,14 +533,6 @@ export function useRealtimeSocket() {
 
           if (tenantId) {
             tenantChannel = pusherClient.subscribe(`private-tenant-${tenantId}`);
-            tenantChannel.bind("chat:message", dispatchPusherEvent("chat:message"));
-            tenantChannel.bind("chat:message_edited", dispatchPusherEvent("chat:message_edited"));
-            tenantChannel.bind("chat:message_deleted", dispatchPusherEvent("chat:message_deleted"));
-            tenantChannel.bind("chat:reaction", dispatchPusherEvent("chat:reaction"));
-            tenantChannel.bind("chat:poll_updated", dispatchPusherEvent("chat:poll_updated"));
-            tenantChannel.bind("chat:typing", dispatchPusherEvent("chat:typing"));
-            tenantChannel.bind("chat:read", dispatchPusherEvent("chat:read"));
-            tenantChannel.bind("chat:delivered", dispatchPusherEvent("chat:delivered"));
             tenantChannel.bind("punch:new", onNewPunch);
             tenantChannel.bind("leave:updated", onLeaveUpdated);
             tenantChannel.bind("notification:new", onNotification);

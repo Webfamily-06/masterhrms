@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapData } from "@/lib/api";
+import { invalidateLeaveApplications, extractLeaveErrorMessage } from "@/lib/leave-helpers";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -71,7 +72,7 @@ export function MeApprovalsPage() {
     queryFn: async () => {
       try {
         const res: any = await api.get("/api/v1/me/team/approvals");
-        return res?.data || { leaves: [], regularizations: [], changeRequests: [] };
+        return unwrapData(res) || { leaves: [], regularizations: [], changeRequests: [] };
       } catch {
         return { leaves: [], regularizations: [], changeRequests: [] };
       }
@@ -100,13 +101,13 @@ export function MeApprovalsPage() {
     mutationFn: async ({ id, action, comments }: { id: string; action: "approve" | "reject"; comments?: string }) => {
       return await api.post(`/api/v1/me/team/leaves/${id}/action`, { action, comments });
     },
-    onSuccess: (_, vars) => {
+    onSuccess: async (_, vars) => {
       toast.success(vars.action === "approve" ? "Leave request approved successfully" : "Leave request rejected");
-      queryClient.invalidateQueries({ queryKey: ["me-team-approvals"] });
+      await invalidateLeaveApplications(queryClient);
       closeDecisionModal();
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to process leave decision");
+      toast.error(extractLeaveErrorMessage(err, "Failed to process leave decision"));
     },
   });
 

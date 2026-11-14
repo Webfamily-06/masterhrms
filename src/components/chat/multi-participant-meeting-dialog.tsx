@@ -49,6 +49,8 @@ export interface RemoteTrackInfo {
   videoTrack?: RemoteTrack | null;
   audioTrack?: RemoteTrack | null;
   stream?: MediaStream | null;
+  screenShareTrack?: RemoteTrack | null;
+  screenShareStream?: MediaStream | null;
 }
 
 export interface MeetingParticipant {
@@ -182,7 +184,7 @@ export function IncomingGroupMeetingDialog({
                 size="icon"
                 data-testid="btn-decline-group-meeting"
                 className="rounded-full size-14 shadow-lg bg-destructive hover:bg-destructive cursor-pointer transition-transform active:scale-95"
-                onClick={onDecline}
+                onClick={() => onDecline()}
                 title="Decline"
               >
                 <PhoneOff className="size-6 text-foreground" />
@@ -195,7 +197,7 @@ export function IncomingGroupMeetingDialog({
                 size="icon"
                 data-testid="btn-accept-group-meeting"
                 className="rounded-full size-14 shadow-xl bg-primary hover:bg-primary text-primary-foreground cursor-pointer ring-4 ring-primary/30 animate-pulse transition-transform active:scale-95"
-                onClick={onAccept}
+                onClick={() => onAccept()}
                 title="Join Meeting"
               >
                 <Phone className="size-6 text-foreground" />
@@ -325,6 +327,8 @@ export function MultiParticipantMeetingDialog({
   >("idle");
   const [livekitError, setLivekitError] = useState<string | null>(null);
   const [remoteTracksMap, setRemoteTracksMap] = useState<Map<string, RemoteTrackInfo>>(new Map());
+  const [livekitRemoteRoster, setLivekitRemoteRoster] = useState<Map<string, MeetingParticipant>>(new Map());
+  const [activeSpeakerIds, setActiveSpeakerIds] = useState<Set<string>>(new Set());
   const livekitRoomRef = useRef<Room | null>(null);
 
   // Audio constraints & processing capabilities
@@ -349,11 +353,18 @@ export function MultiParticipantMeetingDialog({
       setLivekitConnectionState("idle");
       setLivekitError(null);
       setRemoteTracksMap(new Map());
+      setLivekitRemoteRoster(new Map());
       return;
     }
 
-    if (!sfuConfig || !sfuConfig.configured) {
+    if (sfuConfig && sfuConfig.configured === false) {
       setLivekitConnectionState("unconfigured");
+      return;
+    }
+
+    // Wait for host's `group-call:start` server confirmation before requesting the room token
+    if (meeting.status === "connecting") {
+      setLivekitConnectionState("connecting");
       return;
     }
 
@@ -365,17 +376,28 @@ export function MultiParticipantMeetingDialog({
         setLivekitConnectionState("connecting");
         setLivekitError(null);
 
-        // Fetch scoped token from server
-        const tokenRes: any = await api.post(`/api/chat/meetings/${meeting.callId}/token`, {
-          groupId: meeting.groupId,
-          callType: meeting.callType,
-        });
+        // Fetch scoped token from server (with brief retry if group-call:start/join is still committing)
+        let tokenData: any = null;
+        let lastTokenErr: any = null;
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (isCancelled) return;
+          try {
+            const tokenRes: any = await api.post(`/api/chat/meetings/${meeting.callId}/token`, {
+              groupId: meeting.groupId,
+              callType: meeting.callType,
+            });
+            tokenData = tokenRes?.data || tokenRes;
+            if (tokenData?.token && tokenData?.url) break;
+          } catch (tErr: any) {
+            lastTokenErr = tErr;
+            await new Promise((r) => setTimeout(r, 450 * (attempt + 1)));
+          }
+        }
 
-        const tokenData = tokenRes?.data || tokenRes;
         const { token, url, iceServers } = tokenData || {};
 
         if (!token || !url) {
-          throw new Error("Server did not return a valid LiveKit token or URL.");
+          throw lastTokenErr || new Error("Server did not return a valid LiveKit token or URL.");
         }
 
         if (isCancelled) return;
@@ -402,36 +424,57 @@ export function MultiParticipantMeetingDialog({
         });
 
         roomInstance.on(RoomEvent.Disconnected, () => {
-          if (!isCancelled) setLivekitConnectionState("idle");
+          if (!isCancelled) {
+            setLivekitConnectionState("idle");
+            setActiveSpeakerIds(new Set());
+          }
         });
+
+        roomInstance.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+          if (!isCancelled) {
+            setActiveSpeakerIds(new Set(speakers.map((s) => s.identity)));
+          }
+        });
+
+        const upsertRemoteTrack = (
+          userId: string,
+          track: RemoteTrack,
+          publication: RemoteTrackPublication
+        ) => {
+          setRemoteTracksMap((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(userId) || {};
+            if (publication.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
+              const screenShareStream = new MediaStream([track.mediaStreamTrack]);
+              next.set(userId, { ...existing, screenShareTrack: track, screenShareStream });
+            } else if (track.kind === Track.Kind.Video) {
+              const stream = new MediaStream([track.mediaStreamTrack]);
+              next.set(userId, { ...existing, videoTrack: track, stream });
+            } else if (track.kind === Track.Kind.Audio) {
+              next.set(userId, { ...existing, audioTrack: track });
+            }
+            return next;
+          });
+        };
 
         roomInstance.on(
           RoomEvent.TrackSubscribed,
-          (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-            const userId = participant.identity;
-            setRemoteTracksMap((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(userId) || {};
-              if (track.kind === Track.Kind.Video) {
-                const stream = new MediaStream([track.mediaStreamTrack]);
-                next.set(userId, { ...existing, videoTrack: track, stream });
-              } else if (track.kind === Track.Kind.Audio) {
-                next.set(userId, { ...existing, audioTrack: track });
-              }
-              return next;
-            });
+          (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+            upsertRemoteTrack(participant.identity, track, publication);
           }
         );
 
         roomInstance.on(
           RoomEvent.TrackUnsubscribed,
-          (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+          (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
             const userId = participant.identity;
             setRemoteTracksMap((prev) => {
               const next = new Map(prev);
               const existing = next.get(userId);
               if (existing) {
-                if (track.kind === Track.Kind.Video) {
+                if (publication.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
+                  next.set(userId, { ...existing, screenShareTrack: null, screenShareStream: null });
+                } else if (track.kind === Track.Kind.Video) {
                   next.set(userId, { ...existing, videoTrack: null, stream: null });
                 } else if (track.kind === Track.Kind.Audio) {
                   next.set(userId, { ...existing, audioTrack: null });
@@ -442,12 +485,57 @@ export function MultiParticipantMeetingDialog({
           }
         );
 
-        // Connect room to SFU server
+        const toRosterEntry = (remoteP: RemoteParticipant): MeetingParticipant => {
+          let meta: any = {};
+          try {
+            if (remoteP.metadata) meta = JSON.parse(remoteP.metadata);
+          } catch {}
+          return {
+            userId: remoteP.identity,
+            name: remoteP.name || meta.name || "Participant",
+            avatar: meta.avatarUrl || null,
+            role: meta.role === "host" ? "host" : "participant",
+            isMuted: !remoteP.isMicrophoneEnabled,
+            isCameraOff: !remoteP.isCameraEnabled,
+            isScreenSharing: Boolean(remoteP.isScreenShareEnabled),
+            isSpeaking: Boolean(remoteP.isSpeaking),
+            isLocal: false,
+          };
+        };
+
+        roomInstance.on(RoomEvent.ParticipantConnected, (remoteP: RemoteParticipant) => {
+          if (!isCancelled) {
+            setLivekitRemoteRoster((prev) => {
+              const next = new Map(prev);
+              next.set(remoteP.identity, toRosterEntry(remoteP));
+              return next;
+            });
+          }
+        });
+
+        roomInstance.on(RoomEvent.ParticipantDisconnected, (remoteP: RemoteParticipant) => {
+          if (!isCancelled) {
+            setLivekitRemoteRoster((prev) => {
+              const next = new Map(prev);
+              next.delete(remoteP.identity);
+              return next;
+            });
+          }
+        });
+
+        const hasCustomTurn =
+          !String(url).includes("livekit.cloud") &&
+          Array.isArray(iceServers) &&
+          iceServers.some((s: any) =>
+            (Array.isArray(s?.urls) ? s.urls : [s?.urls]).some(
+              (u: any) => typeof u === "string" && (u.startsWith("turn:") || u.startsWith("turns:"))
+            )
+          );
+
+        // Connect room to SFU server (preserve LiveKit Cloud's built-in TURN/TLS relay servers!)
         await roomInstance.connect(url, token, {
           autoSubscribe: true,
-          rtcConfig: {
-            iceServers: iceServers && iceServers.length > 0 ? iceServers : undefined,
-          },
+          ...(hasCustomTurn ? { rtcConfig: { iceServers } } : {}),
         });
 
         if (isCancelled) {
@@ -455,10 +543,31 @@ export function MultiParticipantMeetingDialog({
           return;
         }
 
+        setLivekitConnectionState("connected");
+        setLivekitError(null);
+
+        // Hydrate existing participants & tracks already in the LiveKit room
+        const initialRoster = new Map<string, MeetingParticipant>();
+        for (const remoteP of roomInstance.remoteParticipants.values()) {
+          initialRoster.set(remoteP.identity, toRosterEntry(remoteP));
+          for (const pub of remoteP.trackPublications.values()) {
+            if (pub.isSubscribed && pub.track) {
+              upsertRemoteTrack(remoteP.identity, pub.track as RemoteTrack, pub as RemoteTrackPublication);
+            }
+          }
+        }
+        if (initialRoster.size > 0) {
+          setLivekitRemoteRoster(initialRoster);
+        }
+
         // Publish initial local tracks
         try {
           await roomInstance.localParticipant.setMicrophoneEnabled(!isMuted);
           await roomInstance.localParticipant.setCameraEnabled(!isVideoOff);
+          const camPub = roomInstance.localParticipant.getTrackPublication(Track.Source.Camera);
+          if (camPub?.track && localVideoRef.current && !localStream) {
+            camPub.track.attach(localVideoRef.current);
+          }
         } catch (pubErr) {
           console.warn("Failed to publish initial tracks to LiveKit room:", pubErr);
         }
@@ -482,7 +591,7 @@ export function MultiParticipantMeetingDialog({
       }
       livekitRoomRef.current = null;
     };
-  }, [open, meeting?.callId, sfuConfig?.configured]);
+  }, [open, meeting?.callId, meeting?.status, sfuConfig?.configured]);
 
   // Sync mute state to LiveKit
   useEffect(() => {
@@ -532,19 +641,40 @@ export function MultiParticipantMeetingDialog({
     }
   }, [threadMessages, isChatDrawerOpen]);
 
+  // Enrich participants with real-time LiveKit roster, active speaker & screen-share track state
+  const enrichedParticipants = useMemo(() => {
+    const mergedMap = new Map<string, MeetingParticipant>();
+    for (const p of participants) {
+      mergedMap.set(p.userId, p);
+    }
+    for (const [uid, lkParticipant] of livekitRemoteRoster.entries()) {
+      if (!mergedMap.has(uid)) {
+        mergedMap.set(uid, lkParticipant);
+      }
+    }
+    return Array.from(mergedMap.values()).map((p) => {
+      const rt = remoteTracksMap.get(p.userId);
+      return {
+        ...p,
+        isSpeaking: Boolean(p.isSpeaking || activeSpeakerIds.has(p.userId)),
+        isScreenSharing: Boolean(p.isScreenSharing || rt?.screenShareTrack),
+      };
+    });
+  }, [participants, livekitRemoteRoster, remoteTracksMap, activeSpeakerIds]);
+
   // Resolve active speaker or spotlight user
   const effectiveSpotlightUser = useMemo(() => {
     if (spotlightUserId) {
-      const match = participants.find((p) => p.userId === spotlightUserId);
+      const match = enrichedParticipants.find((p) => p.userId === spotlightUserId);
       if (match) return match;
     }
     // Default to the first participant speaking, or host, or first remote
-    const speaking = participants.find((p) => p.isSpeaking);
+    const speaking = enrichedParticipants.find((p) => p.isSpeaking);
     if (speaking) return speaking;
-    const remote = participants.find((p) => !p.isLocal);
+    const remote = enrichedParticipants.find((p) => !p.isLocal);
     if (remote) return remote;
-    return participants[0] || null;
-  }, [spotlightUserId, participants]);
+    return enrichedParticipants[0] || null;
+  }, [spotlightUserId, enrichedParticipants]);
 
   // Check if someone is sharing their screen
   const screenSharingParticipant = useMemo(() => {
@@ -555,8 +685,8 @@ export function MultiParticipantMeetingDialog({
         isLocal: true,
       };
     }
-    return participants.find((p) => p.isScreenSharing) || null;
-  }, [isScreenSharing, currentUserId, currentUserName, participants]);
+    return enrichedParticipants.find((p) => p.isScreenSharing) || null;
+  }, [isScreenSharing, currentUserId, currentUserName, enrichedParticipants]);
 
   // Filter available colleagues for invitation
   const inviteColleaguesList = useMemo(() => {
@@ -690,7 +820,7 @@ export function MultiParticipantMeetingDialog({
             {livekitConnectionState === "connected" ? (
               <span
                 data-testid="badge-sfu-connected"
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[11px] font-medium"
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] sm:text-[11px] font-medium"
               >
                 <span className="size-2 rounded-full bg-success animate-pulse" />
                 <span>LiveKit SFU Active</span>
@@ -698,7 +828,7 @@ export function MultiParticipantMeetingDialog({
             ) : livekitConnectionState === "connecting" ? (
               <span
                 data-testid="badge-sfu-connecting"
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/15 border border-accent/30 text-accent-foreground text-[11px] font-medium"
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-accent/15 border border-accent/30 text-accent-foreground text-[10px] sm:text-[11px] font-medium"
               >
                 <span className="size-2 rounded-full bg-accent animate-ping" />
                 <span>Connecting SFU...</span>
@@ -706,7 +836,7 @@ export function MultiParticipantMeetingDialog({
             ) : livekitConnectionState === "error" ? (
               <span
                 data-testid="badge-sfu-error"
-                className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-destructive/15 border border-destructive/30 text-destructive text-[11px] font-medium"
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-destructive/15 border border-destructive/30 text-destructive text-[10px] sm:text-[11px] font-medium"
                 title={livekitError || "SFU connection error"}
               >
                 <AlertCircle className="size-3.5 text-destructive" />
@@ -791,6 +921,24 @@ export function MultiParticipantMeetingDialog({
                       muted
                       className="w-full h-full object-contain"
                     />
+                  ) : remoteTracksMap.get(screenSharingParticipant.userId)?.screenShareStream ||
+                    remoteTracksMap.get(screenSharingParticipant.userId)?.screenShareTrack ? (
+                    <video
+                      data-testid="remote-screen-share-video"
+                      ref={(el) => {
+                        const rt = remoteTracksMap.get(screenSharingParticipant.userId);
+                        if (el && rt) {
+                          if (rt.screenShareStream) {
+                            el.srcObject = rt.screenShareStream;
+                          } else if (rt.screenShareTrack) {
+                            rt.screenShareTrack.attach(el);
+                          }
+                        }
+                      }}
+                      autoPlay
+                      playsInline
+                      className="w-full h-full object-contain"
+                    />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
                       <MonitorUp className="size-12 text-primary animate-pulse" />
@@ -826,7 +974,7 @@ export function MultiParticipantMeetingDialog({
 
                 {/* Compact Participant Filmstrip below screen stage */}
                 <div className="h-28 shrink-0 flex items-center gap-2 overflow-x-auto py-1 px-1">
-                  {participants.map((p) => (
+                  {enrichedParticipants.map((p) => (
                     <ParticipantCard
                       key={p.userId}
                       participant={p}
@@ -862,7 +1010,7 @@ export function MultiParticipantMeetingDialog({
 
                 {/* Bottom Horizontal Filmstrip */}
                 <div className="h-28 shrink-0 flex items-center gap-2 overflow-x-auto py-1 px-1">
-                  {participants.map((p) => (
+                  {enrichedParticipants.map((p) => (
                     <ParticipantCard
                       key={p.userId}
                       participant={p}
@@ -884,13 +1032,13 @@ export function MultiParticipantMeetingDialog({
                 data-testid="meeting-participant-grid"
                 className={cn(
                   "flex-1 min-h-0 grid gap-3 w-full h-full",
-                  participants.length === 1 && "grid-cols-1",
-                  participants.length === 2 && "grid-cols-1 md:grid-cols-2",
-                  (participants.length === 3 || participants.length === 4) && "grid-cols-2",
-                  participants.length >= 5 && "grid-cols-2 md:grid-cols-3"
+                  enrichedParticipants.length === 1 && "grid-cols-1",
+                  enrichedParticipants.length === 2 && "grid-cols-1 md:grid-cols-2",
+                  (enrichedParticipants.length === 3 || enrichedParticipants.length === 4) && "grid-cols-2",
+                  enrichedParticipants.length >= 5 && "grid-cols-2 md:grid-cols-3"
                 )}
               >
-                {participants.map((p) => (
+                {enrichedParticipants.map((p) => (
                   <ParticipantCard
                     key={p.userId}
                     participant={p}
@@ -914,12 +1062,12 @@ export function MultiParticipantMeetingDialog({
           {isParticipantsDrawerOpen && (
             <div
               data-testid="meeting-participants-drawer"
-              className="w-80 shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
+              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
             >
               <div className="h-12 px-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
                   <Users className="size-4 text-primary" />
-                  <span>Participants ({participants.length})</span>
+                  <span>Participants ({enrichedParticipants.length})</span>
                 </div>
                 <Button
                   size="icon"
@@ -946,7 +1094,7 @@ export function MultiParticipantMeetingDialog({
 
               {/* Participant Roster List */}
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {participants.map((p) => {
+                {enrichedParticipants.map((p) => {
                   const isSelf = p.isLocal || p.userId === currentUserId;
                   return (
                     <div
@@ -1022,7 +1170,7 @@ export function MultiParticipantMeetingDialog({
           {isChatDrawerOpen && (
             <div
               data-testid="meeting-chat-drawer"
-              className="w-80 shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
+              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
             >
               <div className="h-12 px-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
@@ -1171,7 +1319,13 @@ export function MultiParticipantMeetingDialog({
                   <label className="text-[11px] font-medium text-foreground">Microphone</label>
                   <select
                     value={selectedAudioInput}
-                    onChange={(e) => setSelectedAudioInput(e.target.value)}
+                    onChange={(e) => {
+                      const deviceId = e.target.value;
+                      setSelectedAudioInput(deviceId);
+                      if (deviceId && livekitRoomRef.current) {
+                        livekitRoomRef.current.switchActiveDevice("audioinput", deviceId).catch(() => {});
+                      }
+                    }}
                     className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
                   >
                     {audioInputDevices.map((d, i) => (
@@ -1186,7 +1340,13 @@ export function MultiParticipantMeetingDialog({
                   <label className="text-[11px] font-medium text-foreground">Camera</label>
                   <select
                     value={selectedVideoInput}
-                    onChange={(e) => setSelectedVideoInput(e.target.value)}
+                    onChange={(e) => {
+                      const deviceId = e.target.value;
+                      setSelectedVideoInput(deviceId);
+                      if (deviceId && livekitRoomRef.current) {
+                        livekitRoomRef.current.switchActiveDevice("videoinput", deviceId).catch(() => {});
+                      }
+                    }}
                     className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
                   >
                     {videoInputDevices.map((d, i) => (
@@ -1201,7 +1361,13 @@ export function MultiParticipantMeetingDialog({
                   <label className="text-[11px] font-medium text-foreground">Speaker / Output</label>
                   <select
                     value={selectedAudioOutput}
-                    onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                    onChange={(e) => {
+                      const deviceId = e.target.value;
+                      setSelectedAudioOutput(deviceId);
+                      if (deviceId && livekitRoomRef.current) {
+                        livekitRoomRef.current.switchActiveDevice("audiooutput", deviceId).catch(() => {});
+                      }
+                    }}
                     className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
                   >
                     {audioOutputDevices.map((d, i) => (

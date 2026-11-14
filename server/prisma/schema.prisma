@@ -98,6 +98,8 @@ model Tenant {
   chatGroupMembers             ChatGroupMember[]
   chatReadReceipts             ChatReadReceipt[]
   chatConversationPins         ChatConversationPin[]
+  chatConversationPreferences  ChatConversationPreference[]
+  chatUserPresences            ChatUserPresence[]
   commerceOrders               CommerceOrder[]
   companyDocuments             CompanyDocument[]
   companyProfile               CompanyProfile?
@@ -463,6 +465,8 @@ model Employee {
   @@unique([tenantId, email], name: "uq_employees_tenant_email")
   @@index([tenantId, status])
   @@index([tenantId, departmentId])
+  @@index([tenantId, userId], map: "idx_employees_tenant_user_id")
+  @@index([tenantId, managerId], map: "idx_employees_tenant_manager_id")
   @@map("employees")
 }
 
@@ -513,6 +517,8 @@ model LeaveType {
   leavePolicies      LeavePolicy[]
   tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId, status], map: "idx_leave_types_tenant_status")
+  @@index([tenantId, name], map: "idx_leave_types_tenant_name")
   @@map("leave_types")
 }
 
@@ -540,6 +546,10 @@ model LeaveRequest {
 
   @@index([tenantId, status])
   @@index([tenantId, employeeId])
+  @@index([tenantId, employeeId, status, startDate, endDate], map: "idx_leave_requests_tenant_emp_status_dates")
+  @@index([tenantId, status, startDate, endDate], map: "idx_leave_requests_tenant_status_dates")
+  @@index([tenantId, leaveTypeId], map: "idx_leave_requests_tenant_leave_type")
+  @@index([tenantId, createdAt(sort: Desc)], map: "idx_leave_requests_tenant_created_desc")
   @@map("leave_requests")
 }
 
@@ -3404,6 +3414,7 @@ model ChatMessage {
   pinnedById           String?   @map("pinned_by_id") @db.VarChar(36)
   isEdited             Boolean   @default(false) @map("is_edited")
   editedAt             DateTime? @map("edited_at")
+  editHistory          Json?     @map("edit_history")
   deletedForUserIds    Json?     @map("deleted_for_user_ids")
   isDeletedForEveryone Boolean   @default(false) @map("is_deleted_for_everyone")
   reactions            Json?     @map("reactions")
@@ -3420,30 +3431,38 @@ model ChatMessage {
   createdAt            DateTime  @default(now()) @map("created_at")
   tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, senderId, clientTempId])
   @@index([tenantId, threadId])
   @@index([tenantId, threadId, isPinned])
   @@index([tenantId, threadId, createdAt])
+  @@index([tenantId, senderId, createdAt])
   @@index([tenantId, clientTempId])
   @@map("chat_messages")
 }
 
 model ChatGroup {
-  id              String            @id @default(uuid()) @db.VarChar(36)
-  tenantId        String            @map("tenant_id") @db.VarChar(36)
-  name            String            @db.VarChar(150)
-  description     String?           @db.VarChar(500)
-  avatarUrl       String?           @map("avatar_url") @db.VarChar(500)
-  createdById     String            @map("created_by_id") @db.VarChar(36)
-  ownerId         String?           @map("owner_id") @db.VarChar(36)
-  inviteToken     String?           @map("invite_token") @db.VarChar(100)
-  inviteExpiresAt DateTime?         @map("invite_expires_at")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members         ChatGroupMember[]
+  id                 String            @id @default(uuid()) @db.VarChar(36)
+  tenantId           String            @map("tenant_id") @db.VarChar(36)
+  name               String            @db.VarChar(150)
+  description        String?           @db.VarChar(500)
+  avatarUrl          String?           @map("avatar_url") @db.VarChar(500)
+  createdById        String            @map("created_by_id") @db.VarChar(36)
+  ownerId            String?           @map("owner_id") @db.VarChar(36)
+  inviteToken        String?           @map("invite_token") @db.VarChar(100)
+  inviteExpiresAt    DateTime?         @map("invite_expires_at")
+  category           String            @default("custom") @db.VarChar(50)
+  sourceEntityId     String?           @map("source_entity_id") @db.VarChar(64)
+  isAnnouncementOnly Boolean           @default(false) @map("is_announcement_only")
+  isArchived         Boolean           @default(false) @map("is_archived")
+  maxMembers         Int               @default(250) @map("max_members")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members            ChatGroupMember[]
 
   @@index([tenantId])
   @@index([tenantId, inviteToken])
+  @@index([tenantId, category, sourceEntityId])
   @@map("chat_groups")
 }
 
@@ -3488,6 +3507,42 @@ model ChatConversationPin {
   @@unique([tenantId, userId, threadId])
   @@index([tenantId, userId])
   @@map("chat_conversation_pins")
+}
+
+model ChatConversationPreference {
+  id                String    @id @default(uuid()) @db.VarChar(36)
+  tenantId          String    @map("tenant_id") @db.VarChar(36)
+  userId            String    @map("user_id") @db.VarChar(36)
+  threadId          String    @map("thread_id") @db.VarChar(100)
+  isMuted           Boolean   @default(false) @map("is_muted")
+  mutedUntil        DateTime? @map("muted_until")
+  isArchived        Boolean   @default(false) @map("is_archived")
+  archivedAt        DateTime? @map("archived_at")
+  markedUnreadAt    DateTime? @map("marked_unread_at")
+  notificationLevel String    @default("all") @map("notification_level") @db.VarChar(20)
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, threadId])
+  @@index([tenantId, userId])
+  @@index([tenantId, userId, isArchived])
+  @@map("chat_conversation_preferences")
+}
+
+model ChatUserPresence {
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  tenantId          String   @map("tenant_id") @db.VarChar(36)
+  userId            String   @map("user_id") @db.VarChar(36)
+  status            String   @default("online") @db.VarChar(20)
+  activeConnections Int      @default(0) @map("active_connections")
+  instanceId        String?  @map("instance_id") @db.VarChar(64)
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([tenantId, status, lastSeenAt])
+  @@map("chat_user_presences")
 }
 
 model WorkspaceRole {
@@ -4623,6 +4678,7 @@ model CallHistoryRecord {
   startedAt       DateTime  @default(now()) @map("started_at")
   endedAt         DateTime? @map("ended_at")
   groupId         String?   @map("group_id") @db.VarChar(36)
+  threadId        String?   @map("thread_id") @db.VarChar(100)
   participantIds  String[]  @default([]) @map("participant_ids")
   totalCalls      Int       @default(1) @map("total_calls")
   avgCallSeconds  Int       @default(30) @map("avg_call_seconds")
@@ -4641,6 +4697,7 @@ model CallHistoryRecord {
   @@index([tenantId, callerId])
   @@index([tenantId, receiverId])
   @@index([tenantId, callSessionId])
+  @@index([tenantId, threadId])
   @@map("call_history_records")
 }
 
@@ -5838,6 +5895,9 @@ model LeaveLedgerEntry {
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, employeeId, leaveTypeId])
+  @@index([tenantId, employeeId, effectiveAt(sort: Desc)], map: "idx_leave_ledger_tenant_emp_effective")
+  @@index([tenantId, leaveTypeId], map: "idx_leave_ledger_tenant_leave_type")
+  @@index([tenantId, referenceId, entryType], map: "idx_leave_ledger_tenant_ref_type")
   @@map("leave_ledger_entries")
 }
 
@@ -6045,6 +6105,7 @@ model Holiday {
 
   @@index([tenantId, year])
   @@index([tenantId, status])
+  @@index([tenantId, status, date], map: "idx_holidays_tenant_status_date")
   @@map("holidays")
 }
 

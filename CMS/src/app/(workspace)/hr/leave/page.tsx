@@ -1,13 +1,12 @@
 'use client';
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
+import { Link } from "@/src/lib/router-compat";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, StatsOverviewGrid } from "@/components/ui/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Calendar,
   CalendarCheck,
   PieChart,
   Layers,
@@ -17,49 +16,84 @@ import {
   Users,
 } from "lucide-react";
 
+export default function HrLeaveOverviewPage() {
+  const todayIso = new Date().toISOString().slice(0, 10);
 
-
-function HrLeaveOverviewPage() {
-  const { data: leaveRequests } = useQuery({
-    queryKey: ["hr-leaves-overview"],
+  const { data: requests = [] } = useQuery({
+    queryKey: ["hr-leave-overview", "applications"],
     queryFn: async () => {
       try {
-        const res: any = await api.get("/api/v1/leaves/requests");
-        return Array.isArray(res?.data) ? res.data : [];
+        const res = await api.get("/api/v1/hr/leave/applications", {
+          params: { limit: 200 },
+        });
+        return unwrapArray<any>(res);
       } catch {
         return [];
       }
     },
   });
 
-  const requests: any[] = leaveRequests || [];
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const { data: leaveTypes = [] } = useQuery({
+    queryKey: ["hr-leave-overview", "types"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/api/v1/hr/leave/types", {
+          params: { status: "active", limit: 100 },
+        });
+        return unwrapArray<any>(res);
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: policies = [] } = useQuery({
+    queryKey: ["hr-leave-overview", "policies"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/api/v1/hr/leave/policies", {
+          params: { status: "active", limit: 100 },
+        });
+        return unwrapArray<any>(res);
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const pendingCount = requests.filter((r: any) => r.status === "pending").length;
+  const onLeaveToday = requests.filter((r: any) => {
+    if (r.status !== "approved") return false;
+    const s = String(r.startDate).slice(0, 10);
+    const e = String(r.endDate).slice(0, 10);
+    return s <= todayIso && e >= todayIso;
+  }).length;
 
   const modules = [
     {
       title: "Leave Applications",
-      description: "Review, approve, or reject company-wide leave requests with multi-tier workflow routing.",
+      description: "Review, approve, reject, or reverse company-wide leave requests with live ledger updates.",
       href: "/hr/leave/applications",
       icon: CalendarCheck,
       color: "text-blue-500",
     },
     {
       title: "Leave Balances",
-      description: "Monitor and adjust staff leave quotas, credit accruals, and manual balance overrides.",
+      description: "Monitor and adjust staff leave quotas, credit accruals, and view immutable ledger trails.",
       href: "/hr/leave/balances",
       icon: PieChart,
       color: "text-emerald-500",
     },
     {
       title: "Leave Types",
-      description: "Define leave categories (casual, sick, maternity, unpaid) with custom allocation quotas.",
+      description: "Define paid and unpaid leave categories with custom allocations, colors, and carry-forward.",
       href: "/hr/leave/types",
       icon: Layers,
       color: "text-purple-500",
     },
     {
       title: "Leave Policies",
-      description: "Configure carry-forward limits, encashment rules, probation restrictions, and sandwich rules.",
+      description: "Configure notice rules, min/max days, probation restrictions, half-days, and sandwich rules.",
       href: "/hr/leave/policies",
       icon: ShieldCheck,
       color: "text-amber-500",
@@ -67,7 +101,7 @@ function HrLeaveOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-full overflow-x-hidden">
       <PageHeader
         title="Leave Administration & Policy Control"
         description="Oversee company-wide time-off, approve pending requests, and manage leave accrual policies."
@@ -76,27 +110,27 @@ function HrLeaveOverviewPage() {
       <StatsOverviewGrid>
         <StatCard
           title="On Leave Today"
-          value="8 Employees"
+          value={`${onLeaveToday} Employees`}
           icon={Users}
-          description="Approved absences"
+          description="Approved absences today"
         />
         <StatCard
           title="Pending Approvals"
-          value={pendingCount || 5}
+          value={pendingCount}
           icon={Clock}
           description="Awaiting HR / Supervisor"
         />
         <StatCard
-          title="Configured Types"
-          value="6 Categories"
+          title="Active Leave Types"
+          value={`${leaveTypes.length} Categories`}
           icon={Layers}
-          description="Active leave policies"
+          description="Available in Self-Service"
         />
         <StatCard
-          title="Avg. Utilization"
-          value="42%"
-          icon={PieChart}
-          description="Annual quota consumed"
+          title="Active Policies"
+          value={`${policies.length} Rules`}
+          icon={ShieldCheck}
+          description="Enforced across requests"
         />
       </StatsOverviewGrid>
 
@@ -104,11 +138,14 @@ function HrLeaveOverviewPage() {
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           Leave Management Modules
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {modules.map((m) => {
             const Icon = m.icon;
             return (
-              <Card key={m.href} className="hover:border-primary/50 transition-colors flex flex-col justify-between">
+              <Card
+                key={m.href}
+                className="hover:border-primary/50 transition-colors flex flex-col justify-between"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-2.5 mb-1.5">
                     <div className="p-2 rounded-lg bg-muted">
@@ -134,5 +171,3 @@ function HrLeaveOverviewPage() {
     </div>
   );
 }
-
-export default HrLeaveOverviewPage;

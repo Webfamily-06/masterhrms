@@ -1,8 +1,14 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { api, unwrapArray } from "@/lib/api";
+import {
+  useDebouncedValue,
+  formatLeaveDays,
+  extractLeaveErrorMessage,
+  invalidateLeaveBalances,
+} from "@/lib/leave-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +47,7 @@ import {
   Plus,
   History,
   Sparkles,
+  Scale,
 } from "lucide-react";
 
 export default function HrLeaveBalancesPage() {
@@ -48,34 +55,55 @@ export default function HrLeaveBalancesPage() {
   const currentYear = new Date().getFullYear();
 
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState("all");
+  const [selectedLeaveTypeFilter, setSelectedLeaveTypeFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
-  const [ledgerModalEmployee, setLedgerModalEmployee] = useState<any>(null);
+  const [ledgerModalEmployee, setLedgerModalEmployee] = useState<any | null>(null);
 
   const [adjustForm, setAdjustForm] = useState({
     employeeId: "",
     leaveTypeId: "",
-    entryType: "CREDIT",
+    entryType: "CREDIT" as "CREDIT" | "DEBIT",
     days: 1,
     notes: "",
   });
 
-  // 1. Fetch Balances
-  const { data: balanceResponse, isLoading, refetch } = useQuery({
-    queryKey: ["hr-leave-balances", selectedYear, selectedEmployeeFilter, searchTerm],
+  const yearOptions = useMemo(() => {
+    const yrs: number[] = [];
+    for (let y = currentYear - 2; y <= currentYear + 3; y++) yrs.push(y);
+    return yrs;
+  }, [currentYear]);
+
+  // 1. Fetch Bulk Balances + Active Leave Types + Employee Dropdown Options in 1 authoritative API call
+  const { data: balanceResponse, isLoading, isFetching, refetch } = useQuery({
+    queryKey: [
+      "hr-leave-balances",
+      selectedYear,
+      selectedEmployeeFilter,
+      selectedLeaveTypeFilter,
+      debouncedSearch,
+      currentPage,
+      pageSize,
+    ],
     queryFn: async () => {
-      const res = await api.get("/api/v1/hr/leave/balances", {
+      return await api.get("/api/v1/hr/leave/balances", {
         params: {
           year: selectedYear,
           employeeId: selectedEmployeeFilter,
-          search: searchTerm,
+          leaveTypeId: selectedLeaveTypeFilter,
+          search: debouncedSearch,
+          page: currentPage,
+          limit: pageSize,
         },
       });
-      return res;
     },
+    staleTime: 25_000,
   });
 
   const employeesBalances: any[] = Array.isArray(balanceResponse?.data)
@@ -86,124 +114,189 @@ export default function HrLeaveBalancesPage() {
   const activeLeaveTypes: any[] = Array.isArray(balanceResponse?.leaveTypes)
     ? balanceResponse.leaveTypes
     : [];
+  const allEmployees: any[] = Array.isArray(balanceResponse?.allEmployees)
+    ? balanceResponse.allEmployees
+    : [];
+  const totalEmployees = Number(balanceResponse?.meta?.total ?? employeesBalances.length);
 
-  // 2. Fetch Active Employees for dropdown
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ["hr-all-employees-list"],
-    queryFn: async () => {
-      const res = await api.get("/api/v1/hr/employees", { params: { status: "active", limit: 100 } }).catch(async () => {
-        return await api.get("/api/employees", { params: { status: "active", limit: 100 } });
-      });
-      return unwrapArray(res);
-    },
-    staleTime: 60_000,
-  });
-
-  // 3. Fetch Ledger Entries for selected modal employee
+  // 2. Fetch Immutable Ledger Entries for Selected Employee
   const { data: ledgerEntries = [], isLoading: isLoadingLedger } = useQuery({
-    queryKey: ["hr-employee-ledger", ledgerModalEmployee?.employeeId],
+    queryKey: ["hr-leave-ledger", ledgerModalEmployee?.employeeId, selectedYear],
     queryFn: async () => {
       if (!ledgerModalEmployee?.employeeId) return [];
-      const res = await api.get(`/api/v1/hr/leave/balances/${ledgerModalEmployee.employeeId}/ledger`);
+      const res = await api.get(
+        `/api/v1/hr/leave/balances/${ledgerModalEmployee.employeeId}/ledger`,
+        { params: { year: selectedYear } }
+      );
       return unwrapArray(res);
     },
-    enabled: !!ledgerModalEmployee?.employeeId,
+    enabled: Boolean(ledgerModalEmployee?.employeeId),
   });
 
-  // 4. Sync Balances Mutation
+  // 3. Sync / Re-Sync Balances Mutation (strictly idempotent per year)
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const res = await api.post("/api/v1/hr/leave/balances/sync");
-      return res;
+      return await api.post("/api/v1/hr/leave/balances/sync", { year: selectedYear });
     },
-    onSuccess: (data: any) => {
-      toast.success(data?.message || "Leave balances synchronized successfully");
-      queryClient.invalidateQueries({ queryKey: ["hr-leave-balances"] });
+    onSuccess: async (data: any) => {
+      toast.success(data?.message || `Synchronized ${selectedYear} leave balances successfully`);
+      await invalidateLeaveBalances(queryClient);
     },
-    onError: (err: any) => toast.error(err?.message || err?.response?.data?.error || "Failed to synchronize balances"),
+    onError: (err: unknown) => {
+      toast.error(extractLeaveErrorMessage(err, "Failed to synchronize leave balances"));
+    },
   });
 
-  // 5. Manual Adjustment Mutation
+  // 4. Manual Credit / Debit Adjustment Mutation
   const adjustMutation = useMutation({
     mutationFn: async (payload: any) => {
-      const res = await api.post("/api/v1/hr/leave/balances/adjust", payload);
-      return res;
+      return await api.post("/api/v1/hr/leave/balances/adjust", {
+        ...payload,
+        year: selectedYear,
+      });
     },
-    onSuccess: () => {
-      toast.success("Leave balance adjusted and immutable ledger transaction recorded");
-      queryClient.invalidateQueries({ queryKey: ["hr-leave-balances"] });
-      queryClient.invalidateQueries({ queryKey: ["hr-employee-ledger"] });
+    onSuccess: async () => {
+      toast.success("Leave balance adjusted and immutable ledger entry recorded");
+      await invalidateLeaveBalances(queryClient);
       setAdjustModalOpen(false);
       setAdjustForm({ employeeId: "", leaveTypeId: "", entryType: "CREDIT", days: 1, notes: "" });
     },
-    onError: (err: any) => toast.error(err?.message || err?.response?.data?.error || "Failed to adjust balance"),
+    onError: (err: unknown) => {
+      toast.error(extractLeaveErrorMessage(err, "Failed to adjust leave balance"));
+    },
   });
+
+  const openAdjustForEmployee = (employeeId?: string, leaveTypeId?: string) => {
+    setAdjustForm({
+      employeeId: employeeId || allEmployees[0]?.id || "",
+      leaveTypeId: leaveTypeId || activeLeaveTypes[0]?.id || "",
+      entryType: "CREDIT",
+      days: 1,
+      notes: "",
+    });
+    setAdjustModalOpen(true);
+  };
 
   const handleAdjustSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adjustForm.employeeId || !adjustForm.leaveTypeId || !adjustForm.notes.trim()) {
-      toast.error("Please fill in all adjustment fields including mandatory notes");
+    if (!adjustForm.employeeId || !adjustForm.leaveTypeId) {
+      toast.error("Please select both an employee and a leave type");
       return;
     }
-    adjustMutation.mutate(adjustForm);
+    if (!adjustForm.days || Number(adjustForm.days) <= 0) {
+      toast.error("Adjustment days must be greater than 0");
+      return;
+    }
+    if (!adjustForm.notes.trim()) {
+      toast.error("Audit reason / note is mandatory for manual balance adjustments");
+      return;
+    }
+    adjustMutation.mutate({
+      employeeId: adjustForm.employeeId,
+      leaveTypeId: adjustForm.leaveTypeId,
+      entryType: adjustForm.entryType,
+      days: Number(adjustForm.days),
+      notes: adjustForm.notes.trim(),
+    });
   };
 
+  const isPositiveLedgerType = (entryType: string) =>
+    ["CREDIT", "ACCRUAL", "CARRY_FORWARD"].includes(String(entryType).toUpperCase());
+
   return (
-    <div className="space-y-4 pb-12">
-      {/* 1. Header with Title & Description (Reference Screenshot 2) */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 tracking-tight">Leave Balances</h1>
-        <p className="text-xs text-slate-500 mt-0.5">View and manage leave balances.</p>
+    <div className="space-y-4 pb-12 max-w-full overflow-x-hidden">
+      {/* 1. Header with Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Leave Balances</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            View employee leave quotas, synchronize annual entitlements, and record audited ledger adjustments.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg font-medium flex items-center gap-1.5"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-[#00a76f] ${syncMutation.isPending ? "animate-spin" : ""}`} />
+            {syncMutation.isPending ? "Syncing..." : `Sync ${selectedYear} Balances`}
+          </Button>
+
+          <Button
+            type="button"
+            onClick={() => openAdjustForEmployee()}
+            className="bg-[#00a76f] hover:bg-[#008f5d] text-white font-medium rounded-lg px-3.5 h-9 text-xs shadow-xs flex items-center gap-1.5 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Manual Adjustment
+          </Button>
+        </div>
       </div>
 
-      {/* 2. Notice Banner (Reference Screenshot 2) */}
+      {/* 2. Notice Banner */}
       {!bannerDismissed && (
-        <div className="bg-[#fff9e6] border border-[#fde68a] text-[#b45309] rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-[#b45309] shrink-0" />
+        <div className="bg-[#fff9e6] border border-[#fde68a] text-[#b45309] rounded-xl p-3.5 shadow-xs flex items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start sm:items-center gap-2">
+            <Info className="w-4 h-4 text-[#b45309] shrink-0 mt-0.5 sm:mt-0" />
             <span>
-              <span className="font-semibold">Note:</span> If you add a new Employee, Leave Type, or Leave Policy, you must click the{" "}
+              <span className="font-semibold">Note:</span> If you add a new Employee, Leave Type, or Leave Policy, click{" "}
               <button
+                type="button"
                 onClick={() => syncMutation.mutate()}
                 disabled={syncMutation.isPending}
                 className="font-bold underline hover:text-[#92400e] cursor-pointer"
               >
                 Sync Balances or Re-sync
               </button>{" "}
-              button to apply the changes for the current year.
+              to initialize missing {selectedYear} entitlements idempotently without duplicating existing balances.
             </span>
           </div>
           <button
+            type="button"
             onClick={() => setBannerDismissed(true)}
-            className="text-[#b45309]/70 hover:text-[#b45309] transition-colors p-1"
+            className="text-[#b45309]/70 hover:text-[#b45309] transition-colors p-1 shrink-0 cursor-pointer"
             title="Dismiss notice"
+            aria-label="Dismiss notice"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* 3. Filter Toolbar Card (Reference Screenshot 2) */}
-      <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+      {/* 3. Filter Toolbar Card */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-3 w-full lg:w-auto">
             {/* Search Input */}
-            <div className="relative w-full sm:w-60">
+            <div className="relative w-full lg:w-56">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search..."
+                placeholder="Search employee name or code..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 h-9 text-xs border-slate-200 rounded-lg bg-white"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-9 h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900"
               />
             </div>
 
             {/* Employee Dropdown */}
-            <Select value={selectedEmployeeFilter} onValueChange={setSelectedEmployeeFilter}>
-              <SelectTrigger className="w-full sm:w-48 h-9 text-xs border-slate-200 rounded-lg bg-white text-slate-700 font-medium">
+            <Select
+              value={selectedEmployeeFilter}
+              onValueChange={(val) => {
+                setSelectedEmployeeFilter(val);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full lg:w-52 h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-medium">
                 <SelectValue placeholder="All Employees" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60">
                 <SelectItem value="all">All Employees</SelectItem>
                 {allEmployees.map((emp: any) => (
                   <SelectItem key={emp.id} value={emp.id}>
@@ -213,16 +306,40 @@ export default function HrLeaveBalancesPage() {
               </SelectContent>
             </Select>
 
-            {/* Year Dropdown */}
+            {/* Leave Type Filter */}
+            <Select
+              value={selectedLeaveTypeFilter}
+              onValueChange={(val) => {
+                setSelectedLeaveTypeFilter(val);
+                setCurrentPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full lg:w-44 h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-medium">
+                <SelectValue placeholder="All Leave Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Leave Types</SelectItem>
+                {activeLeaveTypes.map((lt: any) => (
+                  <SelectItem key={lt.id} value={lt.id}>
+                    {lt.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Year Selector */}
             <Select
               value={String(selectedYear)}
-              onValueChange={(val) => setSelectedYear(parseInt(val, 10))}
+              onValueChange={(val) => {
+                setSelectedYear(parseInt(val, 10));
+                setCurrentPage(1);
+              }}
             >
-              <SelectTrigger className="w-32 h-9 text-xs border-slate-200 rounded-lg bg-white text-slate-700 font-medium">
+              <SelectTrigger className="w-full lg:w-28 h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-medium">
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
-                {[2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032].map((yr) => (
+                {yearOptions.map((yr) => (
                   <SelectItem key={yr} value={String(yr)}>
                     {yr}
                   </SelectItem>
@@ -231,158 +348,263 @@ export default function HrLeaveBalancesPage() {
             </Select>
           </div>
 
-          {/* Right: Filters Action Button */}
           <button
+            type="button"
             onClick={() => refetch()}
-            className="h-9 px-3.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 transition-colors self-end sm:self-auto"
+            className="h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            Filters
+            <Filter className={`w-3.5 h-3.5 text-slate-500 ${isFetching ? "animate-pulse" : ""}`} />
+            Refresh
           </button>
         </div>
 
-        {/* Row 2: Active Filter Badge */}
-        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs text-slate-700 font-medium">
-            Year: {selectedYear}
+        {/* Active Filter Badges */}
+        <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 font-medium">
+              Year: {selectedYear}
+            </span>
+            {selectedEmployeeFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeFilter("all")}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-medium cursor-pointer"
+              >
+                Filtered Employee <X className="w-3 h-3" />
+              </button>
+            )}
+            {selectedLeaveTypeFilter !== "all" && (
+              <button
+                type="button"
+                onClick={() => setSelectedLeaveTypeFilter("all")}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-medium cursor-pointer"
+              >
+                Filtered Leave Type <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+          <span className="text-xs text-slate-500">
+            {totalEmployees} {totalEmployees === 1 ? "employee" : "employees"}
           </span>
         </div>
       </div>
 
-      {/* 4. Employee Balance Cards Grid (Reference Screenshot 2) */}
+      {/* 4. Employee Balance Cards Grid */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-2">
           <RefreshCw className="w-6 h-6 animate-spin text-[#00a76f]" />
           <span className="text-xs font-medium">Loading employee leave balances...</span>
         </div>
       ) : employeesBalances.length === 0 ? (
-        <div className="bg-white border border-slate-200/80 rounded-xl p-12 text-center text-slate-400 shadow-xs">
-          <p className="font-semibold text-sm text-slate-700">No Employee Balances Found</p>
-          <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or click Sync Balances to initialize.</p>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-12 text-center text-slate-400 shadow-xs">
+          <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">No Employee Balances Found</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Try adjusting your filters or click "Sync {selectedYear} Balances" to initialize entitlements.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {employeesBalances.map((emp) => (
-            <div
-              key={emp.employeeId}
-              className="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden hover:shadow-md transition-shadow"
-            >
-              {/* Card Header: Avatar, Name, and Employee Code */}
-              <div className="p-4 flex items-center gap-3">
-                <Avatar className="w-10 h-10 rounded-full shrink-0 border border-slate-200">
-                  <AvatarImage src={emp.avatarUrl || ""} alt={emp.employeeName} />
-                  <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-xs">
-                    {emp.employeeName
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            {employeesBalances.map((emp) => (
+              <div
+                key={emp.employeeId}
+                className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-xs overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between"
+              >
+                <div>
+                  {/* Card Header: Employee Profile | Employee Name | Employee Code */}
+                  <div className="p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="w-10 h-10 rounded-full shrink-0 border border-slate-200 dark:border-slate-700">
+                        <AvatarImage src={emp.avatarUrl || ""} alt={emp.employeeName} />
+                        <AvatarFallback className="bg-emerald-50 text-emerald-700 font-bold text-xs">
+                          {String(emp.employeeName || "E")
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
 
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-sm text-slate-900 leading-tight truncate">
-                    {emp.employeeName}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5 uppercase">
-                    {emp.employeeCode}
-                  </p>
-                </div>
-              </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-sm text-slate-900 dark:text-slate-100 leading-tight truncate">
+                          {emp.employeeName}
+                        </h3>
+                        <p className="text-xs text-slate-400 font-mono mt-0.5 uppercase truncate">
+                          {emp.employeeCode}
+                          {emp.department ? ` • ${emp.department}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Leave Breakdown Table (Reference Screenshot 2) */}
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-white hover:bg-white border-t border-b border-slate-100">
-                      <TableHead className="py-2.5 px-3.5 text-xs font-medium text-slate-600 text-left h-auto">
-                        Leave Type
-                      </TableHead>
-                      <TableHead className="py-2.5 px-2 text-xs font-medium text-slate-600 text-center h-auto">
-                        Total
-                      </TableHead>
-                      <TableHead className="py-2.5 px-2 text-xs font-medium text-[#e02424] text-center h-auto">
-                        Used
-                      </TableHead>
-                      <TableHead className="py-2.5 px-2 text-xs font-medium text-[#00a76f] text-center h-auto">
-                        Available
-                      </TableHead>
-                      <TableHead className="py-2.5 px-2 w-7 h-auto" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {emp.balances && emp.balances.length > 0 ? (
-                      emp.balances.map((b: any) => {
-                        const total = Math.round(b.total || 0);
-                        const used = Math.round(b.used || 0);
-                        const available = Math.round(b.available || 0);
-
-                        return (
-                          <TableRow
-                            key={b.leaveTypeId}
-                            className="hover:bg-slate-50/60 transition-colors border-b border-slate-100/80"
-                          >
-                            <TableCell className="py-2 px-3.5 text-xs text-slate-700 font-normal">
-                              {b.leaveTypeName}
-                            </TableCell>
-                            <TableCell className="py-2 px-2 text-xs text-slate-700 text-center font-medium">
-                              {total}
-                            </TableCell>
-                            <TableCell className="py-2 px-2 text-xs text-center font-medium text-[#e02424]">
-                              {used}
-                            </TableCell>
-                            <TableCell className="py-2 px-2 text-xs text-center font-bold text-[#00a76f]">
-                              {available}
-                            </TableCell>
-                            <TableCell className="py-2 px-2 text-center">
-                              <button
-                                onClick={() => setLedgerModalEmployee(emp)}
-                                className="text-slate-300 hover:text-slate-600 transition-colors cursor-pointer"
-                                title="View Ledger Details"
-                              >
-                                <Info className="w-3.5 h-3.5" />
-                              </button>
+                  {/* Leave Breakdown Table: Leave Type | Total | Used | Available */}
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-white dark:bg-slate-900 hover:bg-white dark:hover:bg-slate-900 dark:bg-slate-900 border-t border-b border-slate-100 dark:border-slate-800">
+                          <TableHead className="py-2.5 px-3.5 text-xs font-medium text-slate-600 dark:text-slate-400 text-left h-auto">
+                            Leave Type
+                          </TableHead>
+                          <TableHead className="py-2.5 px-2 text-xs font-medium text-slate-600 dark:text-slate-400 text-center h-auto">
+                            Total
+                          </TableHead>
+                          <TableHead className="py-2.5 px-2 text-xs font-medium text-[#e02424] text-center h-auto">
+                            Used
+                          </TableHead>
+                          <TableHead className="py-2.5 px-2 text-xs font-medium text-[#00a76f] text-center h-auto">
+                            Available
+                          </TableHead>
+                          <TableHead className="py-2.5 px-2 w-7 h-auto" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emp.balances && emp.balances.length > 0 ? (
+                          emp.balances.map((b: any) => (
+                            <TableRow
+                              key={b.leaveTypeId}
+                              className="hover:bg-slate-50/60 dark:bg-slate-800/50 transition-colors border-b border-slate-100/80"
+                            >
+                              <TableCell className="py-2 px-3.5 text-xs text-slate-700 dark:text-slate-300 font-normal">
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: b.color || "#3b82f6" }}
+                                  />
+                                  <span className="truncate">{b.leaveTypeName}</span>
+                                </div>
+                                {Number(b.pending || 0) > 0 && (
+                                  <span className="text-[10px] text-amber-600 font-medium block pl-3.5">
+                                    {formatLeaveDays(b.pending)}d pending
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-2 px-2 text-xs text-slate-700 dark:text-slate-300 text-center font-medium">
+                                {formatLeaveDays(b.total)}
+                              </TableCell>
+                              <TableCell className="py-2 px-2 text-xs text-center font-medium text-[#e02424]">
+                                {formatLeaveDays(b.used)}
+                              </TableCell>
+                              <TableCell className="py-2 px-2 text-xs text-center font-bold text-[#00a76f]">
+                                {formatLeaveDays(b.available)}
+                              </TableCell>
+                              <TableCell className="py-2 px-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => openAdjustForEmployee(emp.employeeId, b.leaveTypeId)}
+                                  className="text-slate-400 hover:text-[#00a76f] transition-colors cursor-pointer p-1"
+                                  title={`Adjust ${b.leaveTypeName} balance`}
+                                  aria-label={`Adjust ${b.leaveTypeName} balance for ${emp.employeeName}`}
+                                >
+                                  <Scale className="w-3.5 h-3.5" />
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-5 text-center text-xs text-slate-400">
+                              No active leave types configured yet.
                             </TableCell>
                           </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-4 text-center text-xs text-slate-400">
-                          No balance records for this year.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                {/* Card Footer: Always accessible Ledger & Manual Adjustment actions */}
+                <div className="px-3.5 py-2.5 bg-slate-50/70 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setLedgerModalEmployee(emp)}
+                    className="h-8 px-2.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
+                  >
+                    <History className="w-3.5 h-3.5 mr-1.5 text-[#00a76f]" />
+                    View Ledger
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openAdjustForEmployee(emp.employeeId)}
+                    className="h-8 px-2.5 text-xs border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1 text-[#00a76f]" />
+                    Credit / Debit
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination Footer */}
+          {totalEmployees > pageSize && (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+              <div>
+                Showing {(currentPage - 1) * pageSize + 1} to{" "}
+                {Math.min(totalEmployees, currentPage * pageSize)} of {totalEmployees} employees
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="h-8 text-xs"
+                >
+                  Previous
+                </Button>
+                <span className="px-2.5 py-1 rounded bg-[#00a76f] text-white font-bold text-xs">
+                  {currentPage}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage * pageSize >= totalEmployees}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="h-8 text-xs"
+                >
+                  Next
+                </Button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      {/* Floating Action Sparkle Button */}
+      {/* Floating Action Button */}
       <div className="fixed bottom-6 right-6 z-30">
         <button
+          type="button"
           onClick={() => syncMutation.mutate()}
-          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
-          title="Synchronize Balances"
+          disabled={syncMutation.isPending}
+          className="w-12 h-12 rounded-full bg-[#00a76f] hover:bg-[#008f5d] text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+          title={`Synchronize ${selectedYear} Balances`}
+          aria-label={`Synchronize ${selectedYear} Balances`}
         >
           <Sparkles className="w-5 h-5 fill-current" />
         </button>
       </div>
 
-      {/* 5. TRANSACTION LEDGER DIALOG */}
-      <Dialog open={!!ledgerModalEmployee} onOpenChange={() => setLedgerModalEmployee(null)}>
-        <DialogContent className="sm:max-w-[620px]">
+      {/* 5. IMMUTABLE TRANSACTION LEDGER DIALOG */}
+      <Dialog
+        open={Boolean(ledgerModalEmployee)}
+        onOpenChange={(open) => !open && setLedgerModalEmployee(null)}
+      >
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
               <History className="w-4 h-4 text-[#00a76f]" />
-              Immutable Leave Ledger — {ledgerModalEmployee?.employeeName}
+              Immutable Leave Ledger — {ledgerModalEmployee?.employeeName} ({selectedYear})
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Complete historical transaction journal recording all accruals, usage debits, and adjustments.
+              Audited chronological journal of annual accruals, manual credits/debits, leave deductions, and reversals.
             </DialogDescription>
           </DialogHeader>
 
@@ -390,91 +612,109 @@ export default function HrLeaveBalancesPage() {
             {isLoadingLedger ? (
               <div className="py-12 text-center text-xs text-slate-400">Loading ledger journal...</div>
             ) : ledgerEntries.length === 0 ? (
-              <div className="py-10 text-center text-xs text-slate-400">No ledger transactions found.</div>
+              <div className="py-10 text-center text-xs text-slate-400 border rounded-lg bg-slate-50/50 dark:bg-slate-800/40">
+                No ledger transactions recorded for {selectedYear} yet. Click "Sync {selectedYear} Balances" or record a manual adjustment.
+              </div>
             ) : (
-              <div className="max-h-72 overflow-y-auto border rounded-lg">
+              <div className="max-h-80 overflow-x-auto overflow-y-auto border rounded-lg">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-slate-50 text-[11px]">
-                      <TableHead className="py-2 px-3">Date</TableHead>
-                      <TableHead className="py-2 px-3">Type</TableHead>
-                      <TableHead className="py-2 px-3">Leave Type</TableHead>
-                      <TableHead className="py-2 px-3 text-right">Days</TableHead>
+                    <TableRow className="bg-slate-50 dark:bg-slate-800/60 text-[11px]">
+                      <TableHead className="py-2 px-3 whitespace-nowrap">Effective Date</TableHead>
+                      <TableHead className="py-2 px-3 whitespace-nowrap">Operation</TableHead>
+                      <TableHead className="py-2 px-3 whitespace-nowrap">Leave Type</TableHead>
+                      <TableHead className="py-2 px-3 text-right whitespace-nowrap">Days</TableHead>
+                      <TableHead className="py-2 px-3 text-right whitespace-nowrap">Balance</TableHead>
+                      <TableHead className="py-2 px-3 whitespace-nowrap">Actor</TableHead>
                       <TableHead className="py-2 px-3">Reason / Reference</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ledgerEntries.map((entry: any) => (
-                      <TableRow key={entry.id} className="text-xs border-b">
-                        <TableCell className="py-2 px-3 text-slate-500 font-mono text-[11px]">
-                          {entry.createdAt?.slice(0, 10)}
-                        </TableCell>
-                        <TableCell className="py-2 px-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              entry.entryType === "CREDIT"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-rose-50 text-rose-700 border border-rose-200"
+                    {ledgerEntries.map((entry: any) => {
+                      const positive = isPositiveLedgerType(entry.entryType);
+                      return (
+                        <TableRow key={entry.id} className="text-xs border-b">
+                          <TableCell className="py-2 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                            {String(entry.effectiveAt || entry.createdAt || "").slice(0, 10)}
+                          </TableCell>
+                          <TableCell className="py-2 px-3 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                positive
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}
+                            >
+                              {entry.entryType}
+                            </span>
+                          </TableCell>
+                          <TableCell className="py-2 px-3 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                            {entry.leaveType?.name || "Leave"}
+                          </TableCell>
+                          <TableCell
+                            className={`py-2 px-3 text-right font-bold whitespace-nowrap ${
+                              positive ? "text-emerald-600" : "text-rose-600"
                             }`}
                           >
-                            {entry.entryType}
-                          </span>
-                        </TableCell>
-                        <TableCell className="py-2 px-3 font-medium text-slate-800">
-                          {entry.leaveType?.name || "Standard Leave"}
-                        </TableCell>
-                        <TableCell
-                          className={`py-2 px-3 text-right font-bold ${
-                            entry.entryType === "CREDIT" ? "text-emerald-600" : "text-rose-600"
-                          }`}
-                        >
-                          {entry.entryType === "CREDIT" ? `+${entry.days}` : `-${entry.days}`}
-                        </TableCell>
-                        <TableCell className="py-2 px-3 text-slate-600 truncate max-w-[180px]">
-                          {entry.reason || entry.referenceId || "System adjustment"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                            {positive ? `+${formatLeaveDays(entry.days)}` : `-${formatLeaveDays(entry.days)}`}
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-right font-mono font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                            {formatLeaveDays(entry.balance)}
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-[11px] text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            {entry.actorName || "HR / System"}
+                          </TableCell>
+                          <TableCell
+                            className="py-2 px-3 text-slate-600 dark:text-slate-400 max-w-[200px] truncate"
+                            title={entry.reason || entry.notes || ""}
+                          >
+                            {entry.reason || entry.notes || "System transaction"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
             )}
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="gap-2 pt-2">
             <Button
               type="button"
               size="sm"
               className="bg-[#00a76f] hover:bg-[#008f5d] text-white"
               onClick={() => {
-                setAdjustForm((prev) => ({
-                  ...prev,
-                  employeeId: ledgerModalEmployee?.employeeId || "",
-                }));
+                const empId = ledgerModalEmployee?.employeeId || "";
                 setLedgerModalEmployee(null);
-                setAdjustModalOpen(true);
+                openAdjustForEmployee(empId);
               }}
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               Manual Adjustment
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setLedgerModalEmployee(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setLedgerModalEmployee(null)}
+            >
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* 6. MANUAL ADJUSTMENT DIALOG */}
+      {/* 6. MANUAL CREDIT / DEBIT ADJUSTMENT DIALOG */}
       <Dialog open={adjustModalOpen} onOpenChange={setAdjustModalOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle className="text-base font-semibold flex items-center gap-2">
               <Plus className="w-4 h-4 text-[#00a76f]" />
-              Manual Balance Adjustment
+              Manual Balance Adjustment ({selectedYear})
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Record a compliant audit ledger credit or debit adjustment.
+              Record an audited CREDIT or DEBIT ledger entry. Negative resulting balances are blocked automatically.
             </DialogDescription>
           </DialogHeader>
 
@@ -484,12 +724,11 @@ export default function HrLeaveBalancesPage() {
               <Select
                 value={adjustForm.employeeId}
                 onValueChange={(val) => setAdjustForm({ ...adjustForm, employeeId: val })}
-                required
               >
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select employee" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {allEmployees.map((emp: any) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.firstName} {emp.lastName} ({emp.employeeCode})
@@ -504,7 +743,6 @@ export default function HrLeaveBalancesPage() {
               <Select
                 value={adjustForm.leaveTypeId}
                 onValueChange={(val) => setAdjustForm({ ...adjustForm, leaveTypeId: val })}
-                required
               >
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Select leave category" />
@@ -512,26 +750,28 @@ export default function HrLeaveBalancesPage() {
                 <SelectContent>
                   {activeLeaveTypes.map((lt: any) => (
                     <SelectItem key={lt.id} value={lt.id}>
-                      {lt.name}
+                      {lt.name} ({formatLeaveDays(lt.daysPerYear)}d/yr)
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Adjustment Type *</Label>
+                <Label className="text-xs font-semibold">Adjustment Operation *</Label>
                 <Select
                   value={adjustForm.entryType}
-                  onValueChange={(val) => setAdjustForm({ ...adjustForm, entryType: val })}
+                  onValueChange={(val: "CREDIT" | "DEBIT") =>
+                    setAdjustForm({ ...adjustForm, entryType: val })
+                  }
                 >
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="CREDIT">Credit (Add days)</SelectItem>
-                    <SelectItem value="DEBIT">Debit (Deduct days)</SelectItem>
+                    <SelectItem value="CREDIT">Credit (+ Add days)</SelectItem>
+                    <SelectItem value="DEBIT">Debit (- Deduct days)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -541,9 +781,13 @@ export default function HrLeaveBalancesPage() {
                 <Input
                   type="number"
                   min={0.5}
+                  max={365}
                   step={0.5}
                   value={adjustForm.days}
-                  onChange={(e) => setAdjustForm({ ...adjustForm, days: parseFloat(e.target.value) || 1 })}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setAdjustForm({ ...adjustForm, days: Number.isNaN(val) ? 0.5 : val });
+                  }}
                   className="h-9 text-xs"
                   required
                 />
@@ -551,10 +795,10 @@ export default function HrLeaveBalancesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Reason / Audit Note *</Label>
+              <Label className="text-xs font-semibold">Mandatory Reason / Audit Note *</Label>
               <Textarea
                 rows={2}
-                placeholder="Reason for manual adjustment..."
+                placeholder="State the business reason for this manual balance adjustment..."
                 value={adjustForm.notes}
                 onChange={(e) => setAdjustForm({ ...adjustForm, notes: e.target.value })}
                 className="text-xs"
@@ -563,7 +807,12 @@ export default function HrLeaveBalancesPage() {
             </div>
 
             <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setAdjustModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAdjustModalOpen(false)}
+              >
                 Cancel
               </Button>
               <Button

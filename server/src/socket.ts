@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Server as HttpServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { prisma, rawPrisma } from "./prisma";
@@ -10,9 +11,79 @@ import { PusherService } from "./services/pusher.service";
 import { IncomingCallPushService } from "./services/incoming-call-push.service";
 import { CallLifecycleService } from "./services/call-lifecycle.service";
 import { MeetingSfuService } from "./services/meeting-sfu.service";
+import { ChatService } from "./services/chat.service";
 
 let ioInstance: SocketIOServer | null = null;
 const tenantPresence = new Map<string, Map<string, number>>();
+const SOCKET_INSTANCE_ID = `node_${crypto.randomUUID().slice(0, 12)}`;
+const sessionStatusCache = new Map<string, { valid: boolean; expiresAt: number }>();
+const distributedPresenceCache = new Map<string, { userIds: string[]; expiresAt: number }>();
+let callSweeperInterval: NodeJS.Timeout | null = null;
+
+const ALLOWED_RECORD_ENTITY_MAP: Record<string, { model: string; ownerField?: string }> = {
+  LeaveRequest: { model: "leaveRequest" },
+  AttendanceRecord: { model: "attendanceRecord" },
+  ExpenseClaim: { model: "expenseClaim" },
+  HelpdeskTicket: { model: "helpdeskTicket" },
+  Project: { model: "project" },
+  ProjectTask: { model: "projectTask" },
+  CrmLead: { model: "crmLead" },
+  CrmDeal: { model: "crmDeal" },
+  Employee: { model: "employee", ownerField: "userId" },
+};
+
+async function verifyActiveDeviceSession(sessionId: string | undefined, expectedUserId: string): Promise<boolean> {
+  if (!sessionId) return true;
+  const cached = sessionStatusCache.get(sessionId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.valid;
+  }
+  const db = rawPrisma || prisma;
+  if (!(db as any).deviceSession?.findUnique) return true;
+  const session = await db.deviceSession
+    .findUnique({
+      where: { id: sessionId },
+      select: { userId: true, revoked: true, expiresAt: true },
+    })
+    .catch(() => null);
+
+  const isValid = Boolean(
+    session &&
+      !session.revoked &&
+      session.userId === expectedUserId &&
+      (!session.expiresAt || new Date(session.expiresAt).getTime() > Date.now())
+  );
+  sessionStatusCache.set(sessionId, { valid: isValid, expiresAt: Date.now() + 5000 });
+  return isValid;
+}
+
+async function syncDistributedPresence(tenantId: string, userId: string, localCount: number): Promise<void> {
+  try {
+    const db: any = rawPrisma || prisma;
+    if (!db.chatUserPresence?.upsert) return;
+    const now = new Date();
+    await db.chatUserPresence.upsert({
+      where: { tenantId_userId: { tenantId, userId } },
+      create: {
+        tenantId,
+        userId,
+        status: localCount > 0 ? "online" : "offline",
+        activeConnections: Math.max(0, localCount),
+        instanceId: SOCKET_INSTANCE_ID,
+        lastSeenAt: now,
+      },
+      update: {
+        status: localCount > 0 ? "online" : "offline",
+        activeConnections: Math.max(0, localCount),
+        instanceId: SOCKET_INSTANCE_ID,
+        lastSeenAt: now,
+      },
+    });
+    distributedPresenceCache.delete(tenantId);
+  } catch {
+    // Non-fatal in unit test environments
+  }
+}
 
 export interface ActiveCallSession {
   callId: string;
@@ -76,13 +147,55 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
     },
   });
 
+  if (process.env.REDIS_URL && ioInstance) {
+    void (async () => {
+      try {
+        const redisAdapterPkgName = "@socket.io/redis-adapter";
+        const redisPkgName = "redis";
+        const [{ createAdapter }, { createClient }] = await Promise.all([
+          import(redisAdapterPkgName),
+          import(redisPkgName),
+        ]);
+        const pubClient = createClient({ url: process.env.REDIS_URL });
+        const subClient = pubClient.duplicate();
+        await Promise.all([pubClient.connect(), subClient.connect()]);
+        ioInstance?.adapter(createAdapter(pubClient, subClient));
+        console.log("⚡ [WebSocket] Attached Socket.IO Redis distributed adapter.");
+      } catch (err: any) {
+        console.warn("⚡ [WebSocket] REDIS_URL set but Redis adapter unavailable; falling back to PostgreSQL presence:", err?.message);
+      }
+    })();
+  }
+
+  if (!callSweeperInterval) {
+    callSweeperInterval = setInterval(() => {
+      void CallLifecycleService.recoverExpiredCalls()
+        .then((res) => {
+          if (res.expiredRinging > 0 || res.expiredReconnecting > 0) {
+            console.log(`[CallSweeper] Recovered ${res.expiredRinging} timed-out & ${res.expiredReconnecting} grace-expired calls.`);
+          }
+        })
+        .catch(() => {});
+    }, 15_000);
+    callSweeperInterval.unref();
+  }
+
   ioInstance.use(async (socket, next) => {
     try {
       const identity = verifyToken(socket.handshake.auth?.token || "");
       if ((identity as any).mfaPending) throw new Error("Complete two-factor verification");
-      const user = await prisma.user.findUnique({ where: { id: identity.userId }, include: { profile: true, roles: true } });
+      const userId = identity.userId || (identity as any).id;
+      if (!userId) throw new Error("Invalid token identity");
+
+      if ((identity as any).sessionId) {
+        const sessionOk = await verifyActiveDeviceSession(String((identity as any).sessionId), userId);
+        if (!sessionOk) throw new Error("Session revoked or expired");
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
       if (!user) throw new Error("Account not found");
-      const isSuper = user.roles.some((role) => role.role === "super_admin");
+      const roleNames = Array.isArray(user.roles) ? user.roles.map((role: any) => role.role) : [];
+      const isSuper = roleNames.includes("super_admin");
       const tenantId = isSuper ? (identity.tenantId || null) : (user.profile?.tenantId || null);
       if (!isSuper && !tenantId) throw new Error("Workspace context required");
       let policy: any = null;
@@ -92,7 +205,17 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       }
       const tokenExpiry = Number((identity as any).exp) * 1000;
       const expiry = !isSuper && policy?.expiresAt ? Math.min(tokenExpiry, new Date(policy.expiresAt).getTime()) : tokenExpiry;
-      socket.data = { tenantId, userId: user.id, name: user.profile?.fullName || user.email, avatar: user.profile?.avatarUrl, isSuper, expiry };
+      socket.data = {
+        tenantId,
+        userId: user.id,
+        email: user.email,
+        name: user.profile?.fullName || user.email,
+        avatar: user.profile?.avatarUrl,
+        roles: roleNames,
+        sessionId: (identity as any).sessionId || null,
+        isSuper,
+        expiry,
+      };
       next();
     } catch { next(new Error("Workspace authentication required")); }
   });
@@ -112,18 +235,33 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         }
         const tenantMap = tenantPresence.get(tId)!;
         const prev = tenantMap.get(uId) || 0;
-        tenantMap.set(uId, prev + 1);
+        const nextCount = prev + 1;
+        tenantMap.set(uId, nextCount);
+        void syncDistributedPresence(tId, uId, nextCount);
         if (prev === 0) {
           ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "online" });
         }
       }
     }
     socket.join(`user:${socket.data.userId}`);
+
+    const presenceHeartbeat = setInterval(() => {
+      if (socket.data.tenantId && socket.data.userId) {
+        const currentCount = tenantPresence.get(socket.data.tenantId)?.get(socket.data.userId) || 1;
+        void syncDistributedPresence(socket.data.tenantId, socket.data.userId, currentCount);
+      }
+    }, 45_000);
+    presenceHeartbeat.unref();
+
     const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.data.expiry - Date.now(), 2147483647)));
     expiryTimer.unref();
     socket.use(async (_packet, next) => {
       try {
         verifyToken(socket.handshake.auth?.token || "");
+        if (socket.data.sessionId) {
+          const sessionOk = await verifyActiveDeviceSession(socket.data.sessionId, socket.data.userId);
+          if (!sessionOk) throw new Error("Session revoked");
+        }
         if (socket.data.tenantId && !socket.data.isSuper) {
           assertWorkspaceActive(await getWorkspacePolicy(socket.data.tenantId));
         }
@@ -131,114 +269,262 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       } catch { socket.disconnect(true); next(new Error("Workspace access expired")); }
     });
 
-    // Join tenant room for isolated multi-tenant broadcasting
     socket.on("join-tenant", (tenantId: string) => {
-      if (tenantId === socket.data.tenantId) {
+      if (tenantId && tenantId === socket.data.tenantId) {
         socket.join(`tenant:${tenantId}`);
-        console.log(`⚡ [WebSocket] Socket ${socket.id} joined room tenant:${tenantId}`);
+      } else {
+        socket.emit("chat:error", { code: "TENANT_FORBIDDEN", error: "Cannot join foreign workspace room." });
       }
     });
 
-    // Subscribe to specific entity record rooms
-    socket.on("subscribe:record", (payload: { entityType: string; entityId: string }) => {
-      if (payload?.entityType && payload?.entityId) {
-        socket.join(`record:${payload.entityType}:${payload.entityId}`);
+    socket.on(
+      "subscribe:record",
+      async (
+        payload: { entityType: string; entityId: string },
+        acknowledge?: (res: { ok: boolean; room?: string; code?: string; error?: string }) => void
+      ) => {
+        const tenantId = socket.data.tenantId;
+        const userId = socket.data.userId;
+        const entityType = typeof payload?.entityType === "string" ? payload.entityType.trim() : "";
+        const entityId = typeof payload?.entityId === "string" ? payload.entityId.trim() : "";
+
+        if (!tenantId || !userId || !entityType || !entityId || entityId.length > 64 || /[^a-zA-Z0-9_-]/.test(entityId)) {
+          const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Invalid record subscription parameters." };
+          socket.emit("record:error", errPayload);
+          acknowledge?.(errPayload);
+          return;
+        }
+
+        const allowCfg = ALLOWED_RECORD_ENTITY_MAP[entityType];
+        if (!allowCfg) {
+          const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: `Entity type '${entityType}' is not permitted for live record subscription.` };
+          socket.emit("record:error", errPayload);
+          acknowledge?.(errPayload);
+          return;
+        }
+
+        try {
+          const db: any = rawPrisma || prisma;
+          const delegate = db[allowCfg.model];
+          const record = delegate?.findFirst
+            ? await delegate.findFirst({ where: { id: entityId, tenantId } })
+            : null;
+
+          if (!record) {
+            const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Record not found in your workspace." };
+            socket.emit("record:error", errPayload);
+            acknowledge?.(errPayload);
+            return;
+          }
+
+          const isAdminOrHr = (socket.data.roles || []).some((r: string) =>
+            ["super_admin", "tenant_admin", "hr_admin", "manager"].includes(r)
+          );
+          if (!isAdminOrHr && allowCfg.ownerField && record[allowCfg.ownerField] && record[allowCfg.ownerField] !== userId) {
+            const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Insufficient permissions for this record." };
+            socket.emit("record:error", errPayload);
+            acknowledge?.(errPayload);
+            return;
+          }
+
+          const qualifiedRoom = `tenant:${tenantId}:record:${entityType}:${entityId}`;
+          socket.join(qualifiedRoom);
+          acknowledge?.({ ok: true, room: qualifiedRoom });
+        } catch {
+          const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Failed to authorize record subscription." };
+          socket.emit("record:error", errPayload);
+          acknowledge?.(errPayload);
+        }
       }
-    });
+    );
 
     socket.on("unsubscribe:record", (payload: { entityType: string; entityId: string }) => {
-      if (payload?.entityType && payload?.entityId) {
-        socket.leave(`record:${payload.entityType}:${payload.entityId}`);
+      const tenantId = socket.data.tenantId;
+      if (tenantId && payload?.entityType && payload?.entityId) {
+        socket.leave(`tenant:${tenantId}:record:${payload.entityType}:${payload.entityId}`);
       }
     });
 
-
-    // Handle real-time chat direct messages with DB persistence
-    socket.on("chat:send", async (payload: { tenantId?: string; threadId: string; message: any }) => {
-      try {
+    socket.on(
+      "chat:join",
+      async (
+        payload: { threadId: string },
+        acknowledge?: (res: { ok: boolean; room?: string; code?: string; error?: string }) => void
+      ) => {
         const tenantId = socket.data.tenantId;
-        const msg = payload.message || {};
-        const saved = await prisma.chatMessage.create({
-          data: {
+        const userId = socket.data.userId;
+        const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+
+        if (!tenantId || !userId || !threadId) {
+          const err = { ok: false, code: "CHAT_UNAUTHORIZED", error: "Valid threadId and workspace session required." };
+          socket.emit("chat:error", err);
+          acknowledge?.(err);
+          return;
+        }
+
+        const authCheck = await ChatService.authorizeThread({
+          threadId,
+          tenantId,
+          userId,
+          roles: socket.data.roles || [],
+          allowAdminModeration: false,
+        });
+
+        if (!authCheck.authorized) {
+          const err = {
+            ok: false,
+            code: authCheck.code || "CHAT_UNAUTHORIZED",
+            error: authCheck.reason || "Access denied to conversation room.",
+          };
+          socket.emit("chat:error", { ...err, threadId });
+          acknowledge?.(err);
+          return;
+        }
+
+        const room = ChatService.getThreadRoomName(tenantId, threadId);
+        socket.join(room);
+        acknowledge?.({ ok: true, room });
+      }
+    );
+
+    socket.on("chat:leave", (payload: { threadId: string }) => {
+      const tenantId = socket.data.tenantId;
+      const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+      if (tenantId && threadId) {
+        socket.leave(ChatService.getThreadRoomName(tenantId, threadId));
+      }
+    });
+
+    socket.on(
+      "chat:send",
+      async (
+        payload: { tenantId?: string; threadId: string; message?: any; content?: string; clientTempId?: string },
+        acknowledge?: (res: { ok: boolean; message?: any; deduplicated?: boolean; code?: string; error?: string }) => void
+      ) => {
+        const tenantId = socket.data.tenantId;
+        const userId = socket.data.userId;
+        const msgInput = payload?.message || payload || {};
+        const clientTempId = msgInput.clientTempId || payload?.clientTempId || null;
+
+        try {
+          if (!tenantId || !userId) {
+            throw new Error("Workspace context required");
+          }
+
+          const result = await ChatService.sendMessage({
             tenantId,
-            threadId: payload.threadId || "general",
-            senderId: socket.data.userId,
-            senderName: socket.data.name,
-            senderAvatar: socket.data.avatar || null,
-            content: msg.content || msg.text || "",
-            attachments: msg.attachments || null,
-            replyToId: msg.replyToId || null,
-            replyTo: msg.replyTo || null,
-            voiceNote: msg.voiceNote || null,
-            poll: msg.poll || null,
-            urlPreviews: msg.urlPreviews || null,
-          },
-        });
+            userId,
+            roles: socket.data.roles || [],
+            senderNameHint: socket.data.name,
+            senderAvatarHint: socket.data.avatar,
+            senderEmailHint: socket.data.email,
+            threadId: payload?.threadId || msgInput.threadId,
+            content: msgInput.content ?? msgInput.text ?? "",
+            attachments: msgInput.attachments,
+            replyToId: msgInput.replyToId,
+            replyTo: msgInput.replyTo,
+            voiceNote: msgInput.voiceNote,
+            poll: msgInput.poll,
+            urlPreviews: msgInput.urlPreviews,
+            clientTempId,
+            mentions: msgInput.mentions,
+          });
 
-        ioInstance?.to(`tenant:${tenantId}`).emit("chat:message", {
-          threadId: payload.threadId,
-          message: saved,
-        });
-      } catch (err: any) {
-        console.error("Socket chat:send DB error:", err.message);
-        socket.emit("chat:error", { error: "Message could not be saved" });
+          const okPayload = {
+            ok: true,
+            clientTempId,
+            message: result.message,
+            deduplicated: result.deduplicated,
+          };
+          socket.emit("chat:send:ack", okPayload);
+          acknowledge?.(okPayload);
+        } catch (err: any) {
+          const code = err?.code || "CHAT_SEND_FAILED";
+          const errorMsg = err?.message || "Message could not be saved";
+          socket.emit("chat:error", { code, error: errorMsg, clientTempId, threadId: payload?.threadId });
+          acknowledge?.({ ok: false, code, error: errorMsg });
+        }
       }
-    });
+    );
 
-    // Handle real-time chat typing indicator
-    socket.on("chat:typing", (payload: { threadId: string; isTyping: boolean }) => {
-      if (!socket.data.tenantId || !payload?.threadId) return;
-      socket.to(`tenant:${socket.data.tenantId}`).emit("chat:typing", {
-        threadId: payload.threadId,
-        userId: socket.data.userId,
-        name: socket.data.name,
-        isTyping: !!payload.isTyping,
+    socket.on("chat:typing", async (payload: { threadId: string; isTyping: boolean }) => {
+      const tenantId = socket.data.tenantId;
+      const userId = socket.data.userId;
+      const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+      if (!tenantId || !userId || !threadId) return;
+
+      const authCheck = await ChatService.authorizeThread({
+        threadId,
+        tenantId,
+        userId,
+        roles: socket.data.roles || [],
+        allowAdminModeration: false,
       });
-      void PusherService.triggerTenantEvent(socket.data.tenantId, "chat:typing", {
-        threadId: payload.threadId,
-        userId: socket.data.userId,
-        name: socket.data.name,
-        isTyping: !!payload.isTyping,
-      }).catch(() => {});
+      if (!authCheck.authorized) {
+        socket.emit("chat:error", { code: "CHAT_UNAUTHORIZED", threadId, error: "Unauthorized typing event." });
+        return;
+      }
+
+      await ChatService.emitToAuthorizedThread({
+        tenantId,
+        threadId,
+        event: "chat:typing",
+        payload: {
+          threadId,
+          userId,
+          name: socket.data.name,
+          isTyping: Boolean(payload.isTyping),
+        },
+        participantUserIds: authCheck.participantUserIds,
+        excludeUserId: userId,
+      });
     });
 
-    // Handle real-time chat read receipt
     socket.on("chat:read", async (payload: { threadId: string }) => {
-      if (!socket.data.tenantId || !payload?.threadId) return;
-      const tId = socket.data.tenantId;
-      const uId = socket.data.userId;
+      const tenantId = socket.data.tenantId;
+      const userId = socket.data.userId;
+      const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+      if (!tenantId || !userId || !threadId) return;
+
       try {
-        await prisma.chatReadReceipt.upsert({
-          where: { tenantId_threadId_userId: { tenantId: tId, threadId: payload.threadId, userId: uId } },
-          create: { tenantId: tId, threadId: payload.threadId, userId: uId, lastReadAt: new Date() },
-          update: { lastReadAt: new Date() },
-        });
-        ioInstance?.to(`tenant:${tId}`).emit("chat:read", {
-          threadId: payload.threadId,
-          userId: uId,
-          readAt: new Date().toISOString(),
+        await ChatService.markThreadRead({
+          tenantId,
+          userId,
+          roles: socket.data.roles || [],
+          threadId,
         });
       } catch (err: any) {
-        console.warn("Socket chat:read error:", err.message);
+        socket.emit("chat:error", {
+          code: err?.code || "CHAT_UNAUTHORIZED",
+          threadId,
+          error: err?.message || "Failed to update read receipt.",
+        });
       }
     });
 
-    // Handle real-time message delivery acknowledgment
     socket.on("chat:delivered", async (payload: { messageIds: string[]; threadId: string }) => {
-      if (!socket.data.tenantId || !payload?.messageIds?.length) return;
-      const tId = socket.data.tenantId;
-      const uId = socket.data.userId;
-      ioInstance?.to(`tenant:${tId}`).emit("chat:delivered", {
-        messageIds: payload.messageIds,
-        threadId: payload.threadId,
-        userId: uId,
-        deliveredAt: new Date().toISOString(),
-      });
-      // Asynchronously persist delivery status in DB without blocking event loop
-      (rawPrisma || prisma).chatMessage.updateMany({
-        where: { id: { in: payload.messageIds }, tenantId: tId, senderId: { not: uId } },
-        data: { deliveryStatus: "delivered" },
-      }).catch(() => {});
+      const tenantId = socket.data.tenantId;
+      const userId = socket.data.userId;
+      const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+      if (!tenantId || !userId || !threadId || !Array.isArray(payload?.messageIds) || payload.messageIds.length === 0) {
+        return;
+      }
+
+      try {
+        await ChatService.acknowledgeDelivered({
+          tenantId,
+          userId,
+          roles: socket.data.roles || [],
+          threadId,
+          messageIds: payload.messageIds,
+        });
+      } catch (err: any) {
+        socket.emit("chat:error", {
+          code: err?.code || "CHAT_UNAUTHORIZED",
+          threadId,
+          error: err?.message || "Failed to acknowledge delivery.",
+        });
+      }
     });
 
     // =========================================================================
@@ -275,6 +561,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
             db: rawPrisma,
           },
           async () => {
+            const finalStatus = isTimeout ? "missed" : "cancelled";
             if (callId) {
               const existing = await prisma.callHistoryRecord.findFirst({
                 where: { tenantId, callSessionId: callId },
@@ -283,7 +570,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
                 await prisma.callHistoryRecord.update({
                   where: { id: existing.id },
                   data: {
-                    status: "missed",
+                    status: finalStatus,
                     endedAt: new Date(),
                     notes: isTimeout
                       ? "Call timed out after 60 seconds with no answer."
@@ -307,15 +594,16 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
                 receiverAvatarUrl: session?.targetAvatar || null,
                 direction: "outgoing",
                 callType,
-                status: "missed",
+                status: finalStatus,
                 durationSeconds: 0,
                 callTime: new Date(),
                 startedAt: session?.startedAt || new Date(),
                 endedAt: new Date(),
+                threadId,
                 notes: isTimeout
                   ? "Call timed out after 60 seconds with no answer."
                   : "Caller cancelled before answer.",
-              },
+              } as any,
             });
 
             // Send In-App Notification to recipient (missed call)
@@ -930,13 +1218,18 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         session.callerId === socket.data.userId
           ? session.targetUserId
           : session.callerId;
-      if (targetUserId !== expectedPeerId) {
+      let resolvedTargetId = targetUserId;
+      if (resolvedTargetId !== expectedPeerId) {
+        const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
+        if (resolved?.userId) resolvedTargetId = resolved.userId;
+      }
+      if (resolvedTargetId !== expectedPeerId) {
         emitCallForbidden(socket);
         return;
       }
 
-      // Legal transition: caller only, only while ringing, target must be receiver
-      if (session.callerId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.targetUserId) {
+      // Legal transition: caller while ringing, or connected call ended while client UI was still transitioning
+      if (session.callerId !== socket.data.userId || (session.status !== "ringing" && session.status !== "connected") || resolvedTargetId !== session.targetUserId) {
         emitCallForbidden(socket);
         return;
       }
@@ -1106,13 +1399,18 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         session.callerId === socket.data.userId
           ? session.targetUserId
           : session.callerId;
-      if (targetUserId !== expectedPeerId) {
+      let resolvedTargetId = targetUserId;
+      if (resolvedTargetId !== expectedPeerId) {
+        const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
+        if (resolved?.userId) resolvedTargetId = resolved.userId;
+      }
+      if (resolvedTargetId !== expectedPeerId) {
         emitCallForbidden(socket);
         return;
       }
 
-      // Legal lifecycle transition: caller or receiver only, only when call is connected
-      if (session.status !== "connected") {
+      // Legal lifecycle transition: caller or receiver when connected or transitioning
+      if (session.status !== "connected" && session.status !== "ringing") {
         emitCallForbidden(socket);
         return;
       }
@@ -1657,8 +1955,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         },
       });
 
-      const senderIsMember = members.some((m) => m.userId === socket.data.userId);
-      const targetIsMember = members.some((m) => m.userId === payload.targetUserId);
+      const senderIsMember =
+        members.some((m) => m.userId === socket.data.userId) ||
+        session.invitedUserIds.has(socket.data.userId) ||
+        session.participants.has(socket.data.userId);
+      const targetIsMember =
+        members.some((m) => m.userId === payload.targetUserId) ||
+        session.invitedUserIds.has(payload.targetUserId) ||
+        session.participants.has(payload.targetUserId);
 
       if (!senderIsMember || !targetIsMember) {
         emitCallForbidden(socket);
@@ -1865,11 +2169,11 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         return;
       }
 
-      // Validate group membership
+      // Validate group membership or explicit meeting invitation
       const member = await (rawPrisma || prisma).chatGroupMember.findFirst({
         where: { groupId: session.groupId, userId: socket.data.userId },
       });
-      if (!member) {
+      if (!member && !session.invitedUserIds.has(socket.data.userId) && !session.participants.has(socket.data.userId)) {
         emitCallForbidden(socket);
         return;
       }
@@ -2018,10 +2322,10 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
 
     socket.on("disconnect", () => {
       clearTimeout(expiryTimer);
+      clearInterval(presenceHeartbeat);
       const tId = socket.data.tenantId;
       const uId = socket.data.userId;
       if (tId && uId) {
-        // Step 1: Decrement user socket count first using existing presence map
         let remainingSocketCount = 0;
         if (tenantPresence.has(tId)) {
           const tenantMap = tenantPresence.get(tId)!;
@@ -2029,10 +2333,12 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
           if (currentCount <= 1) {
             tenantMap.delete(uId);
             remainingSocketCount = 0;
+            void syncDistributedPresence(tId, uId, 0);
             ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "offline" });
           } else {
             remainingSocketCount = currentCount - 1;
             tenantMap.set(uId, remainingSocketCount);
+            void syncDistributedPresence(tId, uId, remainingSocketCount);
           }
         }
 
@@ -2158,13 +2464,47 @@ export function getIO(): SocketIOServer | null {
 }
 
 export function getOnlineUsersForTenant(tenantId: string): string[] {
+  const localSet = new Set<string>();
   const users = tenantPresence.get(tenantId);
-  if (!users) return [];
-  const online: string[] = [];
-  for (const [userId, count] of users.entries()) {
-    if (count > 0) online.push(userId);
+  if (users) {
+    for (const [userId, count] of users.entries()) {
+      if (count > 0) localSet.add(userId);
+    }
   }
-  return online;
+  const cached = distributedPresenceCache.get(tenantId);
+  if (cached && cached.expiresAt > Date.now()) {
+    for (const uid of cached.userIds) localSet.add(uid);
+  }
+  return Array.from(localSet);
+}
+
+export async function getOnlineUsersForTenantAsync(tenantId: string): Promise<string[]> {
+  const onlineSet = new Set<string>(getOnlineUsersForTenant(tenantId));
+  const cached = distributedPresenceCache.get(tenantId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return Array.from(onlineSet);
+  }
+  try {
+    const db: any = rawPrisma || prisma;
+    if (db.chatUserPresence?.findMany) {
+      const freshCutoff = new Date(Date.now() - 2 * 60 * 1000);
+      const rows = await db.chatUserPresence.findMany({
+        where: {
+          tenantId,
+          status: "online",
+          activeConnections: { gt: 0 },
+          lastSeenAt: { gte: freshCutoff },
+        },
+        select: { userId: true },
+      });
+      const dbIds = rows.map((r: any) => String(r.userId));
+      distributedPresenceCache.set(tenantId, { userIds: dbIds, expiresAt: Date.now() + 3000 });
+      for (const uid of dbIds) onlineSet.add(uid);
+    }
+  } catch {
+    // Fallback to local map
+  }
+  return Array.from(onlineSet);
 }
 
 export function broadcastToTenant(tenantId: string, event: string, payload: any) {
