@@ -181,7 +181,7 @@ self.addEventListener("push", (event) => {
     const title = `Incoming ${isVideo ? "Video" : "Audio"} Call`;
     const options = {
       body: `${callerName} is calling you via MasterHRMS...`,
-      icon: payload.callerAvatar || "/assets/img/logo-small.svg",
+      icon: payload.callerAvatar || "/assets/img/apple-icon.png",
       badge: "/assets/img/favicon.png",
       tag: `call_${callId}`,
       renotify: true,
@@ -215,6 +215,15 @@ self.addEventListener("push", (event) => {
     event.waitUntil(
       self.registration
         .showNotification(title, options)
+        .catch(() =>
+          self.registration.showNotification(title, {
+            body: options.body,
+            icon: "/assets/img/apple-icon.png",
+            badge: "/assets/img/favicon.png",
+            tag: options.tag,
+            data: options.data,
+          })
+        )
         .then(() => {
           // Inform open windows immediately
           return self.clients.matchAll({ type: "window", includeUncontrolled: true });
@@ -245,10 +254,11 @@ self.addEventListener("push", (event) => {
 
   const standardOptions = {
     body: payload.body || payload.message || "",
-    icon: payload.icon || "/assets/img/logo-small.svg",
+    icon: payload.icon && !String(payload.icon).endsWith(".svg") ? payload.icon : "/assets/img/apple-icon.png",
     badge: "/assets/img/favicon.png",
     tag,
     renotify: true,
+    vibrate: [200, 100, 200],
     data: {
       type: payload.type || payload.module || "SYSTEM",
       id: notifId,
@@ -271,16 +281,27 @@ self.addEventListener("push", (event) => {
         });
       });
 
-      // Deduplication: If a client window is currently visible and focused,
-      // the in-app notification drawer & toast already display the alert.
-      // Suppress duplicate OS notification popup.
-      const hasFocusedClient = clients.some((c) => c.focused);
-      if (hasFocusedClient) {
+      // Deduplication: Only suppress OS notification if a client window is BOTH focused AND actively visible.
+      // On mobile Android/iOS, locking the screen or switching apps leaves c.focused === true while visibilityState === "hidden".
+      const hasVisibleFocusedClient = clients.some(
+        (c) => c.focused && c.visibilityState === "visible"
+      );
+      if (hasVisibleFocusedClient) {
         return Promise.resolve();
       }
 
-      // Display native OS notification when app is in another tab, minimized, or closed
-      return self.registration.showNotification(standardTitle, standardOptions);
+      // Display native OS notification when app is in another tab, minimized, locked, or closed
+      return self.registration
+        .showNotification(standardTitle, standardOptions)
+        .catch(() =>
+          self.registration.showNotification(standardTitle, {
+            body: standardOptions.body,
+            icon: "/assets/img/apple-icon.png",
+            badge: "/assets/img/favicon.png",
+            tag: standardOptions.tag,
+            data: standardOptions.data,
+          })
+        );
     })
   );
 });

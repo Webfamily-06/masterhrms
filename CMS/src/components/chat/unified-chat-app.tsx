@@ -40,7 +40,7 @@ export function cleanSystemEventContent(content: string): string {
 }
 
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
@@ -63,6 +63,14 @@ export function resolveChatAttachmentUrl(rawUrl?: string | null): string {
     trimmed.startsWith("data:")
   ) {
     return trimmed;
+  }
+  if (trimmed.startsWith("/uploads/")) {
+    const apiUploadsPath = `/api${trimmed}`;
+    if (typeof API_BASE === "string" && API_BASE.startsWith("http")) {
+      const origin = API_BASE.replace(/\/api\/?$/, "");
+      return `${origin}${apiUploadsPath}`;
+    }
+    return apiUploadsPath;
   }
   if (trimmed.startsWith("/api/") && typeof API_BASE === "string" && API_BASE.startsWith("http")) {
     const origin = API_BASE.replace(/\/api\/?$/, "");
@@ -236,9 +244,12 @@ import {
   Activity,
   Sparkles,
   ShieldCheck,
+  GripHorizontal,
+  PictureInPicture2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { IncomingCallContext } from "@/context/incoming-call-context";
 import { MediaPickerModal, MediaFileItem } from "@/components/media/media-picker-modal";
 import { EmojiPicker } from "./emoji-picker";
 
@@ -666,9 +677,12 @@ function getAvatarColor(_name: string): string {
 }
 
 function formatDuration(seconds: number) {
-  if (!seconds || seconds <= 0) return "00:00";
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || Number.isNaN(seconds) || seconds <= 0) {
+    return "00:00";
+  }
+  const safe = Math.floor(seconds);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
@@ -695,14 +709,31 @@ function formatFileSize(bytes: number) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPACT INLINE VOICE NOTE PLAYER
+// WHATSAPP-STYLE INLINE VOICE NOTE PLAYER (NO "Infinity:NaN" SUBTEXT)
 // ─────────────────────────────────────────────────────────────────────────────
+const WHATSAPP_WAVEFORM_HEIGHTS = [
+  32, 54, 72, 44, 86, 62, 38, 78, 92, 52, 68, 84, 46, 74,
+  90, 58, 42, 80, 66, 48, 88, 60, 40, 76, 56, 70, 45, 34,
+];
+
 function VoiceNotePlayer({ voiceNote, isSent = false }: { voiceNote: ChatMessageVoiceNote; isSent?: boolean }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(voiceNote.durationSeconds || 0);
+  const [duration, setDuration] = useState(() => {
+    const d = Number(voiceNote.durationSeconds);
+    return Number.isFinite(d) && d > 0 ? d : 0;
+  });
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [audioSrc, setAudioSrc] = useState(() =>
+    resolveChatAttachmentUrl(voiceNote.signedUrl || voiceNote.url)
+  );
+  const retriedFallbackRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    retriedFallbackRef.current = false;
+    setAudioSrc(resolveChatAttachmentUrl(voiceNote.signedUrl || voiceNote.url));
+  }, [voiceNote.signedUrl, voiceNote.url]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -713,7 +744,7 @@ function VoiceNotePlayer({ voiceNote, isSent = false }: { voiceNote: ChatMessage
       audioRef.current
         .play()
         .then(() => setIsPlaying(true))
-        .catch(() => toast.error("Could not play audio message"));
+        .catch(() => toast.error("Could not play voice message"));
     }
   };
 
@@ -724,97 +755,134 @@ function VoiceNotePlayer({ voiceNote, isSent = false }: { voiceNote: ChatMessage
     if (audioRef.current) audioRef.current.playbackRate = next;
   };
 
+  const safeKnownDuration =
+    Number.isFinite(duration) && duration > 0
+      ? duration
+      : Number.isFinite(Number(voiceNote.durationSeconds)) && Number(voiceNote.durationSeconds) > 0
+      ? Number(voiceNote.durationSeconds)
+      : 0;
+
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!audioRef.current) return;
-    const effectiveDuration = duration || voiceNote.durationSeconds || 1;
+    const seekBase = safeKnownDuration > 0 ? safeKnownDuration : 1;
     const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const seekTime = pct * effectiveDuration;
-    audioRef.current.currentTime = seekTime;
-    setCurrentTime(seekTime);
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(rect.width, 1)));
+    const seekTime = pct * seekBase;
+    if (Number.isFinite(seekTime)) {
+      audioRef.current.currentTime = seekTime;
+      setCurrentTime(seekTime);
+    }
   };
 
-  const effectiveDuration = duration || voiceNote.durationSeconds || 0;
+  const progressPct =
+    safeKnownDuration > 0 && Number.isFinite(currentTime)
+      ? Math.max(0, Math.min(100, (currentTime / safeKnownDuration) * 100))
+      : 0;
 
   return (
-    <div data-testid="voice-note-player" className="flex items-center gap-2.5 py-1 min-w-[190px] sm:min-w-[210px] select-none">
+    <div
+      data-testid="voice-note-player"
+      className="flex items-center gap-2.5 py-1 min-w-[210px] sm:min-w-[240px] select-none"
+    >
       <audio
         ref={audioRef}
-        src={resolveChatAttachmentUrl(voiceNote.signedUrl || voiceNote.url)}
+        src={audioSrc}
         preload="metadata"
         onLoadedMetadata={() => {
-          if (audioRef.current && audioRef.current.duration && !isNaN(audioRef.current.duration)) {
-            setDuration(Math.round(audioRef.current.duration));
+          const d = audioRef.current?.duration;
+          if (typeof d === "number" && Number.isFinite(d) && !Number.isNaN(d) && d > 0) {
+            setDuration(Math.round(d));
           }
         }}
-        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
+        onDurationChange={() => {
+          const d = audioRef.current?.duration;
+          if (typeof d === "number" && Number.isFinite(d) && !Number.isNaN(d) && d > 0) {
+            setDuration(Math.round(d));
+          }
+        }}
+        onTimeUpdate={() => {
+          const t = audioRef.current?.currentTime || 0;
+          if (Number.isFinite(t)) setCurrentTime(t);
+        }}
         onEnded={() => {
           setIsPlaying(false);
           setCurrentTime(0);
         }}
         onError={() => {
           setIsPlaying(false);
+          const fallbackId = (voiceNote as any)?.mediaId || (voiceNote as any)?.id;
+          if (!retriedFallbackRef.current && fallbackId) {
+            retriedFallbackRef.current = true;
+            setAudioSrc(resolveChatAttachmentUrl(`/api/chat/attachments/${encodeURIComponent(fallbackId)}/download?inline=1`));
+          }
         }}
       />
       <Button
         type="button"
         size="icon"
         variant="ghost"
+        data-testid="voice-note-play-btn"
         onClick={togglePlay}
         className={cn(
-          "size-8 rounded-full flex-shrink-0",
+          "size-9 rounded-full flex-shrink-0 shadow-2xs transition-transform active:scale-95",
           isSent
             ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
-            : "bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary"
+            : "bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-600 dark:text-emerald-400"
         )}
       >
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4 fill-current ml-0.5" />}
       </Button>
-      <div className="flex-1 space-y-1 min-w-0">
-        <div
-          onClick={handleSeek}
-          className={cn(
-            "h-2 w-full rounded-full overflow-hidden cursor-pointer relative group/scrub",
-            isSent ? "bg-primary-foreground/25" : "bg-muted-foreground/20"
-          )}
-          title="Click to seek"
-        >
-          <div
-            className={cn(
-              "h-full transition-all duration-100",
-              isSent ? "bg-primary-foreground" : "bg-primary dark:bg-primary"
-            )}
-            style={{
-              width: `${
-                effectiveDuration > 0
-                  ? (currentTime / effectiveDuration) * 100
-                  : 0
-              }%`,
-            }}
-          />
-        </div>
-        <div className={cn(
-          "flex items-center justify-between text-[10px] font-mono",
-          isSent ? "text-primary-foreground/85" : "text-muted-foreground"
-        )}>
-          <span>{formatDuration(Math.floor(currentTime))}</span>
-          <div className="flex items-center gap-1.5">
-            <span>{formatDuration(effectiveDuration)}</span>
-            <button
-              type="button"
-              onClick={cycleSpeed}
+
+      {/* Interactive WhatsApp Waveform Scrubber */}
+      <div
+        onClick={handleSeek}
+        data-testid="voice-note-waveform"
+        className="flex-1 flex items-center gap-[2px] h-7 cursor-pointer px-0.5"
+        title="Click waveform to seek"
+      >
+        {WHATSAPP_WAVEFORM_HEIGHTS.map((barH, idx) => {
+          const barThreshold = ((idx + 1) / WHATSAPP_WAVEFORM_HEIGHTS.length) * 100;
+          const isPlayed = progressPct >= barThreshold || (isPlaying && idx === 0);
+          return (
+            <span
+              key={idx}
+              style={{ height: `${Math.max(24, barH)}%` }}
               className={cn(
-                "text-[9px] px-1 py-0.2 rounded font-sans font-semibold cursor-pointer",
+                "flex-1 min-w-[2px] max-w-[3.5px] rounded-full transition-colors duration-100",
                 isSent
-                  ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
-                  : "bg-muted/60 hover:bg-muted text-foreground/80"
+                  ? isPlayed
+                    ? "bg-primary-foreground"
+                    : "bg-primary-foreground/35"
+                  : isPlayed
+                  ? "bg-emerald-500"
+                  : "bg-muted-foreground/35"
               )}
-              title="Playback speed"
-            >
-              {playbackRate}x
-            </button>
-          </div>
-        </div>
+            />
+          );
+        })}
+      </div>
+
+      {/* Speed Pill + Mic Indicator */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        <button
+          type="button"
+          onClick={cycleSpeed}
+          className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded-full font-sans font-bold cursor-pointer transition-colors",
+            isSent
+              ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
+              : "bg-muted hover:bg-muted/80 text-foreground/80"
+          )}
+          title="Playback speed"
+        >
+          {playbackRate}x
+        </button>
+        <Mic
+          className={cn(
+            "size-3.5 flex-shrink-0",
+            isSent ? "text-primary-foreground/80" : "text-emerald-500"
+          )}
+        />
       </div>
     </div>
   );
@@ -832,6 +900,8 @@ export function UnifiedChatApp({
   const session = useSession();
   const currentUser = session?.user;
   const currentUserId = currentUser?.id || "";
+  const incomingCallCtx = useContext(IncomingCallContext);
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
 
   // Active chat mode: personal chats, groups, directory contacts, or call logs
   const [mode, setMode] = useState<ChatMode>(initialMode);
@@ -881,8 +951,13 @@ export function UnifiedChatApp({
   const [isSending, setIsSending] = useState(false);
   const [showInfo, setShowInfo] = useState(true);
   // Small screens intentionally show one workspace pane at a time, matching
-  // the familiar chat-list → conversation → details flow.
-  const [mobilePane, setMobilePane] = useState<"list" | "chat" | "details">("list");
+  // the familiar chat-list → conversation → details flow. Deep-links (?threadId=...) open directly into chat.
+  const [mobilePane, setMobilePane] = useState<"list" | "chat" | "details">(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("threadId")) {
+      return "chat";
+    }
+    return "list";
+  });
   const [infoTab, setInfoTab] = useState<"info" | "members" | "activity" | "files">("info");
   const [sharedFilesSearch, setSharedFilesSearch] = useState("");
 
@@ -1010,9 +1085,11 @@ export function UnifiedChatApp({
   const [pollAllowMultiple, setPollAllowMultiple] = useState(false);
   const [pollIsAnonymous, setPollIsAnonymous] = useState(false);
 
-  // Voice Note Recording & Preview
+  // Voice Note Recording & Preview (WhatsApp Flow)
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [isVoicePaused, setIsVoicePaused] = useState(false);
   const [voiceDuration, setVoiceDuration] = useState(0);
+  const [voiceWaveformBars, setVoiceWaveformBars] = useState<number[]>(() => Array(24).fill(18));
   const [voicePreviewBlob, setVoicePreviewBlob] = useState<Blob | null>(null);
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null);
   const [isPlayingVoicePreview, setIsPlayingVoicePreview] = useState(false);
@@ -1020,6 +1097,8 @@ export function UnifiedChatApp({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const voiceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const voiceWaveAudioCtxRef = useRef<AudioContext | null>(null);
+  const voiceWaveRafRef = useRef<number | null>(null);
 
   // Emoji Popovers
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
@@ -1080,6 +1159,22 @@ export function UnifiedChatApp({
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [remoteIsVideoOff, setRemoteIsVideoOff] = useState(false);
   const [remoteIsScreenSharing, setRemoteIsScreenSharing] = useState(false);
+  const [isOnHold, setIsOnHold] = useState(false);
+  const [remoteIsOnHold, setRemoteIsOnHold] = useState(false);
+  const [remoteHoldByName, setRemoteHoldByName] = useState<string | null>(null);
+  const preHoldTrackStateRef = useRef<{ wasMuted: boolean; wasVideoOff: boolean } | null>(null);
+  const [pipDragPos, setPipDragPos] = useState<{ x: number; y: number } | null>(null);
+  const pipBoxRef = useRef<HTMLDivElement | null>(null);
+  const pipDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const osPipCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const osPipVideoRef = useRef<HTMLVideoElement | null>(null);
+  const osPipTimerRef = useRef<any>(null);
 
   // Phase C1 Authoritative Reconnect & Call Summary State
   const [peerReconnecting, setPeerReconnecting] = useState<{
@@ -1268,49 +1363,330 @@ export function UnifiedChatApp({
     }
   };
 
-  // Picture-in-Picture
-  const togglePictureInPicture = async () => {
+  // Cross-Tab & Outside-App Picture-in-Picture (Desktop Document PiP + Mobile/Safari Video & Audio Canvas PiP)
+  const togglePictureInPicture = useCallback(async () => {
     try {
-      const isMobileDevice = typeof window !== "undefined" && (
-        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.innerWidth < 768
-      );
+      if (typeof window === "undefined") return;
 
-      // On mobile or when user toggles in-app PiP, prioritize in-app floating window
-      if (isMobileDevice) {
-        setIsCallMinimized((prev) => !prev);
-        toast.info(!isCallMinimized ? "Switched to Picture-in-Picture" : "Restored call screen");
-        return;
-      }
-
-      const videoEl = remoteVideoRef.current || localVideoRef.current;
-      if (!videoEl) {
-        setIsCallMinimized((prev) => !prev);
-        return;
-      }
-
-      // Check iOS Safari WebKit presentation mode
-      if (typeof (videoEl as any).webkitSetPresentationMode === "function") {
-        const currentMode = (videoEl as any).webkitPresentationMode;
-        const nextMode = currentMode === "picture-in-picture" ? "inline" : "picture-in-picture";
-        (videoEl as any).webkitSetPresentationMode(nextMode);
-        toast.info(nextMode === "picture-in-picture" ? "Picture-in-Picture activated" : "Picture-in-Picture exited");
+      const docPip = (window as any).documentPictureInPicture;
+      if (docPip?.window) {
+        try {
+          docPip.window.close();
+        } catch {}
+        toast.info("Picture-in-Picture closed");
         return;
       }
 
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
         toast.info("Picture-in-Picture exited");
-      } else if (document.pictureInPictureEnabled && videoEl.requestPictureInPicture) {
-        await videoEl.requestPictureInPicture();
-        toast.success("Picture-in-Picture activated");
-      } else {
-        setIsCallMinimized(true);
-        toast.success("Picture-in-Picture mode active");
+        return;
       }
+
+      // 1. Desktop Chromium Document Picture-in-Picture (works across browser tabs & over other OS apps)
+      if (docPip?.requestWindow) {
+        try {
+          const pipWindow = await docPip.requestWindow({ width: 340, height: 240 });
+          pipWindow.document.body.style.cssText =
+            "margin:0;background:#020617;color:#f8fafc;font-family:system-ui,-apple-system,sans-serif;overflow:hidden;";
+          const root = pipWindow.document.createElement("div");
+          root.style.cssText =
+            "display:flex;flex-direction:column;justify-content:space-between;height:100vh;padding:12px;box-sizing:border-box;background:linear-gradient(180deg,#0f172a 0%,#020617 100%);";
+
+          const mediaStage = pipWindow.document.createElement("div");
+          mediaStage.style.cssText =
+            "position:relative;flex:1;border-radius:12px;overflow:hidden;background:#0f172a;border:1px solid rgba(148,163,184,0.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;";
+
+          const rStream = remoteStreamRef.current;
+          const hasLiveVideo =
+            activeCallType === "video" &&
+            !!rStream &&
+            rStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live") &&
+            !remoteIsVideoOff;
+
+          if (hasLiveVideo && rStream) {
+            const vid = pipWindow.document.createElement("video");
+            vid.srcObject = rStream;
+            vid.autoplay = true;
+            vid.playsInline = true;
+            vid.muted = true; // main page <audio> plays unmuted audio
+            vid.style.cssText = "width:100%;height:100%;object-fit:cover;";
+            mediaStage.appendChild(vid);
+            vid.play().catch(() => {});
+          } else {
+            const avatarCircle = pipWindow.document.createElement("div");
+            avatarCircle.style.cssText =
+              "width:52px;height:52px;border-radius:999px;background:#4f46e5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;box-shadow:0 6px 20px rgba(79,70,229,0.4);";
+            avatarCircle.textContent = (activeCallTargetName || "C").slice(0, 2).toUpperCase();
+            const peerTitle = pipWindow.document.createElement("div");
+            peerTitle.style.cssText = "font-size:13px;font-weight:700;color:#f8fafc;";
+            peerTitle.textContent = activeCallTargetName || "Colleague";
+            mediaStage.appendChild(avatarCircle);
+            mediaStage.appendChild(peerTitle);
+          }
+
+          const badge = pipWindow.document.createElement("div");
+          badge.style.cssText =
+            "position:absolute;top:8px;left:8px;background:rgba(2,6,23,0.78);color:#34d399;padding:2px 8px;border-radius:999px;font-size:11px;font-family:monospace;border:1px solid rgba(52,211,153,0.35);";
+          badge.textContent =
+            remoteIsOnHold || isOnHold
+              ? "ON HOLD"
+              : `${formatDuration(callDurationSeconds)} • ${activeCallType === "video" ? "Video" : "Audio"}`;
+          mediaStage.appendChild(badge);
+
+          const footer = pipWindow.document.createElement("div");
+          footer.style.cssText =
+            "display:flex;align-items:center;justify-content:space-between;padding-top:10px;gap:8px;";
+
+          const nameSpan = pipWindow.document.createElement("div");
+          nameSpan.style.cssText =
+            "font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;";
+          nameSpan.textContent = activeCallTargetName || "MasterHRMS Call";
+
+          const btnGroup = pipWindow.document.createElement("div");
+          btnGroup.style.cssText = "display:flex;gap:6px;";
+
+          const focusBtn = pipWindow.document.createElement("button");
+          focusBtn.textContent = "Open";
+          focusBtn.style.cssText =
+            "background:#1e293b;color:#f8fafc;border:1px solid #334155;border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;";
+          focusBtn.onclick = () => {
+            window.focus();
+            setIsCallMinimized(false);
+            pipWindow.close();
+          };
+
+          const hangBtn = pipWindow.document.createElement("button");
+          hangBtn.textContent = "End";
+          hangBtn.style.cssText =
+            "background:#e11d48;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;";
+          hangBtn.onclick = () => {
+            pipWindow.close();
+            window.dispatchEvent(new CustomEvent("hrms:active-call-hangup"));
+          };
+
+          btnGroup.appendChild(focusBtn);
+          btnGroup.appendChild(hangBtn);
+          footer.appendChild(nameSpan);
+          footer.appendChild(btnGroup);
+          root.appendChild(mediaStage);
+          root.appendChild(footer);
+          pipWindow.document.body.appendChild(root);
+
+          setIsCallMinimized(true);
+          toast.success("Floating Picture-in-Picture window opened");
+          return;
+        } catch (docPipErr) {
+          console.warn("Document PiP fallback:", docPipErr);
+        }
+      }
+
+      // 2. Native HTMLVideoElement PiP (Mobile Chrome/Android, iOS Safari, Desktop Safari/Firefox)
+      const directVideoEl = remoteVideoRef.current || localVideoRef.current;
+      const hasLiveDirectVideo =
+        activeCallType === "video" &&
+        !!directVideoEl &&
+        !!(directVideoEl.srcObject as MediaStream | null)
+          ?.getVideoTracks()
+          .some((t) => t.enabled && t.readyState === "live");
+
+      if (hasLiveDirectVideo && directVideoEl) {
+        if (typeof (directVideoEl as any).webkitSetPresentationMode === "function") {
+          const cur = (directVideoEl as any).webkitPresentationMode;
+          const next = cur === "picture-in-picture" ? "inline" : "picture-in-picture";
+          (directVideoEl as any).webkitSetPresentationMode(next);
+          setIsCallMinimized(next === "picture-in-picture");
+          toast.success("Picture-in-Picture activated");
+          return;
+        }
+        if (document.pictureInPictureEnabled && directVideoEl.requestPictureInPicture) {
+          await directVideoEl.requestPictureInPicture();
+          setIsCallMinimized(true);
+          toast.success("Picture-in-Picture activated");
+          return;
+        }
+      }
+
+      // 3. Dynamic Canvas-Stream <video> PiP so Audio Calls & Camera-Off Calls ALSO float outside the app!
+      let canvas = osPipCanvasRef.current;
+      if (!canvas) {
+        canvas = document.createElement("canvas");
+        canvas.width = 360;
+        canvas.height = 200;
+        osPipCanvasRef.current = canvas;
+      }
+      const drawAudioPipFrame = () => {
+        const ctx = canvas!.getContext("2d");
+        if (!ctx) return;
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, 0, canvas!.width, canvas!.height);
+        ctx.fillStyle = "#4f46e5";
+        ctx.beginPath();
+        ctx.arc(180, 70, 34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 22px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText((activeCallTargetName || "C").slice(0, 2).toUpperCase(), 180, 70);
+        ctx.font = "bold 16px system-ui, sans-serif";
+        ctx.fillText(activeCallTargetName || "Colleague", 180, 128);
+        ctx.fillStyle = remoteIsOnHold || isOnHold ? "#f59e0b" : "#34d399";
+        ctx.font = "13px monospace";
+        ctx.fillText(
+          remoteIsOnHold || isOnHold
+            ? "Call On Hold"
+            : `${activeCallType === "video" ? "Video" : "Audio"} Call • ${formatDuration(callDurationSeconds)}`,
+          180,
+          158
+        );
+      };
+      drawAudioPipFrame();
+      if (osPipTimerRef.current) clearInterval(osPipTimerRef.current);
+      osPipTimerRef.current = setInterval(drawAudioPipFrame, 1000);
+
+      let pipVid = osPipVideoRef.current;
+      if (!pipVid) {
+        pipVid = document.createElement("video");
+        pipVid.muted = true;
+        pipVid.playsInline = true;
+        pipVid.autoplay = true;
+        pipVid.style.cssText =
+          "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0;";
+        document.body.appendChild(pipVid);
+        osPipVideoRef.current = pipVid;
+      }
+
+      if (typeof (canvas as any).captureStream === "function") {
+        const cStream = (canvas as any).captureStream(5);
+        pipVid.srcObject = cStream;
+        await pipVid.play().catch(() => {});
+        if (typeof (pipVid as any).webkitSetPresentationMode === "function") {
+          (pipVid as any).webkitSetPresentationMode("picture-in-picture");
+          setIsCallMinimized(true);
+          toast.success("Picture-in-Picture activated");
+          return;
+        }
+        if (document.pictureInPictureEnabled && pipVid.requestPictureInPicture) {
+          await pipVid.requestPictureInPicture();
+          setIsCallMinimized(true);
+          toast.success("Picture-in-Picture activated");
+          return;
+        }
+      }
+
+      setIsCallMinimized((prev) => !prev);
+      toast.info(!isCallMinimized ? "Switched to draggable Picture-in-Picture" : "Restored call screen");
     } catch (err: any) {
-      console.warn("PiP error, falling back to in-app widget:", err);
+      console.warn("PiP fallback to draggable in-app widget:", err);
       setIsCallMinimized(true);
-      toast.info("Picture-in-Picture mode active");
+      toast.info("Switched to draggable Picture-in-Picture");
+    }
+  }, [
+    activeCallTargetName,
+    activeCallType,
+    callDurationSeconds,
+    isCallMinimized,
+    isOnHold,
+    remoteIsOnHold,
+    remoteIsVideoOff,
+  ]);
+
+  // Expose OS PiP trigger globally + register MediaSession automatic PiP on tab switch
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    (window as any).__HRMS_TOGGLE_OS_PIP__ = togglePictureInPicture;
+    const nav = navigator as any;
+    if (activeCallModalOpen && callStatus === "connected" && nav?.mediaSession?.setActionHandler) {
+      try {
+        nav.mediaSession.setActionHandler("enterpictureinpicture", () => {
+          togglePictureInPicture();
+        });
+      } catch {}
+    }
+    return () => {
+      if ((window as any).__HRMS_TOGGLE_OS_PIP__ === togglePictureInPicture) {
+        delete (window as any).__HRMS_TOGGLE_OS_PIP__;
+      }
+    };
+  }, [activeCallModalOpen, callStatus, togglePictureInPicture]);
+
+  // Reset Hold & close OS PiP whenever active call closes
+  useEffect(() => {
+    if (!activeCallModalOpen) {
+      setIsOnHold(false);
+      setRemoteIsOnHold(false);
+      setRemoteHoldByName(null);
+      preHoldTrackStateRef.current = null;
+      if (osPipTimerRef.current) {
+        clearInterval(osPipTimerRef.current);
+        osPipTimerRef.current = null;
+      }
+      if (typeof window !== "undefined") {
+        (window as any).__HRMS_ACTIVE_CALL_SNAPSHOT__ = null;
+        try {
+          const docPip = (window as any).documentPictureInPicture;
+          if (docPip?.window) docPip.window.close();
+        } catch {}
+        if (typeof document !== "undefined" && document.pictureInPictureElement) {
+          document.exitPictureInPicture().catch(() => {});
+        }
+      }
+    }
+  }, [activeCallModalOpen]);
+
+  // Mobile Back button support when User Profile / Details drawer is open (Issue 8)
+  useEffect(() => {
+    if (typeof window === "undefined" || mobilePane !== "details") return;
+    const pushedState = { hrmsChatDetailsDrawer: true };
+    try {
+      window.history.pushState(pushedState, "");
+    } catch {}
+    const onPopState = () => {
+      setMobilePane("chat");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [mobilePane]);
+
+  // Draggable in-app PiP box pointer handlers (Issue 6)
+  const handlePipPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("a")) return;
+    const el = pipBoxRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    pipDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: pipDragPos ? pipDragPos.x : rect.left,
+      originY: pipDragPos ? pipDragPos.y : rect.top,
+    };
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePipPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const st = pipDragRef.current;
+    if (!st || st.pointerId !== e.pointerId) return;
+    const el = pipBoxRef.current;
+    const w = el?.offsetWidth || 250;
+    const h = el?.offsetHeight || 100;
+    const nextX = Math.max(8, Math.min(window.innerWidth - w - 8, st.originX + (e.clientX - st.startX)));
+    const nextY = Math.max(8, Math.min(window.innerHeight - h - 8, st.originY + (e.clientY - st.startY)));
+    setPipDragPos({ x: nextX, y: nextY });
+  };
+
+  const handlePipPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (pipDragRef.current?.pointerId === e.pointerId) {
+      pipDragRef.current = null;
+      try {
+        pipBoxRef.current?.releasePointerCapture(e.pointerId);
+      } catch {}
     }
   };
 
@@ -1557,7 +1933,7 @@ export function UnifiedChatApp({
   // 1. DATA QUERIES (Authoritative, Zero Mock)
   // ──────────────────────────────────────────────────────────────────────────
 
-  // Online Presence
+  // Online Presence (Serverless-safe active REST heartbeat + live Pusher/Socket sync — Issue 7)
   const { data: onlineUserIds = [] } = useQuery<string[]>({
     queryKey: ["chat", "presence"],
     queryFn: async () => {
@@ -1568,12 +1944,50 @@ export function UnifiedChatApp({
         return [];
       }
     },
-    refetchInterval: 15000,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 
-  // Contacts / Directory Query
+  // Immediately broadcast active online status on mount, tab focus & visibility restore
+  useEffect(() => {
+    if (!currentUserId || typeof window === "undefined") return;
+    const pingOnline = () => {
+      if (document.visibilityState === "hidden") return;
+      api
+        .post("/api/chat/presence", { status: "online" })
+        .then((res: any) => {
+          const ids = res?.onlineUserIds || res?.data?.onlineUserIds;
+          if (Array.isArray(ids)) {
+            queryClient.setQueryData(["chat", "presence"], ids);
+          }
+        })
+        .catch(() => {});
+    };
+    pingOnline();
+    window.addEventListener("focus", pingOnline);
+    document.addEventListener("visibilitychange", pingOnline);
+    return () => {
+      window.removeEventListener("focus", pingOnline);
+      document.removeEventListener("visibilitychange", pingOnline);
+    };
+  }, [currentUserId, queryClient]);
+
+  const onlineUserIdSet = useMemo(() => new Set(onlineUserIds.filter(Boolean)), [onlineUserIds]);
+  const isUserOnline = useCallback(
+    (...candidateIds: Array<string | null | undefined>) => {
+      for (const id of candidateIds) {
+        if (id && (onlineUserIdSet.has(id) || id === currentUserId)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [onlineUserIdSet, currentUserId]
+  );
+
+  // Contacts / Directory Query (reactively enriched with live onlineUserIds)
   const {
-    data: contacts = [],
+    data: rawContacts = [],
     isLoading: isContactsLoading,
     isError: isContactsError,
     refetch: refetchContacts,
@@ -1582,32 +1996,42 @@ export function UnifiedChatApp({
     queryFn: async () => {
       const res: any = await api.get("/api/chat/contacts");
       const list = Array.isArray(res) ? res : res?.contacts || res?.data || [];
-      return list.map((item: any) => {
-        const isOnline = onlineUserIds.includes(item.id) || onlineUserIds.includes(item.userId);
-        return {
-          id: item.id,
-          userId: item.userId || item.id,
-          employeeId: item.employeeId || null,
-          employeeCode: item.employeeCode || null,
-          branch: item.branch || null,
-          managerName: item.managerName || null,
-          name: item.name || "Colleague",
-          email: item.email || "",
-          phone: item.phone || "",
-          avatarLetter: (item.name || "C").charAt(0).toUpperCase(),
-          avatarColor: getAvatarColor(item.name || "C"),
-          avatarUrl: item.avatarUrl || null,
-          status: isOnline ? "online" : "offline",
-          statusText: isOnline ? "Online" : "Offline",
-          designation: item.title || item.designation || "Team Member",
-          department: item.department || "",
-          unreadCount: item.unread || 0,
-          lastMessage: item.lastMessage || "",
-          time: item.time ? new Date(item.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null,
-        };
-      });
+      return list.map((item: any) => ({
+        id: item.id,
+        userId: item.userId || item.id,
+        employeeId: item.employeeId || null,
+        employeeCode: item.employeeCode || null,
+        branch: item.branch || null,
+        managerName: item.managerName || null,
+        name: item.name || "Colleague",
+        email: item.email || "",
+        phone: item.phone || "",
+        avatarLetter: (item.name || "C").charAt(0).toUpperCase(),
+        avatarColor: getAvatarColor(item.name || "C"),
+        avatarUrl: item.avatarUrl || null,
+        status: "offline" as const,
+        statusText: "Offline",
+        designation: item.title || item.designation || "Team Member",
+        department: item.department || "",
+        unreadCount: item.unread || 0,
+        lastMessage: item.lastMessage || "",
+        time: item.time ? new Date(item.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : null,
+      }));
     },
   });
+
+  const contacts = useMemo<ContactItem[]>(
+    () =>
+      rawContacts.map((c) => {
+        const online = isUserOnline(c.userId, c.id, c.employeeId);
+        return {
+          ...c,
+          status: online ? "online" : "offline",
+          statusText: online ? "Online" : "Offline",
+        };
+      }),
+    [rawContacts, isUserOnline]
+  );
 
   // Global Chat & File Search Query
   const {
@@ -1650,9 +2074,9 @@ export function UnifiedChatApp({
     enabled: createGroupOpen && groupCreateTab === "org",
   });
 
-  // Conversations Query
+  // Conversations Query (reactively enriched with live onlineUserIds)
   const {
-    data: conversations = [],
+    data: rawConversations = [],
     isLoading: isConversationsLoading,
     isError: isConversationsError,
     refetch: refetchConversations,
@@ -1664,7 +2088,6 @@ export function UnifiedChatApp({
       return list.map((c: any) => {
         const title = c.name || c.title || "Chat";
         const isDirect = c.type === "direct";
-        const isOnline = isDirect && c.id && onlineUserIds.includes(c.id);
 
         return {
           threadId: c.threadId,
@@ -1678,8 +2101,8 @@ export function UnifiedChatApp({
             ? new Date(c.lastMessageTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
             : "",
           unreadCount: c.unreadCount || 0,
-          status: isOnline ? "online" : "offline",
-          otherParticipantId: isDirect ? c.id : undefined,
+          status: "offline" as const,
+          otherParticipantId: isDirect ? (c.otherParticipantId || c.userId || c.id) : undefined,
           groupId: !isDirect ? (c.groupId || c.id) : undefined,
           isPinned: Boolean(c.isPinned),
           isMuted: Boolean(c.isMuted),
@@ -1694,6 +2117,24 @@ export function UnifiedChatApp({
     },
     refetchInterval: 10000,
   });
+
+  const conversations = useMemo<ConversationSummaryItem[]>(
+    () =>
+      rawConversations.map((c) => {
+        if (c.type !== "direct") return c;
+        let peerFromThread = "";
+        if (c.threadId?.startsWith("direct_")) {
+          const parts = c.threadId.slice("direct_".length).split("_");
+          peerFromThread = parts.find((p) => p && p !== currentUserId) || "";
+        }
+        const online = isUserOnline(c.otherParticipantId, peerFromThread);
+        return {
+          ...c,
+          status: online ? "online" : "offline",
+        };
+      }),
+    [rawConversations, isUserOnline, currentUserId]
+  );
 
   // Groups Query
   const {
@@ -1940,6 +2381,7 @@ export function UnifiedChatApp({
           setActiveThreadType(found.type);
           setActiveTargetUserId(found.otherParticipantId || "");
           setActiveGroupId(found.groupId || "");
+          setMobilePane("chat");
           return;
         } else if (urlThreadId.startsWith("direct_")) {
           const parts = urlThreadId.slice("direct_".length).split("_");
@@ -1948,6 +2390,7 @@ export function UnifiedChatApp({
           setActiveThreadTitle("Direct Chat");
           setActiveThreadType("direct");
           setActiveTargetUserId(targetId);
+          setMobilePane("chat");
           return;
         } else if (urlThreadId.startsWith("group_")) {
           const gId = urlThreadId.replace("group_", "");
@@ -1956,6 +2399,7 @@ export function UnifiedChatApp({
           setActiveThreadTitle(matchingGroup?.name || "Group Chat");
           setActiveThreadType("group");
           setActiveGroupId(gId);
+          setMobilePane("chat");
           return;
         }
       }
@@ -3445,8 +3889,21 @@ export function UnifiedChatApp({
       }
     };
 
-    const handlePresenceUpdate = () => {
+    const handlePresenceUpdate = (data?: any) => {
+      const targetUid = data?.userId ? String(data.userId) : "";
+      if (targetUid) {
+        queryClient.setQueryData<string[]>(["chat", "presence"], (old) => {
+          const next = new Set(Array.isArray(old) ? old : []);
+          if (data?.status === "offline") {
+            next.delete(targetUid);
+          } else {
+            next.add(targetUid);
+          }
+          return Array.from(next);
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["chat", "presence"] });
+      queryClient.invalidateQueries({ queryKey: ["chat", "participant"] });
     };
 
     const handleGroupUpdate = (data?: any) => {
@@ -3567,7 +4024,11 @@ export function UnifiedChatApp({
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
 
-    const handleCallCancelled = () => {
+    const handleCallCancelled = (data?: any) => {
+      const curCallId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && curCallId && data.callId !== curCallId) {
+        return;
+      }
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
         callTimeoutTimerRef.current = null;
@@ -3576,12 +4037,28 @@ export function UnifiedChatApp({
         clearTimeout(incomingCallTimerRef.current);
         incomingCallTimerRef.current = null;
       }
-      toast.info("Call was cancelled by the caller.");
+      const peerName =
+        data?.endedByName ||
+        data?.callerName ||
+        activeCallTargetNameRef.current ||
+        activeCallTargetName ||
+        "Colleague";
+      const wasConnected =
+        callStatusRef.current === "connected" ||
+        data?.reason === "ended" ||
+        Boolean(remoteStreamRef.current);
+
+      if (data?.endedBy !== currentUserId) {
+        toast.info(
+          wasConnected ? `${peerName} has left the call` : "Call was cancelled by the caller."
+        );
+      }
       setIncomingCall(null);
       cleanUpMedia();
       setActiveCallModalOpen(false);
       setIsCallMinimized(false);
       setCallSummary(null);
+      setActiveCallTargetAvatar(null);
       callStatusRef.current = "ended";
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
@@ -4040,20 +4517,35 @@ export function UnifiedChatApp({
       if (data?.type === "video-mute") {
         setRemoteIsVideoOff(Boolean(data.active));
       }
+      if (data?.type === "call-hold") {
+        const held = Boolean(data.active);
+        const holderLabel = data?.fromUserName || peerLabel;
+        setRemoteIsOnHold(held);
+        setRemoteHoldByName(held ? holderLabel : null);
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.muted = held;
+        }
+        toast.info(
+          held
+            ? `${holderLabel} put this call on hold`
+            : `${holderLabel} resumed the call`
+        );
+      }
     };
     socket.on("call:media-state", handleMediaState);
 
     const handlePusherEvent = (event: Event) => {
       const { eventName, data } = (event as CustomEvent).detail || {};
-      if (eventName === "call:incoming") handleIncomingCall(data);
-      if (eventName === "call:accepted") handleCallAccepted(data);
-      if (eventName === "call:rejected") handleCallRejected(data);
-      if (eventName === "call:cancelled") handleCallCancelled();
-      if (eventName === "call:timeout") handleCallTimeout(data);
+      if (eventName === "call:incoming" || eventName === "call.incoming") handleIncomingCall(data);
+      if (eventName === "call:accepted" || eventName === "call.accepted") handleCallAccepted(data);
+      if (eventName === "call:rejected" || eventName === "call.rejected") handleCallRejected(data);
+      if (eventName === "call:cancelled" || eventName === "call.cancelled") handleCallCancelled(data);
+      if (eventName === "call:timeout" || eventName === "call.timeout") handleCallTimeout(data);
       if (eventName === "call:signal") handleCallSignal(data);
-      if (eventName === "call:ended") handleCallEnded(data);
+      if (eventName === "call:ended" || eventName === "call.ended") handleCallEnded(data);
       if (eventName === "call:busy") handleCallBusy(data);
       if (eventName === "call:media-state") handleMediaState(data);
+      if (eventName === "presence:update") handlePresenceUpdate(data);
       if (eventName === "call:participant_joined") handleParticipantJoined(data);
       if (eventName === "call:participant_left") handleParticipantLeft(data);
       if (eventName === "call:participant_invited") handleParticipantInvited(data);
@@ -4903,6 +5395,43 @@ export function UnifiedChatApp({
         if (pc.connectionState === "connected") {
           callStatusRef.current = "connected";
           setCallStatus("connected");
+        } else if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+          if (activeCallIdRef.current === callId && meshPeersRef.current.size === 0) {
+            toast.info(`${activeCallTargetNameRef.current || name || "Colleague"} has left the call`);
+            cleanUpMedia();
+            setActiveCallModalOpen(false);
+            setIsCallMinimized(false);
+            setCallSummary(null);
+            callStatusRef.current = "ended";
+            setCallStatus("ended");
+            queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
+          }
+        } else if (pc.connectionState === "disconnected") {
+          setTimeout(() => {
+            if (
+              activeCallIdRef.current === callId &&
+              meshPeersRef.current.size === 0 &&
+              (pc.connectionState === "disconnected" ||
+                pc.connectionState === "failed" ||
+                pc.connectionState === "closed")
+            ) {
+              api
+                .get(`/api/calls/${encodeURIComponent(callId)}/status`)
+                .then((sRes: any) => {
+                  const st = String(sRes?.data?.status || sRes?.status || "").toLowerCase();
+                  if (st === "ended" || st === "cancelled" || st === "missed" || st === "rejected") {
+                    toast.info(`${activeCallTargetNameRef.current || name || "Colleague"} has left the call`);
+                    cleanUpMedia();
+                    setActiveCallModalOpen(false);
+                    setIsCallMinimized(false);
+                    setCallSummary(null);
+                    callStatusRef.current = "ended";
+                    setCallStatus("ended");
+                  }
+                })
+                .catch(() => {});
+            }
+          }, 3000);
         }
       };
 
@@ -5369,6 +5898,47 @@ export function UnifiedChatApp({
         if (pc.connectionState === "connected") {
           callStatusRef.current = "connected";
           setCallStatus("connected");
+        } else if (pc.connectionState === "closed" || pc.connectionState === "failed") {
+          if (activeCallIdRef.current === targetCall.callId && meshPeersRef.current.size === 0) {
+            toast.info(
+              `${activeCallTargetNameRef.current || targetCall.callerName || "Colleague"} has left the call`
+            );
+            cleanUpMedia();
+            setActiveCallModalOpen(false);
+            setIsCallMinimized(false);
+            setCallSummary(null);
+            callStatusRef.current = "ended";
+            setCallStatus("ended");
+            queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
+          }
+        } else if (pc.connectionState === "disconnected") {
+          setTimeout(() => {
+            if (
+              activeCallIdRef.current === targetCall.callId &&
+              meshPeersRef.current.size === 0 &&
+              (pc.connectionState === "disconnected" ||
+                pc.connectionState === "failed" ||
+                pc.connectionState === "closed")
+            ) {
+              api
+                .get(`/api/calls/${encodeURIComponent(targetCall.callId)}/status`)
+                .then((sRes: any) => {
+                  const st = String(sRes?.data?.status || sRes?.status || "").toLowerCase();
+                  if (st === "ended" || st === "cancelled" || st === "missed" || st === "rejected") {
+                    toast.info(
+                      `${activeCallTargetNameRef.current || targetCall.callerName || "Colleague"} has left the call`
+                    );
+                    cleanUpMedia();
+                    setActiveCallModalOpen(false);
+                    setIsCallMinimized(false);
+                    setCallSummary(null);
+                    callStatusRef.current = "ended";
+                    setCallStatus("ended");
+                  }
+                })
+                .catch(() => {});
+            }
+          }, 3000);
         }
       };
 
@@ -5483,8 +6053,7 @@ export function UnifiedChatApp({
     setIncomingCall(null);
   };
 
-  // Serverless-safe liveness heartbeat: lets the backend distinguish real in-progress calls from
-  // zombie sessions (lost hang-ups) so new calls are never blocked with "User is currently on another call".
+  // Serverless-safe liveness heartbeat (6s): detects peer hangup/cut even if Pusher/Socket packet drops (Issue 1)
   useEffect(() => {
     const directCallId =
       activeCallModalOpen && activeCallId && callStatus !== "ended" ? activeCallId : null;
@@ -5493,13 +6062,42 @@ export function UnifiedChatApp({
     if (ids.length === 0) return;
     const beat = () => {
       ids.forEach((id) => {
-        api.post(`/api/calls/${encodeURIComponent(id)}/heartbeat`, {}).catch(() => {});
+        api
+          .post(`/api/calls/${encodeURIComponent(id)}/heartbeat`, {})
+          .then((res: any) => {
+            const payload = res?.data || res;
+            if (
+              id === directCallId &&
+              !payload?.notFoundYet &&
+              (payload?.peerLeft === true ||
+                payload?.active === false ||
+                payload?.status === "ENDED" ||
+                payload?.status === "CANCELLED" ||
+                payload?.status === "REJECTED" ||
+                payload?.status === "MISSED")
+            ) {
+              const peerName = activeCallTargetNameRef.current || "Colleague";
+              toast.info(`${peerName} has left the call`);
+              cleanUpMedia();
+              setActiveCallModalOpen(false);
+              setIsCallMinimized(false);
+              setCallSummary(null);
+              setActiveCallTargetAvatar(null);
+              callStatusRef.current = "ended";
+              setCallStatus("ended");
+              queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
+            }
+          })
+          .catch(() => {});
       });
     };
-    beat();
-    const timer = setInterval(beat, 20000);
-    return () => clearInterval(timer);
-  }, [activeCallModalOpen, activeCallId, callStatus, isMeetingOpen, activeMeeting?.callId]);
+    const initTimer = setTimeout(beat, 3500);
+    const timer = setInterval(beat, 5000);
+    return () => {
+      clearTimeout(initTimer);
+      clearInterval(timer);
+    };
+  }, [activeCallModalOpen, activeCallId, callStatus, isMeetingOpen, activeMeeting?.callId, queryClient]);
 
   // Global Call Acceptance & URL callId Sync
   useEffect(() => {
@@ -5607,7 +6205,8 @@ export function UnifiedChatApp({
     const role = activeCallRole;
     const cType = activeCallType;
     const prevStatus = callStatusRef.current || callStatus;
-    const isConnectedCall = prevStatus === "connected";
+    const isConnectedCall =
+      prevStatus === "connected" || Boolean(remoteStreamRef.current) || finalDuration > 0;
 
     if (callTimeoutTimerRef.current) {
       clearTimeout(callTimeoutTimerRef.current);
@@ -5627,7 +6226,7 @@ export function UnifiedChatApp({
     try {
       const socket = getSocketClient();
       if (socket?.connected && targetId && cId) {
-        if (prevStatus === "calling" || prevStatus === "ringing") {
+        if (!isConnectedCall && (prevStatus === "calling" || prevStatus === "ringing")) {
           socket.emit("call:cancel", {
             toUserId: targetId,
             targetUserId: targetId,
@@ -5754,34 +6353,116 @@ export function UnifiedChatApp({
     }
   };
 
+  // Toggle Call Hold — pauses local media, mutes remote playback, and signals opponent (Issue 4b)
+  const toggleHold = () => {
+    const nextHold = !isOnHold;
+    setIsOnHold(nextHold);
+
+    if (nextHold) {
+      preHoldTrackStateRef.current = { wasMuted: isMuted, wasVideoOff: isVideoOff };
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = false;
+        });
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = false;
+        });
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = true;
+      }
+    } else {
+      const prev = preHoldTrackStateRef.current;
+      const restoreMuted = prev ? prev.wasMuted : isMuted;
+      const restoreVideoOff = prev ? prev.wasVideoOff : isVideoOff;
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = !restoreMuted;
+        });
+        localStreamRef.current.getVideoTracks().forEach((t) => {
+          t.enabled = !restoreVideoOff;
+        });
+      }
+      if (remoteAudioRef.current && !remoteIsOnHold) {
+        remoteAudioRef.current.muted = false;
+      }
+      preHoldTrackStateRef.current = null;
+    }
+
+    const socket = getSocketClient();
+    const cId = activeCallIdRef.current || activeCallId;
+    const targetId = activeCallTargetIdRef.current || activeCallTargetId;
+    const selfName =
+      (currentUser as any)?.profile?.fullName ||
+      (currentUser as any)?.name ||
+      currentUser?.email ||
+      "Colleague";
+
+    if (socket?.connected && cId && targetId) {
+      socket.emit("call:media-state", {
+        callId: cId,
+        targetUserId: targetId,
+        type: "call-hold",
+        active: nextHold,
+        fromUserName: selfName,
+      });
+    }
+    if (cId) {
+      api
+        .post(`/api/calls/${encodeURIComponent(cId)}/media-state`, {
+          type: "call-hold",
+          active: nextHold,
+        })
+        .catch(() => {});
+    }
+    toast.info(nextHold ? "Call placed on hold" : "Call resumed");
+  };
+
   // Synchronize active call state with global FloatingMiniCallWidget across route changes
   useEffect(() => {
     if (activeCallModalOpen && (callStatus === "connected" || callStatus === "calling" || callStatus === "ringing")) {
       const callId = activeCallIdRef.current || activeCallId;
       if (callId) {
+        const snapshot = {
+          callId,
+          callerName: activeCallTargetName,
+          callerAvatar: activeCallTargetAvatar,
+          callType: activeCallType,
+          status: callStatus,
+          durationSeconds: callDurationSeconds,
+          isMuted,
+          isVideoOff,
+          isMinimized: isCallMinimized,
+          isOnHold,
+          remoteIsOnHold,
+          remoteHoldByName,
+        };
         if (typeof window !== "undefined") {
           (window as any).__HRMS_REMOTE_STREAM__ = remoteStreamRef.current;
+          (window as any).__HRMS_ACTIVE_CALL_SNAPSHOT__ = snapshot;
         }
-        window.dispatchEvent(
-          new CustomEvent("hrms:active-call-update", {
-            detail: {
-              callId,
-              callerName: activeCallTargetName,
-              callerAvatar: activeCallTargetAvatar,
-              callType: activeCallType,
-              status: callStatus,
-              durationSeconds: callDurationSeconds,
-              isMuted,
-              isVideoOff,
-              isMinimized: isCallMinimized,
-            },
-          })
-        );
+        window.dispatchEvent(new CustomEvent("hrms:active-call-update", { detail: snapshot }));
       }
     } else if (!activeCallModalOpen) {
+      if (typeof window !== "undefined") {
+        (window as any).__HRMS_ACTIVE_CALL_SNAPSHOT__ = null;
+      }
       window.dispatchEvent(new CustomEvent("hrms:active-call-end"));
     }
-  }, [activeCallModalOpen, callStatus, callDurationSeconds, isMuted, isVideoOff, isCallMinimized, activeCallTargetName, activeCallTargetAvatar, activeCallType]);
+  }, [
+    activeCallModalOpen,
+    callStatus,
+    callDurationSeconds,
+    isMuted,
+    isVideoOff,
+    isCallMinimized,
+    isOnHold,
+    remoteIsOnHold,
+    remoteHoldByName,
+    activeCallTargetName,
+    activeCallTargetAvatar,
+    activeCallType,
+  ]);
 
   // Listen to controls from global FloatingMiniCallWidget (mute, maximize, hangup)
   useEffect(() => {
@@ -5812,8 +6493,21 @@ export function UnifiedChatApp({
   }, [isMuted, isCallMinimized, activeCallTargetId, activeCallId]);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // VOICE NOTE RECORDING (MediaRecorder)
+  // WHATSAPP-FLOW VOICE NOTE RECORDING (1-Tap Record, Live Waveform, Pause/Resume, Instant Send)
   // ──────────────────────────────────────────────────────────────────────────
+  const stopVoiceWaveAnalyser = () => {
+    if (voiceWaveRafRef.current) {
+      cancelAnimationFrame(voiceWaveRafRef.current);
+      voiceWaveRafRef.current = null;
+    }
+    if (voiceWaveAudioCtxRef.current && voiceWaveAudioCtxRef.current.state !== "closed") {
+      try {
+        voiceWaveAudioCtxRef.current.close().catch(() => {});
+      } catch {}
+      voiceWaveAudioCtxRef.current = null;
+    }
+  };
+
   const startVoiceRecording = async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast.error("Audio recording not supported on this browser.");
@@ -5827,6 +6521,8 @@ export function UnifiedChatApp({
         setVoicePreviewBlob(null);
       }
       setIsPlayingVoicePreview(false);
+      setIsVoicePaused(false);
+      stopVoiceWaveAnalyser();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -5853,6 +6549,36 @@ export function UnifiedChatApp({
         if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
       };
 
+      // Live WhatsApp waveform bars powered by Web Audio AnalyserNode
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const actx = new AudioCtx();
+          voiceWaveAudioCtxRef.current = actx;
+          const srcNode = actx.createMediaStreamSource(stream);
+          const analyser = actx.createAnalyser();
+          analyser.fftSize = 64;
+          srcNode.connect(analyser);
+          const freqData = new Uint8Array(analyser.frequencyBinCount);
+          let lastTick = 0;
+          const tick = (ts: number) => {
+            if (!voiceWaveAudioCtxRef.current) return;
+            if (ts - lastTick >= 90) {
+              lastTick = ts;
+              analyser.getByteFrequencyData(freqData);
+              const bars: number[] = [];
+              for (let i = 0; i < 24; i++) {
+                const v = freqData[i % freqData.length] || 0;
+                bars.push(Math.max(18, Math.min(96, Math.round((v / 255) * 95))));
+              }
+              setVoiceWaveformBars(bars);
+            }
+            voiceWaveRafRef.current = requestAnimationFrame(tick);
+          };
+          voiceWaveRafRef.current = requestAnimationFrame(tick);
+        }
+      } catch {}
+
       mediaRecorder.start(250);
       setIsRecordingVoice(true);
       setVoiceDuration(0);
@@ -5861,8 +6587,34 @@ export function UnifiedChatApp({
       voiceTimerRef.current = setInterval(() => {
         setVoiceDuration((prev) => prev + 1);
       }, 1000);
-    } catch (err: any) {
+    } catch {
       toast.error("Microphone access denied for recording voice note.");
+    }
+  };
+
+  const togglePauseVoiceRecording = () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state === "inactive") return;
+    try {
+      if (mr.state === "recording" && typeof mr.pause === "function") {
+        mr.pause();
+        setIsVoicePaused(true);
+        if (voiceTimerRef.current) {
+          clearInterval(voiceTimerRef.current);
+          voiceTimerRef.current = null;
+        }
+      } else if (mr.state === "paused" && typeof mr.resume === "function") {
+        mr.resume();
+        setIsVoicePaused(false);
+        if (voiceTimerRef.current) clearInterval(voiceTimerRef.current);
+        voiceTimerRef.current = setInterval(() => {
+          setVoiceDuration((prev) => prev + 1);
+        }, 1000);
+      } else {
+        stopVoiceRecording();
+      }
+    } catch {
+      stopVoiceRecording();
     }
   };
 
@@ -5873,6 +6625,7 @@ export function UnifiedChatApp({
       clearInterval(voiceTimerRef.current);
       voiceTimerRef.current = null;
     }
+    stopVoiceWaveAnalyser();
 
     const mr = mediaRecorderRef.current;
     mr.onstop = () => {
@@ -5883,6 +6636,7 @@ export function UnifiedChatApp({
       if (blob.size === 0) {
         toast.error("No audio recorded.");
         setIsRecordingVoice(false);
+        setIsVoicePaused(false);
         setVoiceDuration(0);
         return;
       }
@@ -5890,6 +6644,7 @@ export function UnifiedChatApp({
       setVoicePreviewBlob(blob);
       setVoicePreviewUrl(previewUrl);
       setIsRecordingVoice(false);
+      setIsVoicePaused(false);
     };
 
     mr.stop();
@@ -5906,6 +6661,7 @@ export function UnifiedChatApp({
       clearInterval(voiceTimerRef.current);
       voiceTimerRef.current = null;
     }
+    stopVoiceWaveAnalyser();
     if (voicePreviewUrl) {
       URL.revokeObjectURL(voicePreviewUrl);
       setVoicePreviewUrl(null);
@@ -5916,8 +6672,10 @@ export function UnifiedChatApp({
     }
     audioChunksRef.current = [];
     setIsRecordingVoice(false);
+    setIsVoicePaused(false);
     setIsPlayingVoicePreview(false);
     setVoiceDuration(0);
+    setVoiceWaveformBars(Array(24).fill(18));
   };
 
   const togglePlayVoicePreview = () => {
@@ -5940,6 +6698,7 @@ export function UnifiedChatApp({
         clearInterval(voiceTimerRef.current);
         voiceTimerRef.current = null;
       }
+      stopVoiceWaveAnalyser();
       const mr = mediaRecorderRef.current;
       await new Promise<void>((resolve) => {
         mr.onstop = () => {
@@ -5952,6 +6711,7 @@ export function UnifiedChatApp({
         mr.stop();
       });
       setIsRecordingVoice(false);
+      setIsVoicePaused(false);
     }
 
     if (!blobToSend || blobToSend.size === 0) {
@@ -6068,9 +6828,11 @@ export function UnifiedChatApp({
   // ──────────────────────────────────────────────────────────────────────────
   const createPendingItem = (file: File): ComposerAttachmentItem => {
     const isImage = file.type.startsWith("image/");
+    const isVideo =
+      file.type.startsWith("video/") || /\.(mp4|webm|mov|m4v|ogg)$/i.test(file.name);
     const isPdf = file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf");
     let previewUrl = "";
-    if (isImage || isPdf) {
+    if (isImage || isVideo || isPdf) {
       try {
         previewUrl = URL.createObjectURL(file);
       } catch {}
@@ -7069,6 +7831,42 @@ export function UnifiedChatApp({
         mobilePane === "list" ? "flex" : "hidden md:flex",
         mobilePane === "details" && "md:hidden xl:flex"
       )}>
+        {/* Mobile Conversation List Push Enablement Banner (shown on mobile list screen before opening a thread) */}
+        {mobilePane === "list" &&
+          !notifBannerDismissed &&
+          incomingCallCtx &&
+          incomingCallCtx.isPushSupported &&
+          incomingCallCtx.pushPermission === "default" && (
+            <div className="md:hidden px-3 py-2 bg-primary/10 border-b border-primary/25 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Bell className="size-3.5 text-primary shrink-0" />
+                <span className="truncate text-foreground font-medium">
+                  Enable call & message alerts
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={(e) => {
+                    incomingCallCtx.enablePushNotifications(e);
+                  }}
+                  className="h-6 px-2.5 text-[11px] font-semibold"
+                >
+                  Enable
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setNotifBannerDismissed(true)}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded"
+                  aria-label="Dismiss notification prompt"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
         {/* Segmented Top Navigation: Personal / Group / Call Logs */}
         <div className="p-3 border-b border-border bg-card">
           <div className="flex items-center justify-between mb-2.5">
@@ -8115,11 +8913,27 @@ export function UnifiedChatApp({
                           <span
                             className={cn(
                               "size-1.5 rounded-full",
-                              onlineUserIds.includes(activeTargetUserId) ? "bg-success" : "bg-muted-foreground/40"
+                              isUserOnline(
+                                activeTargetUserId,
+                                (participantProfile as any)?.userId,
+                                (participantProfile as any)?.id,
+                                activeContact?.userId,
+                                activeContact?.id
+                              )
+                                ? "bg-success"
+                                : "bg-muted-foreground/40"
                             )}
                           />
                           <span>
-                            {onlineUserIds.includes(activeTargetUserId) ? "Online" : "Offline"}
+                            {isUserOnline(
+                              activeTargetUserId,
+                              (participantProfile as any)?.userId,
+                              (participantProfile as any)?.id,
+                              activeContact?.userId,
+                              activeContact?.id
+                            )
+                              ? "Online"
+                              : "Offline"}
                           </span>
                           {(participantProfile?.designation || activeContact?.designation) && (
                             <>
@@ -8218,6 +9032,8 @@ export function UnifiedChatApp({
 
                 <button
                   onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: ["chat", "presence"] });
+                    queryClient.invalidateQueries({ queryKey: ["chat", "participant"] });
                     if (typeof window !== "undefined" && window.innerWidth < 1280) {
                       setShowInfo(true);
                       setMobilePane((prev) => (prev === "details" ? "chat" : "details"));
@@ -8237,6 +9053,45 @@ export function UnifiedChatApp({
                 </button>
               </div>
             </div>
+
+            {/* Mobile & Desktop Device Outside-App Push Notification Enablement Banner (Issue 5) */}
+            {!notifBannerDismissed &&
+              incomingCallCtx &&
+              incomingCallCtx.isPushSupported &&
+              incomingCallCtx.pushPermission === "default" && (
+                <div
+                  data-testid="mobile-push-enable-banner"
+                  className="px-3.5 py-2 bg-primary/10 border-b border-primary/25 flex items-center justify-between gap-2 text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Bell className="size-3.5 text-primary shrink-0" />
+                    <span className="truncate text-foreground font-medium">
+                      Turn on device notifications to receive calls & messages outside the app
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Button
+                      type="button"
+                      size="sm"
+                      data-testid="btn-enable-device-push"
+                      onClick={(e) => {
+                        incomingCallCtx.enablePushNotifications(e);
+                      }}
+                      className="h-6 px-2.5 text-[11px] bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      Enable
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => setNotifBannerDismissed(true)}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground"
+                      aria-label="Dismiss notification prompt"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
 
             {/* In-Thread Search Bar */}
             {inThreadSearchOpen && (
@@ -8499,33 +9354,105 @@ export function UnifiedChatApp({
                                 </div>
                               )}
 
-                              {/* Attachments List */}
+                              {/* Attachments List (Images, Inline Videos, PDFs & Documents — Issue 2) */}
                               {msg.attachments && msg.attachments.length > 0 && (
                                 <div className="mt-2 space-y-1.5">
                                   {msg.attachments.map((att, aIdx) => {
-                                    const isImage = att.mimeType?.startsWith("image/");
-                                    const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
-                                    const previewSrc = resolveChatAttachmentUrl(att.signedPreviewUrl || att.url);
-                                    const downloadHref = resolveChatAttachmentUrl(
-                                      att.signedDownloadUrl || att.signedPreviewUrl || att.url
-                                    );
+                                    const attExt = (att.name || "").split(".").pop()?.toLowerCase() || "";
+                                    const isImage =
+                                      att.mimeType?.startsWith("image/") ||
+                                      ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "heic", "heif"].includes(attExt);
+                                    const isVideo =
+                                      att.mimeType?.startsWith("video/") ||
+                                      ["mp4", "webm", "mov", "m4v", "ogg"].includes(attExt);
+                                    const isPdf =
+                                      att.mimeType?.includes("pdf") || attExt === "pdf";
+                                    const fallbackMediaId = att.mediaId || att.id;
+                                    const fallbackInlineUrl = fallbackMediaId
+                                      ? resolveChatAttachmentUrl(
+                                          `/api/chat/attachments/${encodeURIComponent(fallbackMediaId)}/download?inline=1`
+                                        )
+                                      : "";
+                                    const previewSrc =
+                                      resolveChatAttachmentUrl(att.signedPreviewUrl || att.url) ||
+                                      fallbackInlineUrl;
+                                    const downloadHref =
+                                      resolveChatAttachmentUrl(
+                                        att.signedDownloadUrl || att.signedPreviewUrl || att.url
+                                      ) || fallbackInlineUrl;
 
-                                    return isImage ? (
-                                      <div
-                                        key={aIdx}
-                                        onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
-                                        className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-[240px] sm:max-w-xs"
-                                      >
-                                        <img
-                                          src={previewSrc}
-                                          alt={att.name}
-                                          className="max-h-48 w-auto object-cover group-hover/img:scale-105 transition-transform"
-                                        />
-                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
-                                          <Eye className="size-4" /> View Full
+                                    if (isImage) {
+                                      return (
+                                        <div
+                                          key={aIdx}
+                                          data-testid="chat-attachment-image-card"
+                                          onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
+                                          className="cursor-pointer group/img relative overflow-hidden rounded-lg border border-border/60 max-w-[240px] sm:max-w-xs bg-muted/20"
+                                        >
+                                          <img
+                                            src={previewSrc}
+                                            alt={att.name}
+                                            loading="lazy"
+                                            onError={(e) => {
+                                              const img = e.currentTarget;
+                                              if (
+                                                fallbackInlineUrl &&
+                                                !img.dataset.retriedFallback &&
+                                                img.src !== fallbackInlineUrl
+                                              ) {
+                                                img.dataset.retriedFallback = "1";
+                                                img.src = fallbackInlineUrl;
+                                              }
+                                            }}
+                                            className="max-h-56 w-auto object-cover group-hover/img:scale-105 transition-transform"
+                                          />
+                                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1">
+                                            <Eye className="size-4" /> View Full
+                                          </div>
                                         </div>
-                                      </div>
-                                    ) : (
+                                      );
+                                    }
+
+                                    if (isVideo) {
+                                      return (
+                                        <div
+                                          key={aIdx}
+                                          data-testid="chat-attachment-video-card"
+                                          className="relative overflow-hidden rounded-lg border border-border/60 max-w-[260px] sm:max-w-xs bg-black"
+                                        >
+                                          <video
+                                            src={previewSrc}
+                                            controls
+                                            playsInline
+                                            preload="metadata"
+                                            onError={(e) => {
+                                              const vid = e.currentTarget;
+                                              if (
+                                                fallbackInlineUrl &&
+                                                !vid.dataset.retriedFallback &&
+                                                vid.src !== fallbackInlineUrl
+                                              ) {
+                                                vid.dataset.retriedFallback = "1";
+                                                vid.src = fallbackInlineUrl;
+                                              }
+                                            }}
+                                            className="max-h-60 w-full object-contain bg-black"
+                                          />
+                                          <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-card/95 text-foreground text-[11px] border-t border-border/50">
+                                            <span className="truncate font-medium">{att.name}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
+                                              className="text-primary hover:underline shrink-0 font-semibold cursor-pointer"
+                                            >
+                                              Expand
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
                                       <div
                                         key={aIdx}
                                         onClick={() => openAttachmentViewer(msg.attachments!, aIdx)}
@@ -9151,6 +10078,10 @@ export function UnifiedChatApp({
               <div className="p-3 bg-muted/40 border-t border-border flex items-center gap-3 overflow-x-auto">
                 {composerAttachments.map((item, idx) => {
                   const isImage = item.mimeType?.startsWith("image/") || (item.file && item.file.type.startsWith("image/"));
+                  const isVideo =
+                    item.mimeType?.startsWith("video/") ||
+                    (item.file && item.file.type.startsWith("video/")) ||
+                    /\.(mp4|webm|mov|m4v|ogg)$/i.test(item.name);
                   const isPdf = item.mimeType?.includes("pdf") || item.name.toLowerCase().endsWith(".pdf");
                   const ext = (item.name.split(".").pop() || "").toUpperCase();
 
@@ -9166,6 +10097,14 @@ export function UnifiedChatApp({
                             src={item.previewUrl}
                             alt={item.name}
                             className="size-full object-cover"
+                          />
+                        ) : isVideo && item.previewUrl ? (
+                          <video
+                            src={item.previewUrl}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="size-full object-cover bg-black"
                           />
                         ) : isPdf ? (
                           <div className="flex flex-col items-center justify-center text-destructive">
@@ -9240,83 +10179,128 @@ export function UnifiedChatApp({
               </div>
             )}
 
-            {/* Message Composer / Voice Recording Bar */}
+            {/* Message Composer / Exact WhatsApp Voice Recording Bar (Issue 3) */}
             {isRecordingVoice ? (
-              <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3 animate-in fade-in">
-                <div className="flex items-center gap-2 text-xs font-semibold text-destructive animate-pulse">
-                  <div className="size-3 rounded-full bg-destructive" />
-                  <span>Recording voice message... ({formatDuration(voiceDuration)})</span>
+              <div
+                data-testid="whatsapp-voice-recorder-bar"
+                className="p-2.5 sm:p-3 border-t border-border bg-card flex items-center justify-between gap-2.5 sm:gap-3 animate-in fade-in"
+              >
+                {/* Left: WhatsApp Trash / Discard Button */}
+                <button
+                  type="button"
+                  data-testid="btn-voice-discard"
+                  onClick={cancelVoiceRecording}
+                  className="size-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                  title="Discard voice message"
+                  aria-label="Discard voice message"
+                >
+                  <Trash2 className="size-4.5" />
+                </button>
+
+                {/* Recording Red Dot + MM:SS Live Timer */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={cn(
+                      "size-2.5 rounded-full bg-rose-500",
+                      !isVoicePaused && "animate-pulse"
+                    )}
+                  />
+                  <span
+                    data-testid="voice-record-timer"
+                    className="font-mono text-xs sm:text-sm font-semibold text-foreground tabular-nums"
+                  >
+                    {formatDuration(voiceDuration)}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelVoiceRecording}
-                    className="text-xs text-destructive hover:bg-destructive/10"
-                    title="Cancel recording"
-                  >
-                    <Trash2 className="size-3.5 mr-1" /> Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={stopVoiceRecording}
-                    className="text-xs"
-                    title="Stop & preview"
-                  >
-                    <Square className="size-3 mr-1" /> Stop & Preview
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={sendVoiceRecording}
-                    className="text-xs bg-primary hover:bg-primary text-primary-foreground"
-                    title="Send voice note"
-                  >
-                    <Send className="size-3.5 mr-1" /> Send Voice Note
-                  </Button>
+
+                {/* Center: Live Animated 24-Bar Waveform */}
+                <div className="flex-1 flex items-center justify-center gap-[2px] h-7 px-2 max-w-md overflow-hidden">
+                  {voiceWaveformBars.map((barH, idx) => (
+                    <span
+                      key={idx}
+                      style={{ height: `${isVoicePaused ? 22 : Math.max(18, barH)}%` }}
+                      className={cn(
+                        "flex-1 min-w-[2px] max-w-[3.5px] rounded-full transition-all duration-75",
+                        isVoicePaused ? "bg-muted-foreground/40" : "bg-emerald-500"
+                      )}
+                    />
+                  ))}
                 </div>
+
+                {/* Pause / Resume Recording */}
+                <button
+                  type="button"
+                  data-testid="btn-voice-pause-resume"
+                  onClick={togglePauseVoiceRecording}
+                  className="size-8 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-500/10 border border-rose-500/30 transition-colors cursor-pointer shrink-0"
+                  title={isVoicePaused ? "Resume recording" : "Pause recording"}
+                  aria-label={isVoicePaused ? "Resume recording" : "Pause recording"}
+                >
+                  {isVoicePaused ? <Mic className="size-4" /> : <Pause className="size-4" />}
+                </button>
+
+                {/* Right: 1-Tap WhatsApp Emerald Green Send Button */}
+                <button
+                  type="button"
+                  data-testid="btn-voice-send"
+                  onClick={sendVoiceRecording}
+                  className="size-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+                  title="Send voice note"
+                  aria-label="Send voice note"
+                >
+                  <Send className="size-4.5 ml-0.5" />
+                </button>
               </div>
             ) : voicePreviewBlob && voicePreviewUrl ? (
-              <div className="p-3 border-t border-border bg-card flex items-center justify-between gap-3 animate-in fade-in">
+              <div
+                data-testid="whatsapp-voice-preview-bar"
+                className="p-2.5 sm:p-3 border-t border-border bg-card flex items-center justify-between gap-2.5 sm:gap-3 animate-in fade-in"
+              >
                 <audio
                   ref={voicePreviewAudioRef}
                   src={voicePreviewUrl}
                   onEnded={() => setIsPlayingVoicePreview(false)}
                   className="hidden"
                 />
-                <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  data-testid="btn-voice-discard"
+                  onClick={cancelVoiceRecording}
+                  className="size-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                  title="Delete recorded voice note"
+                  aria-label="Delete recorded voice note"
+                >
+                  <Trash2 className="size-4.5" />
+                </button>
+                <div className="flex-1 flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-muted/50 border border-border/60 min-w-0">
                   <button
                     type="button"
                     onClick={togglePlayVoicePreview}
-                    className="flex items-center justify-center size-8 rounded-full bg-primary text-primary-foreground hover:bg-primary cursor-pointer"
+                    className="flex items-center justify-center size-7 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer shrink-0"
                     title={isPlayingVoicePreview ? "Pause" : "Play preview"}
                   >
-                    {isPlayingVoicePreview ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
+                    {isPlayingVoicePreview ? <Pause className="size-3.5" /> : <Play className="size-3.5 ml-0.5" />}
                   </button>
-                  <span className="font-mono text-xs text-muted-foreground">Voice preview ({formatDuration(voiceDuration || 1)})</span>
+                  <div className="flex-1 flex items-center gap-[2px] h-5 overflow-hidden">
+                    {WHATSAPP_WAVEFORM_HEIGHTS.slice(0, 22).map((h, i) => (
+                      <span
+                        key={i}
+                        style={{ height: `${Math.max(24, h)}%` }}
+                        className="flex-1 min-w-[2px] max-w-[3.5px] rounded-full bg-emerald-500/75"
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={cancelVoiceRecording}
-                    className="text-xs text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="size-3.5 mr-1" /> Delete
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={sendVoiceRecording}
-                    className="text-xs bg-primary hover:bg-primary text-primary-foreground"
-                  >
-                    <Send className="size-3.5 mr-1" /> Send Voice Note
-                  </Button>
-                </div>
+                <button
+                  type="button"
+                  data-testid="btn-voice-send"
+                  onClick={sendVoiceRecording}
+                  className="size-10 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-md transition-transform active:scale-95 cursor-pointer shrink-0"
+                  title="Send voice note"
+                  aria-label="Send voice note"
+                >
+                  <Send className="size-4.5 ml-0.5" />
+                </button>
               </div>
             ) : activeThreadType === "group" &&
               activeGroup?.isAnnouncementOnly &&
@@ -9526,23 +10510,45 @@ export function UnifiedChatApp({
       {/* RIGHT COLUMN: CONTACT / GROUP INFO & SHARED FILES DRAWER            */}
       {/* ─────────────────────────────────────────────────────────────────── */}
       {showInfo && activeThreadId && mode !== "calls" && (
-        <aside className={cn(
-          "w-full sm:w-[320px] xl:w-[320px] flex-shrink-0 border-l border-border bg-card flex-col overflow-y-auto",
-          mobilePane === "details"
-            ? "fixed inset-y-0 right-0 z-40 flex shadow-2xl xl:static xl:z-auto xl:shadow-none"
-            : "hidden xl:flex"
-        )}>
-          <div className="xl:hidden flex items-center gap-2 p-3 border-b border-border">
+        <aside
+          data-testid="chat-user-profile-drawer"
+          className={cn(
+            "w-full xl:w-[320px] flex-shrink-0 border-l border-border bg-card flex-col overflow-y-auto",
+            mobilePane === "details"
+              ? "fixed inset-0 z-[1200] flex shadow-2xl xl:static xl:inset-auto xl:z-auto xl:shadow-none"
+              : "hidden xl:flex"
+          )}
+        >
+          <div
+            className="xl:hidden sticky top-0 z-20 bg-card/95 backdrop-blur-xs flex items-center justify-between gap-2 px-3 py-3 border-b border-border"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
             <button
               type="button"
               data-testid="btn-mobile-back-to-chat"
-              onClick={() => setMobilePane("chat")}
-              className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => {
+                setMobilePane("chat");
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-foreground bg-muted/70 hover:bg-muted transition-colors cursor-pointer"
               aria-label="Back to conversation"
             >
               <ArrowLeft className="size-4" />
+              <span>Back</span>
             </button>
-            <span className="text-sm font-semibold">Conversation details</span>
+            <span className="text-sm font-bold text-foreground truncate">
+              {activeThreadType === "direct" ? "User Profile" : "Group Info"}
+            </span>
+            <button
+              type="button"
+              data-testid="btn-mobile-close-profile"
+              onClick={() => {
+                setMobilePane("chat");
+              }}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              aria-label="Close profile"
+            >
+              <X className="size-4" />
+            </button>
           </div>
           {/* Top Profile Card */}
           <div className="p-6 text-center border-b border-border/70 flex flex-col items-center">
@@ -9614,24 +10620,42 @@ export function UnifiedChatApp({
               </div>
             ) : (
               <>
-                <Avatar className="size-18 shadow-md mb-3">
-                  {(activeThreadType === "direct"
-                    ? participantProfile?.avatarUrl || activeContact?.avatarUrl
-                    : activeGroup?.avatarUrl) ? (
-                    <AvatarImage
-                      src={
-                        (activeThreadType === "direct"
-                          ? participantProfile?.avatarUrl || activeContact?.avatarUrl
-                          : activeGroup?.avatarUrl) || ""
-                      }
-                      alt={activeThreadTitle}
-                      className="object-cover"
+                <div className="relative mb-3">
+                  <Avatar className="size-18 shadow-md">
+                    {(activeThreadType === "direct"
+                      ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                      : activeGroup?.avatarUrl) ? (
+                      <AvatarImage
+                        src={
+                          (activeThreadType === "direct"
+                            ? participantProfile?.avatarUrl || activeContact?.avatarUrl
+                            : activeGroup?.avatarUrl) || ""
+                        }
+                        alt={activeThreadTitle}
+                        className="object-cover"
+                      />
+                    ) : null}
+                    <AvatarFallback className={cn("text-foreground font-bold text-2xl", getAvatarColor(activeThreadTitle))}>
+                      {(activeThreadTitle || "C").charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {activeThreadType === "direct" && (
+                    <span
+                      className={cn(
+                        "absolute bottom-0.5 right-0.5 size-3.5 rounded-full ring-2 ring-card",
+                        isUserOnline(
+                          activeTargetUserId,
+                          (participantProfile as any)?.userId,
+                          (participantProfile as any)?.id,
+                          activeContact?.userId,
+                          activeContact?.id
+                        )
+                          ? "bg-emerald-500"
+                          : "bg-muted-foreground/50"
+                      )}
                     />
-                  ) : null}
-                  <AvatarFallback className={cn("text-foreground font-bold text-2xl", getAvatarColor(activeThreadTitle))}>
-                    {(activeThreadTitle || "C").charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                  )}
+                </div>
 
                 <h3 className="font-bold text-base text-foreground truncate w-full">
                   {activeThreadType === "group" && activeGroup?.name ? activeGroup.name : activeThreadTitle}
@@ -9641,6 +10665,34 @@ export function UnifiedChatApp({
                     ? participantProfile?.designation || activeContact?.designation || "Colleague"
                     : `${activeGroup?.memberCount || 0} Members`}
                 </p>
+                {activeThreadType === "direct" && (() => {
+                  const profileOnline = isUserOnline(
+                    activeTargetUserId,
+                    (participantProfile as any)?.userId,
+                    (participantProfile as any)?.id,
+                    activeContact?.userId,
+                    activeContact?.id
+                  );
+                  return (
+                    <div
+                      data-testid="profile-drawer-presence-badge"
+                      className={cn(
+                        "mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border",
+                        profileOnline
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25"
+                          : "bg-muted text-muted-foreground border-border"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "size-2 rounded-full",
+                          profileOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/50"
+                        )}
+                      />
+                      <span>{profileOnline ? "Online" : "Offline"}</span>
+                    </div>
+                  );
+                })()}
               </>
             )}
 
@@ -11299,16 +12351,21 @@ export function UnifiedChatApp({
                 isMuted={isMuted}
                 isVideoOff={isVideoOff}
                 remoteIsVideoOff={remoteIsVideoOff}
+                isOnHold={isOnHold}
+                remoteIsOnHold={remoteIsOnHold}
+                remoteHoldByName={remoteHoldByName}
                 isScreenSharing={isScreenSharing}
                 remoteIsScreenSharing={remoteIsScreenSharing}
                 isCallFullscreen={isCallFullscreen}
                 isReconnecting={isReconnecting}
                 peerReconnecting={peerReconnecting}
                 onToggleMute={toggleMute}
+                onToggleHold={toggleHold}
                 onToggleVideo={toggleVideo}
                 onToggleScreenShare={toggleScreenShare}
                 onToggleFullscreen={toggleFullscreenCall}
                 onMinimize={() => setIsCallMinimized(true)}
+                onTogglePiP={togglePictureInPicture}
                 onEndCall={handleEndCall}
                 onAddParticipant={() => setInCallAddParticipantOpen(true)}
                 onOpenSettings={() => setInCallSettingsOpen(true)}
@@ -11324,14 +12381,20 @@ export function UnifiedChatApp({
                 callStatus={callStatus}
                 currentUserAvatar={(currentUser as any)?.profile?.avatarUrl || (currentUser as any)?.avatarUrl || null}
                 currentUserName={(currentUser as any)?.profile?.fullName || (currentUser as any)?.name || "You"}
+                remoteStream={remoteStreamState || remoteStreamRef.current}
                 remoteAudioRef={remoteAudioRef}
                 remoteIsSpeaking={remoteIsSpeaking}
                 localIsSpeaking={localIsSpeaking}
                 isMuted={isMuted}
+                isOnHold={isOnHold}
+                remoteIsOnHold={remoteIsOnHold}
+                remoteHoldByName={remoteHoldByName}
                 participants={activeCallParticipants}
                 onToggleMute={toggleMute}
+                onToggleHold={toggleHold}
                 onToggleVideo={toggleVideo}
                 onMinimize={() => setIsCallMinimized(true)}
+                onTogglePiP={togglePictureInPicture}
                 onEndCall={handleEndCall}
                 onAddParticipant={() => setInCallAddParticipantOpen(true)}
                 onOpenSettings={() => setInCallSettingsOpen(true)}
@@ -11342,12 +12405,47 @@ export function UnifiedChatApp({
         </DialogContent>
       </Dialog>
 
-      {/* FLOATING MINI-CALL PICTURE-IN-PICTURE (PiP) WIDGET */}
+      {/* DRAGGABLE FLOATING MINI-CALL PICTURE-IN-PICTURE (PiP) WIDGET + OS CROSS-TAB POP-OUT (Issue 6) */}
       {activeCallModalOpen && isCallMinimized && (
         <div
+          ref={pipBoxRef}
           data-testid="floating-pip-widget"
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[99999] bg-card/95 backdrop-blur-md text-foreground border border-border rounded-2xl p-2.5 sm:p-3 shadow-2xl max-w-[calc(100vw-32px)] animate-in fade-in slide-in-from-bottom-4 duration-200"
+          onPointerDown={handlePipPointerDown}
+          onPointerMove={handlePipPointerMove}
+          onPointerUp={handlePipPointerUp}
+          onPointerCancel={handlePipPointerUp}
+          style={
+            pipDragPos
+              ? {
+                  left: `${pipDragPos.x}px`,
+                  top: `${pipDragPos.y}px`,
+                  right: "auto",
+                  bottom: "auto",
+                  touchAction: "none",
+                }
+              : { touchAction: "none" }
+          }
+          className={cn(
+            "fixed z-[99999] bg-card/95 backdrop-blur-md text-foreground border border-border rounded-2xl p-2.5 sm:p-3 shadow-2xl max-w-[calc(100vw-16px)] select-none cursor-grab active:cursor-grabbing",
+            !pipDragPos && "bottom-4 right-4 sm:bottom-6 sm:right-6 animate-in fade-in slide-in-from-bottom-4 duration-200"
+          )}
         >
+          {/* Drag Grip Handle */}
+          <div className="flex items-center justify-center -mt-1 mb-1 text-muted-foreground/70">
+            <GripHorizontal className="size-4" />
+          </div>
+
+          {(remoteIsOnHold || isOnHold) && (
+            <div className="mb-1.5 px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/40 text-amber-600 dark:text-amber-400 text-[10px] font-bold flex items-center justify-center gap-1">
+              <Pause className="size-3" />
+              <span>
+                {remoteIsOnHold
+                  ? `${remoteHoldByName || activeCallTargetName} put call on hold`
+                  : "Call On Hold"}
+              </span>
+            </div>
+          )}
+
           {activeCallType === "video" ? (
             /* VIDEO PIP CARD */
             <div className="flex flex-col gap-2">
@@ -11362,9 +12460,10 @@ export function UnifiedChatApp({
                   }}
                   autoPlay
                   playsInline
-                  className="w-full h-full object-cover"
+                  muted
+                  className="w-full h-full object-cover pointer-events-none"
                 />
-                {(!remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled) || isVideoOff) && (
+                {(!remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled) || isVideoOff || remoteIsVideoOff) && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-background text-foreground gap-1.5">
                     <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-xs text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
                       {(activeCallTargetName || "C").charAt(0).toUpperCase()}
@@ -11382,9 +12481,9 @@ export function UnifiedChatApp({
               {/* PiP Action Toolbar */}
               <div className="flex items-center justify-between px-1">
                 <div className="min-w-0 pr-1">
-                  <p className="text-xs font-semibold truncate max-w-[110px] text-foreground">{activeCallTargetName}</p>
+                  <p className="text-xs font-semibold truncate max-w-[100px] text-foreground">{activeCallTargetName}</p>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -11398,8 +12497,18 @@ export function UnifiedChatApp({
                   <Button
                     variant="ghost"
                     size="icon"
+                    data-testid="pip-btn-native-pip"
+                    className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-muted"
+                    onClick={togglePictureInPicture}
+                    title="Pop out OS Picture-in-Picture window (works across tabs & apps)"
+                  >
+                    <PictureInPicture2 className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     data-testid="pip-btn-maximize"
-                    className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-card"
+                    className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-muted"
                     onClick={() => setIsCallMinimized(false)}
                     title="Maximize Call Window"
                   >
@@ -11426,7 +12535,7 @@ export function UnifiedChatApp({
                   <img
                     src={activeCallTargetAvatar}
                     alt={activeCallTargetName || "Caller"}
-                    className="size-10 rounded-full object-cover shadow-md"
+                    className="size-10 rounded-full object-cover shadow-md pointer-events-none"
                   />
                 ) : (
                   <div className={cn("size-10 rounded-full flex items-center justify-center font-bold text-sm text-foreground shadow-md", getAvatarColor(activeCallTargetName))}>
@@ -11437,19 +12546,19 @@ export function UnifiedChatApp({
               </div>
 
               <div className="min-w-0 pr-1">
-                <p className="text-xs font-semibold truncate max-w-[120px] text-foreground">{activeCallTargetName}</p>
+                <p className="text-xs font-semibold truncate max-w-[110px] text-foreground">{activeCallTargetName}</p>
                 <div className="flex items-center gap-1.5 text-[10px] text-success font-mono">
                   <span className="size-1.5 rounded-full bg-success animate-ping" />
                   <span>{formatDuration(callDurationSeconds)}</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 border-l border-border/80 pl-2">
+              <div className="flex items-center gap-1 border-l border-border/80 pl-2">
                 <Button
                   variant="ghost"
                   size="icon"
                   data-testid="pip-btn-mute"
-                  className={cn("size-8 rounded-full", isMuted ? "bg-destructive/20 text-destructive" : "text-foreground hover:text-foreground")}
+                  className={cn("size-7 rounded-full", isMuted ? "bg-destructive/20 text-destructive" : "text-foreground hover:text-foreground")}
                   onClick={toggleMute}
                   title={isMuted ? "Unmute Mic" : "Mute Mic"}
                 >
@@ -11459,8 +12568,19 @@ export function UnifiedChatApp({
                 <Button
                   variant="ghost"
                   size="icon"
+                  data-testid="pip-btn-native-pip"
+                  className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-muted"
+                  onClick={togglePictureInPicture}
+                  title="Pop out OS Picture-in-Picture window (works across tabs & apps)"
+                >
+                  <PictureInPicture2 className="size-3.5" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
                   data-testid="pip-btn-maximize"
-                  className="size-8 rounded-full text-foreground hover:text-foreground hover:bg-card"
+                  className="size-7 rounded-full text-foreground hover:text-foreground hover:bg-muted"
                   onClick={() => setIsCallMinimized(false)}
                   title="Maximize Call Window"
                 >
@@ -11471,7 +12591,7 @@ export function UnifiedChatApp({
                   variant="destructive"
                   size="icon"
                   data-testid="pip-btn-hangup"
-                  className="size-8 rounded-full bg-destructive hover:bg-destructive text-destructive-foreground"
+                  className="size-7 rounded-full bg-destructive hover:bg-destructive text-destructive-foreground"
                   onClick={handleEndCall}
                   title="Hang Up Call"
                 >
@@ -12330,7 +13450,8 @@ export function UnifiedChatApp({
         const fileName = currentItem.name || "Attachment";
         const fileExt = fileName.split(".").pop()?.toLowerCase() || "";
         const mime = currentItem.mimeType || "";
-        const isImg = mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(fileExt);
+        const isImg = mime.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic", "heif"].includes(fileExt);
+        const isVideo = mime.startsWith("video/") || ["mp4", "webm", "mov", "m4v", "ogg"].includes(fileExt);
         const isPdf = mime === "application/pdf" || fileExt === "pdf";
         const hasPrev = activeViewer.currentIndex > 0;
         const hasNext = activeViewer.currentIndex < activeViewer.items.length - 1;
@@ -12439,6 +13560,16 @@ export function UnifiedChatApp({
                         transition: "transform 0.15s ease-out",
                       }}
                       className="max-h-full max-w-full object-contain rounded shadow-sm select-none"
+                    />
+                  </div>
+                ) : isVideo ? (
+                  <div className="w-full h-full flex items-center justify-center bg-black rounded-md overflow-hidden">
+                    <video
+                      src={currentItem.url}
+                      controls
+                      autoPlay
+                      playsInline
+                      className="max-h-full max-w-full object-contain"
                     />
                   </div>
                 ) : isPdf ? (

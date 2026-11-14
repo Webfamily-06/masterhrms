@@ -2611,36 +2611,100 @@ export function getIO(): SocketIOServer | null {
   return ioInstance;
 }
 
+const restPresenceMap = new Map<string, Map<string, number>>();
+const REST_PRESENCE_TTL_MS = 75_000;
+
 export function getOnlineUsersForTenant(tenantId: string): string[] {
   const localSet = new Set<string>();
+  const nowMs = Date.now();
   const users = tenantPresence.get(tenantId);
   if (users) {
     for (const [userId, count] of users.entries()) {
       if (count > 0) localSet.add(userId);
     }
   }
+  const restUsers = restPresenceMap.get(tenantId);
+  if (restUsers) {
+    for (const [userId, expiresAt] of restUsers.entries()) {
+      if (expiresAt > nowMs) {
+        localSet.add(userId);
+      } else {
+        restUsers.delete(userId);
+      }
+    }
+  }
   const cached = distributedPresenceCache.get(tenantId);
-  if (cached && cached.expiresAt > Date.now()) {
+  if (cached && cached.expiresAt > nowMs) {
     for (const uid of cached.userIds) localSet.add(uid);
   }
   return Array.from(localSet);
+}
+
+export async function recordRestUserPresence(
+  tenantId: string,
+  userId: string,
+  status: "online" | "offline" = "online"
+): Promise<void> {
+  if (!tenantId || tenantId === "default" || !userId) return;
+  let tenantMap = restPresenceMap.get(tenantId);
+  if (!tenantMap) {
+    tenantMap = new Map<string, number>();
+    restPresenceMap.set(tenantId, tenantMap);
+  }
+  if (status === "online") {
+    tenantMap.set(userId, Date.now() + REST_PRESENCE_TTL_MS);
+  } else {
+    tenantMap.delete(userId);
+  }
+  distributedPresenceCache.delete(tenantId);
+
+  try {
+    const db: any = rawPrisma || prisma;
+    if (!db.chatUserPresence?.upsert) return;
+    const now = new Date();
+    await db.chatUserPresence.upsert({
+      where: {
+        tenantId_userId: {
+          tenantId,
+          userId,
+        },
+      },
+      create: {
+        tenantId,
+        userId,
+        status,
+        activeConnections: status === "online" ? 1 : 0,
+        instanceId: SOCKET_INSTANCE_ID,
+        lastSeenAt: now,
+      },
+      update: {
+        status,
+        ...(status === "offline" ? { activeConnections: 0 } : {}),
+        instanceId: SOCKET_INSTANCE_ID,
+        lastSeenAt: now,
+      },
+    });
+    distributedPresenceCache.delete(tenantId);
+  } catch {
+    // Non-fatal presence update; restPresenceMap already tracks in-process state
+  }
 }
 
 export async function getOnlineUsersForTenantAsync(tenantId: string): Promise<string[]> {
   const onlineSet = new Set<string>(getOnlineUsersForTenant(tenantId));
   const cached = distributedPresenceCache.get(tenantId);
   if (cached && cached.expiresAt > Date.now()) {
+    for (const uid of cached.userIds) onlineSet.add(uid);
     return Array.from(onlineSet);
   }
   try {
     const db: any = rawPrisma || prisma;
     if (db.chatUserPresence?.findMany) {
-      const freshCutoff = new Date(Date.now() - 2 * 60 * 1000);
+      const freshCutoff = new Date(Date.now() - 60 * 1000);
       const rows = await db.chatUserPresence.findMany({
         where: {
           tenantId,
           status: "online",
-          activeConnections: { gt: 0 },
           lastSeenAt: { gte: freshCutoff },
         },
         select: { userId: true },

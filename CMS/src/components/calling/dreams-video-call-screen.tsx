@@ -17,6 +17,9 @@ import {
   User,
   RefreshCw,
   AudioLines,
+  Pause,
+  Play,
+  PictureInPicture2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GridParticipant } from "./adaptive-video-grid";
@@ -45,6 +48,9 @@ export interface DreamsVideoCallScreenProps {
   isMuted: boolean;
   isVideoOff: boolean;
   remoteIsVideoOff?: boolean;
+  isOnHold?: boolean;
+  remoteIsOnHold?: boolean;
+  remoteHoldByName?: string | null;
   isScreenSharing: boolean;
   remoteIsScreenSharing?: boolean;
   isCallFullscreen: boolean;
@@ -52,10 +58,12 @@ export interface DreamsVideoCallScreenProps {
   peerReconnecting?: { graceSecondsRemaining: number } | null;
 
   onToggleMute: () => void;
+  onToggleHold?: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
   onToggleFullscreen: () => void;
   onMinimize: () => void;
+  onTogglePiP?: () => void;
   onEndCall: () => void;
   onAddParticipant: () => void;
   onOpenSettings: () => void;
@@ -129,15 +137,20 @@ export function DreamsVideoCallScreen({
   isMuted,
   isVideoOff,
   remoteIsVideoOff = false,
+  isOnHold = false,
+  remoteIsOnHold = false,
+  remoteHoldByName,
   isScreenSharing,
   remoteIsScreenSharing = false,
   isReconnecting,
   peerReconnecting,
   onToggleMute,
+  onToggleHold,
   onToggleVideo,
   onToggleScreenShare,
   onToggleFullscreen,
   onMinimize,
+  onTogglePiP,
   onEndCall,
   onAddParticipant,
   onOpenSettings,
@@ -263,9 +276,39 @@ export function DreamsVideoCallScreen({
             </span>
           )}
         </div>
-        <span className="text-xs font-mono font-semibold text-muted-foreground">
-          {formatDuration(callDurationSeconds)}
-        </span>
+        <div className="flex items-center gap-2">
+          {onTogglePiP && (
+            <button
+              type="button"
+              data-testid="call-btn-pip"
+              onClick={onTogglePiP}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-border-color bg-slate-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+              title="Pop out Picture-in-Picture window (works across tabs & apps)"
+            >
+              <PictureInPicture2 className="size-3.5" />
+              <span>PiP</span>
+            </button>
+          )}
+          {onToggleHold && (
+            <button
+              type="button"
+              data-testid="call-btn-hold"
+              onClick={onToggleHold}
+              className={cn(
+                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border cursor-pointer transition-colors",
+                isOnHold
+                  ? "border-amber-500/60 bg-amber-500 text-slate-950 font-bold hover:bg-amber-400"
+                  : "border-border-color bg-slate-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:bg-slate-200 dark:hover:bg-slate-700"
+              )}
+            >
+              {isOnHold ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+              <span>{isOnHold ? "Resume" : "Hold"}</span>
+            </button>
+          )}
+          <span className="text-xs font-mono font-semibold text-muted-foreground">
+            {formatDuration(callDurationSeconds)}
+          </span>
+        </div>
       </div>
 
       {/* Main video call wrapper */}
@@ -429,6 +472,20 @@ export function DreamsVideoCallScreen({
                 <Maximize2 className="size-4" />
               </button>
             </div>
+
+            {(isOnHold || remoteIsOnHold) && (
+              <div
+                data-testid="call-hold-banner"
+                className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 whitespace-nowrap"
+              >
+                <Pause className="size-3.5 shrink-0" />
+                <span>
+                  {remoteIsOnHold
+                    ? `${remoteHoldByName || targetName || "Colleague"} put this call on hold`
+                    : "You put this call on hold — click Resume to continue"}
+                </span>
+              </div>
+            )}
 
             {isReconnecting && (
               <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">

@@ -156,7 +156,7 @@ import { employeeSelfServiceRouter } from "./routes/employee-self-service.routes
 import { hrProfileChangesRouter } from "./routes/hr-profile-changes.routes";
 import { companyProfileRouter } from "./routes/company-profile.routes";
 import { SettingsService } from "./services/settings/settings.service";
-import { getUploadsRoot } from "./services/media/media.service";
+import { getUploadsRoot, MediaService } from "./services/media/media.service";
 import { uploadsSecurityMiddleware } from "./middleware/uploads-security.middleware";
 import { platformFoundationRouter } from "./routes/platform-foundation.routes";
 import { OutboxService } from "./services/outbox.service";
@@ -303,8 +303,57 @@ app.use(
     maxAge: "7d",
     etag: true,
     lastModified: true,
-    fallthrough: false,
-  })
+    fallthrough: true,
+  }),
+  async (req, res) => {
+    try {
+      const relPath = decodeURIComponent(req.path || "").replace(/^[/\\]+/, "");
+      if (!relPath || relPath.includes("..")) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      const blob = await MediaService.fetchMediaBlobByRelativePath(relPath);
+      if (!blob) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      // Cache warm copy on local `/tmp/uploads` atomically in background for subsequent requests
+      void (async () => {
+        try {
+          const abs = path.resolve(uploadsDir, relPath);
+          if (abs.startsWith(path.resolve(uploadsDir))) {
+            const dir = path.dirname(abs);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            const tmpPath = `${abs}.tmp.${process.pid}.${Date.now()}`;
+            await fs.promises.writeFile(tmpPath, blob.buffer);
+            await fs.promises.rename(tmpPath, abs);
+          }
+        } catch {}
+      })();
+
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("Accept-Ranges", "bytes");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.setHeader("Content-Type", blob.mimeType || "application/octet-stream");
+
+      const total = blob.buffer.length;
+      const range = req.headers.range;
+      if (range && range.startsWith("bytes=")) {
+        const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+        const start = Math.max(0, parseInt(startStr, 10) || 0);
+        const end = endStr ? Math.min(total - 1, parseInt(endStr, 10)) : total - 1;
+        if (start <= end && start < total) {
+          res.status(206);
+          res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+          res.setHeader("Content-Length", String(end - start + 1));
+          return res.end(blob.buffer.subarray(start, end + 1));
+        }
+      }
+      res.setHeader("Content-Length", String(total));
+      return res.end(blob.buffer);
+    } catch {
+      return res.status(404).json({ error: "File not found" });
+    }
+  }
 );
 app.use(compression()); // Gzip all responses — 60-80% smaller payloads
 

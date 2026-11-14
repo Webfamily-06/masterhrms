@@ -293,26 +293,36 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
           Notification.permission === "default" &&
           !sessionStorage.getItem("hrms_notif_prompted")
         ) {
-          const onFirstInteraction = () => {
-            if (sessionStorage.getItem("hrms_notif_prompted")) return;
-            sessionStorage.setItem("hrms_notif_prompted", "1");
-            window.removeEventListener("pointerdown", onFirstInteraction);
+          let prompting = false;
+          const detachListeners = () => {
+            window.removeEventListener("click", onFirstInteraction);
+            window.removeEventListener("touchend", onFirstInteraction);
             window.removeEventListener("keydown", onFirstInteraction);
+          };
+          const onFirstInteraction = () => {
+            if (prompting || sessionStorage.getItem("hrms_notif_prompted")) return;
+            prompting = true;
+            // Mobile Chrome & iOS Safari require transient user activation (click/touchend/keydown, NOT pointerdown)
             Notification.requestPermission()
               .then((perm) => {
                 setPushPermission(perm);
+                if (perm === "granted" || perm === "denied") {
+                  sessionStorage.setItem("hrms_notif_prompted", "1");
+                  detachListeners();
+                }
                 if (perm === "granted") {
                   enablePushNotifications(true).catch(() => {});
                 }
               })
-              .catch(() => {});
+              .catch(() => {})
+              .finally(() => {
+                prompting = false;
+              });
           };
-          window.addEventListener("pointerdown", onFirstInteraction, { once: true, passive: true });
-          window.addEventListener("keydown", onFirstInteraction, { once: true });
-          cleanupGestureListener = () => {
-            window.removeEventListener("pointerdown", onFirstInteraction);
-            window.removeEventListener("keydown", onFirstInteraction);
-          };
+          window.addEventListener("click", onFirstInteraction, { passive: true });
+          window.addEventListener("touchend", onFirstInteraction, { passive: true });
+          window.addEventListener("keydown", onFirstInteraction);
+          cleanupGestureListener = detachListeners;
         }
       } catch (err) {
         console.warn("[IncomingCallContext] Service worker registration/sync warning:", err);

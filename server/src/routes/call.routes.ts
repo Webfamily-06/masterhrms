@@ -509,7 +509,7 @@ callRouter.post("/:callId/signal", requireAuth, async (req: AuthRequest, res: Re
   }
 });
 
-// POST /api/calls/:callId/media-state - HTTP media state sync (screen-share, video-off, audio-mute)
+// POST /api/calls/:callId/media-state - HTTP media state sync (screen-share, video-off, audio-mute, call-hold)
 callRouter.post("/:callId/media-state", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { callId } = req.params;
@@ -519,6 +519,16 @@ callRouter.post("/:callId/media-state", requireAuth, async (req: AuthRequest, re
 
     const db = rawPrisma || prisma;
     const recipientIds = new Set<string>();
+
+    const actorUser = await db.user
+      .findUnique({ where: { id: userId }, include: { profile: true } })
+      .catch(() => null);
+    const fromUserName =
+      actorUser?.profile?.fullName ||
+      (req.user as any)?.profile?.fullName ||
+      (req.user as any)?.name ||
+      actorUser?.email ||
+      "Colleague";
 
     const liveSession = activeCalls.get(callId);
     if (liveSession && liveSession.tenantId === tenantId) {
@@ -531,7 +541,10 @@ callRouter.post("/:callId/media-state", requireAuth, async (req: AuthRequest, re
       }
     } else {
       const dbCall = await db.call.findFirst({
-        where: { tenantId, OR: [{ id: callId }, { roomKey: callId }] },
+        where: {
+          tenantId,
+          OR: [{ id: callId }, { roomKey: callId }, { roomKey: `group_meeting:${callId}` }],
+        },
         include: { participants: true },
       });
       if (dbCall && dbCall.participants.some((p: any) => p.userId === userId)) {
@@ -556,6 +569,7 @@ callRouter.post("/:callId/media-state", requireAuth, async (req: AuthRequest, re
       type,
       active: Boolean(active),
       fromUserId: userId,
+      fromUserName,
     };
 
     const io = getIO();
@@ -1034,26 +1048,48 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const peerTargets = Array.from(peerTargetSet);
 
     let cancelledCall: any = null;
+    let terminatedActiveCall = false;
+    const actorUser = await db.user
+      .findUnique({ where: { id: userId }, include: { profile: true } })
+      .catch(() => null);
+    const endedByName =
+      actorUser?.profile?.fullName ||
+      actorUser?.email ||
+      (req.user as any)?.name ||
+      "Colleague";
+
     if (dbCallBefore) {
-      try {
-        cancelledCall = await CallLifecycleService.cancelCallTransaction({
-          tenantId,
-          callId,
-          callerId: userId,
-          reason: "Caller cancelled",
-        });
-      } catch (err: any) {
-        if (err instanceof CallForbiddenError && !peerTargets.length) {
-          return res.status(403).json({ success: false, error: err.message, code: err.code });
-        }
-        // Call already answered (ACTIVE) or otherwise not cancellable: terminate it instead so both sides close cleanly.
+      if (dbCallBefore.status === "ACTIVE") {
+        terminatedActiveCall = true;
         await CallLifecycleService.terminateCallTransaction({
           tenantId,
           callId,
           actorId: userId,
-          endReason: "CANCELLED",
-          finalHistoryStatus: "cancelled",
+          endReason: "USER_HANGUP",
+          finalHistoryStatus: "completed",
         }).catch(() => { });
+      } else {
+        try {
+          cancelledCall = await CallLifecycleService.cancelCallTransaction({
+            tenantId,
+            callId,
+            callerId: userId,
+            reason: "Caller cancelled",
+          });
+        } catch (err: any) {
+          if (err instanceof CallForbiddenError && !peerTargets.length) {
+            return res.status(403).json({ success: false, error: err.message, code: err.code });
+          }
+          // Call already answered (ACTIVE) or otherwise not cancellable: terminate it instead so both sides close cleanly.
+          terminatedActiveCall = true;
+          await CallLifecycleService.terminateCallTransaction({
+            tenantId,
+            callId,
+            actorId: userId,
+            endReason: "USER_HANGUP",
+            finalHistoryStatus: "completed",
+          }).catch(() => { });
+        }
       }
     }
 
@@ -1070,14 +1106,28 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const cancelPayload = {
       callId,
       cancelledBy: userId,
-      reason: "Caller cancelled",
+      cancelledByName: endedByName,
+      endedBy: userId,
+      endedByName,
+      reason: terminatedActiveCall ? "ended" : "Caller cancelled",
+      timestamp: new Date().toISOString(),
+    };
+
+    const endPayload = {
+      callId,
+      endedBy: userId,
+      endedByName,
+      reason: "ended",
       timestamp: new Date().toISOString(),
     };
 
     for (const targetUserId of peerTargets) {
       io?.to(`user:${targetUserId}`).emit("call:cancelled", cancelPayload);
       io?.to(`user:${targetUserId}`).emit("call.cancelled", cancelPayload);
+      io?.to(`user:${targetUserId}`).emit("call:ended", endPayload);
+      io?.to(`user:${targetUserId}`).emit("call.ended", endPayload);
       void PusherService.triggerUserEvent(tenantId, targetUserId, "call:cancelled", cancelPayload).catch(() => { });
+      void PusherService.triggerUserEvent(tenantId, targetUserId, "call:ended", endPayload).catch(() => { });
       void IncomingCallPushService.sendCallCancelledPush({
         callId,
         tenantId,

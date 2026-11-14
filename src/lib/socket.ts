@@ -630,12 +630,25 @@ export function useRealtimeSocket() {
 
           if (tenantId) {
             tenantChannel = pusherClient.subscribe(`private-tenant-${tenantId}`);
+            const directlyHandledTenant = new Set([
+              "punch:new",
+              "leave:updated",
+              "notification:new",
+              "settings.updated",
+              "payment:confirmed",
+              "payment:rejected",
+            ]);
             tenantChannel.bind("punch:new", onNewPunch);
             tenantChannel.bind("leave:updated", onLeaveUpdated);
             tenantChannel.bind("notification:new", onNotification);
             tenantChannel.bind("settings.updated", onSettingsUpdated);
             tenantChannel.bind("payment:confirmed", onPaymentConfirmed);
             tenantChannel.bind("payment:rejected", onPaymentRejected);
+            tenantChannel.bind_global((eventName: string, data: any) => {
+              if (!eventName || eventName.startsWith("pusher:") || eventName.startsWith("pusher_internal:")) return;
+              if (directlyHandledTenant.has(eventName)) return;
+              void decodePusherPayload(data).then((decoded) => dispatchPusherEvent(eventName)(decoded));
+            });
           }
         })
         .catch(() => {});

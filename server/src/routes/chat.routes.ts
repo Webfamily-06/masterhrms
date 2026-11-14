@@ -11,6 +11,7 @@ import {
   broadcastToUser,
   getOnlineUsersForTenant,
   getOnlineUsersForTenantAsync,
+  recordRestUserPresence,
   activeCalls,
   activeGroupCalls,
   getIO,
@@ -341,13 +342,18 @@ chatRouter.get("/attachments/:mediaId/download", async (req: AuthRequest, res: R
 
     let cloudBuffer: Buffer | null = null;
     if (!fs.existsSync(absPath)) {
-      cloudBuffer = await MediaService.fetchCloudMediaBuffer(mediaFile.tenantId, relPath);
+      cloudBuffer = await MediaService.fetchCloudMediaBuffer(mediaFile.tenantId, relPath, mediaFile.id);
       if (cloudBuffer) {
-        try {
-          const dir = path.dirname(absPath);
-          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-          await fs.promises.writeFile(absPath, cloudBuffer);
-        } catch {}
+        const bufCopy = cloudBuffer;
+        void (async () => {
+          try {
+            const dir = path.dirname(absPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            const tmpPath = `${absPath}.tmp.${process.pid}.${Date.now()}`;
+            await fs.promises.writeFile(tmpPath, bufCopy);
+            await fs.promises.rename(tmpPath, absPath);
+          } catch {}
+        })();
       } else {
         return res.status(404).json({ error: "Attachment file is missing from storage." });
       }
@@ -376,10 +382,25 @@ chatRouter.get("/attachments/:mediaId/download", async (req: AuthRequest, res: R
       `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(safeName)}"`
     );
 
-    if (fs.existsSync(absPath)) {
+    if (!cloudBuffer && fs.existsSync(absPath)) {
       return res.sendFile(absPath);
     }
-    return res.send(cloudBuffer!);
+    const buf = cloudBuffer!;
+    const total = buf.length;
+    const range = req.headers.range;
+    if (range && range.startsWith("bytes=")) {
+      const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+      const start = Math.max(0, parseInt(startStr, 10) || 0);
+      const end = endStr ? Math.min(total - 1, parseInt(endStr, 10)) : total - 1;
+      if (start <= end && start < total) {
+        res.status(206);
+        res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+        res.setHeader("Content-Length", String(end - start + 1));
+        return res.end(buf.subarray(start, end + 1));
+      }
+    }
+    res.setHeader("Content-Length", String(total));
+    return res.end(buf);
   } catch (err: any) {
     return handleChatError(res, err, "Failed to serve attachment");
   }
@@ -402,17 +423,43 @@ chatRouter.get("/file-policy", async (_req: AuthRequest, res: Response) => {
   });
 });
 
-// GET /api/chat/presence - Distributed + local online user IDs in tenant
+// GET /api/chat/presence - Distributed + serverless REST heartbeat + local online user IDs in tenant
 chatRouter.get("/presence", async (req: AuthRequest, res: Response) => {
   const tenantId = req.user?.tenantId || "default";
+  const currentUserId = req.user?.userId || "";
+  const passive = req.query.passive === "1" || req.query.passive === "true";
+  if (currentUserId && !passive) {
+    await recordRestUserPresence(tenantId, currentUserId, "online");
+  }
   const onlineUserIds = await getOnlineUsersForTenantAsync(tenantId);
   return res.json({ onlineUserIds });
+});
+
+// POST /api/chat/presence - Explicit online/offline heartbeat (page visibility / unload safe)
+chatRouter.post("/presence", async (req: AuthRequest, res: Response) => {
+  const tenantId = req.user?.tenantId || "default";
+  const currentUserId = req.user?.userId || "";
+  const desiredStatus = req.body?.status === "offline" ? "offline" : "online";
+  if (currentUserId) {
+    await recordRestUserPresence(tenantId, currentUserId, desiredStatus);
+    void PusherService.triggerTenantEvent(tenantId, "presence:update", {
+      userId: currentUserId,
+      status: desiredStatus,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
+  }
+  const onlineUserIds = await getOnlineUsersForTenantAsync(tenantId);
+  return res.json({ ok: true, status: desiredStatus, onlineUserIds });
 });
 
 // GET /api/chat/participant/:id - Authoritative participant profile with full HRMS metadata
 chatRouter.get("/participant/:id", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
+    const currentUserId = req.user?.userId || "";
+    if (currentUserId) {
+      void recordRestUserPresence(tenantId, currentUserId, "online");
+    }
     const { id } = req.params;
 
     if (!id || typeof id !== "string") {
@@ -514,6 +561,7 @@ chatRouter.get("/participant/:id", async (req: AuthRequest, res: Response) => {
       designation,
       reportingManager,
       avatarUrl,
+      isOnline,
       status: isOnline ? "online" : "offline",
       statusText: isOnline ? "Online" : "Offline",
       employmentType: emp?.employmentType || null,
@@ -530,6 +578,9 @@ chatRouter.get("/contacts", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const currentUserId = req.user?.userId || "";
+    if (currentUserId) {
+      void recordRestUserPresence(tenantId, currentUserId, "online");
+    }
     const search = String(req.query.search || req.query.q || "").trim().toLowerCase();
     const departmentIdFilter = String(req.query.departmentId || "").trim();
     const branchIdFilter = String(req.query.branchId || "").trim();
@@ -733,6 +784,9 @@ chatRouter.get("/conversations", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const currentUserId = req.user?.userId || "";
+    if (currentUserId) {
+      void recordRestUserPresence(tenantId, currentUserId, "online");
+    }
     const filter = String(req.query.filter || "all").toLowerCase(); // all | unread | archived | muted | groups | direct
     const includeArchived =
       req.query.includeArchived === "true" || req.query.includeArchived === "1" || filter === "archived";

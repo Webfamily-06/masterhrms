@@ -255,24 +255,31 @@ export class VapidService {
       const endpointUrl = new URL(subscription.endpoint);
       const audience = endpointUrl.origin;
       const keys = this.getVapidKeys();
-      const vapidJwt = this.createVapidJwt(audience, keys, 86400);
+      // RFC 8292 & Apple Web Push (APNs) require exp <= 12-24h (86400s fails with clock skew on iOS APNs; 43200s = 12h is universal)
+      const vapidJwt = this.createVapidJwt(audience, keys, 43200);
 
       const payloadString = typeof payload === "string" ? payload : JSON.stringify(payload);
       const encryptedBody = this.encryptPayload(payloadString, subscription.keys);
 
-      const ttl = options?.ttl !== undefined ? options.ttl : 45;
+      const ttl = options?.ttl !== undefined ? Math.max(15, options.ttl) : 45;
       const urgency = options?.urgency || "high";
 
       const headers: Record<string, string> = {
         "Content-Type": "application/octet-stream",
         "Content-Encoding": "aes128gcm",
+        "Content-Length": String(encryptedBody.length),
         "TTL": String(ttl),
         "Urgency": urgency,
         "Authorization": `vapid t=${vapidJwt}, k=${keys.publicKey}`,
       };
 
       if (options?.topic) {
-        headers["Topic"] = options.topic;
+        // RFC 8030 Section 5.4: Topic MUST be <= 32 chars from URL-safe base64 alphabet [A-Za-z0-9\-_]
+        const cleanTopic = options.topic.replace(/[^A-Za-z0-9\-_]/g, "-");
+        headers["Topic"] =
+          cleanTopic.length <= 32
+            ? cleanTopic
+            : `${cleanTopic.slice(0, 14)}_${crypto.createHash("sha256").update(options.topic).digest("base64url").slice(0, 16)}`;
       }
 
       const res = await fetch(subscription.endpoint, {

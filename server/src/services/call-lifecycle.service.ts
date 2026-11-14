@@ -56,14 +56,38 @@ export class CallLifecycleService {
     const call = await db.call.findFirst({
       where: {
         tenantId,
-        status: { in: ["RINGING", "ACTIVE"] },
         OR: [{ id: callId }, { roomKey: callId }, { roomKey: `group_meeting:${callId}` }],
       },
-      select: { id: true, status: true, participants: { where: { userId }, select: { id: true, state: true } } },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        participants: { select: { id: true, userId: true, state: true } },
+      },
     });
-    if (!call || call.participants.length === 0) {
-      return { ok: false, active: false };
+    if (!call) {
+      return { ok: false, active: true, status: "PENDING", notFoundYet: true };
     }
+    if (!["RINGING", "ACTIVE"].includes(call.status)) {
+      return { ok: false, active: false, status: call.status, peerLeft: true };
+    }
+    const selfParticipant = call.participants.find((p) => p.userId === userId);
+    if (!selfParticipant || !this.LIVE_PARTICIPANT_STATES.includes(selfParticipant.state)) {
+      return { ok: false, active: false, status: "ENDED", peerLeft: true };
+    }
+    const livePeers = call.participants.filter(
+      (p) => p.userId !== userId && ["RINGING", "INVITED", "JOINED", "RECONNECTING"].includes(p.state)
+    );
+    if (call.type === "DIRECT" && livePeers.length === 0) {
+      await db.call
+        .update({
+          where: { id: call.id },
+          data: { status: "ENDED", endedAt: new Date(), endReason: "PEER_LEFT" },
+        })
+        .catch(() => {});
+      return { ok: false, active: false, status: "ENDED", peerLeft: true };
+    }
+
     const now = Date.now();
     await db.$executeRaw`
       UPDATE "calls"
@@ -75,7 +99,13 @@ export class CallLifecycleService {
         )
       WHERE "id" = ${call.id}
     `;
-    return { ok: true, active: true, status: call.status, participantState: call.participants[0].state };
+    return {
+      ok: true,
+      active: true,
+      status: call.status,
+      participantState: selfParticipant.state,
+      livePeerCount: livePeers.length,
+    };
   }
 
   /**

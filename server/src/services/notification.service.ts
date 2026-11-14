@@ -124,17 +124,20 @@ export class NotificationService {
       .catch(() => {});
 
     // Web Push (RFC 8291 / RFC 8292) delivery to user's registered browser/device subscriptions
-    void this.dispatchWebPush(params.tenantId, targetUserId, {
-      id: notification.id,
-      title: notification.title,
-      body: notification.body,
-      type: notification.module,
-      module: notification.module,
-      linkTo: notification.linkTo,
-      actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
-      metadata: notification.metadataJson,
-      createdAt: notification.createdAt,
-    }).catch((err) => {
+    // Tracked via trackBackgroundTask so Vercel serverless waits until push HTTP requests settle!
+    void trackBackgroundTask(
+      this.dispatchWebPush(params.tenantId, targetUserId, {
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        type: notification.module,
+        module: notification.module,
+        linkTo: notification.linkTo,
+        actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
+        metadata: notification.metadataJson,
+        createdAt: notification.createdAt,
+      })
+    ).catch((err) => {
       console.warn("[NotificationService] Web Push dispatch failed:", err?.message || err);
     });
 
@@ -155,6 +158,11 @@ export class NotificationService {
         return { sent: 0, failed: 0 };
       }
 
+      const isChatOrUrgent =
+        payload.module === "CHAT_MESSAGE" ||
+        payload.module === "HR_ANNOUNCEMENT" ||
+        String(payload.module || "").includes("CALL");
+
       const pushPayload = {
         type: "NOTIFICATION_NEW",
         eventType: "NOTIFICATION_NEW",
@@ -168,7 +176,7 @@ export class NotificationService {
         module: payload.module || "SYSTEM",
         linkTo: payload.linkTo || "/",
         actionUrl: payload.actionUrl || payload.linkTo || "/",
-        icon: "/assets/img/logo-small.svg",
+        icon: "/assets/img/apple-icon.png",
         badge: "/assets/img/favicon.png",
         tag: `notif_${payload.id}`,
         timestamp: payload.createdAt || new Date().toISOString(),
@@ -182,7 +190,11 @@ export class NotificationService {
           const res = await VapidService.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             pushPayload,
-            { ttl: 86400, urgency: "normal", topic: `notif_${payload.module?.toLowerCase() || "system"}` }
+            {
+              ttl: 86400,
+              urgency: isChatOrUrgent ? "high" : "normal",
+              topic: `notif_${payload.module?.toLowerCase() || "system"}`,
+            }
           );
           if (res.success) {
             sent++;

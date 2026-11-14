@@ -24,6 +24,36 @@ function getSupabaseMediaClient(): { client: SupabaseClient; bucket: string } | 
   return { client: supabaseMediaClient, bucket };
 }
 
+let mediaBlobsTableReadyPromise: Promise<void> | null = null;
+let supabaseStorageSkipUntil = 0;
+async function ensureMediaBlobsTable(): Promise<void> {
+  if (!mediaBlobsTableReadyPromise) {
+    mediaBlobsTableReadyPromise = (async () => {
+      try {
+        await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "chat_media_blobs" (
+            "media_id" TEXT PRIMARY KEY,
+            "tenant_id" TEXT,
+            "file_path" TEXT NOT NULL,
+            "mime_type" TEXT NOT NULL,
+            "byte_size" INTEGER NOT NULL,
+            "content" BYTEA NOT NULL,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await prisma.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "idx_chat_media_blobs_file_path"
+          ON "chat_media_blobs" ("file_path")
+        `);
+      } catch (err: any) {
+        mediaBlobsTableReadyPromise = null;
+        console.warn("⚠️ [MediaService] Ensure chat_media_blobs table warning:", err?.message);
+      }
+    })();
+  }
+  return mediaBlobsTableReadyPromise;
+}
+
 export function getUploadsRoot(): string {
   if (process.env.VERCEL) {
     const tmpUploads = path.join(os.tmpdir(), "uploads");
@@ -254,8 +284,19 @@ export class MediaService {
       return { isValid: true, mimeType: "audio/wav", extension: ".wav" };
     }
 
-    // 14. MP4 / M4A / MOV / AAC (ISO Base Media File Format `ftyp` or ADTS AAC)
+    // 14. MP4 / M4A / MOV / HEIC / AAC (ISO Base Media File Format `ftyp` or ADTS AAC)
     if (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") {
+      const brand = buffer.length >= 12 ? buffer.toString("ascii", 8, 12).toLowerCase() : "";
+      if (
+        ext === ".heic" ||
+        ext === ".heif" ||
+        brand.startsWith("hei") ||
+        brand === "mif1" ||
+        declaredMime === "image/heic" ||
+        declaredMime === "image/heif"
+      ) {
+        return { isValid: true, mimeType: "image/heic", extension: ext === ".heif" ? ".heif" : ".heic" };
+      }
       if (ext === ".m4a" || ext === ".aac" || declaredMime?.startsWith("audio/")) {
         return { isValid: true, mimeType: "audio/mp4", extension: ext === ".aac" ? ".aac" : ".m4a" };
       }
@@ -381,7 +422,7 @@ export class MediaService {
 
     // Mirror to Supabase Storage when configured (ensures Vercel serverless durability across lambdas)
     let storageDisk = "LOCAL";
-    const supa = getSupabaseMediaClient();
+    const supa = Date.now() >= supabaseStorageSkipUntil ? getSupabaseMediaClient() : null;
     if (supa) {
       try {
         const storageKey = `media/${options.tenantId || "global"}/${relativeFilePath}`;
@@ -390,17 +431,24 @@ export class MediaService {
           upsert: true,
         });
         if (error && String(error.message || "").toLowerCase().includes("bucket")) {
-          await supa.client.storage.createBucket(supa.bucket, { public: false }).catch(() => {});
-          const retry = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
-            contentType: validation.mimeType,
-            upsert: true,
-          });
-          error = retry.error;
+          const created = await supa.client.storage.createBucket(supa.bucket, { public: false }).catch(() => null);
+          if (created && !created.error) {
+            const retry = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
+              contentType: validation.mimeType,
+              upsert: true,
+            });
+            error = retry.error;
+          } else {
+            supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
+          }
+        } else if (error) {
+          supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
         }
         if (!error) {
           storageDisk = "SUPABASE";
         }
       } catch (cloudErr: any) {
+        supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
         console.warn("⚠️ [MediaService] Cloud storage mirror warning:", cloudErr?.message);
       }
     }
@@ -428,25 +476,95 @@ export class MediaService {
       },
     });
 
+    // Durable PostgreSQL binary persistence so Vercel serverless Lambdas never 404 when `/tmp/uploads` is ephemeral
+    if (buffer.length <= 30 * 1024 * 1024) {
+      try {
+        await ensureMediaBlobsTable();
+        await prisma.$executeRaw`
+          INSERT INTO "chat_media_blobs" ("media_id", "tenant_id", "file_path", "mime_type", "byte_size", "content")
+          VALUES (${mediaFile.id}, ${options.tenantId || null}, ${relativeFilePath}, ${validation.mimeType}, ${buffer.length}, ${buffer})
+          ON CONFLICT ("media_id") DO UPDATE
+          SET "content" = EXCLUDED."content",
+              "byte_size" = EXCLUDED."byte_size",
+              "mime_type" = EXCLUDED."mime_type",
+              "file_path" = EXCLUDED."file_path"
+        `;
+      } catch (blobErr: any) {
+        console.warn("⚠️ [MediaService] PostgreSQL media blob mirror warning:", blobErr?.message);
+      }
+    }
+
     return mediaFile;
   }
 
   /**
-   * Fetches file buffer from Supabase Storage if missing from local/serverless `/tmp` disk.
+   * Fetches file buffer from Supabase Storage or PostgreSQL `chat_media_blobs` if missing from local/serverless `/tmp` disk.
    */
-  static async fetchCloudMediaBuffer(tenantId: string | null | undefined, relativeFilePath: string): Promise<Buffer | null> {
+  static async fetchCloudMediaBuffer(
+    tenantId: string | null | undefined,
+    relativeFilePath: string,
+    mediaId?: string
+  ): Promise<Buffer | null> {
+    const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
     const supa = getSupabaseMediaClient();
-    if (!supa) return null;
-    try {
-      const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
-      const storageKey = `media/${tenantId || "global"}/${cleanRel}`;
-      const { data, error } = await supa.client.storage.from(supa.bucket).download(storageKey);
-      if (error || !data) return null;
-      const arrayBuf = await data.arrayBuffer();
-      return Buffer.from(arrayBuf);
-    } catch {
-      return null;
+    if (supa && cleanRel) {
+      try {
+        const storageKey = `media/${tenantId || "global"}/${cleanRel}`;
+        const { data, error } = await supa.client.storage.from(supa.bucket).download(storageKey);
+        if (!error && data) {
+          const arrayBuf = await data.arrayBuffer();
+          return Buffer.from(arrayBuf);
+        }
+      } catch {}
     }
+
+    try {
+      await ensureMediaBlobsTable();
+      const rows = mediaId
+        ? await prisma.$queryRaw<Array<{ content: Buffer | Uint8Array }>>`
+            SELECT "content" FROM "chat_media_blobs"
+            WHERE ("media_id" = ${mediaId} OR "file_path" = ${cleanRel})
+            LIMIT 1
+          `
+        : await prisma.$queryRaw<Array<{ content: Buffer | Uint8Array }>>`
+            SELECT "content" FROM "chat_media_blobs"
+            WHERE "file_path" = ${cleanRel}
+            LIMIT 1
+          `;
+      if (rows && rows.length > 0 && rows[0].content) {
+        return Buffer.isBuffer(rows[0].content)
+          ? rows[0].content
+          : Buffer.from(rows[0].content);
+      }
+    } catch {}
+
+    return null;
+  }
+
+  /**
+   * Resolves a public/protected `/uploads/*` file from PostgreSQL `chat_media_blobs` when local `/tmp/uploads` is empty.
+   */
+  static async fetchMediaBlobByRelativePath(
+    relativeFilePath: string
+  ): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+    if (!cleanRel) return null;
+    try {
+      await ensureMediaBlobsTable();
+      const rows = await prisma.$queryRaw<Array<{ content: Buffer | Uint8Array; mime_type: string }>>`
+        SELECT "content", "mime_type" FROM "chat_media_blobs"
+        WHERE "file_path" = ${cleanRel}
+        ORDER BY "created_at" DESC
+        LIMIT 1
+      `;
+      if (rows && rows.length > 0 && rows[0].content) {
+        return {
+          buffer: Buffer.isBuffer(rows[0].content) ? rows[0].content : Buffer.from(rows[0].content),
+          mimeType: rows[0].mime_type || "application/octet-stream",
+        };
+      }
+    } catch {}
+    return null;
   }
 
   /**
