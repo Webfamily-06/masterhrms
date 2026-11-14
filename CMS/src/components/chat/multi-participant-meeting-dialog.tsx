@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+"use client";
+
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   Mic,
   MicOff,
@@ -17,16 +19,14 @@ import {
   Grid,
   LayoutGrid,
   Activity,
-  Volume2,
-  VolumeX,
-  AlertCircle,
   X,
-  ChevronRight,
   LogOut,
   Send,
   Pin,
   PinOff,
-  Info,
+  ShieldAlert,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -35,21 +35,10 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import {
-  Room,
-  RoomEvent,
-  RemoteParticipant,
-  RemoteTrack,
-  RemoteTrackPublication,
-  Track,
-  ConnectionState,
-} from "livekit-client";
+import { getSocketClient, isSocketDisabled } from "@/lib/socket";
 
 export interface RemoteTrackInfo {
-  videoTrack?: RemoteTrack | null;
-  audioTrack?: RemoteTrack | null;
   stream?: MediaStream | null;
-  screenShareTrack?: RemoteTrack | null;
   screenShareStream?: MediaStream | null;
 }
 
@@ -64,8 +53,6 @@ export interface MeetingParticipant {
   isSpeaking: boolean;
   isLocal?: boolean;
   mediaStream?: MediaStream | null;
-  videoTrack?: any;
-  audioTrack?: any;
 }
 
 export interface ActiveMeetingState {
@@ -79,22 +66,26 @@ export interface ActiveMeetingState {
   status: "connecting" | "connected" | "reconnecting" | "ended";
 }
 
-export interface SfuDiagnosticInfo {
-  configured: boolean;
-  provider: string;
-  url?: string | null;
-  hasTurn?: boolean;
-  missing?: string[];
-  setupGuide?: string;
-  iceServers?: any[];
-}
-
 export interface ColleagueItem {
   id: string;
   name: string;
   email?: string;
   avatarUrl?: string | null;
   department?: string | null;
+}
+
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+];
+
+function registerGlobalMediaStream(stream: MediaStream) {
+  if (typeof window === "undefined") return;
+  const w = window as any;
+  if (!w.__HRMS_ACTIVE_MEDIA_STREAMS__) {
+    w.__HRMS_ACTIVE_MEDIA_STREAMS__ = new Set<MediaStream>();
+  }
+  w.__HRMS_ACTIVE_MEDIA_STREAMS__.add(stream);
 }
 
 function getAvatarColor(_name: string): string {
@@ -109,7 +100,7 @@ function formatDuration(seconds: number): string {
 }
 
 // ============================================================================
-// 1. INCOMING GROUP MEETING DIALOG
+// 1. INCOMING GROUP MEETING DIALOG (WITH CAMERA & MIC GATE — ITEMS 4 & 12)
 // ============================================================================
 
 export interface IncomingGroupMeetingProps {
@@ -132,25 +123,74 @@ export function IncomingGroupMeetingDialog({
   onAccept,
   onDecline,
 }: IncomingGroupMeetingProps) {
+  const [checkingMedia, setCheckingMedia] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCheckingMedia(false);
+    setPermissionError(null);
+  }, [incoming?.callId]);
+
+  const verifyAndJoin = useCallback(async () => {
+    if (!incoming || checkingMedia) return;
+    setCheckingMedia(true);
+    setPermissionError(null);
+
+    const needsVideo = incoming.callType === "video";
+    try {
+      if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+        setPermissionError(
+          needsVideo
+            ? "Camera and microphone permissions are required to join this video meeting."
+            : "Microphone permission is required to join this voice meeting."
+        );
+        setCheckingMedia(false);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: needsVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+      });
+
+      registerGlobalMediaStream(stream);
+      if (typeof window !== "undefined") {
+        (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ = {
+          callId: incoming.callId,
+          stream,
+          createdAt: Date.now(),
+        };
+      }
+
+      setCheckingMedia(false);
+      onAccept();
+    } catch (err: any) {
+      const msg = needsVideo
+        ? "Camera and microphone access is blocked. Please allow browser permission and tap Allow Permission & Join."
+        : "Microphone access is blocked. Please allow browser permission and tap Allow Permission & Join.";
+      setPermissionError(msg);
+      setCheckingMedia(false);
+    }
+  }, [incoming, checkingMedia, onAccept]);
+
   if (!incoming) return null;
 
   return (
-    <Dialog open={!!incoming} onOpenChange={() => onDecline()}>
+    <Dialog open={!!incoming} onOpenChange={(v) => !v && onDecline()}>
       <DialogContent
         data-testid="incoming-group-meeting-dialog"
         className="sm:max-w-md p-0 overflow-hidden border-primary/30 bg-background text-foreground shadow-2xl font-sans"
       >
         <div className="relative p-6 flex flex-col items-center text-center space-y-4">
-          {/* Subtle Ambient Glow */}
           <div className="absolute inset-0 bg-radial from-primary/10 via-transparent to-transparent pointer-events-none" />
 
-          {/* Call Type Indicator */}
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary text-xs font-semibold">
-            <span className="size-2 rounded-full bg-primary/20 animate-ping" />
-            <span>Incoming Group {incoming.callType === "video" ? "Video" : "Voice"} Meeting</span>
+            <span className="size-2 rounded-full bg-primary animate-ping" />
+            <span>
+              Incoming Group {incoming.callType === "video" ? "Video" : "Voice"} Call
+            </span>
           </div>
 
-          {/* Group Avatar & Caller */}
           <div className="relative my-2">
             <div
               className={cn(
@@ -161,33 +201,62 @@ export function IncomingGroupMeetingDialog({
               {incoming.groupName.charAt(0).toUpperCase()}
             </div>
             <div className="absolute -bottom-2 -right-2 size-8 rounded-full bg-card border-2 border-border flex items-center justify-center text-primary shadow-md">
-              {incoming.callType === "video" ? <Video className="size-4" /> : <Phone className="size-4" />}
+              {incoming.callType === "video" ? (
+                <Video className="size-4" />
+              ) : (
+                <Phone className="size-4" />
+              )}
             </div>
           </div>
 
           <div className="space-y-1">
-            <h3 className="text-xl font-bold text-foreground tracking-tight">{incoming.groupName}</h3>
+            <h3 className="text-xl font-bold text-foreground tracking-tight">
+              {incoming.groupName}
+            </h3>
             <p className="text-xs text-muted-foreground">
-              Started by <span className="font-semibold text-foreground">{incoming.callerName}</span>
+              Invited by{" "}
+              <span className="font-semibold text-foreground">{incoming.callerName}</span>
             </p>
           </div>
 
-          <p className="text-xs text-muted-foreground max-w-xs">
-            Colleagues in this group are gathering. Join the live conversation anytime.
-          </p>
+          {permissionError && (
+            <div
+              role="alert"
+              data-testid="group-callee-permission-alert"
+              className="w-full rounded-xl border border-amber-500/40 bg-amber-500/15 p-3 text-left text-xs space-y-2"
+            >
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                <span className="font-medium text-foreground">{permissionError}</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => void verifyAndJoin()}
+                disabled={checkingMedia}
+                className="w-full h-8 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+              >
+                {incoming.callType === "video" ? (
+                  <Camera className="size-3.5" />
+                ) : (
+                  <Mic className="size-3.5" />
+                )}
+                <span>Allow Permission & Join</span>
+              </Button>
+            </div>
+          )}
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-center gap-8 pt-4 w-full">
+          <div className="flex items-center justify-center gap-8 pt-2 w-full">
             <div className="flex flex-col items-center gap-1.5">
               <Button
                 variant="destructive"
                 size="icon"
                 data-testid="btn-decline-group-meeting"
-                className="rounded-full size-14 shadow-lg bg-destructive hover:bg-destructive cursor-pointer transition-transform active:scale-95"
+                disabled={checkingMedia}
+                className="rounded-full size-14 shadow-lg cursor-pointer transition-transform active:scale-95"
                 onClick={() => onDecline()}
                 title="Decline"
               >
-                <PhoneOff className="size-6 text-foreground" />
+                <PhoneOff className="size-6 text-white" />
               </Button>
               <span className="text-[11px] font-medium text-muted-foreground">Decline</span>
             </div>
@@ -196,13 +265,20 @@ export function IncomingGroupMeetingDialog({
               <Button
                 size="icon"
                 data-testid="btn-accept-group-meeting"
-                className="rounded-full size-14 shadow-xl bg-primary hover:bg-primary text-primary-foreground cursor-pointer ring-4 ring-primary/30 animate-pulse transition-transform active:scale-95"
-                onClick={() => onAccept()}
+                disabled={checkingMedia}
+                className="rounded-full size-14 shadow-xl bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer ring-4 ring-emerald-500/30 transition-transform active:scale-95"
+                onClick={() => void verifyAndJoin()}
                 title="Join Meeting"
               >
-                <Phone className="size-6 text-foreground" />
+                {checkingMedia ? (
+                  <Loader2 className="size-6 animate-spin" />
+                ) : incoming.callType === "video" ? (
+                  <Video className="size-6" />
+                ) : (
+                  <Phone className="size-6" />
+                )}
               </Button>
-              <span className="text-[11px] font-medium text-primary font-semibold">Join</span>
+              <span className="text-[11px] font-semibold text-emerald-500">Join</span>
             </div>
           </div>
         </div>
@@ -212,7 +288,7 @@ export function IncomingGroupMeetingDialog({
 }
 
 // ============================================================================
-// 2. MAIN MULTI-PARTICIPANT MEETING COMPONENT
+// 2. MAIN MULTI-PARTICIPANT WEBRTC MESH MEETING COMPONENT
 // ============================================================================
 
 export interface MultiParticipantMeetingProps {
@@ -228,7 +304,6 @@ export interface MultiParticipantMeetingProps {
   isScreenSharing: boolean;
   localStream: MediaStream | null;
   screenStream?: MediaStream | null;
-  sfuConfig?: SfuDiagnosticInfo | null;
   availableColleagues?: ColleagueItem[];
   threadMessages?: Array<{ id: string; senderName?: string; content: string; createdAt?: string }>;
   onToggleMute: () => void;
@@ -248,13 +323,11 @@ export function MultiParticipantMeetingDialog({
   participants,
   currentUserId,
   currentUserName,
-  currentUserAvatar,
   isMuted,
   isVideoOff,
   isScreenSharing,
   localStream,
   screenStream,
-  sfuConfig,
   availableColleagues = [],
   threadMessages = [],
   onToggleMute,
@@ -266,7 +339,6 @@ export function MultiParticipantMeetingDialog({
   onInviteColleagues,
   onSendMessage,
 }: MultiParticipantMeetingProps) {
-  // Local Layout & Drawer states
   const [layoutMode, setLayoutMode] = useState<"grid" | "speaker">("grid");
   const [spotlightUserId, setSpotlightUserId] = useState<string | null>(null);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
@@ -278,7 +350,6 @@ export function MultiParticipantMeetingDialog({
   const [inMeetingMessage, setInMeetingMessage] = useState<string>("");
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
-  // Device selectors
   const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
   const [videoInputDevices, setVideoInputDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([]);
@@ -286,15 +357,40 @@ export function MultiParticipantMeetingDialog({
   const [selectedVideoInput, setSelectedVideoInput] = useState<string>("");
   const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>("");
 
-  // Meeting duration timer
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Video element refs
+  // Pure WebRTC Mesh P2P state & refs
+  const [meshConnectionState, setMeshConnectionState] = useState<
+    "idle" | "connecting" | "connected" | "error"
+  >("idle");
+  const [remoteTracksMap, setRemoteTracksMap] = useState<Map<string, RemoteTrackInfo>>(new Map());
+  const [meshRemoteRoster, setMeshRemoteRoster] = useState<Map<string, MeetingParticipant>>(
+    new Map()
+  );
+
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const pendingCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const processedSignalsRef = useRef<Set<string>>(new Set());
+  const iceServersRef = useRef<RTCIceServer[]>(DEFAULT_ICE_SERVERS);
+  const localStreamRef = useRef<MediaStream | null>(localStream);
+  const screenStreamRef = useRef<MediaStream | null>(screenStream || null);
+  const isScreenSharingRef = useRef<boolean>(isScreenSharing);
+
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Timer effect
+  useEffect(() => {
+    localStreamRef.current = localStream;
+    if (localStream) registerGlobalMediaStream(localStream);
+  }, [localStream]);
+
+  useEffect(() => {
+    screenStreamRef.current = screenStream || null;
+    isScreenSharingRef.current = isScreenSharing;
+    if (screenStream) registerGlobalMediaStream(screenStream);
+  }, [screenStream, isScreenSharing]);
+
   useEffect(() => {
     if (!open || !meeting) {
       setElapsedSeconds(0);
@@ -307,31 +403,24 @@ export function MultiParticipantMeetingDialog({
     return () => clearInterval(interval);
   }, [open, meeting]);
 
-  // Attach local stream to local video
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
+      if (localVideoRef.current.srcObject !== localStream) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      localVideoRef.current.play().catch(() => {});
     }
   }, [localStream, isVideoOff, open]);
 
-  // Attach screen share stream
   useEffect(() => {
     if (screenVideoRef.current && screenStream) {
-      screenVideoRef.current.srcObject = screenStream;
+      if (screenVideoRef.current.srcObject !== screenStream) {
+        screenVideoRef.current.srcObject = screenStream;
+      }
+      screenVideoRef.current.play().catch(() => {});
     }
   }, [screenStream, isScreenSharing]);
 
-  // LiveKit SFU Client Connection & Remote Tracks
-  const [livekitConnectionState, setLivekitConnectionState] = useState<
-    "idle" | "connecting" | "connected" | "reconnecting" | "error" | "unconfigured"
-  >("idle");
-  const [livekitError, setLivekitError] = useState<string | null>(null);
-  const [remoteTracksMap, setRemoteTracksMap] = useState<Map<string, RemoteTrackInfo>>(new Map());
-  const [livekitRemoteRoster, setLivekitRemoteRoster] = useState<Map<string, MeetingParticipant>>(new Map());
-  const [activeSpeakerIds, setActiveSpeakerIds] = useState<Set<string>>(new Set());
-  const livekitRoomRef = useRef<Room | null>(null);
-
-  // Audio constraints & processing capabilities
   const supportedConstraints = useMemo(() => {
     if (typeof navigator !== "undefined" && navigator.mediaDevices?.getSupportedConstraints) {
       return navigator.mediaDevices.getSupportedConstraints();
@@ -341,281 +430,469 @@ export function MultiParticipantMeetingDialog({
   const isNoiseSuppressionSupported = Boolean(supportedConstraints?.noiseSuppression);
   const isEchoCancellationSupported = Boolean(supportedConstraints?.echoCancellation);
 
-  // LiveKit Client Room Lifecycle
-  useEffect(() => {
-    if (!open || !meeting) {
-      if (livekitRoomRef.current) {
+  const sendMeshSignal = useCallback(
+    (targetUserId: string, signal: any) => {
+      if (!meeting?.callId || !targetUserId || targetUserId === currentUserId) return;
+      const signalId = `${currentUserId}:${targetUserId}:${signal.type}:${Date.now()}:${Math.random()
+        .toString(36)
+        .slice(2, 7)}`;
+
+      if (!isSocketDisabled()) {
         try {
-          livekitRoomRef.current.disconnect();
-        } catch (_) {}
-        livekitRoomRef.current = null;
-      }
-      setLivekitConnectionState("idle");
-      setLivekitError(null);
-      setRemoteTracksMap(new Map());
-      setLivekitRemoteRoster(new Map());
-      return;
-    }
-
-    if (sfuConfig && sfuConfig.configured === false) {
-      setLivekitConnectionState("unconfigured");
-      return;
-    }
-
-    // Wait for host's `group-call:start` server confirmation before requesting the room token
-    if (meeting.status === "connecting") {
-      setLivekitConnectionState("connecting");
-      return;
-    }
-
-    let isCancelled = false;
-    let roomInstance: Room | null = null;
-
-    const connectToLiveKit = async () => {
-      try {
-        setLivekitConnectionState("connecting");
-        setLivekitError(null);
-
-        // Fetch scoped token from server (with brief retry if group-call:start/join is still committing)
-        let tokenData: any = null;
-        let lastTokenErr: any = null;
-        for (let attempt = 0; attempt < 4; attempt++) {
-          if (isCancelled) return;
-          try {
-            const tokenRes: any = await api.post(`/api/chat/meetings/${meeting.callId}/token`, {
-              groupId: meeting.groupId,
-              callType: meeting.callType,
+          const socket = getSocketClient();
+          if (socket?.connected) {
+            socket.emit("group-call:signal", {
+              callId: meeting.callId,
+              targetUserId,
+              signal: { ...signal, _sid: signalId },
             });
-            tokenData = tokenRes?.data || tokenRes;
-            if (tokenData?.token && tokenData?.url) break;
-          } catch (tErr: any) {
-            lastTokenErr = tErr;
-            await new Promise((r) => setTimeout(r, 450 * (attempt + 1)));
           }
+        } catch {}
+      }
+
+      api
+        .post(`/chat/meetings/${encodeURIComponent(meeting.callId)}/signal`, {
+          targetUserId,
+          signal: { ...signal, _sid: signalId },
+        })
+        .catch(() => {});
+    },
+    [meeting?.callId, currentUserId]
+  );
+
+  const getOrCreatePeerConnection = useCallback(
+    (peerUserId: string): RTCPeerConnection => {
+      const existing = peerConnectionsRef.current.get(peerUserId);
+      if (existing && existing.signalingState !== "closed") {
+        return existing;
+      }
+
+      const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
+      peerConnectionsRef.current.set(peerUserId, pc);
+
+      // Attach local audio + active video/screen tracks
+      const baseStream = localStreamRef.current;
+      if (baseStream) {
+        for (const audioTrack of baseStream.getAudioTracks()) {
+          pc.addTrack(audioTrack, baseStream);
         }
+      }
 
-        const { token, url, iceServers } = tokenData || {};
+      const activeScreenTrack =
+        isScreenSharingRef.current && screenStreamRef.current
+          ? screenStreamRef.current.getVideoTracks()[0]
+          : null;
+      const activeCamTrack = baseStream ? baseStream.getVideoTracks()[0] : null;
+      const videoTrackToSend = activeScreenTrack || activeCamTrack;
 
-        if (!token || !url) {
-          throw lastTokenErr || new Error("Server did not return a valid LiveKit token or URL.");
+      if (videoTrackToSend) {
+        const ownerStream =
+          activeScreenTrack && screenStreamRef.current
+            ? screenStreamRef.current
+            : baseStream || new MediaStream([videoTrackToSend]);
+        pc.addTrack(videoTrackToSend, ownerStream);
+      } else {
+        try {
+          pc.addTransceiver("video", { direction: "recvonly" });
+        } catch {}
+      }
+
+      if (!baseStream || baseStream.getAudioTracks().length === 0) {
+        try {
+          pc.addTransceiver("audio", { direction: "recvonly" });
+        } catch {}
+      }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          sendMeshSignal(peerUserId, {
+            type: "candidate",
+            candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate,
+          });
         }
+      };
 
-        if (isCancelled) return;
-
-        roomInstance = new Room({
-          adaptiveStream: true,
-          dynacast: true,
-        });
-        livekitRoomRef.current = roomInstance;
-
-        roomInstance.on(RoomEvent.Connected, () => {
-          if (!isCancelled) {
-            setLivekitConnectionState("connected");
-            setLivekitError(null);
-          }
-        });
-
-        roomInstance.on(RoomEvent.Reconnecting, () => {
-          if (!isCancelled) setLivekitConnectionState("reconnecting");
-        });
-
-        roomInstance.on(RoomEvent.Reconnected, () => {
-          if (!isCancelled) setLivekitConnectionState("connected");
-        });
-
-        roomInstance.on(RoomEvent.Disconnected, () => {
-          if (!isCancelled) {
-            setLivekitConnectionState("idle");
-            setActiveSpeakerIds(new Set());
-          }
-        });
-
-        roomInstance.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          if (!isCancelled) {
-            setActiveSpeakerIds(new Set(speakers.map((s) => s.identity)));
-          }
-        });
-
-        const upsertRemoteTrack = (
-          userId: string,
-          track: RemoteTrack,
-          publication: RemoteTrackPublication
-        ) => {
+      pc.ontrack = (e) => {
+        const publishRemoteTracks = () => {
           setRemoteTracksMap((prev) => {
             const next = new Map(prev);
-            const existing = next.get(userId) || {};
-            if (publication.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
-              const screenShareStream = new MediaStream([track.mediaStreamTrack]);
-              next.set(userId, { ...existing, screenShareTrack: track, screenShareStream });
-            } else if (track.kind === Track.Kind.Video) {
-              const stream = new MediaStream([track.mediaStreamTrack]);
-              next.set(userId, { ...existing, videoTrack: track, stream });
-            } else if (track.kind === Track.Kind.Audio) {
-              next.set(userId, { ...existing, audioTrack: track });
+            const prevEntry = next.get(peerUserId) || {};
+            const prevTracks = prevEntry.stream ? prevEntry.stream.getTracks() : [];
+            const incomingTracks =
+              e.streams && e.streams[0] ? e.streams[0].getTracks() : [e.track];
+            const trackByKind = new Map<string, MediaStreamTrack>();
+            for (const t of prevTracks) {
+              if (t.readyState === "live") trackByKind.set(t.kind, t);
             }
+            for (const t of incomingTracks) {
+              trackByKind.set(t.kind, t);
+            }
+            const combinedStream = new MediaStream(Array.from(trackByKind.values()));
+            next.set(peerUserId, {
+              ...prevEntry,
+              stream: combinedStream,
+              screenShareStream: combinedStream,
+            });
             return next;
           });
+          setMeshConnectionState("connected");
         };
-
-        roomInstance.on(
-          RoomEvent.TrackSubscribed,
-          (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-            upsertRemoteTrack(participant.identity, track, publication);
-          }
-        );
-
-        roomInstance.on(
-          RoomEvent.TrackUnsubscribed,
-          (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-            const userId = participant.identity;
-            setRemoteTracksMap((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(userId);
-              if (existing) {
-                if (publication.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
-                  next.set(userId, { ...existing, screenShareTrack: null, screenShareStream: null });
-                } else if (track.kind === Track.Kind.Video) {
-                  next.set(userId, { ...existing, videoTrack: null, stream: null });
-                } else if (track.kind === Track.Kind.Audio) {
-                  next.set(userId, { ...existing, audioTrack: null });
-                }
-              }
-              return next;
-            });
-          }
-        );
-
-        const toRosterEntry = (remoteP: RemoteParticipant): MeetingParticipant => {
-          let meta: any = {};
-          try {
-            if (remoteP.metadata) meta = JSON.parse(remoteP.metadata);
-          } catch {}
-          return {
-            userId: remoteP.identity,
-            name: remoteP.name || meta.name || "Participant",
-            avatar: meta.avatarUrl || null,
-            role: meta.role === "host" ? "host" : "participant",
-            isMuted: !remoteP.isMicrophoneEnabled,
-            isCameraOff: !remoteP.isCameraEnabled,
-            isScreenSharing: Boolean(remoteP.isScreenShareEnabled),
-            isSpeaking: Boolean(remoteP.isSpeaking),
-            isLocal: false,
-          };
-        };
-
-        roomInstance.on(RoomEvent.ParticipantConnected, (remoteP: RemoteParticipant) => {
-          if (!isCancelled) {
-            setLivekitRemoteRoster((prev) => {
-              const next = new Map(prev);
-              next.set(remoteP.identity, toRosterEntry(remoteP));
-              return next;
-            });
-          }
+        publishRemoteTracks();
+        const tracks = e.streams && e.streams[0] ? e.streams[0].getTracks() : [e.track];
+        tracks.forEach((tr) => {
+          tr.onunmute = publishRemoteTracks;
         });
+      };
 
-        roomInstance.on(RoomEvent.ParticipantDisconnected, (remoteP: RemoteParticipant) => {
-          if (!isCancelled) {
-            setLivekitRemoteRoster((prev) => {
-              const next = new Map(prev);
-              next.delete(remoteP.identity);
-              return next;
-            });
-          }
-        });
-
-        const hasCustomTurn =
-          !String(url).includes("livekit.cloud") &&
-          Array.isArray(iceServers) &&
-          iceServers.some((s: any) =>
-            (Array.isArray(s?.urls) ? s.urls : [s?.urls]).some(
-              (u: any) => typeof u === "string" && (u.startsWith("turn:") || u.startsWith("turns:"))
-            )
-          );
-
-        // Connect room to SFU server (preserve LiveKit Cloud's built-in TURN/TLS relay servers!)
-        await roomInstance.connect(url, token, {
-          autoSubscribe: true,
-          ...(hasCustomTurn ? { rtcConfig: { iceServers } } : {}),
-        });
-
-        if (isCancelled) {
-          roomInstance.disconnect();
-          return;
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setMeshConnectionState("connected");
         }
+      };
 
-        setLivekitConnectionState("connected");
-        setLivekitError(null);
+      return pc;
+    },
+    [sendMeshSignal]
+  );
 
-        // Hydrate existing participants & tracks already in the LiveKit room
-        const initialRoster = new Map<string, MeetingParticipant>();
-        for (const remoteP of roomInstance.remoteParticipants.values()) {
-          initialRoster.set(remoteP.identity, toRosterEntry(remoteP));
-          for (const pub of remoteP.trackPublications.values()) {
-            if (pub.isSubscribed && pub.track) {
-              upsertRemoteTrack(remoteP.identity, pub.track as RemoteTrack, pub as RemoteTrackPublication);
-            }
-          }
-        }
-        if (initialRoster.size > 0) {
-          setLivekitRemoteRoster(initialRoster);
-        }
-
-        // Publish initial local tracks
+  // Pure WebRTC Mesh P2P Lifecycle
+  useEffect(() => {
+    if (!open || !meeting?.callId) {
+      for (const pc of peerConnectionsRef.current.values()) {
         try {
-          await roomInstance.localParticipant.setMicrophoneEnabled(!isMuted);
-          await roomInstance.localParticipant.setCameraEnabled(!isVideoOff);
-          const camPub = roomInstance.localParticipant.getTrackPublication(Track.Source.Camera);
-          if (camPub?.track && localVideoRef.current && !localStream) {
-            camPub.track.attach(localVideoRef.current);
+          pc.close();
+        } catch {}
+      }
+      peerConnectionsRef.current.clear();
+      pendingCandidatesRef.current.clear();
+      processedSignalsRef.current.clear();
+      setRemoteTracksMap(new Map());
+      setMeshRemoteRoster(new Map());
+      setMeshConnectionState("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setMeshConnectionState("connecting");
+
+    const handleIncomingMeshSignal = async (payload: any) => {
+      if (cancelled || !payload || payload.callId !== meeting.callId) return;
+      const senderId = payload.senderId || payload.fromUserId;
+      const signal = payload.signal;
+      if (!senderId || senderId === currentUserId || !signal) return;
+
+      if (signal._sid) {
+        if (processedSignalsRef.current.has(signal._sid)) return;
+        processedSignalsRef.current.add(signal._sid);
+      }
+
+      const pc = getOrCreatePeerConnection(senderId);
+
+      try {
+        if (signal.type === "offer" && signal.sdp) {
+          const isPolite = String(currentUserId) > String(senderId);
+          if (pc.signalingState !== "stable") {
+            if (!isPolite) return;
+            await pc.setLocalDescription({ type: "rollback" } as any).catch(() => {});
           }
-        } catch (pubErr) {
-          console.warn("Failed to publish initial tracks to LiveKit room:", pubErr);
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({ type: "offer", sdp: signal.sdp })
+          );
+          const queued = pendingCandidatesRef.current.get(senderId) || [];
+          pendingCandidatesRef.current.delete(senderId);
+          for (const c of queued) {
+            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+          }
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          sendMeshSignal(senderId, { type: "answer", sdp: answer.sdp });
+          setMeshConnectionState("connected");
+        } else if (signal.type === "answer" && signal.sdp) {
+          if (pc.signalingState === "have-local-offer") {
+            await pc.setRemoteDescription(
+              new RTCSessionDescription({ type: "answer", sdp: signal.sdp })
+            );
+            const queued = pendingCandidatesRef.current.get(senderId) || [];
+            pendingCandidatesRef.current.delete(senderId);
+            for (const c of queued) {
+              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+            }
+            setMeshConnectionState("connected");
+          }
+        } else if (signal.type === "candidate" && signal.candidate) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)).catch(() => {});
+          } else {
+            const list = pendingCandidatesRef.current.get(senderId) || [];
+            list.push(signal.candidate);
+            pendingCandidatesRef.current.set(senderId, list);
+          }
         }
-      } catch (err: any) {
-        if (!isCancelled) {
-          console.error("LiveKit SFU connection error:", err);
-          setLivekitConnectionState("error");
-          setLivekitError(err.message || "Failed to establish media connection to LiveKit server.");
+      } catch (err) {
+        console.warn("[WebRTC Mesh] Signal handling warning:", err);
+      }
+    };
+
+    const handleUserJoined = async (data: any) => {
+      if (cancelled || !data || data.callId !== meeting.callId) return;
+      const peerId = data.userId;
+      if (!peerId || peerId === currentUserId) return;
+
+      setMeshRemoteRoster((prev) => {
+        const next = new Map(prev);
+        next.set(peerId, {
+          userId: peerId,
+          name: data.userName || data.name || "Colleague",
+          avatar: data.avatar || data.avatarUrl || null,
+          role: "participant",
+          isMuted: false,
+          isCameraOff: false,
+          isScreenSharing: false,
+          isSpeaking: false,
+          isLocal: false,
+        });
+        return next;
+      });
+
+      if (String(currentUserId) < String(peerId)) {
+        try {
+          const pc = getOrCreatePeerConnection(peerId);
+          if (pc.signalingState === "stable") {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            sendMeshSignal(peerId, { type: "offer", sdp: offer.sdp });
+          }
+        } catch {}
+      }
+    };
+
+    const handleUserLeft = (data: any) => {
+      if (!data || data.callId !== meeting.callId) return;
+      const peerId = data.userId;
+      if (!peerId) return;
+      const pc = peerConnectionsRef.current.get(peerId);
+      if (pc) {
+        try {
+          pc.close();
+        } catch {}
+        peerConnectionsRef.current.delete(peerId);
+      }
+      pendingCandidatesRef.current.delete(peerId);
+      setRemoteTracksMap((prev) => {
+        const next = new Map(prev);
+        next.delete(peerId);
+        return next;
+      });
+      setMeshRemoteRoster((prev) => {
+        const next = new Map(prev);
+        next.delete(peerId);
+        return next;
+      });
+    };
+
+    const handleRemoteMediaState = (data: any) => {
+      if (!data || data.callId !== meeting.callId) return;
+      const peerId = data.userId;
+      if (!peerId || peerId === currentUserId) return;
+      setMeshRemoteRoster((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(peerId) || {
+          userId: peerId,
+          name: "Colleague",
+          role: "participant" as const,
+          isMuted: false,
+          isCameraOff: false,
+          isScreenSharing: false,
+          isSpeaking: false,
+          isLocal: false,
+        };
+        next.set(peerId, {
+          ...existing,
+          ...(typeof data.isMuted === "boolean" ? { isMuted: data.isMuted } : {}),
+          ...(typeof data.isVideoOff === "boolean" ? { isCameraOff: data.isVideoOff } : {}),
+          ...(typeof data.isScreenSharing === "boolean"
+            ? { isScreenSharing: data.isScreenSharing }
+            : {}),
+        });
+        return next;
+      });
+    };
+
+    const socket = !isSocketDisabled() ? getSocketClient() : null;
+    if (socket) {
+      socket.on("group-call:signal", handleIncomingMeshSignal);
+      socket.on("group-call:user_joined", handleUserJoined);
+      socket.on("group-call:user_left", handleUserLeft);
+      socket.on("group-call:media_state", handleRemoteMediaState);
+    }
+
+    const handlePusher = (ev: Event) => {
+      const { eventName, data } = (ev as CustomEvent).detail || {};
+      if (eventName === "group-call:signal") void handleIncomingMeshSignal(data);
+      if (eventName === "group-call:user_joined") void handleUserJoined(data);
+      if (eventName === "group-call:user_left") handleUserLeft(data);
+      if (eventName === "group-call:media_state") handleRemoteMediaState(data);
+    };
+    window.addEventListener("hrms:pusher", handlePusher);
+
+    const bootstrapMeshJoin = async () => {
+      try {
+        const res: any = await api.post(
+          `/chat/meetings/${encodeURIComponent(meeting.callId)}/join`,
+          {
+            groupId: meeting.groupId,
+            callType: meeting.callType,
+          }
+        );
+        if (cancelled) return;
+        const data = res?.data || res;
+        if (Array.isArray(data?.iceServers) && data.iceServers.length > 0) {
+          iceServersRef.current = data.iceServers;
+        }
+
+        if (socket?.connected) {
+          socket.emit("group-call:join", { callId: meeting.callId });
+        }
+
+        const existingPeers: any[] = Array.isArray(data?.participants) ? data.participants : [];
+        const remotePeers = existingPeers.filter(
+          (p) => p?.userId && p.userId !== currentUserId
+        );
+
+        if (remotePeers.length === 0) {
+          setMeshConnectionState("connected");
+        } else {
+          const nextRoster = new Map<string, MeetingParticipant>();
+          for (const rp of remotePeers) {
+            nextRoster.set(rp.userId, {
+              userId: rp.userId,
+              name: rp.name || "Colleague",
+              avatar: rp.avatar || null,
+              role: rp.role === "host" ? "host" : "participant",
+              isMuted: false,
+              isCameraOff: false,
+              isScreenSharing: false,
+              isSpeaking: false,
+              isLocal: false,
+            });
+          }
+          setMeshRemoteRoster(nextRoster);
+
+          // Newly joined user initiates WebRTC offers to all peers already in the room
+          for (const rp of remotePeers) {
+            try {
+              const pc = getOrCreatePeerConnection(rp.userId);
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              sendMeshSignal(rp.userId, { type: "offer", sdp: offer.sdp });
+            } catch {}
+          }
+          setMeshConnectionState("connected");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setMeshConnectionState("connected");
         }
       }
     };
 
-    connectToLiveKit();
+    void bootstrapMeshJoin();
 
     return () => {
-      isCancelled = true;
-      if (roomInstance) {
-        try {
-          roomInstance.disconnect();
-        } catch (_) {}
+      cancelled = true;
+      if (socket) {
+        socket.off("group-call:signal", handleIncomingMeshSignal);
+        socket.off("group-call:user_joined", handleUserJoined);
+        socket.off("group-call:user_left", handleUserLeft);
+        socket.off("group-call:media_state", handleRemoteMediaState);
       }
-      livekitRoomRef.current = null;
+      window.removeEventListener("hrms:pusher", handlePusher);
+      for (const pc of peerConnectionsRef.current.values()) {
+        try {
+          pc.close();
+        } catch {}
+      }
+      peerConnectionsRef.current.clear();
+      pendingCandidatesRef.current.clear();
     };
-  }, [open, meeting?.callId, meeting?.status, sfuConfig?.configured]);
+  }, [open, meeting?.callId, meeting?.groupId, meeting?.callType, currentUserId, getOrCreatePeerConnection, sendMeshSignal]);
 
-  // Sync mute state to LiveKit
+  // Sync Screen Share & Media State across all Mesh PeerConnections (Item 3)
   useEffect(() => {
-    const room = livekitRoomRef.current;
-    if (room && room.state === ConnectionState.Connected) {
-      room.localParticipant.setMicrophoneEnabled(!isMuted).catch((e) => console.warn(e));
-    }
-  }, [isMuted]);
+    if (!open || !meeting?.callId) return;
 
-  // Sync camera state to LiveKit
-  useEffect(() => {
-    const room = livekitRoomRef.current;
-    if (room && room.state === ConnectionState.Connected) {
-      room.localParticipant.setCameraEnabled(!isVideoOff).catch((e) => console.warn(e));
-    }
-  }, [isVideoOff]);
+    const syncTracksAndState = async () => {
+      const screenTrack =
+        isScreenSharing && screenStream ? screenStream.getVideoTracks()[0] || null : null;
+      const cameraTrack =
+        !isScreenSharing && localStream ? localStream.getVideoTracks()[0] || null : null;
+      const desiredVideoTrack = screenTrack || cameraTrack;
 
-  // Sync screen share state to LiveKit
-  useEffect(() => {
-    const room = livekitRoomRef.current;
-    if (room && room.state === ConnectionState.Connected) {
-      room.localParticipant.setScreenShareEnabled(isScreenSharing).catch((e) => console.warn(e));
-    }
-  }, [isScreenSharing]);
+      for (const [peerId, pc] of peerConnectionsRef.current.entries()) {
+        if (pc.signalingState === "closed") continue;
+        try {
+          const videoSender = pc
+            .getSenders()
+            .find((s) => s.track?.kind === "video");
+
+          if (videoSender) {
+            await videoSender.replaceTrack(desiredVideoTrack || null);
+            const transceiver = pc
+              .getTransceivers()
+              .find((t) => t.sender === videoSender);
+            if (
+              transceiver &&
+              desiredVideoTrack &&
+              transceiver.direction !== "sendrecv" &&
+              transceiver.direction !== "sendonly"
+            ) {
+              transceiver.direction = "sendrecv";
+              if (pc.signalingState === "stable") {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendMeshSignal(peerId, { type: "offer", sdp: offer.sdp });
+              }
+            }
+          } else if (desiredVideoTrack) {
+            const ownerStream =
+              screenTrack && screenStream
+                ? screenStream
+                : localStream || new MediaStream([desiredVideoTrack]);
+            pc.addTrack(desiredVideoTrack, ownerStream);
+            if (pc.signalingState === "stable") {
+              const offer = await pc.createOffer();
+              await pc.setLocalDescription(offer);
+              sendMeshSignal(peerId, { type: "offer", sdp: offer.sdp });
+            }
+          }
+        } catch {}
+      }
+
+      if (!isSocketDisabled()) {
+        try {
+          const socket = getSocketClient();
+          if (socket?.connected) {
+            socket.emit("group-call:media_state", {
+              callId: meeting.callId,
+              isMuted,
+              isVideoOff,
+              isScreenSharing,
+            });
+          }
+        } catch {}
+      }
+
+      api
+        .post(`/chat/meetings/${encodeURIComponent(meeting.callId)}/media-state`, {
+          isMuted,
+          isVideoOff,
+          isScreenSharing,
+        })
+        .catch(() => {});
+    };
+
+    void syncTracksAndState();
+  }, [open, meeting?.callId, isScreenSharing, screenStream, localStream, isMuted, isVideoOff, sendMeshSignal]);
 
   // Enumerate devices on open
   useEffect(() => {
@@ -627,56 +904,57 @@ export function MultiParticipantMeetingDialog({
         setAudioInputDevices(devices.filter((d) => d.kind === "audioinput"));
         setVideoInputDevices(devices.filter((d) => d.kind === "videoinput"));
         setAudioOutputDevices(devices.filter((d) => d.kind === "audiooutput"));
-      } catch (err) {
-        console.warn("Failed to enumerate devices:", err);
-      }
+      } catch {}
     };
-    fetchDevices();
+    void fetchDevices();
   }, [open]);
 
-  // Scroll chat to bottom on new message
   useEffect(() => {
     if (isChatDrawerOpen && chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [threadMessages, isChatDrawerOpen]);
 
-  // Enrich participants with real-time LiveKit roster, active speaker & screen-share track state
+  // Enrich participants with real-time Mesh roster & tracks
   const enrichedParticipants = useMemo(() => {
     const mergedMap = new Map<string, MeetingParticipant>();
     for (const p of participants) {
       mergedMap.set(p.userId, p);
     }
-    for (const [uid, lkParticipant] of livekitRemoteRoster.entries()) {
+    for (const [uid, mp] of meshRemoteRoster.entries()) {
       if (!mergedMap.has(uid)) {
-        mergedMap.set(uid, lkParticipant);
+        mergedMap.set(uid, mp);
+      } else {
+        const cur = mergedMap.get(uid)!;
+        mergedMap.set(uid, {
+          ...cur,
+          isMuted: mp.isMuted,
+          isCameraOff: mp.isCameraOff,
+          isScreenSharing: Boolean(cur.isScreenSharing || mp.isScreenSharing),
+        });
       }
     }
     return Array.from(mergedMap.values()).map((p) => {
       const rt = remoteTracksMap.get(p.userId);
       return {
         ...p,
-        isSpeaking: Boolean(p.isSpeaking || activeSpeakerIds.has(p.userId)),
-        isScreenSharing: Boolean(p.isScreenSharing || rt?.screenShareTrack),
+        mediaStream: p.mediaStream || rt?.stream || null,
       };
     });
-  }, [participants, livekitRemoteRoster, remoteTracksMap, activeSpeakerIds]);
+  }, [participants, meshRemoteRoster, remoteTracksMap]);
 
-  // Resolve active speaker or spotlight user
   const effectiveSpotlightUser = useMemo(() => {
     if (spotlightUserId) {
       const match = enrichedParticipants.find((p) => p.userId === spotlightUserId);
       if (match) return match;
     }
-    // Default to the first participant speaking, or host, or first remote
     const speaking = enrichedParticipants.find((p) => p.isSpeaking);
     if (speaking) return speaking;
-    const remote = enrichedParticipants.find((p) => !p.isLocal);
+    const remote = enrichedParticipants.find((p) => !p.isLocal && p.userId !== currentUserId);
     if (remote) return remote;
     return enrichedParticipants[0] || null;
-  }, [spotlightUserId, enrichedParticipants]);
+  }, [spotlightUserId, enrichedParticipants, currentUserId]);
 
-  // Check if someone is sharing their screen
   const screenSharingParticipant = useMemo(() => {
     if (isScreenSharing) {
       return {
@@ -685,25 +963,52 @@ export function MultiParticipantMeetingDialog({
         isLocal: true,
       };
     }
-    return enrichedParticipants.find((p) => p.isScreenSharing) || null;
+    const remotePresenter = enrichedParticipants.find(
+      (p) => p.userId !== currentUserId && p.isScreenSharing
+    );
+    return remotePresenter
+      ? { userId: remotePresenter.userId, name: remotePresenter.name, isLocal: false }
+      : null;
   }, [isScreenSharing, currentUserId, currentUserName, enrichedParticipants]);
 
-  // Filter available colleagues for invitation
+  // Item 13: Strictly exclude currentUserId and all existing participants, and deduplicate
   const inviteColleaguesList = useMemo(() => {
-    const existingIds = new Set(participants.map((p) => p.userId));
-    return availableColleagues
-      .filter((c) => !existingIds.has(c.id) && c.id !== currentUserId)
-      .filter((c) =>
-        inviteSearch
-          ? c.name.toLowerCase().includes(inviteSearch.toLowerCase()) ||
-            (c.email && c.email.toLowerCase().includes(inviteSearch.toLowerCase()))
-          : true
-      );
-  }, [availableColleagues, participants, currentUserId, inviteSearch]);
+    const existingIds = new Set<string>([
+      String(currentUserId).trim(),
+      ...enrichedParticipants.map((p) => String(p.userId).trim()),
+    ]);
+    const seenIds = new Set<string>();
+    const seenEmails = new Set<string>();
+    const q = inviteSearch.toLowerCase().trim();
+
+    return availableColleagues.filter((c) => {
+      const cid = String(c.id || "").trim();
+      if (!cid || existingIds.has(cid) || seenIds.has(cid)) return false;
+      const email = c.email ? c.email.trim().toLowerCase() : "";
+      if (email && seenEmails.has(email)) return false;
+
+      if (q) {
+        const matches =
+          c.name.toLowerCase().includes(q) || (email && email.includes(q));
+        if (!matches) return false;
+      }
+
+      seenIds.add(cid);
+      if (email) seenEmails.add(email);
+      return true;
+    });
+  }, [availableColleagues, enrichedParticipants, currentUserId, inviteSearch]);
 
   const handleSendInvite = () => {
     if (selectedInviteIds.length === 0) return;
     onInviteColleagues(selectedInviteIds);
+    if (meeting?.callId) {
+      api
+        .post(`/chat/meetings/${encodeURIComponent(meeting.callId)}/invite`, {
+          userIds: selectedInviteIds,
+        })
+        .catch(() => {});
+    }
     setSelectedInviteIds([]);
     setIsInviteDialogOpen(false);
   };
@@ -717,48 +1022,46 @@ export function MultiParticipantMeetingDialog({
 
   if (!open || !meeting) return null;
 
-  // ==========================================================================
-  // FLOATING PICTURE-IN-PICTURE (MINIMIZED) VIEW
-  // ==========================================================================
   if (isMinimized) {
     return (
       <div
         data-testid="meeting-pip-widget"
-        className="fixed bottom-5 right-5 z-50 w-72 md:w-80 bg-card/95 backdrop-blur-md border border-border/80 rounded-2xl shadow-2xl p-3 flex flex-col gap-2.5 text-foreground animate-in fade-in slide-in-from-bottom-4 duration-200"
+        className="fixed bottom-5 right-5 z-50 w-72 md:w-80 bg-card/95 backdrop-blur-md border border-border/80 rounded-2xl shadow-2xl p-3 flex flex-col gap-2.5 text-foreground"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="size-2 rounded-full bg-success animate-ping" />
+            <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
             <h4 className="text-xs font-bold truncate">{meeting.groupName}</h4>
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="size-7 text-foreground hover:text-foreground hover:bg-card"
-              onClick={() => setIsMinimized(false)}
-              title="Expand Meeting"
-            >
-              <Maximize2 className="size-3.5" />
-            </Button>
-          </div>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-7 text-foreground hover:bg-card"
+            onClick={() => setIsMinimized(false)}
+            title="Expand Meeting"
+          >
+            <Maximize2 className="size-3.5" />
+          </Button>
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-          <span className="font-mono text-success">{formatDuration(elapsedSeconds)}</span>
+          <span className="font-mono text-emerald-500">{formatDuration(elapsedSeconds)}</span>
           <span className="flex items-center gap-1">
             <Users className="size-3 text-muted-foreground" />
-            {participants.length} {participants.length === 1 ? "participant" : "participants"}
+            {enrichedParticipants.length}{" "}
+            {enrichedParticipants.length === 1 ? "participant" : "participants"}
           </span>
         </div>
 
-        {/* PiP Action Buttons */}
         <div className="flex items-center justify-between pt-1 border-t border-border">
           <Button
             size="sm"
             variant="ghost"
             onClick={onToggleMute}
-            className={cn("size-8 p-0 rounded-full", isMuted ? "text-destructive hover:bg-destructive/40" : "text-success hover:bg-success/40")}
+            className={cn(
+              "size-8 p-0 rounded-full",
+              isMuted ? "text-destructive" : "text-emerald-500"
+            )}
           >
             {isMuted ? <MicOff className="size-4" /> : <Mic className="size-4" />}
           </Button>
@@ -766,7 +1069,10 @@ export function MultiParticipantMeetingDialog({
             size="sm"
             variant="ghost"
             onClick={onToggleVideo}
-            className={cn("size-8 p-0 rounded-full", isVideoOff ? "text-destructive hover:bg-destructive/40" : "text-primary hover:bg-primary/40")}
+            className={cn(
+              "size-8 p-0 rounded-full",
+              isVideoOff ? "text-destructive" : "text-primary"
+            )}
           >
             {isVideoOff ? <VideoOff className="size-4" /> : <Video className="size-4" />}
           </Button>
@@ -774,7 +1080,7 @@ export function MultiParticipantMeetingDialog({
             size="sm"
             variant="destructive"
             onClick={onLeaveMeeting}
-            className="h-7 px-3 text-xs rounded-full bg-destructive hover:bg-destructive"
+            className="h-7 px-3 text-xs rounded-full"
           >
             <LogOut className="size-3 mr-1" /> Leave
           </Button>
@@ -783,9 +1089,6 @@ export function MultiParticipantMeetingDialog({
     );
   }
 
-  // ==========================================================================
-  // FULL MEETING MODAL VIEW
-  // ==========================================================================
   return (
     <Dialog open={open && !isMinimized} onOpenChange={onOpenChange}>
       <DialogContent
@@ -795,7 +1098,12 @@ export function MultiParticipantMeetingDialog({
         {/* TOP HEADER */}
         <div className="h-14 px-4 md:px-6 bg-card/90 border-b border-border/80 flex items-center justify-between shrink-0 select-none">
           <div className="flex items-center gap-3 min-w-0">
-            <div className={cn("size-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-md", getAvatarColor(meeting.groupName))}>
+            <div
+              className={cn(
+                "size-8 rounded-lg flex items-center justify-center font-bold text-xs shadow-md",
+                getAvatarColor(meeting.groupName)
+              )}
+            >
               {meeting.groupName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -803,89 +1111,65 @@ export function MultiParticipantMeetingDialog({
                 <h3 className="font-bold text-sm md:text-base text-foreground truncate max-w-[200px] md:max-w-md">
                   {meeting.groupName}
                 </h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-success/20 text-success border border-success/30">
-                  <span className="size-1.5 rounded-full bg-success animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   {formatDuration(elapsedSeconds)}
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground truncate">
-                {meeting.isHost ? "You are the Meeting Host" : `Host: ${meeting.creatorId === currentUserId ? "You" : "Colleague"}`} &bull; {participants.length} Active
+                {meeting.isHost ? "You are the Host" : "Group Call"} &bull;{" "}
+                {enrichedParticipants.length} Active
               </p>
             </div>
           </div>
 
-          {/* Right Header Badges & Actions */}
           <div className="flex items-center gap-2">
-            {/* SFU Connection & Diagnostic Badges */}
-            {livekitConnectionState === "connected" ? (
-              <span
-                data-testid="badge-sfu-connected"
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-success/15 border border-success/30 text-success text-[10px] sm:text-[11px] font-medium"
-              >
-                <span className="size-2 rounded-full bg-success animate-pulse" />
-                <span>LiveKit SFU Active</span>
+            <span
+              data-testid="badge-mesh-connected"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-medium"
+            >
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>
+                {meshConnectionState === "connecting" ? "Connecting Mesh..." : "WebRTC Encrypted"}
               </span>
-            ) : livekitConnectionState === "connecting" ? (
-              <span
-                data-testid="badge-sfu-connecting"
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-accent/15 border border-accent/30 text-accent-foreground text-[10px] sm:text-[11px] font-medium"
-              >
-                <span className="size-2 rounded-full bg-accent animate-ping" />
-                <span>Connecting SFU...</span>
-              </span>
-            ) : livekitConnectionState === "error" ? (
-              <span
-                data-testid="badge-sfu-error"
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-destructive/15 border border-destructive/30 text-destructive text-[10px] sm:text-[11px] font-medium"
-                title={livekitError || "SFU connection error"}
-              >
-                <AlertCircle className="size-3.5 text-destructive" />
-                <span>SFU Connect Failed</span>
-              </span>
-            ) : (!sfuConfig || !sfuConfig.configured || livekitConnectionState === "unconfigured") ? (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    data-testid="btn-sfu-diagnostic-notice"
-                    className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-warning/15 border border-warning/30 text-warning text-[11px] hover:bg-warning/25 transition-colors cursor-pointer"
-                  >
-                    <AlertCircle className="size-3.5 text-warning" />
-                    <span>LiveKit SFU Notice</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-3 bg-card border-border text-foreground text-xs space-y-2">
-                  <div className="font-semibold text-warning flex items-center gap-1.5">
-                    <Info className="size-4" /> LiveKit SFU Required for Production
-                  </div>
-                  <p className="text-[11px] text-foreground leading-relaxed">
-                    LiveKit SFU credentials are unset on this server. Media preview and local device loops are active. Set <code className="text-primary">LIVEKIT_URL</code>, <code className="text-primary">LIVEKIT_API_KEY</code>, and <code className="text-primary">LIVEKIT_API_SECRET</code> for cloud SFU multi-party relay.
-                  </p>
-                  <div className="text-[10px] text-muted-foreground border-t border-border pt-2">
-                    STUN/TURN: {sfuConfig?.hasTurn ? "Configured" : "Google Public STUN Active"}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            ) : null}
+            </span>
 
-            {/* Layout Toggle Quick Action */}
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid="btn-header-invite-colleagues"
+              onClick={() => setIsInviteDialogOpen(true)}
+              className="h-8 text-xs gap-1.5 cursor-pointer"
+            >
+              <UserPlus className="size-3.5" />
+              <span className="hidden sm:inline">Add People</span>
+            </Button>
+
             <Button
               size="icon"
               variant="ghost"
               data-testid="btn-toggle-meeting-layout"
               onClick={() => setLayoutMode(layoutMode === "grid" ? "speaker" : "grid")}
-              className="size-8 text-foreground hover:text-foreground hover:bg-card rounded-lg cursor-pointer relative z-20"
-              title={layoutMode === "grid" ? "Switch to Speaker Spotlight View" : "Switch to Equal Grid View"}
+              className="size-8 text-foreground hover:bg-card rounded-lg cursor-pointer"
+              title={
+                layoutMode === "grid"
+                  ? "Switch to Speaker Spotlight View"
+                  : "Switch to Equal Grid View"
+              }
             >
-              {layoutMode === "grid" ? <LayoutGrid className="size-4" /> : <Grid className="size-4" />}
+              {layoutMode === "grid" ? (
+                <LayoutGrid className="size-4" />
+              ) : (
+                <Grid className="size-4" />
+              )}
             </Button>
 
-            {/* Minimize to PiP */}
             <Button
               size="icon"
               variant="ghost"
               data-testid="btn-minimize-meeting"
               onClick={() => setIsMinimized(true)}
-              className="size-8 text-foreground hover:text-foreground hover:bg-card rounded-lg cursor-pointer relative z-20"
+              className="size-8 text-foreground hover:bg-card rounded-lg cursor-pointer"
               title="Minimize to Picture-in-Picture"
             >
               <Minimize2 className="size-4" />
@@ -893,26 +1177,15 @@ export function MultiParticipantMeetingDialog({
           </div>
         </div>
 
-        {/* SFU NOT CONFIGURED NOTIFICATION BANNER */}
-        {(!sfuConfig || !sfuConfig.configured) && (
-          <div className="bg-warning/40 border-b border-warning/50 px-4 py-1.5 flex items-center justify-between text-[11px] text-warning">
-            <span className="flex items-center gap-1.5 truncate">
-              <AlertCircle className="size-3.5 shrink-0 text-warning" />
-              LiveKit SFU credentials unconfigured. Signaling and local media preview active. Configure LiveKit for production multiparty relay.
-            </span>
-            <span className="text-[10px] text-warning font-mono hidden md:inline">STUN/TURN Active</span>
-          </div>
-        )}
-
-        {/* MIDDLE STAGE AREA (VIDEO GRID / SPOTLIGHT / SCREEN SHARE + DRAWERS) */}
+        {/* MIDDLE STAGE AREA */}
         <div className="flex-1 min-h-0 relative flex overflow-hidden bg-background">
-          {/* MAIN PRESENTATION / VIDEO STAGE */}
           <div className="flex-1 min-h-0 relative flex flex-col p-3 overflow-hidden">
-            {/* 1. SCREEN SHARE PRESENTATION STAGE (IF ANYONE IS SHARING SCREEN) */}
             {screenSharingParticipant ? (
-              <div data-testid="meeting-screen-stage" className="flex-1 min-h-0 flex flex-col gap-2 relative">
-                {/* Screen Share Dominant Video Container */}
-                <div className="flex-1 min-h-0 bg-black rounded-2xl border border-border overflow-hidden relative flex items-center justify-center">
+              <div
+                data-testid="meeting-screen-stage"
+                className="flex-1 min-h-0 flex flex-col gap-2 relative"
+              >
+                <div className="flex-1 min-h-0 bg-slate-950 rounded-2xl border border-border overflow-hidden relative flex items-center justify-center">
                   {screenSharingParticipant.isLocal ? (
                     <video
                       ref={screenVideoRef}
@@ -921,42 +1194,39 @@ export function MultiParticipantMeetingDialog({
                       muted
                       className="w-full h-full object-contain"
                     />
-                  ) : remoteTracksMap.get(screenSharingParticipant.userId)?.screenShareStream ||
-                    remoteTracksMap.get(screenSharingParticipant.userId)?.screenShareTrack ? (
+                  ) : remoteTracksMap.get(screenSharingParticipant.userId)?.stream ? (
                     <video
                       data-testid="remote-screen-share-video"
                       ref={(el) => {
                         const rt = remoteTracksMap.get(screenSharingParticipant.userId);
-                        if (el && rt) {
-                          if (rt.screenShareStream) {
-                            el.srcObject = rt.screenShareStream;
-                          } else if (rt.screenShareTrack) {
-                            rt.screenShareTrack.attach(el);
-                          }
+                        if (el && rt?.stream && el.srcObject !== rt.stream) {
+                          el.srcObject = rt.stream;
+                          el.play().catch(() => {});
                         }
                       }}
                       autoPlay
                       playsInline
+                      muted
                       className="w-full h-full object-contain"
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
                       <MonitorUp className="size-12 text-primary animate-pulse" />
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-sm font-semibold text-white">
                         {screenSharingParticipant.name} is presenting their screen
                       </p>
                     </div>
                   )}
 
-                  {/* Top Floating Pill */}
-                  <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-card/80 backdrop-blur-md border border-border text-xs font-medium text-foreground flex items-center gap-2 shadow-lg">
+                  <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-card/85 backdrop-blur-md border border-border text-xs font-medium text-foreground flex items-center gap-2 shadow-lg">
                     <MonitorUp className="size-3.5 text-primary" />
                     <span>
-                      {screenSharingParticipant.isLocal ? "You are presenting" : `${screenSharingParticipant.name} is presenting`}
+                      {screenSharingParticipant.isLocal
+                        ? "You are presenting"
+                        : `${screenSharingParticipant.name} is presenting`}
                     </span>
                   </div>
 
-                  {/* Stop Sharing Button if local user is sharing */}
                   {screenSharingParticipant.isLocal && (
                     <div className="absolute top-3 right-3 z-20">
                       <Button
@@ -964,7 +1234,7 @@ export function MultiParticipantMeetingDialog({
                         variant="destructive"
                         data-testid="btn-stop-screen-share"
                         onClick={onToggleScreenShare}
-                        className="rounded-full h-8 px-3 text-xs gap-1.5 shadow-xl bg-destructive hover:bg-destructive font-semibold cursor-pointer"
+                        className="rounded-full h-8 px-3 text-xs gap-1.5 shadow-xl font-semibold cursor-pointer"
                       >
                         <MonitorOff className="size-3.5" /> Stop Sharing
                       </Button>
@@ -972,17 +1242,18 @@ export function MultiParticipantMeetingDialog({
                   )}
                 </div>
 
-                {/* Compact Participant Filmstrip below screen stage */}
                 <div className="h-28 shrink-0 flex items-center gap-2 overflow-x-auto py-1 px-1">
                   {enrichedParticipants.map((p) => (
                     <ParticipantCard
                       key={p.userId}
                       participant={p}
                       isLocalUser={p.isLocal || p.userId === currentUserId}
-                      localStreamRef={localVideoRef}
+                      localStream={localStream}
                       isHost={meeting.isHost}
                       onRemove={() => onRemoveParticipant(p.userId)}
-                      onPin={() => setSpotlightUserId(spotlightUserId === p.userId ? null : p.userId)}
+                      onPin={() =>
+                        setSpotlightUserId(spotlightUserId === p.userId ? null : p.userId)
+                      }
                       isPinned={spotlightUserId === p.userId}
                       remoteTrackInfo={remoteTracksMap.get(p.userId)}
                       compact
@@ -991,14 +1262,18 @@ export function MultiParticipantMeetingDialog({
                 </div>
               </div>
             ) : layoutMode === "speaker" && effectiveSpotlightUser ? (
-              // 2. ACTIVE SPEAKER SPOTLIGHT MODE
-              <div data-testid="meeting-speaker-stage" className="flex-1 min-h-0 flex flex-col gap-2 relative">
-                {/* Large Spotlight Tile */}
+              <div
+                data-testid="meeting-speaker-stage"
+                className="flex-1 min-h-0 flex flex-col gap-2 relative"
+              >
                 <div className="flex-1 min-h-0 relative">
                   <ParticipantCard
                     participant={effectiveSpotlightUser}
-                    isLocalUser={effectiveSpotlightUser.isLocal || effectiveSpotlightUser.userId === currentUserId}
-                    localStreamRef={localVideoRef}
+                    isLocalUser={
+                      effectiveSpotlightUser.isLocal ||
+                      effectiveSpotlightUser.userId === currentUserId
+                    }
+                    localStream={localStream}
                     isHost={meeting.isHost}
                     onRemove={() => onRemoveParticipant(effectiveSpotlightUser.userId)}
                     onPin={() => setSpotlightUserId(null)}
@@ -1008,17 +1283,18 @@ export function MultiParticipantMeetingDialog({
                   />
                 </div>
 
-                {/* Bottom Horizontal Filmstrip */}
                 <div className="h-28 shrink-0 flex items-center gap-2 overflow-x-auto py-1 px-1">
                   {enrichedParticipants.map((p) => (
                     <ParticipantCard
                       key={p.userId}
                       participant={p}
                       isLocalUser={p.isLocal || p.userId === currentUserId}
-                      localStreamRef={localVideoRef}
+                      localStream={localStream}
                       isHost={meeting.isHost}
                       onRemove={() => onRemoveParticipant(p.userId)}
-                      onPin={() => setSpotlightUserId(spotlightUserId === p.userId ? null : p.userId)}
+                      onPin={() =>
+                        setSpotlightUserId(spotlightUserId === p.userId ? null : p.userId)
+                      }
                       isPinned={spotlightUserId === p.userId}
                       remoteTrackInfo={remoteTracksMap.get(p.userId)}
                       compact
@@ -1027,14 +1303,14 @@ export function MultiParticipantMeetingDialog({
                 </div>
               </div>
             ) : (
-              // 3. EQUAL-SIZE RESPONSIVE PARTICIPANT GRID (1, 2, 3, 4, 5+ PARTICIPANTS)
               <div
                 data-testid="meeting-participant-grid"
                 className={cn(
                   "flex-1 min-h-0 grid gap-3 w-full h-full",
                   enrichedParticipants.length === 1 && "grid-cols-1",
                   enrichedParticipants.length === 2 && "grid-cols-1 md:grid-cols-2",
-                  (enrichedParticipants.length === 3 || enrichedParticipants.length === 4) && "grid-cols-2",
+                  (enrichedParticipants.length === 3 || enrichedParticipants.length === 4) &&
+                    "grid-cols-2",
                   enrichedParticipants.length >= 5 && "grid-cols-2 md:grid-cols-3"
                 )}
               >
@@ -1043,7 +1319,7 @@ export function MultiParticipantMeetingDialog({
                     key={p.userId}
                     participant={p}
                     isLocalUser={p.isLocal || p.userId === currentUserId}
-                    localStreamRef={localVideoRef}
+                    localStream={localStream}
                     isHost={meeting.isHost}
                     onRemove={() => onRemoveParticipant(p.userId)}
                     onPin={() => {
@@ -1058,11 +1334,11 @@ export function MultiParticipantMeetingDialog({
             )}
           </div>
 
-          {/* RIGHT-HAND COLLAPSIBLE PARTICIPANTS DRAWER */}
+          {/* PARTICIPANTS DRAWER */}
           {isParticipantsDrawerOpen && (
             <div
               data-testid="meeting-participants-drawer"
-              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
+              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20"
             >
               <div className="h-12 px-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
@@ -1079,7 +1355,6 @@ export function MultiParticipantMeetingDialog({
                 </Button>
               </div>
 
-              {/* Invite Colleagues Action Button */}
               <div className="p-3 border-b border-border">
                 <Button
                   size="sm"
@@ -1092,7 +1367,6 @@ export function MultiParticipantMeetingDialog({
                 </Button>
               </div>
 
-              {/* Participant Roster List */}
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {enrichedParticipants.map((p) => {
                   const isSelf = p.isLocal || p.userId === currentUserId;
@@ -1106,14 +1380,17 @@ export function MultiParticipantMeetingDialog({
                           className={cn(
                             "size-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
                             getAvatarColor(p.name),
-                            p.isSpeaking && "ring-2 ring-success"
+                            p.isSpeaking && "ring-2 ring-emerald-500"
                           )}
                         >
                           {p.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium text-foreground truncate">
-                            {p.name} {isSelf && <span className="text-muted-foreground text-[10px]">(You)</span>}
+                            {p.name}{" "}
+                            {isSelf && (
+                              <span className="text-muted-foreground text-[10px]">(You)</span>
+                            )}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {p.role === "host" ? "Host" : "Member"}
@@ -1121,38 +1398,28 @@ export function MultiParticipantMeetingDialog({
                         </div>
                       </div>
 
-                      {/* Status Badges & Host Controls */}
                       <div className="flex items-center gap-1.5">
                         {p.isSpeaking && (
                           <span title="Speaking">
-                            <Activity className="size-3.5 text-success animate-pulse" />
+                            <Activity className="size-3.5 text-emerald-500 animate-pulse" />
                           </span>
                         )}
                         {p.isMuted ? (
-                          <span title="Muted">
-                            <MicOff className="size-3.5 text-destructive" />
-                          </span>
+                          <MicOff className="size-3.5 text-destructive" />
                         ) : (
-                          <span title="Mic live">
-                            <Mic className="size-3.5 text-success" />
-                          </span>
+                          <Mic className="size-3.5 text-emerald-500" />
                         )}
                         {p.isCameraOff ? (
-                          <span title="Camera off">
-                            <VideoOff className="size-3.5 text-destructive" />
-                          </span>
+                          <VideoOff className="size-3.5 text-destructive" />
                         ) : (
-                          <span title="Camera on">
-                            <Video className="size-3.5 text-primary" />
-                          </span>
+                          <Video className="size-3.5 text-primary" />
                         )}
-
                         {meeting.isHost && !isSelf && (
                           <Button
                             size="icon"
                             variant="ghost"
                             onClick={() => onRemoveParticipant(p.userId)}
-                            className="size-6 text-destructive hover:text-destructive hover:bg-destructive/40 rounded-full"
+                            className="size-6 text-destructive hover:bg-destructive/20 rounded-full"
                             title="Remove from meeting"
                           >
                             <X className="size-3" />
@@ -1166,11 +1433,11 @@ export function MultiParticipantMeetingDialog({
             </div>
           )}
 
-          {/* RIGHT-HAND IN-MEETING CHAT DRAWER */}
+          {/* IN-MEETING CHAT DRAWER */}
           {isChatDrawerOpen && (
             <div
               data-testid="meeting-chat-drawer"
-              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20 animate-in slide-in-from-right duration-200"
+              className="absolute inset-y-0 right-0 w-full sm:w-80 sm:relative shrink-0 border-l border-border bg-card/95 flex flex-col z-20"
             >
               <div className="h-12 px-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2 font-semibold text-xs text-foreground">
@@ -1187,20 +1454,30 @@ export function MultiParticipantMeetingDialog({
                 </Button>
               </div>
 
-              {/* Chat Messages */}
               <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-3 space-y-2.5">
                 {threadMessages.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center text-foreground text-xs">
                     <MessageSquare className="size-8 mb-2 opacity-40" />
                     <span>No chat messages yet.</span>
-                    <span className="text-[10px] text-muted-foreground">Send notes to all attendees.</span>
                   </div>
                 ) : (
                   threadMessages.map((msg) => (
-                    <div key={msg.id} className="p-2 rounded-xl bg-background/80 border border-border text-xs space-y-1">
+                    <div
+                      key={msg.id}
+                      className="p-2 rounded-xl bg-background/80 border border-border text-xs space-y-1"
+                    >
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span className="font-semibold text-primary">{msg.senderName || "Colleague"}</span>
-                        <span>{msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                        <span className="font-semibold text-primary">
+                          {msg.senderName || "Colleague"}
+                        </span>
+                        <span>
+                          {msg.createdAt
+                            ? new Date(msg.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : ""}
+                        </span>
                       </div>
                       <p className="text-foreground text-xs break-words">{msg.content}</p>
                     </div>
@@ -1208,19 +1485,21 @@ export function MultiParticipantMeetingDialog({
                 )}
               </div>
 
-              {/* Chat Input */}
-              <form onSubmit={handleSendChatMessage} className="p-2 border-t border-border flex items-center gap-2">
+              <form
+                onSubmit={handleSendChatMessage}
+                className="p-2 border-t border-border flex items-center gap-2"
+              >
                 <Input
                   value={inMeetingMessage}
                   onChange={(e) => setInMeetingMessage(e.target.value)}
                   placeholder="Type a message..."
-                  className="h-8 text-xs bg-background border-border text-foreground placeholder:text-foreground"
+                  className="h-8 text-xs bg-background border-border"
                 />
                 <Button
                   type="submit"
                   size="icon"
                   disabled={!inMeetingMessage.trim()}
-                  className="size-8 bg-primary hover:bg-primary text-primary-foreground shrink-0"
+                  className="size-8 bg-primary text-primary-foreground shrink-0"
                 >
                   <Send className="size-3.5" />
                 </Button>
@@ -1229,21 +1508,20 @@ export function MultiParticipantMeetingDialog({
           )}
         </div>
 
-        {/* BOTTOM FLOATING MEETING TOOLBAR */}
+        {/* BOTTOM TOOLBAR */}
         <div className="h-20 bg-card/90 border-t border-border/80 px-4 flex items-center justify-center shrink-0 relative select-none">
           <div
             data-testid="meeting-toolbar"
             className="flex items-center gap-2 md:gap-3 bg-background/80 backdrop-blur-md border border-border rounded-2xl px-3 md:px-5 py-2 shadow-2xl overflow-x-auto max-w-full"
           >
-            {/* 1. Mic Button */}
             <Button
               size="icon"
               data-testid="btn-meeting-toggle-mic"
               onClick={onToggleMute}
               className={cn(
-                "rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] cursor-pointer transition-all duration-150 active:scale-95",
+                "rounded-full size-11 shrink-0 cursor-pointer",
                 isMuted
-                  ? "bg-destructive hover:bg-destructive text-destructive-foreground ring-2 ring-destructive/30"
+                  ? "bg-destructive text-destructive-foreground"
                   : "bg-card hover:bg-secondary text-foreground"
               )}
               title={isMuted ? "Unmute Microphone" : "Mute Microphone"}
@@ -1251,15 +1529,14 @@ export function MultiParticipantMeetingDialog({
               {isMuted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
             </Button>
 
-            {/* 2. Camera Button */}
             <Button
               size="icon"
               data-testid="btn-meeting-toggle-camera"
               onClick={onToggleVideo}
               className={cn(
-                "rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] cursor-pointer transition-all duration-150 active:scale-95",
+                "rounded-full size-11 shrink-0 cursor-pointer",
                 isVideoOff
-                  ? "bg-destructive hover:bg-destructive text-destructive-foreground ring-2 ring-destructive/30"
+                  ? "bg-destructive text-destructive-foreground"
                   : "bg-card hover:bg-secondary text-foreground"
               )}
               title={isVideoOff ? "Turn On Camera" : "Turn Off Camera"}
@@ -1267,155 +1544,36 @@ export function MultiParticipantMeetingDialog({
               {isVideoOff ? <VideoOff className="size-5" /> : <Video className="size-5" />}
             </Button>
 
-            {/* 3. Screen Share Button */}
             <Button
               size="icon"
               data-testid="btn-meeting-toggle-screenshare"
               onClick={onToggleScreenShare}
               className={cn(
-                "rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] cursor-pointer transition-all duration-150 active:scale-95",
+                "rounded-full size-11 shrink-0 cursor-pointer",
                 isScreenSharing
-                  ? "bg-primary hover:bg-primary text-primary-foreground ring-4 ring-primary/30"
+                  ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
                   : "bg-card hover:bg-secondary text-foreground"
               )}
-              title={isScreenSharing ? "Stop Sharing Screen" : "Share Entire Screen"}
+              title={isScreenSharing ? "Stop Sharing Screen" : "Share Screen"}
             >
-              {isScreenSharing ? <MonitorOff className="size-5" /> : <MonitorUp className="size-5" />}
+              {isScreenSharing ? (
+                <MonitorOff className="size-5" />
+              ) : (
+                <MonitorUp className="size-5" />
+              )}
             </Button>
 
-            <div className="h-6 w-px bg-card mx-1 hidden sm:block" />
-
-            {/* 4. Layout Mode Toggle */}
             <Button
               size="icon"
               variant="ghost"
-              data-testid="btn-meeting-toggle-grid-speaker"
-              onClick={() => setLayoutMode(layoutMode === "grid" ? "speaker" : "grid")}
-              className="rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] bg-card hover:bg-secondary text-foreground cursor-pointer hidden sm:flex"
-              title={layoutMode === "grid" ? "Switch to Speaker Spotlight View" : "Switch to Grid View"}
+              data-testid="btn-meeting-device-settings"
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              className="rounded-full size-11 shrink-0 bg-card hover:bg-secondary text-foreground cursor-pointer hidden sm:flex"
+              title="Device Info"
             >
-              {layoutMode === "grid" ? <LayoutGrid className="size-5" /> : <Grid className="size-5" />}
+              <Sliders className="size-5" />
             </Button>
 
-            {/* 5. Device Settings Popover */}
-            <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  data-testid="btn-meeting-device-settings"
-                  className="rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] bg-card hover:bg-secondary text-foreground cursor-pointer"
-                  title="Audio & Video Device Settings"
-                >
-                  <Sliders className="size-5" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-4 bg-card border-border text-foreground space-y-3 font-sans">
-                <div className="font-semibold text-xs text-primary flex items-center gap-1.5 border-b border-border pb-2">
-                  <Sliders className="size-3.5" /> Media Device Settings
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">Microphone</label>
-                  <select
-                    value={selectedAudioInput}
-                    onChange={(e) => {
-                      const deviceId = e.target.value;
-                      setSelectedAudioInput(deviceId);
-                      if (deviceId && livekitRoomRef.current) {
-                        livekitRoomRef.current.switchActiveDevice("audioinput", deviceId).catch(() => {});
-                      }
-                    }}
-                    className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
-                  >
-                    {audioInputDevices.map((d, i) => (
-                      <option key={d.deviceId || i} value={d.deviceId}>
-                        {d.label || `Microphone ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">Camera</label>
-                  <select
-                    value={selectedVideoInput}
-                    onChange={(e) => {
-                      const deviceId = e.target.value;
-                      setSelectedVideoInput(deviceId);
-                      if (deviceId && livekitRoomRef.current) {
-                        livekitRoomRef.current.switchActiveDevice("videoinput", deviceId).catch(() => {});
-                      }
-                    }}
-                    className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
-                  >
-                    {videoInputDevices.map((d, i) => (
-                      <option key={d.deviceId || i} value={d.deviceId}>
-                        {d.label || `Camera ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">Speaker / Output</label>
-                  <select
-                    value={selectedAudioOutput}
-                    onChange={(e) => {
-                      const deviceId = e.target.value;
-                      setSelectedAudioOutput(deviceId);
-                      if (deviceId && livekitRoomRef.current) {
-                        livekitRoomRef.current.switchActiveDevice("audiooutput", deviceId).catch(() => {});
-                      }
-                    }}
-                    className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2 text-foreground"
-                  >
-                    {audioOutputDevices.map((d, i) => (
-                      <option key={d.deviceId || i} value={d.deviceId}>
-                        {d.label || `Speaker ${i + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Audio Processing & Constraints Diagnostics */}
-                <div className="pt-2 border-t border-border space-y-1.5">
-                  <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Audio Processing
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-foreground font-medium">Noise Suppression</span>
-                    <span
-                      data-testid="badge-noise-suppression"
-                      className={cn(
-                        "text-[10px] px-2 py-0.5 rounded font-mono font-medium",
-                        isNoiseSuppressionSupported
-                          ? "bg-success/80 text-success border border-success/50"
-                          : "bg-card text-muted-foreground"
-                      )}
-                    >
-                      {isNoiseSuppressionSupported ? "Browser Supported" : "Not Available"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-foreground font-medium">Echo Cancellation</span>
-                    <span
-                      data-testid="badge-echo-cancellation"
-                      className={cn(
-                        "text-[10px] px-2 py-0.5 rounded font-mono font-medium",
-                        isEchoCancellationSupported
-                          ? "bg-success/80 text-success border border-success/50"
-                          : "bg-card text-muted-foreground"
-                      )}
-                    >
-                      {isEchoCancellationSupported ? "Browser Supported" : "Not Available"}
-                    </span>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* 6. Participants Drawer Toggle */}
             <Button
               size="icon"
               variant="ghost"
@@ -1425,7 +1583,7 @@ export function MultiParticipantMeetingDialog({
                 if (isChatDrawerOpen) setIsChatDrawerOpen(false);
               }}
               className={cn(
-                "rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] cursor-pointer relative",
+                "rounded-full size-11 shrink-0 cursor-pointer relative",
                 isParticipantsDrawerOpen
                   ? "bg-primary text-primary-foreground"
                   : "bg-card hover:bg-secondary text-foreground"
@@ -1434,11 +1592,10 @@ export function MultiParticipantMeetingDialog({
             >
               <Users className="size-5" />
               <Badge className="absolute -top-1 -right-1 size-5 p-0 flex items-center justify-center text-[10px] bg-primary text-primary-foreground rounded-full">
-                {participants.length}
+                {enrichedParticipants.length}
               </Badge>
             </Button>
 
-            {/* 7. Chat Drawer Toggle */}
             <Button
               size="icon"
               variant="ghost"
@@ -1448,7 +1605,7 @@ export function MultiParticipantMeetingDialog({
                 if (isParticipantsDrawerOpen) setIsParticipantsDrawerOpen(false);
               }}
               className={cn(
-                "rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] cursor-pointer",
+                "rounded-full size-11 shrink-0 cursor-pointer",
                 isChatDrawerOpen
                   ? "bg-primary text-primary-foreground"
                   : "bg-card hover:bg-secondary text-foreground"
@@ -1458,9 +1615,6 @@ export function MultiParticipantMeetingDialog({
               <MessageSquare className="size-5" />
             </Button>
 
-            <div className="h-6 w-px bg-card mx-1" />
-
-            {/* 8. Leave / End Call Button */}
             {meeting.isHost ? (
               <Popover>
                 <PopoverTrigger asChild>
@@ -1468,7 +1622,7 @@ export function MultiParticipantMeetingDialog({
                     size="icon"
                     variant="destructive"
                     data-testid="btn-meeting-leave-or-end"
-                    className="rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] bg-destructive hover:bg-destructive text-destructive-foreground cursor-pointer ring-2 ring-destructive/40"
+                    className="rounded-full size-11 shrink-0 cursor-pointer"
                     title="Leave or End Meeting"
                   >
                     <PhoneOff className="size-5" />
@@ -1478,7 +1632,7 @@ export function MultiParticipantMeetingDialog({
                   <button
                     data-testid="btn-meeting-leave-only"
                     onClick={onLeaveMeeting}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-card flex items-center gap-2 cursor-pointer"
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-foreground hover:bg-muted flex items-center gap-2 cursor-pointer"
                   >
                     <LogOut className="size-4 text-muted-foreground" />
                     <span>Leave Meeting</span>
@@ -1486,7 +1640,7 @@ export function MultiParticipantMeetingDialog({
                   <button
                     data-testid="btn-meeting-end-for-everyone"
                     onClick={onEndMeetingForEveryone}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/40 flex items-center gap-2 cursor-pointer"
+                    className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-destructive hover:bg-destructive/15 flex items-center gap-2 cursor-pointer"
                   >
                     <PhoneOff className="size-4 text-destructive" />
                     <span>End Meeting for Everyone</span>
@@ -1499,7 +1653,7 @@ export function MultiParticipantMeetingDialog({
                 variant="destructive"
                 data-testid="btn-meeting-leave-only"
                 onClick={onLeaveMeeting}
-                className="rounded-full size-11 shrink-0 min-w-[44px] min-h-[44px] bg-destructive hover:bg-destructive text-destructive-foreground cursor-pointer ring-2 ring-destructive/40"
+                className="rounded-full size-11 shrink-0 cursor-pointer"
                 title="Leave Meeting"
               >
                 <PhoneOff className="size-5" />
@@ -1508,7 +1662,74 @@ export function MultiParticipantMeetingDialog({
           </div>
         </div>
 
-        {/* IN-MEETING COLLEAGUE INVITATION DIALOG */}
+        {/* DEVICE SETTINGS DIALOG */}
+        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+          <DialogContent className="sm:max-w-sm bg-card border-border text-foreground font-sans">
+            <div className="space-y-3">
+              <div className="font-semibold text-sm flex items-center gap-2 border-b border-border pb-2">
+                <Sliders className="size-4 text-primary" /> Media Devices
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Microphone</label>
+                <select
+                  value={selectedAudioInput}
+                  onChange={(e) => setSelectedAudioInput(e.target.value)}
+                  className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2"
+                >
+                  {audioInputDevices.map((d, i) => (
+                    <option key={d.deviceId || i} value={d.deviceId}>
+                      {d.label || `Microphone ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Camera</label>
+                <select
+                  value={selectedVideoInput}
+                  onChange={(e) => setSelectedVideoInput(e.target.value)}
+                  className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2"
+                >
+                  {videoInputDevices.map((d, i) => (
+                    <option key={d.deviceId || i} value={d.deviceId}>
+                      {d.label || `Camera ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Speaker</label>
+                <select
+                  value={selectedAudioOutput}
+                  onChange={(e) => setSelectedAudioOutput(e.target.value)}
+                  className="w-full h-8 rounded-lg bg-background border border-border text-xs px-2"
+                >
+                  {audioOutputDevices.map((d, i) => (
+                    <option key={d.deviceId || i} value={d.deviceId}>
+                      {d.label || `Speaker ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="pt-2 border-t border-border text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span>Noise Suppression</span>
+                  <span className="font-mono text-emerald-500">
+                    {isNoiseSuppressionSupported ? "Active" : "Standard"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Echo Cancellation</span>
+                  <span className="font-mono text-emerald-500">
+                    {isEchoCancellationSupported ? "Active" : "Standard"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* INVITE COLLEAGUES DIALOG */}
         <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
           <DialogContent
             data-testid="meeting-invite-colleagues-dialog"
@@ -1518,7 +1739,7 @@ export function MultiParticipantMeetingDialog({
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2 font-bold text-sm text-foreground">
                   <UserPlus className="size-4 text-primary" />
-                  <span>Invite Colleagues to Meeting</span>
+                  <span>Ring & Add Colleagues to Group Call</span>
                 </div>
               </div>
 
@@ -1531,8 +1752,8 @@ export function MultiParticipantMeetingDialog({
 
               <div className="max-h-60 overflow-y-auto space-y-1.5">
                 {inviteColleaguesList.length === 0 ? (
-                  <p className="text-center py-6 text-xs text-foreground">
-                    No available colleagues found to invite.
+                  <p className="text-center py-6 text-xs text-muted-foreground">
+                    All available colleagues are already in this group call.
                   </p>
                 ) : (
                   inviteColleaguesList.map((colleague) => {
@@ -1542,7 +1763,9 @@ export function MultiParticipantMeetingDialog({
                         key={colleague.id}
                         onClick={() => {
                           if (isSelected) {
-                            setSelectedInviteIds(selectedInviteIds.filter((id) => id !== colleague.id));
+                            setSelectedInviteIds(
+                              selectedInviteIds.filter((id) => id !== colleague.id)
+                            );
                           } else {
                             setSelectedInviteIds([...selectedInviteIds, colleague.id]);
                           }
@@ -1550,28 +1773,32 @@ export function MultiParticipantMeetingDialog({
                         className={cn(
                           "p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-colors",
                           isSelected
-                            ? "bg-primary/40 border-primary/60"
-                            : "bg-background/40 border-border hover:bg-card/40"
+                            ? "bg-primary/20 border-primary"
+                            : "bg-background/40 border-border hover:bg-muted/40"
                         )}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
                             className={cn(
-                              "size-8 rounded-full flex items-center justify-center font-bold text-xs text-foreground",
+                              "size-8 rounded-full flex items-center justify-center font-bold text-xs",
                               getAvatarColor(colleague.name)
                             )}
                           >
                             {colleague.name.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-medium text-foreground truncate">{colleague.name}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{colleague.email || "Team Colleague"}</p>
+                            <p className="text-xs font-medium text-foreground truncate">
+                              {colleague.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                              {colleague.email || "Team Colleague"}
+                            </p>
                           </div>
                         </div>
                         <input
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => {}}
+                          readOnly
                           className="size-4 rounded-sm text-primary border-border"
                         />
                       </div>
@@ -1585,7 +1812,7 @@ export function MultiParticipantMeetingDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => setIsInviteDialogOpen(false)}
-                  className="h-8 text-xs border-border text-foreground hover:bg-card"
+                  className="h-8 text-xs"
                 >
                   Cancel
                 </Button>
@@ -1594,9 +1821,9 @@ export function MultiParticipantMeetingDialog({
                   data-testid="btn-confirm-send-invitations"
                   disabled={selectedInviteIds.length === 0}
                   onClick={handleSendInvite}
-                  className="h-8 text-xs bg-primary hover:bg-primary text-primary-foreground font-semibold"
+                  className="h-8 text-xs bg-primary text-primary-foreground font-semibold"
                 >
-                  Send Invitation ({selectedInviteIds.length})
+                  Ring & Invite ({selectedInviteIds.length})
                 </Button>
               </div>
             </div>
@@ -1614,7 +1841,7 @@ export function MultiParticipantMeetingDialog({
 interface ParticipantCardProps {
   participant: MeetingParticipant;
   isLocalUser: boolean;
-  localStreamRef: React.RefObject<HTMLVideoElement | null>;
+  localStream: MediaStream | null;
   isHost: boolean;
   onRemove: () => void;
   onPin: () => void;
@@ -1627,7 +1854,7 @@ interface ParticipantCardProps {
 function ParticipantCard({
   participant,
   isLocalUser,
-  localStreamRef,
+  localStream,
   isHost,
   onRemove,
   onPin,
@@ -1636,8 +1863,13 @@ function ParticipantCard({
   spotlight = false,
   remoteTrackInfo,
 }: ParticipantCardProps) {
-  const isCameraOff = participant.isCameraOff;
-  const hasRemoteMedia = Boolean(participant.mediaStream || remoteTrackInfo?.stream || remoteTrackInfo?.videoTrack);
+  const activeStream = isLocalUser
+    ? localStream
+    : participant.mediaStream || remoteTrackInfo?.stream || null;
+  const hasLiveVideo =
+    !!activeStream &&
+    activeStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live");
+  const showVideo = !participant.isCameraOff && hasLiveVideo;
 
   return (
     <div
@@ -1645,98 +1877,80 @@ function ParticipantCard({
       className={cn(
         "bg-card border rounded-2xl overflow-hidden relative flex items-center justify-center transition-all duration-200 select-none group",
         participant.isSpeaking
-          ? "border-success/30 ring-2 ring-success/50 shadow-md"
+          ? "border-emerald-500/40 ring-2 ring-emerald-500/50 shadow-md"
           : "border-border/80 hover:border-border",
         compact && "w-36 h-24 shrink-0 rounded-xl",
         spotlight && "w-full h-full",
         !compact && !spotlight && "w-full h-full min-h-[160px]"
       )}
     >
-      {/* Video Stream or Fallback Avatar */}
-      {isLocalUser ? (
-        <video
-          ref={localStreamRef}
+      <video
+        ref={(el) => {
+          if (el && activeStream && el.srcObject !== activeStream) {
+            el.srcObject = activeStream;
+            el.play().catch(() => {});
+          }
+        }}
+        data-testid={isLocalUser ? "local-meeting-video" : `remote-video-${participant.userId}`}
+        autoPlay
+        playsInline
+        muted
+        className={cn(
+          "w-full h-full object-cover transition-opacity",
+          showVideo ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+      />
+
+      {/* Dedicated unmuted audio element for remote peer */}
+      {!isLocalUser && activeStream && (
+        <audio
+          ref={(el) => {
+            if (el && activeStream && el.srcObject !== activeStream) {
+              el.srcObject = activeStream;
+              el.muted = false;
+              el.volume = 1;
+              el.play().catch(() => {});
+            }
+          }}
           autoPlay
           playsInline
-          muted
-          className={cn(
-            "w-full h-full object-cover transition-opacity",
-            isCameraOff ? "opacity-0 pointer-events-none" : "opacity-100"
-          )}
+          data-testid={`remote-audio-${participant.userId}`}
+          className="sr-only pointer-events-none"
         />
-      ) : (
-        <div className="w-full h-full relative flex items-center justify-center bg-card/60 overflow-hidden">
-          <video
-            ref={(el) => {
-              if (el) {
-                if (participant.mediaStream) {
-                  el.srcObject = participant.mediaStream;
-                } else if (remoteTrackInfo?.stream) {
-                  el.srcObject = remoteTrackInfo.stream;
-                } else if (remoteTrackInfo?.videoTrack) {
-                  remoteTrackInfo.videoTrack.attach(el);
-                }
-              }
-            }}
-            data-testid={`remote-video-${participant.userId}`}
-            autoPlay
-            playsInline
-            className={cn(
-              "w-full h-full object-cover transition-opacity",
-              isCameraOff || !hasRemoteMedia
-                ? "opacity-0 pointer-events-none"
-                : "opacity-100"
-            )}
-          />
-          {remoteTrackInfo?.audioTrack && (
-            <audio
-              ref={(el) => {
-                if (el && remoteTrackInfo.audioTrack) {
-                  remoteTrackInfo.audioTrack.attach(el);
-                }
-              }}
-              autoPlay
-              data-testid={`remote-audio-${participant.userId}`}
-            />
-          )}
-        </div>
       )}
 
-      {/* Fallback Camera Off Avatar */}
-      {(isCameraOff || (!isLocalUser && !hasRemoteMedia)) && (
+      {!showVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-2 text-center bg-card">
           <div
             className={cn(
-              "rounded-full flex items-center justify-center font-bold text-foreground shadow-xl transition-all duration-200",
+              "rounded-full flex items-center justify-center font-bold shadow-xl transition-all duration-200",
               getAvatarColor(participant.name),
-              compact ? "size-10 text-xs" : spotlight ? "size-28 text-3xl" : "size-18 text-xl",
-              participant.isSpeaking && "ring-4 ring-success scale-105"
+              compact ? "size-10 text-xs" : spotlight ? "size-28 text-3xl" : "size-16 text-xl",
+              participant.isSpeaking && "ring-4 ring-emerald-500 scale-105"
             )}
           >
             {participant.name.charAt(0).toUpperCase()}
           </div>
           {!compact && (
             <span className="text-[11px] text-muted-foreground mt-2 font-medium">
-              {isCameraOff ? "Camera is off" : "Connecting media..."}
+              {participant.isCameraOff ? "Camera is off" : "Audio connected"}
             </span>
           )}
         </div>
       )}
 
-      {/* Bottom Left Name & Role Pill */}
       <div className="absolute bottom-2 left-2 flex items-center gap-1.5 z-10 pointer-events-none">
-        <div className="px-2 py-0.5 rounded-full bg-background/80 backdrop-blur-md border border-border text-[11px] font-medium text-foreground flex items-center gap-1.5 shadow-md">
+        <div className="px-2 py-0.5 rounded-full bg-background/85 backdrop-blur-md border border-border text-[11px] font-medium text-foreground flex items-center gap-1.5 shadow-md">
           <span className="truncate max-w-[100px] md:max-w-[140px]">{participant.name}</span>
           {isLocalUser && <span className="text-primary text-[10px]">(You)</span>}
           {participant.role === "host" && (
-            <Badge className="h-4 px-1 text-[9px] bg-warning/20 text-warning border-none font-semibold">
+            <Badge className="h-4 px-1 text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 border-none font-semibold">
               Host
             </Badge>
           )}
         </div>
       </div>
 
-      {/* Bottom Right Mic Badge */}
       <div className="absolute bottom-2 right-2 z-10">
         <div
           className={cn(
@@ -1744,22 +1958,20 @@ function ParticipantCard({
             participant.isMuted
               ? "bg-destructive/90 text-destructive-foreground"
               : participant.isSpeaking
-              ? "bg-success text-success-foreground ring-2 ring-success animate-pulse"
-              : "bg-card/90 text-foreground"
+                ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
+                : "bg-card/90 text-foreground"
           )}
-          title={participant.isMuted ? "Muted" : "Active"}
         >
           {participant.isMuted ? <MicOff className="size-3" /> : <Mic className="size-3" />}
         </div>
       </div>
 
-      {/* Top Right Quick Controls on Hover */}
       <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <Button
           size="icon"
           variant="ghost"
           onClick={onPin}
-          className="size-7 rounded-full bg-background/80 text-foreground hover:text-foreground"
+          className="size-7 rounded-full bg-background/80 text-foreground"
           title={isPinned ? "Unpin Spotlight" : "Pin Spotlight"}
         >
           {isPinned ? <PinOff className="size-3.5 text-primary" /> : <Pin className="size-3.5" />}
@@ -1770,7 +1982,7 @@ function ParticipantCard({
             size="icon"
             variant="ghost"
             onClick={onRemove}
-            className="size-7 rounded-full bg-destructive/80 text-destructive hover:bg-destructive"
+            className="size-7 rounded-full bg-destructive/80 text-white hover:bg-destructive"
             title="Remove from meeting"
           >
             <X className="size-3.5" />

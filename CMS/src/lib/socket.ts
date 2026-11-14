@@ -184,6 +184,70 @@ export function normalizeNotificationType(rawType?: string | null): Notification
 // Module-level in-memory cache and subscribers to prevent duplicate subscriptions and state divergence
 let memoryNotifications: RealtimeNotification[] = [];
 const subscribers = new Set<(items: RealtimeNotification[]) => void>();
+const recentOsNotifTags = new Map<string, number>();
+
+export function showBackgroundOsNotification(
+  title: string,
+  body: string,
+  tag: string,
+  linkTo: string = "/chat",
+  requireInteraction: boolean = false
+) {
+  if (
+    typeof window === "undefined" ||
+    !("Notification" in window) ||
+    Notification.permission !== "granted"
+  ) {
+    return;
+  }
+  const isBackground = document.visibilityState === "hidden" || !document.hasFocus();
+  if (!isBackground) return;
+
+  const now = Date.now();
+  const prev = recentOsNotifTags.get(tag);
+  if (prev && now - prev < 15000) return;
+  recentOsNotifTags.set(tag, now);
+
+  try {
+    const notifyViaWindowApi = () => {
+      try {
+        new Notification(title, {
+          body,
+          icon: "/assets/img/logo-small.svg",
+          tag,
+        });
+      } catch {}
+    };
+
+    if ("serviceWorker" in navigator && typeof navigator.serviceWorker.getRegistration === "function") {
+      navigator.serviceWorker
+        .getRegistration("/")
+        .then((reg) => {
+          if (reg && reg.active && typeof reg.showNotification === "function") {
+            return reg
+              .showNotification(title, {
+                body,
+                icon: "/assets/img/logo-small.svg",
+                badge: "/assets/img/favicon.png",
+                tag,
+                renotify: true,
+                requireInteraction,
+                data: {
+                  actionUrl: linkTo,
+                  url: linkTo,
+                  linkTo,
+                },
+              } as any)
+              .catch(() => notifyViaWindowApi());
+          }
+          notifyViaWindowApi();
+        })
+        .catch(() => notifyViaWindowApi());
+    } else {
+      notifyViaWindowApi();
+    }
+  } catch {}
+}
 
 function loadInitialNotifications(): RealtimeNotification[] {
   try {
@@ -438,43 +502,58 @@ export function useRealtimeSocket() {
         description,
       });
 
-      // Desktop OS Notification when window is backgrounded, minimized, or in another tab
-      if (
-        typeof window !== "undefined" &&
-        "Notification" in window &&
-        Notification.permission === "granted" &&
-        (document.visibilityState === "hidden" || !document.hasFocus())
-      ) {
-        try {
-          if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.ready.then((reg) => {
-              reg.showNotification(title, {
-                body: description,
-                icon: "/assets/img/logo-small.svg",
-                badge: "/assets/img/favicon.png",
-                tag: finalId,
-                data: {
-                  actionUrl: linkTo || "/",
-                  url: linkTo || "/",
-                  linkTo: linkTo || "/",
-                },
-              });
-            }).catch(() => {
-              new Notification(title, {
-                body: description,
-                icon: "/assets/img/logo-small.svg",
-                tag: finalId,
-              });
-            });
-          } else {
-            new Notification(title, {
-              body: description,
-              icon: "/assets/img/logo-small.svg",
-              tag: finalId,
-            });
-          }
-        } catch {}
-      }
+      showBackgroundOsNotification(title, description, finalId, linkTo || "/chat", false);
+    }
+
+    const currentUserId = user?.id || (profile as any)?.userId;
+
+    function onIncomingCallBgAlert(data: any) {
+      if (!data?.callId) return;
+      const callerId = data.callerId || data.fromUserId;
+      if (currentUserId && callerId === currentUserId) return;
+      const isVideo = String(data.callType || data.type || "audio").toLowerCase() === "video";
+      const callerName = data.callerName || "A Colleague";
+      showBackgroundOsNotification(
+        `Incoming ${isVideo ? "Video" : "Audio"} Call`,
+        `${callerName} is calling you via MasterHRMS...`,
+        `call_${data.callId}`,
+        `/chat?callId=${encodeURIComponent(data.callId)}`,
+        true
+      );
+    }
+
+    function onIncomingGroupCallBgAlert(data: any) {
+      if (!data?.callId) return;
+      const callerId = data.callerId || data.fromUserId;
+      if (currentUserId && callerId === currentUserId) return;
+      const callerName = data.callerName || "A Colleague";
+      const groupName = data.groupName || "Group Meeting";
+      showBackgroundOsNotification(
+        `Incoming Group Call`,
+        `${callerName} started ${groupName}`,
+        `call_${data.callId}`,
+        `/chat?groupId=${encodeURIComponent(data.groupId || "")}&meetingCallId=${encodeURIComponent(data.callId)}`,
+        true
+      );
+    }
+
+    function onChatMessageBgAlert(data: any) {
+      const msg = data?.message || data;
+      if (!msg) return;
+      const senderId = msg.senderId || data?.senderId;
+      if (!senderId || (currentUserId && senderId === currentUserId)) return;
+      const senderName = msg.senderName || data?.senderName || "New Message";
+      const bodyText =
+        msg.content ||
+        msg.text ||
+        (msg.voiceNote ? "Sent a voice message" : msg.attachments?.length ? "Sent an attachment" : "Sent a message");
+      showBackgroundOsNotification(
+        senderName,
+        bodyText,
+        `chat_msg_${msg.id || Date.now()}`,
+        "/chat",
+        false
+      );
     }
 
     socket.on("connect", onConnect);
@@ -482,6 +561,9 @@ export function useRealtimeSocket() {
     socket.on("punch:new", onNewPunch);
     socket.on("leave:updated", onLeaveUpdated);
     socket.on("notification:new", onNotification);
+    socket.on("call:incoming", onIncomingCallBgAlert);
+    socket.on("group-call:incoming", onIncomingGroupCallBgAlert);
+    socket.on("chat:message", onChatMessageBgAlert);
     socket.on("payment:confirmed", onPaymentConfirmed);
     socket.on("payment:rejected", onPaymentRejected);
     socket.on("subscription:activated", onSubscriptionUpdated);
@@ -499,10 +581,12 @@ export function useRealtimeSocket() {
     let pusherClient: any = null;
     let userChannel: any = null;
     let tenantChannel: any = null;
-    const currentUserId = user?.id || (profile as any)?.userId;
 
     if (typeof window !== "undefined") {
       const dispatchPusherEvent = (eventName: string) => (data: any) => {
+        if (eventName === "call:incoming") onIncomingCallBgAlert(data);
+        if (eventName === "group-call:incoming") onIncomingGroupCallBgAlert(data);
+        if (eventName === "chat:message") onChatMessageBgAlert(data);
         window.dispatchEvent(new CustomEvent("hrms:pusher", { detail: { eventName, data } }));
       };
       api
@@ -537,8 +621,14 @@ export function useRealtimeSocket() {
             userChannel.bind("call:ended", dispatchPusherEvent("call:ended"));
             userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
             userChannel.bind("call:media-state", dispatchPusherEvent("call:media-state"));
+            userChannel.bind("call:participant_joined", dispatchPusherEvent("call:participant_joined"));
+            userChannel.bind("call:participant_left", dispatchPusherEvent("call:participant_left"));
             userChannel.bind("group-call:incoming", dispatchPusherEvent("group-call:incoming"));
             userChannel.bind("group-call:ended", dispatchPusherEvent("group-call:ended"));
+            userChannel.bind("group-call:signal", dispatchPusherEvent("group-call:signal"));
+            userChannel.bind("group-call:user_joined", dispatchPusherEvent("group-call:user_joined"));
+            userChannel.bind("group-call:user_left", dispatchPusherEvent("group-call:user_left"));
+            userChannel.bind("group-call:media_state", dispatchPusherEvent("group-call:media_state"));
             userChannel.bind("chat:message", dispatchPusherEvent("chat:message"));
             userChannel.bind("chat:message_edited", dispatchPusherEvent("chat:message_edited"));
             userChannel.bind("chat:message_deleted", dispatchPusherEvent("chat:message_deleted"));
@@ -621,6 +711,9 @@ export function useRealtimeSocket() {
       socket.off("punch:new", onNewPunch);
       socket.off("leave:updated", onLeaveUpdated);
       socket.off("notification:new", onNotification);
+      socket.off("call:incoming", onIncomingCallBgAlert);
+      socket.off("group-call:incoming", onIncomingGroupCallBgAlert);
+      socket.off("chat:message", onChatMessageBgAlert);
       socket.off("payment:confirmed", onPaymentConfirmed);
       socket.off("payment:rejected", onPaymentRejected);
       socket.off("subscription:activated", onSubscriptionUpdated);

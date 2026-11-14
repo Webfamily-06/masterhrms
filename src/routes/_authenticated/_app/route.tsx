@@ -532,6 +532,13 @@ export function AppShell() {
   }, [path]);
 
   const impersonationBannerRef = useRef<HTMLDivElement>(null);
+  const isChatRoute = /^\/(hr\/chat|me\/chat|tenant\/chat|chat)(\/|$)/.test(path);
+
+  useEffect(() => {
+    if (isChatRoute && typeof window !== "undefined") {
+      window.scrollTo(0, 0);
+    }
+  }, [isChatRoute, path]);
 
   useEffect(() => {
     const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
@@ -1068,8 +1075,8 @@ export function AppShell() {
       </header>
 
       {/* Main Page Wrapper */}
-      <div className="page-wrapper flex flex-col justify-between">
-        <main className="content min-w-0 flex-1">
+      <div className={cn("page-wrapper flex flex-col justify-between", isChatRoute && "chat-page-wrapper")}>
+        <main className={cn("content min-w-0 flex-1", isChatRoute && "chat-page-content")}>
           {isSuperAdmin && !profile?.tenant_id && !isPlatformOrShared ? (
             <AccessDenied
               moduleName="Tenant Workspace"
@@ -1185,16 +1192,18 @@ export function AppShell() {
             <Outlet />
           )}
         </main>
-        <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="workspace-footer">
-          <span data-testid="workspace-footer-text">
-            {branding.footerText && !branding.footerText.includes("Apex HRMS") && !branding.footerText.includes("Persisted Forever")
-              ? branding.footerText
-              : (appConfig.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
-                  ? appConfig.footerText
-                  : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`)}
-          </span>
-          <span>{branding.name || appConfig.appName}</span>
-        </footer>
+        {!isChatRoute && (
+          <footer className="mt-auto py-3 px-6 border-t border-border-color/60 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-2" data-testid="workspace-footer">
+            <span data-testid="workspace-footer-text">
+              {branding.footerText && !branding.footerText.includes("Apex HRMS") && !branding.footerText.includes("Persisted Forever")
+                ? branding.footerText
+                : (appConfig.footerText && !appConfig.footerText.includes("Apex HRMS") && !appConfig.footerText.includes("Persisted Forever")
+                    ? appConfig.footerText
+                    : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`)}
+            </span>
+            <span>{branding.name || appConfig.appName}</span>
+          </footer>
+        )}
       </div>
 
       {/* Mobile Sidebar Overlay */}
@@ -1261,7 +1270,7 @@ export function AppShell() {
       )}
 
       {/* AI Copilot Widget */}
-      <AICopilotWidget />
+      {!isChatRoute && <AICopilotWidget />}
     </div>
   );
 }

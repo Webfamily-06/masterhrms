@@ -40,6 +40,9 @@ export const firebaseConfig: FirebaseConfig = {
 export const firebaseVapidKey: string = getEnv("NEXT_PUBLIC_FIREBASE_VAPID_KEY", "VITE_FIREBASE_VAPID_KEY") || getEnv("VAPID_PUBLIC_KEY");
 export const firebaseMessagingSenderId: string = firebaseConfig.messagingSenderId;
 
+const optionalImport = (specifier: string): Promise<any> =>
+  new Function("s", "return import(s)")(specifier);
+
 let firebaseAppInstance: any = null;
 let firebaseAnalyticsInstance: any = null;
 
@@ -51,8 +54,7 @@ export async function getFirebaseApp() {
   }
 
   try {
-    // @ts-ignore
-    const { initializeApp, getApps, getApp } = await import("firebase/app");
+    const { initializeApp, getApps, getApp } = await optionalImport("firebase/app");
     if (getApps().length > 0) {
       firebaseAppInstance = getApp();
     } else {
@@ -73,8 +75,7 @@ export async function getFirebaseAnalytics() {
     const app = await getFirebaseApp();
     if (!app) return null;
 
-    // @ts-ignore
-    const { getAnalytics, isSupported } = await import("firebase/analytics");
+    const { getAnalytics, isSupported } = await optionalImport("firebase/analytics");
     const supported = await isSupported().catch(() => false);
     if (supported) {
       firebaseAnalyticsInstance = getAnalytics(app);
@@ -84,5 +85,81 @@ export async function getFirebaseAnalytics() {
   } catch (err) {
     console.warn("[Firebase CMS] Analytics initialization deferred:", err);
     return null;
+  }
+}
+
+let firebaseMessagingInitialized = false;
+
+export async function initFirebaseMessagingIfConfigured(
+  swReg?: ServiceWorkerRegistration
+): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (firebaseMessagingInitialized) return true;
+  if (
+    !firebaseConfig.apiKey ||
+    !firebaseConfig.projectId ||
+    !firebaseConfig.messagingSenderId ||
+    !firebaseConfig.appId
+  ) {
+    return false;
+  }
+
+  try {
+    const app = await getFirebaseApp();
+    if (!app) return false;
+
+    const { getMessaging, isSupported, onMessage, getToken } = await optionalImport(
+      "firebase/messaging"
+    );
+    const supported = await isSupported().catch(() => false);
+    if (!supported) return false;
+
+    const messaging = getMessaging(app);
+    firebaseMessagingInitialized = true;
+
+    if ("Notification" in window && Notification.permission === "granted" && firebaseVapidKey) {
+      await getToken(messaging, {
+        vapidKey: firebaseVapidKey,
+        serviceWorkerRegistration: swReg,
+      }).catch(() => null);
+    }
+
+    onMessage(messaging, (payload: any) => {
+      const title =
+        payload?.notification?.title || payload?.data?.title || "MasterHRMS Notification";
+      const body = payload?.notification?.body || payload?.data?.body || "";
+      const actionUrl =
+        payload?.data?.actionUrl || payload?.data?.linkTo || payload?.data?.url || "/chat";
+      if (
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        (document.visibilityState === "hidden" || !document.hasFocus())
+      ) {
+        const regPromise = swReg
+          ? Promise.resolve(swReg)
+          : "serviceWorker" in navigator
+          ? navigator.serviceWorker.ready
+          : Promise.reject();
+        regPromise
+          .then((reg) =>
+            reg.showNotification(title, {
+              body,
+              icon: "/assets/img/logo-small.svg",
+              badge: "/assets/img/favicon.png",
+              tag: payload?.data?.tag || `fcm_${Date.now()}`,
+              data: { actionUrl, url: actionUrl, linkTo: actionUrl },
+            })
+          )
+          .catch(() => {
+            try {
+              new Notification(title, { body, icon: "/assets/img/logo-small.svg" });
+            } catch {}
+          });
+      }
+    });
+
+    return true;
+  } catch {
+    return false;
   }
 }

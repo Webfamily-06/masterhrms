@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation';
 import Navbar from '@/src/components/shared/layout/navbar/navbar';
 import Footer from '@/src/components/shared/layout/footer/footer';
-import { AppProviders } from '@/src/components/providers/AppProviders';
 
 const MARKETING_PAGES = [
   '/',
@@ -31,17 +30,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     p === '/' ? pathname === '/' : pathname === p || pathname.startsWith(p + '/')
   );
 
-  return (
-    <AppProviders>
-      {isMarketing ? (
-        <div className="marketing-scope">
-          <Navbar />
-          <main className="bg-background-13">{children}</main>
-          <Footer />
-        </div>
-      ) : (
-        <div className="min-h-screen bg-background text-foreground antialiased">{children}</div>
-      )}
-    </AppProviders>
+  return isMarketing ? (
+    <div className="marketing-scope">
+      <Navbar />
+      <main className="bg-background-13">{children}</main>
+      <Footer />
+    </div>
+  ) : (
+    <div className="min-h-screen bg-background text-foreground antialiased">{children}</div>
   );
 }

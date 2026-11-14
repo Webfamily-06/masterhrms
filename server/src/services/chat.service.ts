@@ -645,16 +645,22 @@ export class ChatService {
       return false;
     }
 
-    // 3. Fallback scan if legacy chat attachment had URL without MediaUsage row
-    if (mediaFile.url) {
+    // 3. Fallback scan if legacy chat attachment had URL/ID without MediaUsage row
+    if (mediaFile.id || mediaFile.url) {
+      const orClauses: any[] = [];
+      if (mediaFile.id) {
+        orClauses.push({ attachments: { string_contains: mediaFile.id } });
+        orClauses.push({ voiceNote: { string_contains: mediaFile.id } });
+      }
+      if (mediaFile.url) {
+        orClauses.push({ attachments: { string_contains: mediaFile.url } });
+        orClauses.push({ voiceNote: { string_contains: mediaFile.url } });
+      }
       const legacyMsg = await db.chatMessage.findFirst({
         where: {
           tenantId,
           isDeletedForEveryone: false,
-          OR: [
-            { attachments: { string_contains: mediaFile.url } as any },
-            { voiceNote: { string_contains: mediaFile.url } as any },
-          ],
+          OR: orClauses,
         },
         select: { threadId: true },
       }).catch(() => null);
@@ -725,6 +731,28 @@ export class ChatService {
     return poll;
   }
 
+  private static extractAttachmentMediaId(item: any): string | null {
+    if (!item || typeof item !== "object") return null;
+    if (item.mediaId && typeof item.mediaId === "string") return item.mediaId;
+    if (
+      item.id &&
+      typeof item.id === "string" &&
+      !item.id.startsWith("att_") &&
+      !item.id.startsWith("vn_") &&
+      !item.id.startsWith("temp_")
+    ) {
+      return item.id;
+    }
+    const rawUrl = item.rawUrl || item.url;
+    if (typeof rawUrl === "string") {
+      const match = rawUrl.match(/\/api\/chat\/attachments\/([^/?#]+)\/download/);
+      if (match && match[1]) {
+        return decodeURIComponent(match[1]);
+      }
+    }
+    return null;
+  }
+
   /**
    * Sanitizes a message record for a specific viewer (redacting anonymous poll voters & signing private attachment download URLs).
    */
@@ -763,24 +791,27 @@ export class ChatService {
     if (viewerUserId && effTenantId && Array.isArray(out.attachments)) {
       out.attachments = out.attachments.map((att: any) => {
         if (!att || typeof att !== "object") return att;
-        const mId =
-          att.mediaId ||
-          (att.id && !String(att.id).startsWith("att_") && !String(att.id).startsWith("temp_") ? att.id : null);
+        const mId = this.extractAttachmentMediaId(att);
         if (mId) {
+          const signedDownloadUrl = this.signAttachmentDownloadUrl({
+            mediaId: String(mId),
+            tenantId: effTenantId,
+            userId: viewerUserId,
+            inline: false,
+          });
+          const signedPreviewUrl = this.signAttachmentDownloadUrl({
+            mediaId: String(mId),
+            tenantId: effTenantId,
+            userId: viewerUserId,
+            inline: true,
+          });
           return {
             ...att,
-            signedDownloadUrl: this.signAttachmentDownloadUrl({
-              mediaId: String(mId),
-              tenantId: effTenantId,
-              userId: viewerUserId,
-              inline: false,
-            }),
-            signedPreviewUrl: this.signAttachmentDownloadUrl({
-              mediaId: String(mId),
-              tenantId: effTenantId,
-              userId: viewerUserId,
-              inline: true,
-            }),
+            mediaId: String(mId),
+            rawUrl: att.rawUrl || att.url,
+            url: signedPreviewUrl,
+            signedDownloadUrl,
+            signedPreviewUrl,
           };
         }
         return att;
@@ -788,11 +819,7 @@ export class ChatService {
     }
 
     if (viewerUserId && effTenantId && out.voiceNote && typeof out.voiceNote === "object") {
-      const vmId =
-        out.voiceNote.mediaId ||
-        (out.voiceNote.id && !String(out.voiceNote.id).startsWith("vn_") && !String(out.voiceNote.id).startsWith("temp_")
-          ? out.voiceNote.id
-          : null);
+      const vmId = this.extractAttachmentMediaId(out.voiceNote);
       if (vmId) {
         const signedAudioUrl = this.signAttachmentDownloadUrl({
           mediaId: String(vmId),
@@ -802,6 +829,9 @@ export class ChatService {
         });
         out.voiceNote = {
           ...out.voiceNote,
+          mediaId: String(vmId),
+          rawUrl: out.voiceNote.rawUrl || out.voiceNote.url,
+          url: signedAudioUrl,
           signedUrl: signedAudioUrl,
         };
       }
@@ -855,18 +885,12 @@ export class ChatService {
 
     if (Array.isArray(attachments)) {
       for (const att of attachments) {
-        const mId =
-          att?.mediaId ||
-          (att?.id && !String(att.id).startsWith("att_") && !String(att.id).startsWith("temp_") ? String(att.id) : null);
+        const mId = this.extractAttachmentMediaId(att);
         if (mId) mediaIds.add(mId);
       }
     }
     if (voiceNote && typeof voiceNote === "object") {
-      const vmId =
-        voiceNote.mediaId ||
-        (voiceNote.id && !String(voiceNote.id).startsWith("vn_") && !String(voiceNote.id).startsWith("temp_")
-          ? String(voiceNote.id)
-          : null);
+      const vmId = this.extractAttachmentMediaId(voiceNote);
       if (vmId) mediaIds.add(vmId);
     }
 
@@ -893,28 +917,27 @@ export class ChatService {
         })
         .catch(() => {});
 
-      // For 1:1 Direct Messages, bind explicit FileAcl rows for both participants
-      if (threadType === "direct") {
-        for (const uid of participantUserIds) {
-          const exists = await db.fileAcl
-            .findFirst({
-              where: { fileId: mId, principalType: "USER", principalId: uid },
-              select: { id: true },
+      // Bind explicit FileAcl rows for authorized thread participants (direct & small/medium group chats)
+      const aclUsers = threadType === "direct" ? participantUserIds : participantUserIds.slice(0, 100);
+      for (const uid of aclUsers) {
+        const exists = await db.fileAcl
+          .findFirst({
+            where: { fileId: mId, principalType: "USER", principalId: uid },
+            select: { id: true },
+          })
+          .catch(() => null);
+        if (!exists) {
+          await db.fileAcl
+            .create({
+              data: {
+                fileId: mId,
+                principalType: "USER",
+                principalId: uid,
+                permission: "VIEWER",
+                createdBy: actorUserId,
+              },
             })
-            .catch(() => null);
-          if (!exists) {
-            await db.fileAcl
-              .create({
-                data: {
-                  fileId: mId,
-                  principalType: "USER",
-                  principalId: uid,
-                  permission: "VIEWER",
-                  createdBy: actorUserId,
-                },
-              })
-              .catch(() => {});
-          }
+            .catch(() => {});
         }
       }
     }
@@ -1198,8 +1221,8 @@ export class ChatService {
 
     const participantUserIds = authCheck.participantUserIds || [userId];
 
-    // 9. Bind MediaUsage & FileAcl for Attachments / Voice Note
-    void this.bindMessageMediaPermissions({
+    // 9. Bind MediaUsage & FileAcl for Attachments / Voice Note BEFORE broadcasting so recipients never hit 403 race!
+    await this.bindMessageMediaPermissions({
       tenantId,
       messageId: createdMsg.id,
       actorUserId: userId,
@@ -1236,7 +1259,7 @@ export class ChatService {
         broadcastAt,
       },
       participantUserIds,
-      perUserPayloadTransform: validatedPoll?.isAnonymous || hasAttachments
+      perUserPayloadTransform: validatedPoll?.isAnonymous || hasAttachments || Boolean(voiceNote)
         ? (viewerId) => ({
             threadId: createdMsg.threadId,
             message: this.sanitizeMessageForViewer(createdMsg, viewerId, tenantId),

@@ -5,6 +5,24 @@ import crypto from "crypto";
 import { rawPrisma, prisma as proxiedPrisma } from "../../prisma";
 const prisma = rawPrisma || proxiedPrisma;
 import { computeSha256 } from "../storage/integrity-hasher";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
+let supabaseMediaClient: SupabaseClient | null = null;
+function getSupabaseMediaClient(): { client: SupabaseClient; bucket: string } | null {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_KEY;
+  if (!supabaseUrl || !supabaseKey) return null;
+  if (!supabaseMediaClient) {
+    supabaseMediaClient = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  const bucket = process.env.SUPABASE_STORAGE_BUCKET || "hrms-files";
+  return { client: supabaseMediaClient, bucket };
+}
 
 export function getUploadsRoot(): string {
   if (process.env.VERCEL) {
@@ -356,8 +374,34 @@ export class MediaService {
       await fs.promises.writeFile(fullDiskPath, buffer);
     } catch (fsErr: any) {
       console.warn("⚠️ [MediaService] Disk write warning:", fsErr?.message);
-      if (!process.env.VERCEL) {
+      if (!process.env.VERCEL && !getSupabaseMediaClient()) {
         throw new Error(`Failed to write uploaded media to persistent storage: ${fsErr?.message || "disk error"}`);
+      }
+    }
+
+    // Mirror to Supabase Storage when configured (ensures Vercel serverless durability across lambdas)
+    let storageDisk = "LOCAL";
+    const supa = getSupabaseMediaClient();
+    if (supa) {
+      try {
+        const storageKey = `media/${options.tenantId || "global"}/${relativeFilePath}`;
+        let { error } = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
+          contentType: validation.mimeType,
+          upsert: true,
+        });
+        if (error && String(error.message || "").toLowerCase().includes("bucket")) {
+          await supa.client.storage.createBucket(supa.bucket, { public: false }).catch(() => {});
+          const retry = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
+            contentType: validation.mimeType,
+            upsert: true,
+          });
+          error = retry.error;
+        }
+        if (!error) {
+          storageDisk = "SUPABASE";
+        }
+      } catch (cloudErr: any) {
+        console.warn("⚠️ [MediaService] Cloud storage mirror warning:", cloudErr?.message);
       }
     }
 
@@ -365,7 +409,7 @@ export class MediaService {
     const mediaFile = await prisma.mediaFile.create({
       data: {
         tenantId: options.tenantId || null,
-        storageDisk: "LOCAL",
+        storageDisk,
         filePath: relativeFilePath,
         url: publicUrl,
         fileName: originalName,
@@ -385,6 +429,24 @@ export class MediaService {
     });
 
     return mediaFile;
+  }
+
+  /**
+   * Fetches file buffer from Supabase Storage if missing from local/serverless `/tmp` disk.
+   */
+  static async fetchCloudMediaBuffer(tenantId: string | null | undefined, relativeFilePath: string): Promise<Buffer | null> {
+    const supa = getSupabaseMediaClient();
+    if (!supa) return null;
+    try {
+      const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+      const storageKey = `media/${tenantId || "global"}/${cleanRel}`;
+      const { data, error } = await supa.client.storage.from(supa.bucket).download(storageKey);
+      if (error || !data) return null;
+      const arrayBuf = await data.arrayBuffer();
+      return Buffer.from(arrayBuf);
+    } catch {
+      return null;
+    }
   }
 
   /**

@@ -4,7 +4,6 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import assert from "node:assert";
 import http from "node:http";
-import jwt from "jsonwebtoken";
 import { io as ClientIO, Socket as ClientSocket } from "socket.io-client";
 import { initSocket, activeGroupCalls } from "../socket";
 import { prisma, rawPrisma } from "../prisma";
@@ -13,11 +12,11 @@ import { NotificationService } from "../services/notification.service";
 import { PusherService } from "../services/pusher.service";
 import * as workspacePolicyService from "../services/workspace-policy.service";
 import * as chatSystemEventsService from "../services/chat-system-events.service";
-import { MeetingSfuService, SfuConfigurationError } from "../services/meeting-sfu.service";
+import { WebRtcIceService } from "../services/webrtc-ice.service";
 
 async function runMultiParticipantMeetingTests() {
   console.log("================================================================================");
-  console.log("🧪 RUNNING MULTI-PARTICIPANT MEETING & SFU TEST SUITE");
+  console.log("🧪 RUNNING MULTI-PARTICIPANT WEBRTC MESH MEETING & ICE TEST SUITE");
   console.log("================================================================================\n");
 
   const timestamp = Date.now();
@@ -141,76 +140,36 @@ async function runMultiParticipantMeetingTests() {
   (chatSystemEventsService as any).recordSystemEvent = async () => ({}) as any;
 
   // ──────────────────────────────────────────────────────────────────────────
-  // TEST 1: SFU Configuration & Diagnostics when unset
+  // TEST 1: WebRtcIceService STUN Default Diagnostics
   // ──────────────────────────────────────────────────────────────────────────
-  console.log("▶ [Test 1] SfuConfigurationError and diagnostics when LiveKit is unset...");
-  const origEnvUrl = process.env.LIVEKIT_URL;
-  const origEnvKey = process.env.LIVEKIT_API_KEY;
-  const origEnvSecret = process.env.LIVEKIT_API_SECRET;
-  delete process.env.LIVEKIT_URL;
-  delete process.env.LIVEKIT_API_KEY;
-  delete process.env.LIVEKIT_API_SECRET;
+  console.log("▶ [Test 1] WebRtcIceService STUN diagnostics when TURN is unset...");
+  const origTurnSecret = process.env.TURN_SHARED_SECRET;
+  const origTurnUrl = process.env.TURN_SERVER_URL;
+  delete process.env.TURN_SHARED_SECRET;
+  delete process.env.TURN_SERVER_URL;
 
-  const diag = MeetingSfuService.getDiagnosticInfo();
-  assert.strictEqual(diag.configured, false, "LiveKit must report unconfigured when env is missing");
-  assert(diag.missing.includes("LIVEKIT_URL"), "Missing LIVEKIT_URL flagged");
-  assert(diag.missing.includes("LIVEKIT_API_KEY"), "Missing LIVEKIT_API_KEY flagged");
-  assert(diag.missing.includes("LIVEKIT_API_SECRET"), "Missing LIVEKIT_API_SECRET flagged");
-
-  assert.throws(
-    () => {
-      MeetingSfuService.generateMeetingToken({
-        tenantId,
-        groupId,
-        callId,
-        userId: userHostId,
-        name: "Host Alice",
-      });
-    },
-    /LiveKit SFU is not configured/i,
-    "Must throw SfuConfigurationError when unconfigured"
-  );
-  console.log("  ✔ Unconfigured environment correctly throws and produces actionable diagnostics.");
+  const diag = WebRtcIceService.getDiagnostics(userHostId);
+  assert.strictEqual(diag.mode, "webrtc_mesh");
+  assert.strictEqual(diag.configured, true, "WebRTC Mesh is always operational with STUN");
+  assert.strictEqual(diag.turnConfigured, false);
+  const stunOnly = WebRtcIceService.getIceServers(userHostId);
+  assert(stunOnly.length >= 1, "Must include STUN servers");
+  console.log("  ✔ Default WebRTC Mesh STUN diagnostics verified.");
 
   // ──────────────────────────────────────────────────────────────────────────
-  // TEST 2: SFU Token Generation with Scoped LiveKit Claims
+  // TEST 2: RFC 7635 Ephemeral HMAC-SHA1 Coturn TURN Credentials
   // ──────────────────────────────────────────────────────────────────────────
-  console.log("▶ [Test 2] Generates cryptographically signed LiveKit JWT token when configured...");
-  process.env.LIVEKIT_URL = "wss://livekit.masterhrms.test";
-  process.env.LIVEKIT_API_KEY = "test_api_key_123";
-  process.env.LIVEKIT_API_SECRET = "test_api_secret_32_characters_long_entropy";
-  process.env.TURN_SERVER_URL = "turn:turn.masterhrms.test:3478";
-  process.env.TURN_USERNAME = "turn_user";
-  process.env.TURN_CREDENTIAL = "turn_password";
+  console.log("▶ [Test 2] Generates & verifies RFC 7635 ephemeral TURN credentials...");
+  process.env.TURN_SHARED_SECRET = "test_coturn_secret_entropy_12345";
+  process.env.TURN_PUBLIC_HOST = "turn.masterhrms.test";
 
-  const tokenResult = MeetingSfuService.generateMeetingToken({
-    tenantId,
-    groupId,
-    callId,
-    userId: userHostId,
-    name: "Host Alice",
-    avatarUrl: "https://masterhrms.test/avatar.png",
-    isHost: true,
-    ttlSeconds: 900,
-  });
-
-  assert(tokenResult.token && typeof tokenResult.token === "string", "Must return string JWT token");
-  assert.strictEqual(tokenResult.room, `meeting_${tenantId}_${groupId}_${callId}`);
-  assert.strictEqual(tokenResult.url, "wss://livekit.masterhrms.test");
-  assert(tokenResult.iceServers.some((s) => String(s.urls).includes("turn:turn.masterhrms.test")));
-
-  const decoded: any = jwt.verify(tokenResult.token, process.env.LIVEKIT_API_SECRET, { algorithms: ["HS256"] });
-  assert.strictEqual(decoded.sub, userHostId, "JWT sub must match userHostId");
-  assert.strictEqual(decoded.name, "Host Alice", "JWT name must match");
-  assert.strictEqual(decoded.iss, "test_api_key_123", "JWT iss must match API Key");
-  assert.strictEqual(decoded.video.room, `meeting_${tenantId}_${groupId}_${callId}`);
-  assert.strictEqual(decoded.video.roomAdmin, true, "Host must have roomAdmin = true");
-  assert.strictEqual(decoded.video.roomCreate, true, "Host must have roomCreate = true");
-
-  const meta = JSON.parse(decoded.metadata);
-  assert.strictEqual(meta.tenantId, tenantId);
-  assert.strictEqual(meta.role, "host");
-  console.log("  ✔ LiveKit token generated with strict room, tenant, and role scopes.");
+  const iceWithTurn = WebRtcIceService.getIceServers(userHostId, 3600);
+  const turnEntry = iceWithTurn.find((s) => Boolean(s.username && s.credential));
+  assert(turnEntry, "Must generate ephemeral TURN entry");
+  const verified = WebRtcIceService.verifyTurnCredentials(turnEntry!.username!, turnEntry!.credential!);
+  assert.strictEqual(verified.valid, true, "Generated TURN HMAC-SHA1 credential must verify");
+  assert.strictEqual(verified.userId, userHostId);
+  console.log("  ✔ Ephemeral Coturn TURN credentials generated & verified.");
 
   // ──────────────────────────────────────────────────────────────────────────
   // TEST 3: Multi-Party Socket.IO & Pusher Handshake and Lifecycle
@@ -368,41 +327,18 @@ async function runMultiParticipantMeetingTests() {
     extClient.disconnect();
 
     // ──────────────────────────────────────────────────────────────────────────
-    // TEST 4: One Active-Call Policy & LiveKit Client SDK Verification
+    // TEST 4: Tampered TURN Signature Rejection
     // ──────────────────────────────────────────────────────────────────────────
-    console.log("▶ [Test 4] One active-call policy & LiveKit Client SDK Room lifecycle...");
-    const { Room, RoomEvent, Track } = await import("livekit-client");
-    assert.strictEqual(typeof Room, "function", "livekit-client Room class must be available");
-    assert.strictEqual(typeof RoomEvent, "object", "livekit-client RoomEvent must be available");
-
-    const testRoom = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-    });
-
-    let trackSubscribedFired = false;
-    testRoom.on(RoomEvent.TrackSubscribed, () => {
-      trackSubscribedFired = true;
-    });
-
-    assert.strictEqual(typeof testRoom.connect, "function", "Room.connect must be a function");
-    assert.strictEqual(typeof testRoom.disconnect, "function", "Room.disconnect must be a function");
-    assert.strictEqual(typeof testRoom.localParticipant, "object", "Room.localParticipant must be initialized");
-
-    // Test simulated RoomEvent emission
-    testRoom.emit(RoomEvent.TrackSubscribed, {} as any, {} as any, { identity: "user_remote" } as any);
-    assert.strictEqual(trackSubscribedFired, true, "RoomEvent.TrackSubscribed must fire listener");
-
-    testRoom.disconnect();
-    console.log("  ✔ LiveKit Client SDK Room lifecycle and track event listeners verified.");
+    console.log("▶ [Test 4] Tampered TURN HMAC-SHA1 signature rejected...");
+    const tampered = WebRtcIceService.verifyTurnCredentials(`${Math.floor(Date.now() / 1000) + 600}:attacker`, "forged_sig");
+    assert.strictEqual(tampered.valid, false, "Tampered TURN credential must be rejected");
+    console.log("  ✔ Tampered TURN credential rejected safely.");
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
-    // Restore env
-    if (origEnvUrl) process.env.LIVEKIT_URL = origEnvUrl; else delete process.env.LIVEKIT_URL;
-    if (origEnvKey) process.env.LIVEKIT_API_KEY = origEnvKey; else delete process.env.LIVEKIT_API_KEY;
-    if (origEnvSecret) process.env.LIVEKIT_API_SECRET = origEnvSecret; else delete process.env.LIVEKIT_API_SECRET;
+    if (origTurnSecret) process.env.TURN_SHARED_SECRET = origTurnSecret; else delete process.env.TURN_SHARED_SECRET;
+    if (origTurnUrl) process.env.TURN_SERVER_URL = origTurnUrl; else delete process.env.TURN_SERVER_URL;
   }
 
   console.log("\n================================================================================");

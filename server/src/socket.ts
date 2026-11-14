@@ -10,7 +10,6 @@ import { NotificationService } from "./services/notification.service";
 import { PusherService } from "./services/pusher.service";
 import { IncomingCallPushService } from "./services/incoming-call-push.service";
 import { CallLifecycleService } from "./services/call-lifecycle.service";
-import { MeetingSfuService } from "./services/meeting-sfu.service";
 import { ChatService } from "./services/chat.service";
 
 let ioInstance: SocketIOServer | null = null;
@@ -102,8 +101,19 @@ export interface ActiveCallSession {
   reconnectTimers?: Map<string, NodeJS.Timeout>;
   dbCallId?: string;
   historyRecordId?: string;
+  extraParticipantIds?: Set<string>;
 }
 export const activeCalls = new Map<string, ActiveCallSession>();
+
+export function getActiveCallParticipantIds(session: ActiveCallSession): string[] {
+  const ids = new Set<string>([session.callerId, session.targetUserId]);
+  if (session.extraParticipantIds) {
+    for (const id of session.extraParticipantIds) {
+      if (id) ids.add(id);
+    }
+  }
+  return Array.from(ids);
+}
 
 export interface GroupParticipantState {
   userId: string;
@@ -1019,11 +1029,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const acceptPayload = {
         callId,
         acceptedBy: socket.data.userId,
+        acceptedByName: socket.data.name || "Colleague",
         answeredAt: acceptResult?.call?.answeredAt || new Date(),
       };
 
       ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", acceptPayload);
       ioInstance?.to(`user:${session.callerId}`).emit("call.accepted", acceptPayload);
+      void PusherService.triggerUserEvent(session.tenantId, session.callerId, "call:accepted", acceptPayload).catch(() => {});
+      void PusherService.triggerUserEvent(session.tenantId, session.callerId, "call.accepted", acceptPayload).catch(() => {});
 
       // Multi-device / multi-tab suppression: silence ringing on other tabs of callee
       socket.to(`user:${session.targetUserId}`).emit("call.answered_elsewhere", {
@@ -1104,10 +1117,13 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const rejectPayload = {
         callId,
         rejectedBy: socket.data.userId,
+        rejectedByName: socket.data.name || "Colleague",
         reason: payload?.reason || "declined",
       };
       ioInstance?.to(`user:${session.callerId}`).emit("call:rejected", rejectPayload);
       ioInstance?.to(`user:${session.callerId}`).emit("call.rejected", rejectPayload);
+      void PusherService.triggerUserEvent(tenantId, session.callerId, "call:rejected", rejectPayload).catch(() => {});
+      void PusherService.triggerUserEvent(tenantId, session.callerId, "call.rejected", rejectPayload).catch(() => {});
 
       // Dismiss Web Push notifications
       void IncomingCallPushService.sendCallCancelledPush({
@@ -1243,9 +1259,16 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const cancelPayload = {
         callId,
         cancelledBy: socket.data.userId,
+        cancelledByName: socket.data.name || "Colleague",
       };
-      ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", cancelPayload);
-      ioInstance?.to(`user:${session.targetUserId}`).emit("call.cancelled", cancelPayload);
+      for (const peerId of getActiveCallParticipantIds(session)) {
+        if (peerId !== socket.data.userId) {
+          ioInstance?.to(`user:${peerId}`).emit("call:cancelled", cancelPayload);
+          ioInstance?.to(`user:${peerId}`).emit("call.cancelled", cancelPayload);
+          void PusherService.triggerUserEvent(tenantId, peerId, "call:cancelled", cancelPayload).catch(() => {});
+          void PusherService.triggerUserEvent(tenantId, peerId, "call.cancelled", cancelPayload).catch(() => {});
+        }
+      }
 
       // Authoritative database cancellation transition
       void CallLifecycleService.cancelCallTransaction({
@@ -1280,103 +1303,69 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       emitCallForbidden(socket);
     });
 
-    // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates)
-    socket.on("call:signal", (payload: any) => {
-      const targetUserId = payload?.targetUserId || payload?.toUserId;
-      const callId = payload?.callId;
-      if (!callId || !targetUserId || !payload?.signal || typeof payload.signal !== "object") {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const session = activeCalls.get(callId);
-      if (!session || session.tenantId !== socket.data.tenantId) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const isParticipant =
-        session.callerId === socket.data.userId ||
-        session.targetUserId === socket.data.userId;
-      if (!isParticipant) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const expectedPeerId =
-        session.callerId === socket.data.userId
-          ? session.targetUserId
-          : session.callerId;
-      if (targetUserId !== expectedPeerId) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      if (session.status !== "ringing" && session.status !== "connected") {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      ioInstance?.to(`user:${targetUserId}`).emit("call:signal", {
-        callId,
-        senderId: socket.data.userId,
-        fromUserId: socket.data.userId,
-        signal: payload.signal,
-      });
-    });
-
-    // 5.1 MEDIA STATE NOTIFICATION (Screen Sharing, Cam/Mic toggles)
-    socket.on("call:media-state", (payload: any) => {
-      const callId = payload?.callId;
-      const targetUserId = payload?.targetUserId || payload?.toUserId;
-      if (!callId) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const session = activeCalls.get(callId);
-      if (!session || session.tenantId !== socket.data.tenantId) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const isParticipant =
-        session.callerId === socket.data.userId ||
-        session.targetUserId === socket.data.userId;
-      if (!isParticipant) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      const expectedPeerId =
-        session.callerId === socket.data.userId
-          ? session.targetUserId
-          : session.callerId;
-      if (targetUserId && targetUserId !== expectedPeerId) {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      if (session.status !== "connected") {
-        emitCallForbidden(socket);
-        return;
-      }
-
-      ioInstance?.to(`user:${expectedPeerId}`).emit("call:media-state", {
-        callId,
-        type: payload?.type || "screen-share",
-        active: !!payload?.active,
-        fromUserId: socket.data.userId,
-      });
-    });
-
-    // 6. HANGUP / END CALL
-    socket.on("call:hangup", async (payload: any) => {
+    // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates — supports 1:1 & multi-peer mesh)
+    socket.on("call:signal", async (payload: any) => {
       const targetUserId = payload?.targetUserId || payload?.toUserId;
       const callId = payload?.callId;
       const tenantId = socket.data.tenantId;
+      if (!callId || !targetUserId || !tenantId || !payload?.signal || typeof payload.signal !== "object") {
+        emitCallForbidden(socket);
+        return;
+      }
 
-      if (!callId || !targetUserId || !tenantId) {
+      const session = activeCalls.get(callId);
+      let authorized = false;
+
+      if (session && session.tenantId === tenantId && (session.status === "ringing" || session.status === "connected")) {
+        const participants = getActiveCallParticipantIds(session);
+        authorized = participants.includes(socket.data.userId) && participants.includes(targetUserId);
+      }
+
+      if (!authorized) {
+        try {
+          const db = rawPrisma || prisma;
+          const dbCall = await db.call.findFirst({
+            where: {
+              tenantId,
+              OR: [{ id: callId }, { roomKey: callId }],
+              status: { in: ["RINGING", "ACTIVE"] },
+            },
+            include: { participants: true },
+          });
+          if (dbCall) {
+            const validStates = new Set(["RINGING", "INVITED", "JOINED", "RECONNECTING"]);
+            const hasSender = dbCall.participants.some((p: any) => p.userId === socket.data.userId && validStates.has(p.state));
+            const hasTarget = dbCall.participants.some((p: any) => p.userId === targetUserId && validStates.has(p.state));
+            authorized = hasSender && hasTarget;
+          }
+        } catch {
+          authorized = false;
+        }
+      }
+
+      if (!authorized) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      const signalPayload = {
+        callId,
+        senderId: socket.data.userId,
+        fromUserId: socket.data.userId,
+        senderName: socket.data.name || "Colleague",
+        signal: payload.signal,
+      };
+
+      ioInstance?.to(`user:${targetUserId}`).emit("call:signal", signalPayload);
+      void PusherService.triggerUserEvent(tenantId, targetUserId, "call:signal", signalPayload).catch(() => {});
+    });
+
+    // 5.1 MEDIA STATE NOTIFICATION (Screen Sharing, Cam/Mic toggles — supports 1:1 & multi-peer mesh)
+    socket.on("call:media-state", (payload: any) => {
+      const callId = payload?.callId;
+      const targetUserId = payload?.targetUserId || payload?.toUserId;
+      const tenantId = socket.data.tenantId;
+      if (!callId || !tenantId) {
         emitCallForbidden(socket);
         return;
       }
@@ -1387,31 +1376,111 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         return;
       }
 
-      const isParticipant =
-        session.callerId === socket.data.userId ||
-        session.targetUserId === socket.data.userId;
-      if (!isParticipant) {
+      const participants = getActiveCallParticipantIds(session);
+      if (!participants.includes(socket.data.userId)) {
         emitCallForbidden(socket);
         return;
       }
 
-      const expectedPeerId =
-        session.callerId === socket.data.userId
-          ? session.targetUserId
-          : session.callerId;
-      let resolvedTargetId = targetUserId;
-      if (resolvedTargetId !== expectedPeerId) {
-        const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
-        if (resolved?.userId) resolvedTargetId = resolved.userId;
-      }
-      if (resolvedTargetId !== expectedPeerId) {
+      if (targetUserId && !participants.includes(targetUserId)) {
         emitCallForbidden(socket);
         return;
       }
 
-      // Legal lifecycle transition: caller or receiver when connected or transitioning
+      if (session.status !== "connected") {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      const mediaPayload = {
+        callId,
+        type: payload?.type || "screen-share",
+        active: !!payload?.active,
+        fromUserId: socket.data.userId,
+        fromUserName: socket.data.name || "Colleague",
+      };
+
+      const recipients = targetUserId
+        ? [targetUserId]
+        : participants.filter((id) => id !== socket.data.userId);
+
+      for (const peerId of recipients) {
+        ioInstance?.to(`user:${peerId}`).emit("call:media-state", mediaPayload);
+        void PusherService.triggerUserEvent(tenantId, peerId, "call:media-state", mediaPayload).catch(() => {});
+      }
+    });
+
+    // 6. HANGUP / END CALL
+    socket.on("call:hangup", async (payload: any) => {
+      const targetUserId = payload?.targetUserId || payload?.toUserId;
+      const callId = payload?.callId;
+      const tenantId = socket.data.tenantId;
+
+      if (!callId || !tenantId) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      const session = activeCalls.get(callId);
+      if (!session || session.tenantId !== tenantId) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      const participants = getActiveCallParticipantIds(session);
+      if (!participants.includes(socket.data.userId)) {
+        emitCallForbidden(socket);
+        return;
+      }
+
+      if (targetUserId) {
+        let resolvedTargetId = targetUserId;
+        if (!participants.includes(resolvedTargetId)) {
+          const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
+          if (resolved?.userId) resolvedTargetId = resolved.userId;
+        }
+        if (!participants.includes(resolvedTargetId)) {
+          emitCallForbidden(socket);
+          return;
+        }
+      }
+
+      // Legal lifecycle transition: caller or participant when connected or transitioning
       if (session.status !== "connected" && session.status !== "ringing") {
         emitCallForbidden(socket);
+        return;
+      }
+
+      const otherParticipants = participants.filter((id) => id !== socket.data.userId);
+      const actorName = socket.data.name || "Colleague";
+
+      // If 3+ participants are in the call and a non-host extra participant leaves while >=2 remain, keep call alive for remaining peers
+      if (
+        session.extraParticipantIds &&
+        session.extraParticipantIds.has(socket.data.userId) &&
+        otherParticipants.length >= 2
+      ) {
+        session.extraParticipantIds.delete(socket.data.userId);
+        const leftPayload = {
+          callId,
+          userId: socket.data.userId,
+          userName: actorName,
+          timestamp: new Date().toISOString(),
+        };
+        for (const peerId of otherParticipants) {
+          ioInstance?.to(`user:${peerId}`).emit("call:participant_left", leftPayload);
+          void PusherService.triggerUserEvent(tenantId, peerId, "call:participant_left", leftPayload).catch(() => {});
+        }
+        try {
+          const db = rawPrisma || prisma;
+          await db.callParticipant.updateMany({
+            where: {
+              userId: socket.data.userId,
+              call: { tenantId, OR: [{ id: callId }, { roomKey: callId }] },
+            },
+            data: { state: "LEFT", leftAt: new Date(), leaveReason: "PARTICIPANT_LEFT" },
+          });
+        } catch {}
         return;
       }
 
@@ -1451,11 +1520,16 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
       const endedPayload = {
         callId,
         endedBy: socket.data.userId,
+        endedByName: actorName,
         durationSeconds,
       };
 
-      ioInstance?.to(`user:${expectedPeerId}`).emit("call:ended", endedPayload);
-      ioInstance?.to(`user:${expectedPeerId}`).emit("call.ended", endedPayload);
+      for (const peerId of otherParticipants) {
+        ioInstance?.to(`user:${peerId}`).emit("call:ended", endedPayload);
+        ioInstance?.to(`user:${peerId}`).emit("call.ended", endedPayload);
+        void PusherService.triggerUserEvent(tenantId, peerId, "call:ended", endedPayload).catch(() => {});
+        void PusherService.triggerUserEvent(tenantId, peerId, "call.ended", endedPayload).catch(() => {});
+      }
 
       // Persist completed call record
       try {
@@ -1555,77 +1629,99 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         console.warn("[SOCKET_RECONNECT_WARN]", e?.message);
       }
 
-      const peerId = session.callerId === socket.data.userId ? session.targetUserId : session.callerId;
-
       const joinedPayload = {
         callId,
         userId: socket.data.userId,
         reconnected: true,
       };
-      ioInstance?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
-      ioInstance?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+      for (const peerId of getActiveCallParticipantIds(session)) {
+        if (peerId !== socket.data.userId) {
+          ioInstance?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
+          ioInstance?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+        }
+      }
       socket.emit("call.reconnected", { callId });
     };
     socket.on("call:reconnect", handleReconnect);
     socket.on("call.reconnect", handleReconnect);
 
-    // 6.2 IN-CALL COLLEAGUE INVITATION (Phase C2)
+    // 6.2 IN-CALL COLLEAGUE INVITATION (WebRTC P2P Mesh Direct Ringing)
     const handleInviteColleague = async (
       payload: { callId: string; targetUserId: string },
       acknowledge?: (res: { success: boolean; error?: string; code?: string; data?: any }) => void
     ) => {
-      const { callId, targetUserId } = payload || {};
+      const { callId, targetUserId: rawTargetUserId } = payload || {};
       const tenantId = socket.data.tenantId;
       const userId = socket.data.userId;
 
-      if (!callId || !targetUserId || !tenantId) {
+      if (!callId || !rawTargetUserId || !tenantId) {
         acknowledge?.({ success: false, error: "Invalid invite parameters", code: "CALL_FORBIDDEN" });
         return;
       }
 
       try {
+        let targetUserId = rawTargetUserId;
+        const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(rawTargetUserId)).catch(() => null);
+        if (resolved?.userId) targetUserId = resolved.userId;
+
         const result = await CallLifecycleService.addParticipantToActiveCall({
           tenantId,
           callId,
           inviterId: userId,
           targetUserId,
-          maxParticipantsLimit: 5,
+          maxParticipantsLimit: 6,
         });
 
+        const session = activeCalls.get(callId);
+        if (session) {
+          if (!session.extraParticipantIds) session.extraParticipantIds = new Set<string>();
+          session.extraParticipantIds.add(targetUserId);
+        }
+
         const inviterName = socket.data.name || "Colleague";
+        const resolvedCallType: "audio" | "video" = result.callType === "video" ? "video" : "audio";
         const incomingPayload = {
           callId,
           callerId: userId,
+          fromUserId: userId,
           callerName: inviterName,
           callerAvatar: socket.data.avatar || null,
-          callType: result.callType || "video",
+          callerAvatarUrl: socket.data.avatar || null,
+          callType: resolvedCallType,
+          type: resolvedCallType,
           isAdditionalParticipant: true,
+          tenantId,
           timestamp: new Date().toISOString(),
         };
 
         ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", incomingPayload);
         ioInstance?.to(`user:${targetUserId}`).emit("call.incoming", incomingPayload);
         void PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload).catch(() => {});
+        void IncomingCallPushService.sendIncomingCallPush({
+          tenantId,
+          targetUserId,
+          callId,
+          callerId: userId,
+          callerName: inviterName,
+          callerAvatar: socket.data.avatar || null,
+          callType: resolvedCallType,
+        }).catch(() => {});
 
-        // Broadcast to call peers
+        // Broadcast to all existing call peers
         const peerNotice = {
           callId,
           participant: result.participant,
           invitedUser: result.invitedUser,
         };
-        socket.emit("call:participant_invited", peerNotice);
-        const session = activeCalls.get(callId);
         if (session) {
-          const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
-          ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
-        }
-
-        // Phase C3: Broadcast SFU upgrade for 3+ participant calls
-        const sfuRoom = MeetingSfuService.formatCallRoomName(tenantId, callId);
-        socket.emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
-        if (session) {
-          const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
-          ioInstance?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+          for (const peerId of getActiveCallParticipantIds(session)) {
+            if (peerId !== targetUserId) {
+              ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+              void PusherService.triggerUserEvent(tenantId, peerId, "call:participant_invited", peerNotice).catch(() => {});
+            }
+          }
+        } else {
+          socket.emit("call:participant_invited", peerNotice);
         }
 
         acknowledge?.({ success: true, data: result });
@@ -1638,7 +1734,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
     socket.on("call:invite_colleague", handleInviteColleague);
     socket.on("call.invite_colleague", handleInviteColleague);
 
-    // 6.3 IN-CALL COLLEAGUE ACCEPTANCE (Phase C2)
+    // 6.3 IN-CALL COLLEAGUE ACCEPTANCE (WebRTC P2P Mesh Join)
     const handleAcceptInvitation = async (
       payload: { callId: string; deviceId?: string },
       acknowledge?: (res: { success: boolean; error?: string; code?: string; data?: any }) => void
@@ -1660,20 +1756,42 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
           deviceId,
         });
 
+        const session = activeCalls.get(callId);
+        if (session) {
+          if (!session.extraParticipantIds) session.extraParticipantIds = new Set<string>();
+          session.extraParticipantIds.add(userId);
+        }
+
         const joinedPayload = {
           callId,
           userId,
           user: result.user,
           participant: result.participant,
+          activeParticipants: (result as any).activeParticipants || [],
           timestamp: new Date().toISOString(),
         };
 
-        const session = activeCalls.get(callId);
+        const targetIds = new Set<string>([userId]);
         if (session) {
-          ioInstance?.to(`user:${session.callerId}`).emit("call:participant_joined", joinedPayload);
-          ioInstance?.to(`user:${session.targetUserId}`).emit("call:participant_joined", joinedPayload);
+          for (const id of getActiveCallParticipantIds(session)) targetIds.add(id);
         }
-        socket.emit("call:participant_joined", joinedPayload);
+        if (Array.isArray((result as any).activeParticipants)) {
+          for (const p of (result as any).activeParticipants) {
+            if (p?.userId) targetIds.add(p.userId);
+          }
+        }
+
+        for (const pid of targetIds) {
+          ioInstance?.to(`user:${pid}`).emit("call:participant_joined", joinedPayload);
+          void PusherService.triggerUserEvent(tenantId, pid, "call:participant_joined", joinedPayload).catch(() => {});
+        }
+
+        void IncomingCallPushService.sendCallCancelledPush({
+          tenantId,
+          targetUserId: userId,
+          callId,
+          reason: "accepted",
+        }).catch(() => {});
 
         acknowledge?.({ success: true, data: result });
       } catch (err: any) {
@@ -1805,10 +1923,20 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
           // Primary: Socket.IO
           ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
 
-          // Fallback: Pusher
+          // Fallback: Pusher + OS Web Push
           PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) =>
             console.warn("Pusher group-call:incoming delivery warning:", err?.message || err)
           );
+          void IncomingCallPushService.sendIncomingCallPush({
+            tenantId,
+            targetUserId: m.userId,
+            callId,
+            callerId: socket.data.userId,
+            callerName: `${socket.data.name || "Colleague"} (${group.name})`,
+            callerAvatar: group.avatarUrl || socket.data.avatar,
+            callType: callType || "audio",
+            threadId: `group_${groupId}`,
+          }).catch(() => {});
         }
       }
 
@@ -1904,8 +2032,7 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         participant.socketIds.add(socket.id);
       }
 
-      // Notify other participants in room
-      socket.to(`group_call_${callId}`).emit("group-call:user_joined", {
+      const joinedPayload = {
         callId,
         userId: socket.data.userId,
         name: participant.name,
@@ -1913,7 +2040,15 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         role: participant.role,
         isMuted: participant.isMuted,
         isCameraOff: participant.isCameraOff,
-      });
+      };
+
+      // Notify other participants in room (Socket.IO + Pusher)
+      socket.to(`group_call_${callId}`).emit("group-call:user_joined", joinedPayload);
+      for (const pid of session.participants.keys()) {
+        if (pid !== socket.data.userId) {
+          void PusherService.triggerUserEvent(tenantId, pid, "group-call:user_joined", joinedPayload).catch(() => {});
+        }
+      }
 
       // Synchronize full roster to joining user
       const roster = Array.from(session.participants.values()).map((p) => ({
@@ -1969,11 +2104,14 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
         return;
       }
 
-      ioInstance?.to(`user:${payload.targetUserId}`).emit("group-call:signal", {
+      const grpSignalPayload = {
         callId: payload.callId,
         senderId: socket.data.userId,
+        fromUserId: socket.data.userId,
         signal: payload.signal,
-      });
+      };
+      ioInstance?.to(`user:${payload.targetUserId}`).emit("group-call:signal", grpSignalPayload);
+      void PusherService.triggerUserEvent(tenantId, payload.targetUserId, "group-call:signal", grpSignalPayload).catch(() => {});
     });
 
     socket.on("group-call:media-state", async (payload: {
@@ -2110,6 +2248,16 @@ export function initSocket(server: HttpServer, allowedOrigins: string[]) {
           PusherService.triggerUserEvent(tenantId, u.id, "group-call:incoming", invitePayload).catch((e) =>
             console.warn("Pusher invite fallback error:", e?.message || e)
           );
+          void IncomingCallPushService.sendIncomingCallPush({
+            tenantId,
+            targetUserId: u.id,
+            callId,
+            callerId: socket.data.userId,
+            callerName: `${socket.data.name || "Colleague"} (${session.groupName || "Group Meeting"})`,
+            callerAvatar: session.groupAvatarUrl || socket.data.avatar,
+            callType: session.callType,
+            threadId: `group_${session.groupId}`,
+          }).catch(() => {});
         }
       }
 

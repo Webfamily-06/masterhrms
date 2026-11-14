@@ -833,7 +833,6 @@ cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
         "smtpPassword",
         "pusherAppSecret",
         "pusherSecret",
-        "livekitApiSecret",
         "slackClientSecret",
       ];
       const maskedContent = { ...((page.content as any) || {}) };
@@ -922,7 +921,6 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         "smtpPassword",
         "pusherAppSecret",
         "pusherSecret",
-        "livekitApiSecret",
         "slackClientSecret",
       ];
 
@@ -1060,7 +1058,6 @@ cmsRouter.put(["/pages/:slug", "/page/:slug"], requireAuth, async (req: AuthRequ
         "smtpPassword",
         "pusherAppSecret",
         "pusherSecret",
-        "livekitApiSecret",
         "slackClientSecret",
       ];
       for (const sk of SENSITIVE_KEYS) {

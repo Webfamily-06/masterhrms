@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   UserPlus,
   Search,
@@ -8,7 +8,6 @@ import {
   Check,
   AlertCircle,
   Loader2,
-  ShieldCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -36,6 +35,9 @@ export interface InCallInviteModalProps {
   onOpenChange: (open: boolean) => void;
   callId: string;
   activeParticipantIds: string[];
+  currentUserId?: string | null;
+  activeCallTargetId?: string | null;
+  activeParticipantEmails?: string[];
   contacts: ColleagueContact[];
   onInviteColleague: (targetUserId: string) => Promise<boolean>;
 }
@@ -43,8 +45,10 @@ export interface InCallInviteModalProps {
 export function InCallInviteModal({
   open,
   onOpenChange,
-  callId,
   activeParticipantIds,
+  currentUserId,
+  activeCallTargetId,
+  activeParticipantEmails = [],
   contacts,
   onInviteColleague,
 }: InCallInviteModalProps) {
@@ -52,24 +56,69 @@ export function InCallInviteModal({
   const [invitingId, setInvitingId] = useState<string | null>(null);
   const [invitedSuccessIds, setInvitedSuccessIds] = useState<Set<string>>(new Set());
 
-  const currentCount = activeParticipantIds.length;
-  const isMaxReached = currentCount >= 5;
+  useEffect(() => {
+    if (!open) {
+      setSearch("");
+      setInvitingId(null);
+    }
+  }, [open]);
+
+  const excludedIdSet = useMemo(() => {
+    const set = new Set<string>();
+    if (currentUserId) set.add(String(currentUserId).trim());
+    if (activeCallTargetId) set.add(String(activeCallTargetId).trim());
+    for (const id of activeParticipantIds) {
+      if (id) set.add(String(id).trim());
+    }
+    return set;
+  }, [currentUserId, activeCallTargetId, activeParticipantIds]);
+
+  const excludedEmailSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const email of activeParticipantEmails) {
+      if (email) set.add(String(email).trim().toLowerCase());
+    }
+    return set;
+  }, [activeParticipantEmails]);
+
+  const currentCount = Math.max(excludedIdSet.size, activeParticipantIds.length, 2);
+  const isMaxReached = currentCount >= 6;
 
   const filteredContacts = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return contacts.filter((c) => {
-      // Exclude already active or invited in current call
-      const isAlreadyInCall = activeParticipantIds.includes(c.userId);
-      if (isAlreadyInCall) return false;
+    const seenIds = new Set<string>();
+    const seenEmails = new Set<string>();
+    const result: ColleagueContact[] = [];
 
-      if (!q) return true;
-      return (
-        c.name.toLowerCase().includes(q) ||
-        (c.email && c.email.toLowerCase().includes(q)) ||
-        (c.designation && c.designation.toLowerCase().includes(q))
-      );
-    });
-  }, [contacts, activeParticipantIds, search]);
+    for (const c of contacts) {
+      const uid = String(c.userId || "").trim();
+      if (!uid) continue;
+
+      // Item 13: Never show current user (User-A), active target (User-B), or any existing participant
+      if (excludedIdSet.has(uid)) continue;
+
+      const emailLower = c.email ? String(c.email).trim().toLowerCase() : "";
+      if (emailLower && excludedEmailSet.has(emailLower)) continue;
+
+      // Deduplicate contacts by userId AND email so names never repeat
+      if (seenIds.has(uid)) continue;
+      if (emailLower && seenEmails.has(emailLower)) continue;
+
+      if (q) {
+        const matches =
+          c.name.toLowerCase().includes(q) ||
+          (emailLower && emailLower.includes(q)) ||
+          (c.designation && c.designation.toLowerCase().includes(q));
+        if (!matches) continue;
+      }
+
+      seenIds.add(uid);
+      if (emailLower) seenEmails.add(emailLower);
+      result.push(c);
+    }
+
+    return result;
+  }, [contacts, excludedIdSet, excludedEmailSet, search]);
 
   const handleInvite = async (userId: string) => {
     if (isMaxReached || invitingId) return;
@@ -89,10 +138,6 @@ export function InCallInviteModal({
       <DialogContent
         data-testid="in-call-invite-modal"
         className="sm:max-w-md font-sans select-none"
-        style={{
-          fontFamily:
-            '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-bold">
@@ -100,20 +145,20 @@ export function InCallInviteModal({
             <span>Add Colleague to Live Call</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Invite verified organization members to join this P2P direct call.
+            Ring an organization colleague directly to join this active call.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
-          {/* P2P Mesh Capacity Indicator */}
+          {/* WebRTC Mesh Capacity Indicator */}
           <div className="p-2.5 rounded-lg bg-card border border-border flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 font-medium text-foreground">
               <Users className="size-4 text-primary" />
-              <span>P2P Direct Mesh Call</span>
+              <span>WebRTC Direct Mesh Call</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] text-muted-foreground">
-                {currentCount} / 5 Peers
+                {currentCount} / 6 Peers
               </span>
               <Badge
                 variant={isMaxReached ? "destructive" : "outline"}
@@ -122,18 +167,15 @@ export function InCallInviteModal({
                   !isMaxReached && "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
                 )}
               >
-                {isMaxReached ? "Limit Reached" : "Optimal 2-4"}
+                {isMaxReached ? "Limit Reached" : "Active"}
               </Badge>
             </div>
           </div>
 
-          {/* Max Reached Alert */}
           {isMaxReached && (
-            <div className="p-3 rounded-lg bg-warning/15 border border-warning/30 text-warning text-xs flex items-center gap-2">
-              <AlertCircle className="size-4 shrink-0 text-warning" />
-              <span>
-                Maximum participant capacity (5 peers for P2P mesh) reached. No further colleagues can be added without an SFU media server.
-              </span>
+            <div className="p-3 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs flex items-center gap-2">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>Maximum participant capacity (6 peers) reached for this call.</span>
             </div>
           )}
 
@@ -153,14 +195,16 @@ export function InCallInviteModal({
           {/* Colleague List */}
           <div
             data-testid="in-call-colleagues-list"
-            className="max-h-60 overflow-y-auto space-y-1 pr-1 divide-y divide-border/50"
+            className="max-h-64 overflow-y-auto space-y-1 pr-1 divide-y divide-border/50"
           >
             {filteredContacts.length === 0 ? (
               <div className="py-6 text-center text-xs text-muted-foreground">
-                {search ? "No colleagues match your search." : "No additional colleagues available."}
+                {search
+                  ? "No colleagues match your search."
+                  : "All available colleagues are already in this call."}
               </div>
             ) : (
-              filteredContacts.slice(0, 15).map((contact) => {
+              filteredContacts.slice(0, 25).map((contact) => {
                 const isInvited = invitedSuccessIds.has(contact.userId);
                 const isCurrentInviting = invitingId === contact.userId;
                 const initials = getDeterministicInitials(contact.name);
@@ -204,7 +248,7 @@ export function InCallInviteModal({
                       variant={isInvited ? "outline" : "default"}
                       disabled={isMaxReached || isInvited || isCurrentInviting}
                       data-testid={`btn-invite-${contact.userId}`}
-                      onClick={() => handleInvite(contact.userId)}
+                      onClick={() => void handleInvite(contact.userId)}
                       className={cn(
                         "h-7 text-xs px-2.5 cursor-pointer rounded-md shrink-0",
                         isInvited && "border-emerald-500/40 text-emerald-600 bg-emerald-500/10"
@@ -215,12 +259,12 @@ export function InCallInviteModal({
                       ) : isInvited ? (
                         <span className="flex items-center gap-1">
                           <Check className="size-3 text-emerald-500" />
-                          <span>Invited</span>
+                          <span>Ringing</span>
                         </span>
                       ) : (
                         <span className="flex items-center gap-1">
                           <UserPlus className="size-3" />
-                          <span>Invite</span>
+                          <span>Call & Add</span>
                         </span>
                       )}
                     </Button>
@@ -234,4 +278,3 @@ export function InCallInviteModal({
     </Dialog>
   );
 }
-

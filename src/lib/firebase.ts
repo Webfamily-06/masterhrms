@@ -1,5 +1,5 @@
 /**
- * MASTERHRMS — FIREBASE CLIENT CONFIGURATION & INITIALIZATION
+ * MASTERHRMS CMS — FIREBASE CLIENT CONFIGURATION & INITIALIZATION
  * 
  * Strict Zero-Hardcoding Policy:
  * All keys and certificates are dynamically loaded from environment variables (.env).
@@ -15,49 +15,46 @@ export interface FirebaseConfig {
   measurementId?: string;
 }
 
-// Helper to resolve environment variables across Vite, Next.js, and Node environments
 function getEnv(key: string, nextKey?: string): string {
-  if (typeof import.meta !== "undefined" && (import.meta as any).env) {
-    const val = (import.meta as any).env[key];
-    if (val) return val;
-  }
   if (typeof process !== "undefined" && process.env) {
     if (nextKey && process.env[nextKey]) return process.env[nextKey]!;
     if (process.env[key]) return process.env[key]!;
+  }
+  if (typeof window !== "undefined" && (window as any).__ENV__) {
+    if (nextKey && (window as any).__ENV__[nextKey]) return (window as any).__ENV__[nextKey];
+    if ((window as any).__ENV__[key]) return (window as any).__ENV__[key];
   }
   return "";
 }
 
 export const firebaseConfig: FirebaseConfig = {
-  apiKey: getEnv("VITE_FIREBASE_API_KEY", "NEXT_PUBLIC_FIREBASE_API_KEY"),
-  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN", "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN"),
-  projectId: getEnv("VITE_FIREBASE_PROJECT_ID", "NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
-  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET", "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID", "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: getEnv("VITE_FIREBASE_APP_ID", "NEXT_PUBLIC_FIREBASE_APP_ID"),
-  measurementId: getEnv("VITE_FIREBASE_MEASUREMENT_ID", "NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID") || undefined,
+  apiKey: getEnv("NEXT_PUBLIC_FIREBASE_API_KEY", "VITE_FIREBASE_API_KEY"),
+  authDomain: getEnv("NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN", "VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: getEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID", "VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: getEnv("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", "VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: getEnv("NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID", "VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: getEnv("NEXT_PUBLIC_FIREBASE_APP_ID", "VITE_FIREBASE_APP_ID"),
+  measurementId: getEnv("NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID", "VITE_FIREBASE_MEASUREMENT_ID") || undefined,
 };
 
-// Web Push / VAPID Key pair for Firebase Cloud Messaging
-export const firebaseVapidKey: string = getEnv("VITE_FIREBASE_VAPID_KEY", "NEXT_PUBLIC_FIREBASE_VAPID_KEY") || getEnv("VAPID_PUBLIC_KEY");
+export const firebaseVapidKey: string = getEnv("NEXT_PUBLIC_FIREBASE_VAPID_KEY", "VITE_FIREBASE_VAPID_KEY") || getEnv("VAPID_PUBLIC_KEY");
 export const firebaseMessagingSenderId: string = firebaseConfig.messagingSenderId;
+
+const optionalImport = (specifier: string): Promise<any> =>
+  new Function("s", "return import(s)")(specifier);
 
 let firebaseAppInstance: any = null;
 let firebaseAnalyticsInstance: any = null;
 
-/**
- * Initializes and retrieves the Firebase app singleton instance.
- */
 export async function getFirebaseApp() {
   if (firebaseAppInstance) return firebaseAppInstance;
   if (!firebaseConfig.apiKey) {
-    console.warn("[Firebase] API key is not configured in .env variables.");
+    console.warn("[Firebase CMS] API key is not configured in .env variables.");
     return null;
   }
 
   try {
-    // @ts-ignore
-    const { initializeApp, getApps, getApp } = await import("firebase/app");
+    const { initializeApp, getApps, getApp } = await optionalImport("firebase/app");
     if (getApps().length > 0) {
       firebaseAppInstance = getApp();
     } else {
@@ -65,14 +62,11 @@ export async function getFirebaseApp() {
     }
     return firebaseAppInstance;
   } catch (err) {
-    console.warn("[Firebase] Firebase SDK initialization deferred or package not present:", err);
+    console.warn("[Firebase CMS] Firebase SDK initialization deferred or package not present:", err);
     return null;
   }
 }
 
-/**
- * Initializes and retrieves the Firebase Analytics singleton in browser environments.
- */
 export async function getFirebaseAnalytics() {
   if (typeof window === "undefined") return null;
   if (firebaseAnalyticsInstance) return firebaseAnalyticsInstance;
@@ -81,8 +75,7 @@ export async function getFirebaseAnalytics() {
     const app = await getFirebaseApp();
     if (!app) return null;
 
-    // @ts-ignore
-    const { getAnalytics, isSupported } = await import("firebase/analytics");
+    const { getAnalytics, isSupported } = await optionalImport("firebase/analytics");
     const supported = await isSupported().catch(() => false);
     if (supported) {
       firebaseAnalyticsInstance = getAnalytics(app);
@@ -90,7 +83,83 @@ export async function getFirebaseAnalytics() {
     }
     return null;
   } catch (err) {
-    console.warn("[Firebase] Analytics initialization deferred:", err);
+    console.warn("[Firebase CMS] Analytics initialization deferred:", err);
     return null;
+  }
+}
+
+let firebaseMessagingInitialized = false;
+
+export async function initFirebaseMessagingIfConfigured(
+  swReg?: ServiceWorkerRegistration
+): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (firebaseMessagingInitialized) return true;
+  if (
+    !firebaseConfig.apiKey ||
+    !firebaseConfig.projectId ||
+    !firebaseConfig.messagingSenderId ||
+    !firebaseConfig.appId
+  ) {
+    return false;
+  }
+
+  try {
+    const app = await getFirebaseApp();
+    if (!app) return false;
+
+    const { getMessaging, isSupported, onMessage, getToken } = await optionalImport(
+      "firebase/messaging"
+    );
+    const supported = await isSupported().catch(() => false);
+    if (!supported) return false;
+
+    const messaging = getMessaging(app);
+    firebaseMessagingInitialized = true;
+
+    if ("Notification" in window && Notification.permission === "granted" && firebaseVapidKey) {
+      await getToken(messaging, {
+        vapidKey: firebaseVapidKey,
+        serviceWorkerRegistration: swReg,
+      }).catch(() => null);
+    }
+
+    onMessage(messaging, (payload: any) => {
+      const title =
+        payload?.notification?.title || payload?.data?.title || "MasterHRMS Notification";
+      const body = payload?.notification?.body || payload?.data?.body || "";
+      const actionUrl =
+        payload?.data?.actionUrl || payload?.data?.linkTo || payload?.data?.url || "/chat";
+      if (
+        "Notification" in window &&
+        Notification.permission === "granted" &&
+        (document.visibilityState === "hidden" || !document.hasFocus())
+      ) {
+        const regPromise = swReg
+          ? Promise.resolve(swReg)
+          : "serviceWorker" in navigator
+          ? navigator.serviceWorker.ready
+          : Promise.reject();
+        regPromise
+          .then((reg) =>
+            reg.showNotification(title, {
+              body,
+              icon: "/assets/img/logo-small.svg",
+              badge: "/assets/img/favicon.png",
+              tag: payload?.data?.tag || `fcm_${Date.now()}`,
+              data: { actionUrl, url: actionUrl, linkTo: actionUrl },
+            })
+          )
+          .catch(() => {
+            try {
+              new Notification(title, { body, icon: "/assets/img/logo-small.svg" });
+            } catch {}
+          });
+      }
+    });
+
+    return true;
+  } catch {
+    return false;
   }
 }

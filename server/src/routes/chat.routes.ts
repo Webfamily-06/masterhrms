@@ -20,7 +20,8 @@ import { UrlPreviewService } from "../services/url-preview.service";
 import { getUploadsRoot, MediaService } from "../services/media/media.service";
 import { recordSystemEvent } from "../services/chat-system-events.service";
 import { ChatFolderService } from "../services/files/chat-folder.service";
-import { MeetingSfuService } from "../services/meeting-sfu.service";
+import { WebRtcIceService } from "../services/webrtc-ice.service";
+import { IncomingCallPushService } from "../services/incoming-call-push.service";
 import {
   ChatService,
   ChatDomainError,
@@ -333,8 +334,22 @@ chatRouter.get("/attachments/:mediaId/download", async (req: AuthRequest, res: R
     const relPath = String(mediaFile.filePath || "").replace(/^[/\\]+/, "");
     const absPath = path.resolve(uploadsRoot, relPath);
 
-    if (!absPath.startsWith(uploadsRoot) || !fs.existsSync(absPath)) {
-      return res.status(404).json({ error: "Attachment file is missing from storage." });
+    if (!absPath.startsWith(uploadsRoot)) {
+      return res.status(403).json({ error: "Invalid attachment storage path." });
+    }
+
+    let cloudBuffer: Buffer | null = null;
+    if (!fs.existsSync(absPath)) {
+      cloudBuffer = await MediaService.fetchCloudMediaBuffer(mediaFile.tenantId, relPath);
+      if (cloudBuffer) {
+        try {
+          const dir = path.dirname(absPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          await fs.promises.writeFile(absPath, cloudBuffer);
+        } catch {}
+      } else {
+        return res.status(404).json({ error: "Attachment file is missing from storage." });
+      }
     }
 
     const safeMime = String(mediaFile.mimeType || "application/octet-stream").toLowerCase();
@@ -350,7 +365,9 @@ chatRouter.get("/attachments/:mediaId/download", async (req: AuthRequest, res: R
 
     const safeName = String(mediaFile.fileName || "attachment").replace(/["\r\n]/g, "_");
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Content-Security-Policy", "default-src 'none'; media-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; media-src 'self' blob: data:; img-src 'self' blob: data:; style-src 'unsafe-inline'");
     res.setHeader("Cache-Control", "private, max-age=300, must-revalidate");
     res.setHeader("Content-Type", isSafeInline ? safeMime : "application/octet-stream");
     res.setHeader(
@@ -358,7 +375,10 @@ chatRouter.get("/attachments/:mediaId/download", async (req: AuthRequest, res: R
       `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(safeName)}"`
     );
 
-    return res.sendFile(absPath);
+    if (fs.existsSync(absPath)) {
+      return res.sendFile(absPath);
+    }
+    return res.send(cloudBuffer!);
   } catch (err: any) {
     return handleChatError(res, err, "Failed to serve attachment");
   }
@@ -4878,7 +4898,7 @@ chatRouter.post("/calls/bulk-delete", async (req: AuthRequest, res: Response) =>
 });
 
 // ============================================================================
-// MULTI-PARTICIPANT MEETINGS & LIVEKIT SFU TOKEN CONTROLLER (Section 8)
+// MULTI-PARTICIPANT WEBRTC MESH MEETINGS CONTROLLER (Section 8)
 // ============================================================================
 
 /**
@@ -4964,11 +4984,13 @@ async function resolveOrRecoverGroupMeeting(callId: string, tenantId: string) {
   return recovered;
 }
 
-chatRouter.get("/meetings/config", async (_req: AuthRequest, res: Response) => {
+chatRouter.get("/meetings/config", async (req: AuthRequest, res: Response) => {
   try {
-    const diagnostic = MeetingSfuService.getDiagnosticInfo();
-    const iceServers = MeetingSfuService.getIceServers();
+    const userId = req.user?.userId || (req.user as any)?.id || "anonymous";
+    const diagnostic = WebRtcIceService.getDiagnostics(userId);
+    const iceServers = WebRtcIceService.getIceServers(userId);
     return res.json({
+      transport: "webrtc-mesh",
       ...diagnostic,
       iceServers,
     });
@@ -4977,7 +4999,7 @@ chatRouter.get("/meetings/config", async (_req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/chat/meetings/start - Server-authoritative meeting start with DB persistence & profile fix
+// POST /api/chat/meetings/start - Server-authoritative WebRTC Mesh meeting start & direct ringing
 chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId;
@@ -4994,7 +5016,13 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
 
     const existingActive = await resolveOrRecoverGroupMeeting(callId, tenantId);
     if (existingActive) {
-      return res.json({ success: true, callId, status: "connected", message: "Meeting already active." });
+      return res.json({
+        success: true,
+        callId,
+        status: "connected",
+        iceServers: WebRtcIceService.getIceServers(userId),
+        message: "Meeting already active.",
+      });
     }
 
     const group = await prisma.chatGroup.findFirst({
@@ -5022,13 +5050,13 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Fixed: use prisma.profile.findFirst instead of non-existent prisma.userProfile
     const { senderName: hostName, senderAvatar: hostAvatar } = await ChatService.resolveSenderIdentity({
       tenantId,
       userId,
       fallbackEmail: req.user?.email,
     });
 
+    const normalizedCallType: "audio" | "video" = callType === "audio" ? "audio" : "video";
     const participants = new Map<string, any>();
     participants.set(userId, {
       userId,
@@ -5037,7 +5065,7 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       role: "host",
       joinedAt: new Date(),
       isMuted: false,
-      isCameraOff: callType === "audio",
+      isCameraOff: normalizedCallType === "audio",
       isScreenSharing: false,
       isSpeaking: false,
       socketIds: new Set<string>(),
@@ -5067,7 +5095,7 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       groupAvatarUrl: group.avatarUrl,
       tenantId,
       creatorId: userId,
-      callType: callType === "audio" ? "audio" : "video",
+      callType: normalizedCallType,
       startedAt: new Date(),
       participants,
       invitedUserIds,
@@ -5082,7 +5110,7 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
         create: {
           tenantId,
           type: "GROUP",
-          media: callType === "audio" ? "AUDIO" : "VIDEO",
+          media: normalizedCallType === "audio" ? "AUDIO" : "VIDEO",
           status: "ACTIVE",
           startedBy: userId,
           roomKey: `group_meeting:${callId}`,
@@ -5090,7 +5118,7 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
           threadId: `group_${groupId}`,
           answeredAt: new Date(),
           ringingExpiresAt: new Date(Date.now() + 3600 * 1000),
-          maxParticipants: 50,
+          maxParticipants: 25,
           participants: {
             create: [
               { userId, state: "JOINED", role: "HOST", joinedAt: new Date() },
@@ -5106,11 +5134,6 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       })
       .catch(() => {});
 
-    // Pre-create LiveKit room if SFU is configured (non-blocking best-effort)
-    if (typeof (MeetingSfuService as any).ensureRoomCreated === "function") {
-      void (MeetingSfuService as any).ensureRoomCreated(tenantId, groupId, callId).catch(() => {});
-    }
-
     const ioInstance = getIO();
     for (const inviteeId of invitedUserIds) {
       const invitePayload = {
@@ -5118,7 +5141,7 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
         groupName: group.name,
         groupAvatarUrl: group.avatarUrl,
         callId,
-        callType: callType === "audio" ? "audio" : "video",
+        callType: normalizedCallType,
         callerId: userId,
         callerName: hostName,
         callerAvatar: hostAvatar,
@@ -5126,6 +5149,16 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       };
       ioInstance?.to(`user:${inviteeId}`).emit("group-call:incoming", invitePayload);
       PusherService.triggerUserEvent(tenantId, inviteeId, "group-call:incoming", invitePayload).catch(() => {});
+      void IncomingCallPushService.sendIncomingCallPush({
+        tenantId,
+        targetUserId: inviteeId,
+        callId,
+        callerId: userId,
+        callerName: `${hostName} (${group.name})`,
+        callerAvatar: group.avatarUrl || hostAvatar,
+        callType: normalizedCallType,
+        threadId: `group_${groupId}`,
+      }).catch(() => {});
     }
 
     await recordSystemEvent(
@@ -5133,14 +5166,15 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       `group_${groupId}`,
       userId,
       "group_call_started",
-      `${hostName} started a group ${callType} meeting.`,
-      { groupId, callId, callType }
+      `${hostName} started a group ${normalizedCallType} meeting.`,
+      { groupId, callId, callType: normalizedCallType }
     ).catch(() => {});
 
     return res.json({
       success: true,
       callId,
       status: "connected",
+      iceServers: WebRtcIceService.getIceServers(userId),
       message: "Meeting session confirmed and started successfully",
     });
   } catch (err: any) {
@@ -5148,33 +5182,25 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// POST /api/chat/meetings/:callId/token - Issues short-lived, scoped LiveKit SFU room token
-chatRouter.post("/meetings/:callId/token", async (req: AuthRequest, res: Response) => {
+// POST /api/chat/meetings/:callId/join - Join WebRTC Mesh group meeting (REST + Pusher + Socket parity)
+chatRouter.post("/meetings/:callId/join", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const userId = req.user?.userId || "";
     const { callId } = req.params;
-    const { groupId, callType = "video" } = req.body;
-
-    if (!groupId || !callId) {
-      return res.status(400).json({ error: "groupId and callId are required." });
-    }
+    const { groupId } = req.body || {};
 
     const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
-    if (!session || session.tenantId !== tenantId || session.groupId !== groupId) {
+    if (!session || session.tenantId !== tenantId || (groupId && session.groupId !== groupId)) {
       return res.status(404).json({ error: "Active meeting session not found." });
     }
 
     const group = await prisma.chatGroup.findFirst({
-      where: { id: groupId, tenantId },
+      where: { id: session.groupId, tenantId },
       include: { members: true },
     });
 
-    if (!group) {
-      return res.status(404).json({ error: "Chat group not found or inaccessible." });
-    }
-
-    const isMember = group.members.some((m) => m.userId === userId);
+    const isMember = Boolean(group && group.members.some((m) => m.userId === userId));
     const isInvited = session.participants.has(userId) || session.invitedUserIds.has(userId);
     if (!isMember && !isInvited) {
       return res.status(403).json({ error: "Access denied. You are not a member or invitee of this meeting." });
@@ -5185,12 +5211,28 @@ chatRouter.post("/meetings/:callId/token", async (req: AuthRequest, res: Respons
       req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
       false;
 
-    // Fixed: use ChatService.resolveSenderIdentity (prisma.profile) instead of broken prisma.userProfile
     const { senderName: displayName, senderAvatar } = await ChatService.resolveSenderIdentity({
       tenantId,
       userId,
       fallbackEmail: req.user?.email,
     });
+
+    let participant = session.participants.get(userId);
+    if (!participant) {
+      participant = {
+        userId,
+        name: displayName,
+        avatar: senderAvatar,
+        role: isHost ? "host" : "participant",
+        joinedAt: new Date(),
+        isMuted: false,
+        isCameraOff: session.callType === "audio",
+        isScreenSharing: false,
+        isSpeaking: false,
+        socketIds: new Set<string>(),
+      };
+      session.participants.set(userId, participant);
+    }
 
     // Mark participant JOINED in durable DB call record
     const db = rawPrisma || prisma;
@@ -5207,46 +5249,279 @@ chatRouter.post("/meetings/:callId/token", async (req: AuthRequest, res: Respons
         .catch(() => {});
     }
 
-    const sfuConfig = MeetingSfuService.getConfig();
-    if (!sfuConfig.configured) {
-      return res.status(200).json({
-        configured: false,
-        provider: "livekit",
-        error: "SFU_NOT_CONFIGURED",
-        message: "LiveKit SFU credentials are not configured on this server.",
-        setupGuide: MeetingSfuService.getDiagnosticInfo().setupGuide,
-        room: MeetingSfuService.formatRoomName(tenantId, groupId, callId),
-        iceServers: MeetingSfuService.getIceServers(),
-        isHost,
-        user: { userId, name: displayName, avatarUrl: senderAvatar },
-      });
-    }
-
-    const tokenResult = MeetingSfuService.generateMeetingToken({
-      tenantId,
-      groupId,
+    const joinedPayload = {
       callId,
       userId,
-      name: displayName,
-      avatarUrl: senderAvatar,
-      isHost,
-      callType: callType === "audio" ? "audio" : "video",
-      ttlSeconds: 900,
-    });
+      name: participant.name,
+      avatar: participant.avatar,
+      role: participant.role,
+      isMuted: participant.isMuted,
+      isCameraOff: participant.isCameraOff,
+    };
+
+    const io = getIO();
+    io?.to(`group_call_${callId}`).emit("group-call:user_joined", joinedPayload);
+    for (const pid of session.participants.keys()) {
+      if (pid !== userId) {
+        io?.to(`user:${pid}`).emit("group-call:user_joined", joinedPayload);
+        void PusherService.triggerUserEvent(tenantId, pid, "group-call:user_joined", joinedPayload).catch(() => {});
+      }
+    }
+
+    void IncomingCallPushService.sendCallCancelledPush({
+      tenantId,
+      targetUserId: userId,
+      callId,
+      reason: "accepted",
+    }).catch(() => {});
+
+    const roster = Array.from(session.participants.values()).map((p: any) => ({
+      userId: p.userId,
+      name: p.name,
+      avatar: p.avatar,
+      role: p.role,
+      isMuted: p.isMuted,
+      isCameraOff: p.isCameraOff,
+      isScreenSharing: p.isScreenSharing,
+      isSpeaking: p.isSpeaking,
+    }));
 
     return res.json({
-      configured: true,
-      provider: "livekit",
-      token: tokenResult.token,
-      room: tokenResult.room,
-      url: tokenResult.url,
-      expiresAt: tokenResult.expiresAt,
-      iceServers: tokenResult.iceServers,
+      success: true,
+      mode: "webrtc_mesh",
+      callId,
+      groupId: session.groupId,
+      callType: session.callType,
+      creatorId: session.creatorId,
       isHost,
+      iceServers: WebRtcIceService.getIceServers(userId),
       user: { userId, name: displayName, avatarUrl: senderAvatar },
+      participants: roster,
     });
   } catch (err: any) {
-    return handleChatError(res, err, "Failed to generate meeting token");
+    return handleChatError(res, err, "Failed to join meeting");
+  }
+});
+
+// POST /api/chat/meetings/:callId/signal - HTTP WebRTC Mesh signaling relay for group meetings
+chatRouter.post("/meetings/:callId/signal", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const rawTargetId = req.body?.targetUserId || req.body?.toUserId;
+    const signal = req.body?.signal;
+
+    if (!rawTargetId || !signal || typeof signal !== "object") {
+      return res.status(400).json({ error: "targetUserId and signal are required." });
+    }
+
+    const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+
+    const resolvedTarget = await ChatService.resolveParticipantUserInTenant(tenantId, String(rawTargetId));
+    const targetUserId = resolvedTarget?.userId || String(rawTargetId);
+
+    const senderOk = session.participants.has(userId) || session.invitedUserIds.has(userId);
+    const targetOk = session.participants.has(targetUserId) || session.invitedUserIds.has(targetUserId);
+    if (!senderOk || !targetOk) {
+      return res.status(403).json({ error: "Unauthorized meeting signaling peer." });
+    }
+
+    const signalPayload = {
+      callId,
+      senderId: userId,
+      fromUserId: userId,
+      signal,
+    };
+
+    const io = getIO();
+    io?.to(`user:${targetUserId}`).emit("group-call:signal", signalPayload);
+    void PusherService.triggerUserEvent(tenantId, targetUserId, "group-call:signal", signalPayload).catch(() => {});
+
+    return res.json({ success: true, delivered: true });
+  } catch (err: any) {
+    return handleChatError(res, err, "Failed to relay meeting signal");
+  }
+});
+
+// POST /api/chat/meetings/:callId/media-state - Sync mute / camera / screen-share in group meeting
+chatRouter.post("/meetings/:callId/media-state", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const { isMuted, isCameraOff, isScreenSharing, isSpeaking } = req.body || {};
+
+    const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+
+    const participant = session.participants.get(userId);
+    if (!participant) {
+      return res.status(403).json({ error: "Not an active participant in this meeting." });
+    }
+
+    if (typeof isMuted === "boolean") participant.isMuted = isMuted;
+    if (typeof isCameraOff === "boolean") participant.isCameraOff = isCameraOff;
+    if (typeof isScreenSharing === "boolean") participant.isScreenSharing = isScreenSharing;
+    if (typeof isSpeaking === "boolean") participant.isSpeaking = isSpeaking;
+
+    const statePayload = {
+      callId,
+      userId,
+      isMuted: participant.isMuted,
+      isCameraOff: participant.isCameraOff,
+      isScreenSharing: participant.isScreenSharing,
+      isSpeaking: participant.isSpeaking,
+    };
+
+    const io = getIO();
+    io?.to(`group_call_${callId}`).emit("group-call:media_state", statePayload);
+    for (const pid of session.participants.keys()) {
+      if (pid !== userId) {
+        void PusherService.triggerUserEvent(tenantId, pid, "group-call:media_state", statePayload).catch(() => {});
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return handleChatError(res, err, "Failed to update meeting media state");
+  }
+});
+
+// POST /api/chat/meetings/:callId/invite - Directly ring additional workspace colleagues into group meeting
+chatRouter.post("/meetings/:callId/invite", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const rawUserIds: string[] = Array.isArray(req.body?.userIds)
+      ? req.body.userIds
+      : req.body?.targetUserId
+        ? [req.body.targetUserId]
+        : [];
+
+    if (rawUserIds.length === 0) {
+      return res.status(400).json({ error: "userIds array is required." });
+    }
+
+    const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+    if (!session.participants.has(userId)) {
+      return res.status(403).json({ error: "Only active meeting participants can invite colleagues." });
+    }
+
+    const { senderName: inviterName, senderAvatar: inviterAvatar } = await ChatService.resolveSenderIdentity({
+      tenantId,
+      userId,
+      fallbackEmail: req.user?.email,
+    });
+
+    const io = getIO();
+    const invitedIds: string[] = [];
+
+    for (const candidate of rawUserIds) {
+      const resolved = await ChatService.resolveParticipantUserInTenant(tenantId, String(candidate));
+      if (!resolved || resolved.userId === userId || session.participants.has(resolved.userId)) continue;
+
+      const targetId = resolved.userId;
+      session.invitedUserIds.add(targetId);
+      invitedIds.push(targetId);
+
+      const invitePayload = {
+        groupId: session.groupId,
+        groupName: session.groupName || "Group Meeting",
+        groupAvatarUrl: session.groupAvatarUrl || null,
+        callId,
+        callType: session.callType,
+        callerId: userId,
+        callerName: inviterName,
+        callerAvatar: inviterAvatar,
+        eventId: `group_call_${callId}_${targetId}_${Date.now()}`,
+      };
+
+      io?.to(`user:${targetId}`).emit("group-call:incoming", invitePayload);
+      void PusherService.triggerUserEvent(tenantId, targetId, "group-call:incoming", invitePayload).catch(() => {});
+      void IncomingCallPushService.sendIncomingCallPush({
+        tenantId,
+        targetUserId: targetId,
+        callId,
+        callerId: userId,
+        callerName: `${inviterName} (${session.groupName || "Group Meeting"})`,
+        callerAvatar: session.groupAvatarUrl || inviterAvatar,
+        callType: session.callType,
+        threadId: `group_${session.groupId}`,
+      }).catch(() => {});
+    }
+
+    return res.json({ success: true, invitedCount: invitedIds.length, invitedUserIds: invitedIds });
+  } catch (err: any) {
+    return handleChatError(res, err, "Failed to invite colleagues to meeting");
+  }
+});
+
+// POST /api/chat/meetings/:callId/leave - Leave group meeting cleanly
+chatRouter.post("/meetings/:callId/leave", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+
+    const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+    if (!session || session.tenantId !== tenantId) {
+      return res.json({ success: true });
+    }
+
+    const leavingParticipant = session.participants.get(userId);
+    session.participants.delete(userId);
+
+    const db = rawPrisma || prisma;
+    const dbCall = await db.call
+      .findUnique({ where: { roomKey: `group_meeting:${callId}` }, select: { id: true } })
+      .catch(() => null);
+    if (dbCall?.id) {
+      await db.callParticipant
+        .updateMany({
+          where: { callId: dbCall.id, userId },
+          data: { state: "LEFT", leftAt: new Date(), leaveReason: "USER_LEFT" },
+        })
+        .catch(() => {});
+    }
+
+    const leftPayload = {
+      callId,
+      userId,
+      userName: leavingParticipant?.name || "Participant",
+    };
+
+    const io = getIO();
+    io?.to(`group_call_${callId}`).emit("group-call:user_left", leftPayload);
+    for (const pid of session.participants.keys()) {
+      io?.to(`user:${pid}`).emit("group-call:user_left", leftPayload);
+      void PusherService.triggerUserEvent(tenantId, pid, "group-call:user_left", leftPayload).catch(() => {});
+    }
+
+    if (session.participants.size === 0) {
+      activeGroupCalls.delete(callId);
+      if (dbCall?.id) {
+        await db.call
+          .update({
+            where: { id: dbCall.id },
+            data: { status: "ENDED", endedAt: new Date(), endReason: "ALL_PARTICIPANTS_LEFT" },
+          })
+          .catch(() => {});
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return handleChatError(res, err, "Failed to leave meeting");
   }
 });
 
@@ -5392,10 +5667,6 @@ chatRouter.post("/meetings/:callId/end", async (req: AuthRequest, res: Response)
       } catch (e: any) {
         console.warn("Failed to persist call history on API meeting end:", e.message);
       }
-    }
-
-    if (typeof (MeetingSfuService as any).closeRoom === "function") {
-      void (MeetingSfuService as any).closeRoom(tenantId, session.groupId, callId).catch(() => {});
     }
 
     const endPayload = {

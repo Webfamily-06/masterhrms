@@ -1747,3 +1747,32 @@ html, body {
     overflow-x: hidden;
   }
 }
+
+/* ===== Chat Workspace Viewport Lock — prevents Application Topbar & Chat Header overlap ===== */
+:is(.main-wrapper, .workspace-shell, .super-layout) .page-wrapper.chat-page-wrapper,
+.page-wrapper.chat-page-wrapper {
+  height: calc(100dvh - var(--topbar-height, 56px)) !important;
+  min-height: calc(100dvh - var(--topbar-height, 56px)) !important;
+  max-height: calc(100dvh - var(--topbar-height, 56px)) !important;
+  overflow: hidden !important;
+}
+.main-wrapper.has-impersonation-banner .page-wrapper.chat-page-wrapper {
+  height: calc(100dvh - var(--topbar-height, 56px) - var(--impersonation-banner-height, 38px)) !important;
+  min-height: calc(100dvh - var(--topbar-height, 56px) - var(--impersonation-banner-height, 38px)) !important;
+  max-height: calc(100dvh - var(--topbar-height, 56px) - var(--impersonation-banner-height, 38px)) !important;
+}
+.page-wrapper.chat-page-wrapper > .content.chat-page-content {
+  padding: 10px 12px !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+@media (max-width: 767.98px) {
+  .page-wrapper.chat-page-wrapper > .content.chat-page-content {
+    padding: 0 !important;
+  }
+}

@@ -11,10 +11,8 @@
  *      and WebRTC signaling (offers, answers, ICE candidates).
  *    - Pusher: High-availability secondary/fallback transport for call invitations,
  *      missed calls, background notifications, and offline event delivery.
- * 3. Group Calling Architecture:
- *    - One-to-one calls use peer-to-peer WebRTC.
- *    - Multi-party meetings use LiveKit SFU when server-side LiveKit credentials are
- *      configured. Without them, the UI stays in a clearly labeled local preview mode.
+ * 3. Group & Multi-Participant Calling Architecture:
+ *    - 1-to-1 and multi-party meetings use pure peer-to-peer WebRTC Mesh with STUN/TURN.
  * 4. NAT Traversal & Production Relay:
  *    - STUN (stun:stun.l.google.com:19302) resolves public IP mapping for direct P2P.
  *    - Symmetric NAT/strict enterprise firewalls require TURN relay servers (e.g., Coturn,
@@ -44,7 +42,7 @@ export function cleanSystemEventContent(content: string): string {
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { getSocketClient } from "@/lib/socket";
 import { useSession } from "@/lib/session";
 import {
@@ -52,8 +50,54 @@ import {
   IncomingGroupMeetingDialog,
   type ActiveMeetingState,
   type MeetingParticipant,
-  type SfuDiagnosticInfo,
 } from "./multi-participant-meeting-dialog";
+
+export function resolveChatAttachmentUrl(rawUrl?: string | null): string {
+  if (!rawUrl) return "";
+  const trimmed = String(rawUrl).trim();
+  if (!trimmed) return "";
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("blob:") ||
+    trimmed.startsWith("data:")
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/api/") && typeof API_BASE === "string" && API_BASE.startsWith("http")) {
+    const origin = API_BASE.replace(/\/api\/?$/, "");
+    return `${origin}${trimmed}`;
+  }
+  return trimmed;
+}
+
+function registerActiveMediaStream(stream: MediaStream | null | undefined) {
+  if (!stream || typeof window === "undefined") return;
+  if (!(window as any).__HRMS_ACTIVE_MEDIA_STREAMS__) {
+    (window as any).__HRMS_ACTIVE_MEDIA_STREAMS__ = new Set<MediaStream>();
+  }
+  (window as any).__HRMS_ACTIVE_MEDIA_STREAMS__.add(stream);
+}
+
+function stopAllTrackedHardwareStreams() {
+  if (typeof window === "undefined") return;
+  const verified = (window as any).__HRMS_VERIFIED_CALLEE_STREAM__;
+  if (verified?.stream) {
+    try {
+      verified.stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+    } catch {}
+    (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ = null;
+  }
+  const set: Set<MediaStream> | undefined = (window as any).__HRMS_ACTIVE_MEDIA_STREAMS__;
+  if (set && typeof set.forEach === "function") {
+    set.forEach((s) => {
+      try {
+        s.getTracks().forEach((t) => t.stop());
+      } catch {}
+    });
+    set.clear();
+  }
+}
 import {
   AdaptiveVideoGrid,
   type GridParticipant,
@@ -548,9 +592,11 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
       ? []
       : (rawAttachments || []).map((att: any) => ({
           ...att,
-          url: att.signedPreviewUrl || att.url,
-          signedPreviewUrl: att.signedPreviewUrl || att.url,
-          signedDownloadUrl: att.signedDownloadUrl || att.signedPreviewUrl || att.url,
+          url: resolveChatAttachmentUrl(att.signedPreviewUrl || att.url),
+          signedPreviewUrl: resolveChatAttachmentUrl(att.signedPreviewUrl || att.url),
+          signedDownloadUrl: resolveChatAttachmentUrl(
+            att.signedDownloadUrl || att.signedPreviewUrl || att.url
+          ),
         })),
     replyToId: m.replyToId,
     replyTo: m.replyTo,
@@ -569,7 +615,13 @@ export function formatMessageItem(m: any, currentUserId: string): ChatMessageIte
     voiceNote: isDeleted
       ? undefined
       : rawVoiceNote
-      ? { ...rawVoiceNote, url: rawVoiceNote.signedUrl || rawVoiceNote.url }
+      ? {
+          ...rawVoiceNote,
+          url: resolveChatAttachmentUrl(rawVoiceNote.signedUrl || rawVoiceNote.url),
+          signedUrl: rawVoiceNote.signedUrl
+            ? resolveChatAttachmentUrl(rawVoiceNote.signedUrl)
+            : undefined,
+        }
       : undefined,
     poll: isDeleted ? undefined : rawPoll,
   };
@@ -688,7 +740,7 @@ function VoiceNotePlayer({ voiceNote, isSent = false }: { voiceNote: ChatMessage
     <div data-testid="voice-note-player" className="flex items-center gap-2.5 py-1 min-w-[190px] sm:min-w-[210px] select-none">
       <audio
         ref={audioRef}
-        src={voiceNote.signedUrl || voiceNote.url}
+        src={resolveChatAttachmentUrl(voiceNote.signedUrl || voiceNote.url)}
         preload="metadata"
         onLoadedMetadata={() => {
           if (audioRef.current && audioRef.current.duration && !isNaN(audioRef.current.duration)) {
@@ -1069,6 +1121,31 @@ export function UnifiedChatApp({
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const activeCallIdRef = useRef<string>("");
+  const activeCallTargetIdRef = useRef<string>("");
+  const activeCallTargetNameRef = useRef<string>("");
+  const callStatusRef = useRef<"calling" | "ringing" | "connected" | "ended">("calling");
+  const pendingCallSignalsRef = useRef<Map<string, any[]>>(new Map());
+  const processedCallSignalIdsRef = useRef<Set<string>>(new Set());
+  const acceptedOfferSentForCallRef = useRef<string>("");
+  const meshPeersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const meshCandidateQueuesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const meshRemoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+
+  useEffect(() => {
+    activeCallIdRef.current = activeCallId;
+  }, [activeCallId]);
+
+  useEffect(() => {
+    activeCallTargetIdRef.current = activeCallTargetId;
+  }, [activeCallTargetId]);
+
+  useEffect(() => {
+    activeCallTargetNameRef.current = activeCallTargetName;
+  }, [activeCallTargetName]);
+
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+  }, [callStatus]);
 
   // Audio Output & Speaker Selection
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([]);
@@ -1135,27 +1212,20 @@ export function UnifiedChatApp({
     callerAvatar?: string | null;
     eventId?: string;
   } | null>(null);
-  const [meetingSfuConfig, setMeetingSfuConfig] = useState<SfuDiagnosticInfo | null>(null);
-
   const meetingLocalStreamRef = useRef<MediaStream | null>(null);
   const meetingScreenStreamRef = useRef<MediaStream | null>(null);
   const handledGroupEventsRef = useRef<Set<string>>(new Set());
 
-  // Fetch initial SFU configuration and STUN/TURN diagnostics & mark Chat App mounted
+  // Mark Chat App mounted & guarantee hardware media release on unmount
   useEffect(() => {
     if (typeof window !== "undefined") {
       (window as any).__HRMS_CHAT_APP_MOUNTED__ = true;
     }
-    api
-      .get("/api/chat/meetings/config")
-      .then((res: any) => {
-        setMeetingSfuConfig(res?.data || res);
-      })
-      .catch(() => {});
     return () => {
       if (typeof window !== "undefined") {
         (window as any).__HRMS_CHAT_APP_MOUNTED__ = false;
       }
+      stopAllTrackedHardwareStreams();
     };
   }, []);
 
@@ -1323,17 +1393,35 @@ export function UnifiedChatApp({
       echoCancellation: true,
       noiseSuppression: true,
       autoGainControl: true,
-      ...(selectedAudioInputId ? { deviceId: { exact: selectedAudioInputId } } : {}),
+      ...(selectedAudioInputId ? { deviceId: { ideal: selectedAudioInputId } } : {}),
     },
     video: video
       ? {
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          frameRate: { ideal: 30, max: 30 },
-          ...(selectedVideoDeviceId ? { deviceId: { exact: selectedVideoDeviceId } } : {}),
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          ...(selectedVideoDeviceId ? { deviceId: { ideal: selectedVideoDeviceId } } : {}),
         }
       : false,
   }), [selectedAudioInputId, selectedVideoDeviceId]);
+
+  const acquireCallMediaStream = useCallback(
+    async (video: boolean): Promise<MediaStream> => {
+      try {
+        return await navigator.mediaDevices.getUserMedia(mediaConstraints(video));
+      } catch (err: any) {
+        if (
+          err?.name === "OverconstrainedError" ||
+          err?.name === "ConstraintNotSatisfiedError" ||
+          err?.name === "NotFoundError"
+        ) {
+          return await navigator.mediaDevices.getUserMedia({ audio: true, video });
+        }
+        throw err;
+      }
+    },
+    [mediaConstraints]
+  );
 
   // Synthesize standard telephone ringtone via Web Audio API (440Hz + 480Hz dual tone)
   const startRingtone = useCallback(() => {
@@ -1444,8 +1532,11 @@ export function UnifiedChatApp({
   const [showScrollBottom, setShowScrollBottom] = useState<boolean>(false);
 
   const scrollToBottom = useCallback((smooth = true) => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: smooth ? "smooth" : "auto",
+      });
     }
     setShowScrollBottom(false);
     setUnreadBelowCount(0);
@@ -1811,16 +1902,30 @@ export function UnifiedChatApp({
     }
   }, [activeThreadId]);
 
-  // Auto-resolve otherParticipantId if direct thread is active without activeTargetUserId
+  // Auto-resolve otherParticipantId if direct thread is active without a valid non-self activeTargetUserId
   useEffect(() => {
-    if (activeThreadId?.startsWith("direct_") && !activeTargetUserId) {
-      const parts = activeThreadId.slice("direct_".length).split("_");
-      const otherId = parts.find((p) => p !== currentUserId) || parts[0];
-      if (otherId) {
-        setActiveTargetUserId(otherId);
+    if (activeThreadId?.startsWith("direct_")) {
+      const found = conversations.find((c) => c.threadId === activeThreadId);
+      if (found) {
+        if (found.otherParticipantId && found.otherParticipantId !== activeTargetUserId) {
+          setActiveTargetUserId(found.otherParticipantId);
+        }
+        if (found.title && activeThreadTitle === "Direct Chat") {
+          setActiveThreadTitle(found.title);
+        }
+        return;
+      }
+      if (!activeTargetUserId || (currentUserId && activeTargetUserId === currentUserId)) {
+        const parts = activeThreadId.slice("direct_".length).split("_");
+        const otherId = currentUserId
+          ? parts.find((p) => p && p !== currentUserId) || ""
+          : parts[0] || "";
+        if (otherId && otherId !== activeTargetUserId) {
+          setActiveTargetUserId(otherId);
+        }
       }
     }
-  }, [activeThreadId, activeTargetUserId, currentUserId]);
+  }, [activeThreadId, activeTargetUserId, activeThreadTitle, currentUserId, conversations]);
 
   // Auto-select conversation on initial load: URL param threadId takes priority, fallback to first
   useEffect(() => {
@@ -1951,7 +2056,7 @@ export function UnifiedChatApp({
     return () => clearInterval(timer);
   }, [activeCallModalOpen, callStatus]);
 
-  // Clean up media tracks helper
+  // Clean up media tracks helper (strictly releases ALL camera & mic hardware tracks)
   const cleanUpMedia = useCallback(() => {
     if (callTimeoutTimerRef.current) {
       clearTimeout(callTimeoutTimerRef.current);
@@ -1963,6 +2068,13 @@ export function UnifiedChatApp({
     }
     stopRingtone();
     iceCandidateQueueRef.current = [];
+    pendingCallSignalsRef.current.clear();
+    acceptedOfferSentForCallRef.current = "";
+
+    if (originalVideoTrackRef.current) {
+      try { originalVideoTrackRef.current.stop(); } catch {}
+      originalVideoTrackRef.current = null;
+    }
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach((t) => t.stop());
       screenStreamRef.current = null;
@@ -1997,14 +2109,36 @@ export function UnifiedChatApp({
     }
     if (peerConnectionRef.current) {
       try {
+        peerConnectionRef.current.getSenders().forEach((sender) => {
+          try { sender.track?.stop(); } catch {}
+        });
         peerConnectionRef.current.close();
       } catch {}
       peerConnectionRef.current = null;
     }
+    meshPeersRef.current.forEach((mpc) => {
+      try {
+        mpc.getSenders().forEach((s) => {
+          try { s.track?.stop(); } catch {}
+        });
+        mpc.close();
+      } catch {}
+    });
+    meshPeersRef.current.clear();
+    meshCandidateQueuesRef.current.clear();
+    meshRemoteStreamsRef.current.forEach((ms) => {
+      try { ms.getTracks().forEach((t) => t.stop()); } catch {}
+    });
+    meshRemoteStreamsRef.current.clear();
+
+    stopAllTrackedHardwareStreams();
+
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     setIsScreenSharing(false);
+    setRemoteIsScreenSharing(false);
+    setRemoteIsVideoOff(false);
     setScreenStreamState(null);
     setLocalStreamState(null);
     setRemoteStreamState(null);
@@ -2014,32 +2148,38 @@ export function UnifiedChatApp({
   // Video element stream binding hook (ensures tracks are connected after DOM mounts)
   useEffect(() => {
     if (activeCallModalOpen) {
-      if (localStreamRef.current && localVideoRef.current && !isVideoOff) {
-        if (localVideoRef.current.srcObject !== localStreamRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
+      const lStream = localStreamState || localStreamRef.current;
+      const rStream = remoteStreamState || remoteStreamRef.current;
+      if (lStream && localVideoRef.current && !isVideoOff) {
+        if (localVideoRef.current.srcObject !== lStream) {
+          localVideoRef.current.srcObject = lStream;
         }
       }
-      if (remoteStreamRef.current) {
-        if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== remoteStreamRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      if (rStream) {
+        if (remoteVideoRef.current && remoteVideoRef.current.srcObject !== rStream) {
+          remoteVideoRef.current.srcObject = rStream;
+          remoteVideoRef.current.play().catch(() => {});
         }
-        if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== remoteStreamRef.current) {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        if (remoteAudioRef.current && remoteAudioRef.current.srcObject !== rStream) {
+          remoteAudioRef.current.srcObject = rStream;
+          remoteAudioRef.current.play().catch(() => {});
         }
       }
     }
-  }, [activeCallModalOpen, isVideoOff, callStatus, activeCallType, isScreenSharing]);
+  }, [activeCallModalOpen, isVideoOff, callStatus, activeCallType, isScreenSharing, localStreamState, remoteStreamState]);
 
   // Phase C2: Assembled participants list for AdaptiveVideoGrid & ScreenShareStage
   const activeCallParticipants = useMemo<GridParticipant[]>(() => {
     const list: GridParticipant[] = [];
+    const lStream = localStreamState || localStreamRef.current;
+    const rStream = remoteStreamState || remoteStreamRef.current;
 
     // 1. Local user tile
     list.push({
       userId: currentUserId || "local-user",
       name: (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "You",
       avatarUrl: (currentUser as any)?.profile?.avatarUrl || (currentUser as any)?.avatarUrl || null,
-      stream: localStreamRef.current,
+      stream: lStream,
       videoRef: localVideoRef,
       isLocal: true,
       isCameraOff: isVideoOff,
@@ -2055,10 +2195,10 @@ export function UnifiedChatApp({
         userId: activeCallTargetId,
         name: activeCallTargetName || "Colleague",
         avatarUrl: activeCallTargetAvatar || null,
-        stream: remoteStreamRef.current,
+        stream: rStream,
         videoRef: remoteVideoRef,
         isLocal: false,
-        isCameraOff: remoteIsVideoOff || !remoteStreamRef.current?.getVideoTracks().some((t) => t.enabled),
+        isCameraOff: remoteIsVideoOff || !rStream?.getVideoTracks().some((t) => t.enabled && t.readyState === "live"),
         isMuted: false,
         isSpeaking: remoteIsSpeaking,
         isScreenSharing: remoteIsScreenSharing,
@@ -2090,9 +2230,11 @@ export function UnifiedChatApp({
     remoteIsScreenSharing,
     peerReconnecting,
     additionalParticipants,
+    localStreamState,
+    remoteStreamState,
   ]);
 
-  // Phase C2: In-Call Colleague Invite Handler
+  // Phase C2: In-Call Colleague Invite Handler (Rings User-C directly on screen)
   const handleInviteColleagueToCall = async (targetUserId: string): Promise<boolean> => {
     const cId = activeCallIdRef.current || activeCallId;
     if (!cId) {
@@ -2101,24 +2243,36 @@ export function UnifiedChatApp({
     }
 
     try {
-      const res = await api.post(`/api/calls/${cId}/invite-colleague`, { targetUserId });
-      if (res.data?.success) {
-        const data = res.data.data;
+      const socket = getSocketClient();
+      if (socket?.connected) {
+        socket.emit("call:invite_colleague", {
+          callId: cId,
+          targetUserId,
+        });
+      }
+
+      const res: any = await api.post(`/api/calls/${encodeURIComponent(cId)}/invite-colleague`, { targetUserId });
+      const ok = res?.success !== false && res?.data?.success !== false;
+      if (ok) {
+        const payload = res?.data?.invitedUser ? res.data : (res?.data?.data || res);
+        const invitedContact = contacts.find((c) => (c.userId || c.id) === targetUserId);
+        const invName = payload?.invitedUser?.name || invitedContact?.name || "Colleague";
+        const invAvatar = payload?.invitedUser?.avatarUrl || invitedContact?.avatarUrl || null;
         setAdditionalParticipants((prev) => {
           if (prev.some((p) => p.userId === targetUserId)) return prev;
           return [
             ...prev,
             {
               userId: targetUserId,
-              name: data.invitedUser?.name || "Colleague",
-              avatarUrl: data.invitedUser?.avatarUrl || null,
+              name: invName,
+              avatarUrl: invAvatar,
               state: "INVITED",
               isCameraOff: true,
               isMuted: true,
             },
           ];
         });
-        toast.success(`Invitation sent to ${data.invitedUser?.name || "colleague"}`);
+        toast.success(`Calling ${invName}...`);
         return true;
       }
       return false;
@@ -2143,6 +2297,7 @@ export function UnifiedChatApp({
       meetingScreenStreamRef.current.getTracks().forEach((t) => t.stop());
       meetingScreenStreamRef.current = null;
     }
+    stopAllTrackedHardwareStreams();
     setActiveMeeting(null);
     setIsMeetingOpen(false);
     setMeetingParticipants([]);
@@ -2299,6 +2454,7 @@ export function UnifiedChatApp({
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(callType === "video"));
+      registerActiveMediaStream(stream);
       meetingLocalStreamRef.current = stream;
 
       const hostName = (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Host";
@@ -2390,17 +2546,6 @@ export function UnifiedChatApp({
 
       meetingSessionStarted = true;
       setActiveMeeting((current) => (current?.callId === callId ? { ...current, status: "connected" } : current));
-
-      const tokenResponse = await api.post(`/api/chat/meetings/${callId}/token`, {
-        groupId: activeGroupId,
-        callType,
-      });
-      const tokenPayload = (tokenResponse as any)?.data || tokenResponse;
-      setMeetingSfuConfig((prev) => ({
-        ...(prev || { configured: true, provider: "livekit" }),
-        ...tokenPayload,
-        configured: Boolean(tokenPayload?.configured ?? Boolean(tokenPayload?.token && tokenPayload?.url) ?? prev?.configured),
-      }));
     } catch (err: any) {
       if (meetingSessionStarted) {
         getSocketClient().emit("group-call:leave", { callId });
@@ -2424,12 +2569,24 @@ export function UnifiedChatApp({
         ? incomingOverride
         : incomingGroupMeeting;
     if (!meetingData) return;
-    stopRingtone();
-    setIncomingGroupMeeting(null);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(meetingData.callType === "video"));
+      let stream: MediaStream | null = null;
+      const verified = typeof window !== "undefined" ? (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ : null;
+      if (
+        verified?.callId === meetingData.callId &&
+        verified?.stream &&
+        verified.stream.getTracks().some((t: MediaStreamTrack) => t.readyState === "live")
+      ) {
+        stream = verified.stream;
+        (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ = null;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(meetingData.callType === "video"));
+      }
+      registerActiveMediaStream(stream);
       meetingLocalStreamRef.current = stream;
+      stopRingtone();
+      setIncomingGroupMeeting(null);
 
       const myName = (currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Member";
       const myAvatar = (currentUser as any)?.avatarUrl || null;
@@ -2469,22 +2626,12 @@ export function UnifiedChatApp({
           callId: meetingData.callId,
         });
       }
-
-      api.post(`/api/chat/meetings/${meetingData.callId}/token`, {
-        groupId: meetingData.groupId,
-        callType: meetingData.callType,
-      }).then((res) => {
-        const tokenPayload = (res as any)?.data || res;
-        setMeetingSfuConfig((prev) => ({
-          ...(prev || { configured: true, provider: "livekit" }),
-          ...tokenPayload,
-          configured: Boolean(tokenPayload?.configured ?? Boolean(tokenPayload?.token && tokenPayload?.url) ?? prev?.configured),
-        }));
-      }).catch((err) => {
-        console.warn("Failed to fetch meeting token:", err);
-      });
     } catch (err: any) {
-      toast.error("Could not access microphone/camera: " + err.message);
+      toast.error(
+        meetingData.callType === "video"
+          ? "Please allow Camera and Microphone permissions before joining the meeting."
+          : "Please allow Microphone permission before joining the meeting."
+      );
     }
   };
 
@@ -2564,6 +2711,7 @@ export function UnifiedChatApp({
     } else {
       try {
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        registerActiveMediaStream(screenStream);
         meetingScreenStreamRef.current = screenStream;
         setMeetingIsScreenSharing(true);
         setMeetingParticipants((prev) =>
@@ -2651,13 +2799,18 @@ export function UnifiedChatApp({
   const handleMeetingInviteColleagues = (targetUserIds: string[]) => {
     if (!activeMeeting || targetUserIds.length === 0) return;
     const socket = getSocketClient();
-    if (socket) {
+    if (socket?.connected) {
       socket.emit("group-call:invite_users", {
         callId: activeMeeting.callId,
         userIds: targetUserIds,
       });
     }
-    toast.success(`Invitation sent to ${targetUserIds.length} colleague${targetUserIds.length > 1 ? "s" : ""}.`);
+    api
+      .post(`/api/chat/meetings/${encodeURIComponent(activeMeeting.callId)}/invite`, {
+        targetUserIds,
+      })
+      .catch(() => {});
+    toast.success(`Ringing ${targetUserIds.length} colleague${targetUserIds.length > 1 ? "s" : ""}...`);
   };
 
   const handleInMeetingSendMessage = async (text: string) => {
@@ -2796,6 +2949,236 @@ export function UnifiedChatApp({
       cleanUpMeetingMedia();
     }
   }, [currentUserId, cleanUpMeetingMedia]);
+
+  const emitWebRtcSignal = useCallback((targetUserId: string, callId: string, signal: any) => {
+    if (!targetUserId || !callId || !signal) return;
+    const enrichedSignal = signal._sid
+      ? signal
+      : { ...signal, _sid: `sig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+
+    try {
+      const socket = getSocketClient();
+      if (socket?.connected) {
+        socket.emit("call:signal", {
+          toUserId: targetUserId,
+          targetUserId,
+          callId,
+          signal: enrichedSignal,
+        });
+      }
+    } catch {}
+
+    api
+      .post(`/api/calls/${encodeURIComponent(callId)}/signal`, {
+        toUserId: targetUserId,
+        signal: enrichedSignal,
+      })
+      .catch(() => {});
+  }, []);
+
+  const processWebRtcSignalForPeer = useCallback(
+    async (
+      pc: RTCPeerConnection,
+      candidateQueue: RTCIceCandidateInit[],
+      senderId: string,
+      callId: string,
+      signal: any
+    ) => {
+      if (!pc || !signal || pc.signalingState === "closed") return;
+      try {
+        if (signal.type === "offer" && signal.sdp) {
+          const isPolite = currentUserId < senderId;
+          const offerCollision = pc.signalingState !== "stable";
+          if (offerCollision) {
+            if (!isPolite) {
+              return;
+            }
+            try {
+              await pc.setLocalDescription({ type: "rollback" } as any);
+            } catch {}
+          }
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          while (candidateQueue.length > 0) {
+            const cand = candidateQueue.shift();
+            if (cand) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch {}
+            }
+          }
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          emitWebRtcSignal(senderId, callId, { type: "answer", sdp: answer });
+        } else if (signal.type === "answer" && signal.sdp) {
+          if (pc.signalingState !== "have-local-offer") return;
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          while (candidateQueue.length > 0) {
+            const cand = candidateQueue.shift();
+            if (cand) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch {}
+            }
+          }
+        } else if (signal.type === "candidate" && signal.candidate) {
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+            } catch {}
+          } else {
+            candidateQueue.push(signal.candidate);
+          }
+        }
+      } catch (err) {
+        console.error("[WebRTC] Error processing peer signal:", err);
+      }
+    },
+    [currentUserId, emitWebRtcSignal]
+  );
+
+  const ensureMeshPeerConnection = useCallback(
+    async (peerUserId: string, callId: string, createInitialOffer: boolean) => {
+      if (!peerUserId || peerUserId === currentUserId || !callId) return null;
+      const existing = meshPeersRef.current.get(peerUserId);
+      if (existing && existing.signalingState !== "closed" && existing.connectionState !== "closed") {
+        if (createInitialOffer && existing.signalingState === "stable") {
+          try {
+            const offer = await existing.createOffer();
+            await existing.setLocalDescription(offer);
+            emitWebRtcSignal(peerUserId, callId, { type: "offer", sdp: offer });
+          } catch {}
+        }
+        return existing;
+      }
+
+      let rtcIceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+      try {
+        const iceRes: any = await api.get("/api/calls/ice-servers");
+        const fetched = iceRes?.iceServers || iceRes?.data?.iceServers;
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          rtcIceServers = fetched;
+        }
+      } catch {}
+
+      const mpc = new RTCPeerConnection({ iceServers: rtcIceServers });
+      meshPeersRef.current.set(peerUserId, mpc);
+      if (!meshCandidateQueuesRef.current.has(peerUserId)) {
+        meshCandidateQueuesRef.current.set(peerUserId, []);
+      }
+
+      const localStream = localStreamRef.current;
+      const activeScreenTrack = screenStreamRef.current
+        ?.getVideoTracks()
+        .find((t) => t.readyState === "live");
+
+      if (localStream) {
+        localStream.getAudioTracks().forEach((track) => {
+          mpc.addTrack(track, localStream);
+        });
+        if (activeScreenTrack && screenStreamRef.current) {
+          mpc.addTrack(activeScreenTrack, screenStreamRef.current);
+        } else {
+          localStream.getVideoTracks().forEach((track) => {
+            mpc.addTrack(track, localStream);
+          });
+        }
+      } else if (activeScreenTrack && screenStreamRef.current) {
+        mpc.addTrack(activeScreenTrack, screenStreamRef.current);
+      }
+
+      mpc.onicecandidate = (ev) => {
+        if (ev.candidate) {
+          emitWebRtcSignal(peerUserId, callId, { type: "candidate", candidate: ev.candidate });
+        }
+      };
+
+      mpc.ontrack = (ev) => {
+        const incomingTracks = ev.streams?.[0]?.getTracks() || (ev.track ? [ev.track] : []);
+        const prevStream = meshRemoteStreamsRef.current.get(peerUserId);
+        const mergedMap = new Map<string, MediaStreamTrack>();
+        if (prevStream) {
+          prevStream
+            .getTracks()
+            .filter((t) => t.readyState !== "ended")
+            .forEach((t) => mergedMap.set(`${t.kind}:${t.id}`, t));
+        }
+        incomingTracks.forEach((t) => {
+          // Replace any older track of the same kind when renegotiated
+          for (const [k, existingTrack] of mergedMap.entries()) {
+            if (existingTrack.kind === t.kind && existingTrack.id !== t.id) {
+              mergedMap.delete(k);
+            }
+          }
+          mergedMap.set(`${t.kind}:${t.id}`, t);
+        });
+        const nextStream = new MediaStream(Array.from(mergedMap.values()));
+        meshRemoteStreamsRef.current.set(peerUserId, nextStream);
+
+        const syncMeshParticipantStream = () => {
+          const refreshed = new MediaStream(
+            Array.from(mergedMap.values()).filter((t) => t.readyState !== "ended")
+          );
+          meshRemoteStreamsRef.current.set(peerUserId, refreshed);
+          const hasLiveVideo = refreshed
+            .getVideoTracks()
+            .some((t) => t.enabled && t.readyState === "live");
+          setAdditionalParticipants((prev) => {
+            const idx = prev.findIndex((p) => p.userId === peerUserId);
+            if (idx >= 0) {
+              const copy = [...prev];
+              copy[idx] = {
+                ...copy[idx],
+                state: "JOINED",
+                stream: refreshed,
+                isCameraOff: hasLiveVideo ? false : copy[idx].isCameraOff,
+              };
+              return copy;
+            }
+            return [
+              ...prev,
+              {
+                userId: peerUserId,
+                name: "Colleague",
+                state: "JOINED",
+                stream: refreshed,
+                isCameraOff: !hasLiveVideo,
+                isMuted: false,
+              },
+            ];
+          });
+        };
+
+        syncMeshParticipantStream();
+        incomingTracks.forEach((t) => {
+          t.onunmute = syncMeshParticipantStream;
+        });
+      };
+
+      const buffered = pendingCallSignalsRef.current.get(peerUserId);
+      if (buffered && buffered.length > 0) {
+        pendingCallSignalsRef.current.delete(peerUserId);
+        const queue = meshCandidateQueuesRef.current.get(peerUserId) || [];
+        for (const pkt of buffered) {
+          if (pkt?.signal) {
+            await processWebRtcSignalForPeer(mpc, queue, peerUserId, callId, pkt.signal);
+          }
+        }
+      }
+
+      if (createInitialOffer) {
+        try {
+          const offer = await mpc.createOffer();
+          await mpc.setLocalDescription(offer);
+          emitWebRtcSignal(peerUserId, callId, { type: "offer", sdp: offer });
+        } catch (err) {
+          console.warn("[Mesh] Failed creating initial offer to", peerUserId, err);
+        }
+      }
+
+      return mpc;
+    },
+    [currentUserId, emitWebRtcSignal, processWebRtcSignalForPeer]
+  );
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2. REAL-TIME SUBSCRIPTION LAYER (Socket.io & WebRTC Signaling)
@@ -3076,7 +3459,8 @@ export function UnifiedChatApp({
           callerEmail: data.callerEmail,
           callerAvatarUrl: data.callerAvatarUrl,
           threadId: data.threadId,
-        };
+          isAdditionalParticipant: Boolean(data.isAdditionalParticipant),
+        } as any;
       });
 
       if (incomingCallTimerRef.current) {
@@ -3090,23 +3474,33 @@ export function UnifiedChatApp({
     };
 
     const handleCallAccepted = async (data: any) => {
+      const cId = data?.callId || activeCallIdRef.current || activeCallId;
+      if (!cId) return;
+      if (activeCallIdRef.current && data?.callId && data.callId !== activeCallIdRef.current) {
+        return;
+      }
+      if (acceptedOfferSentForCallRef.current === cId) {
+        return;
+      }
+      acceptedOfferSentForCallRef.current = cId;
+
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
         callTimeoutTimerRef.current = null;
       }
+      callStatusRef.current = "connected";
       setCallStatus("connected");
       toast.success("Call connected!");
 
+      const targetPeerId =
+        data?.acceptedBy || activeCallTargetIdRef.current || activeCallTargetId;
+
       // Caller creates WebRTC offer
-      if (peerConnectionRef.current) {
+      if (peerConnectionRef.current && targetPeerId) {
         try {
           const offer = await peerConnectionRef.current.createOffer();
           await peerConnectionRef.current.setLocalDescription(offer);
-          emitWebRtcSignal(
-            activeCallTargetId,
-            data.callId || activeCallIdRef.current || activeCallId,
-            { type: "offer", sdp: offer }
-          );
+          emitWebRtcSignal(targetPeerId, cId, { type: "offer", sdp: offer });
         } catch (err: any) {
           console.error("Failed to create WebRTC offer:", err);
         }
@@ -3118,9 +3512,12 @@ export function UnifiedChatApp({
         clearTimeout(callTimeoutTimerRef.current);
         callTimeoutTimerRef.current = null;
       }
-      toast.info(`Call declined (${data.reason || "unavailable"}).`);
+      toast.info(`Call declined (${data?.reason || "unavailable"}).`);
       cleanUpMedia();
       setActiveCallModalOpen(false);
+      setIsCallMinimized(false);
+      setCallSummary(null);
+      callStatusRef.current = "ended";
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
@@ -3138,6 +3535,9 @@ export function UnifiedChatApp({
       setIncomingCall(null);
       cleanUpMedia();
       setActiveCallModalOpen(false);
+      setIsCallMinimized(false);
+      setCallSummary(null);
+      callStatusRef.current = "ended";
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
@@ -3163,11 +3563,14 @@ export function UnifiedChatApp({
       }
       cleanUpMedia();
       setActiveCallModalOpen(false);
+      setIsCallMinimized(false);
+      setCallSummary(null);
+      callStatusRef.current = "ended";
       setCallStatus("ended");
       setBusyStateData({
         callId: data?.callId || "",
-        targetName: activeCallTargetName || "Colleague",
-        targetUserId: activeCallTargetId,
+        targetName: activeCallTargetNameRef.current || activeCallTargetName || "Colleague",
+        targetUserId: activeCallTargetIdRef.current || activeCallTargetId,
         reason: data?.reason || "User is currently on another call.",
       });
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
@@ -3186,60 +3589,71 @@ export function UnifiedChatApp({
       setIncomingCall(null);
       cleanUpMedia();
       setActiveCallModalOpen(false);
+      setIsCallMinimized(false);
+      setCallSummary(null);
+      callStatusRef.current = "ended";
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
 
     const handleCallSignal = async (data: any) => {
-      const { signal } = data;
-      const pc = peerConnectionRef.current;
-      const curCallId = activeCallIdRef.current || activeCallId;
-      if (!pc || !signal || (data?.callId && curCallId && data.callId !== curCallId)) return;
+      const signal = data?.signal;
+      if (!signal) return;
+      const senderId = data?.fromUserId || data?.senderId || "";
+      if (senderId && senderId === currentUserId) return;
 
-      try {
-        if (signal.type === "offer") {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-          // Drain candidate queue
-          while (iceCandidateQueueRef.current.length > 0) {
-            const cand = iceCandidateQueueRef.current.shift();
-            if (cand) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
-              } catch (e) {
-                console.warn("Failed to drain ICE candidate:", e);
-              }
-            }
-          }
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          emitWebRtcSignal(
-            data.fromUserId,
-            data.callId || curCallId,
-            { type: "answer", sdp: answer }
-          );
-        } else if (signal.type === "answer") {
-          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-          // Drain candidate queue
-          while (iceCandidateQueueRef.current.length > 0) {
-            const cand = iceCandidateQueueRef.current.shift();
-            if (cand) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(cand));
-              } catch (e) {
-                console.warn("Failed to drain ICE candidate:", e);
-              }
-            }
-          }
-        } else if (signal.type === "candidate" && signal.candidate) {
-          if (pc.remoteDescription && pc.remoteDescription.type) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-          } else {
-            iceCandidateQueueRef.current.push(signal.candidate);
-          }
+      if (signal._sid) {
+        if (processedCallSignalIdsRef.current.has(signal._sid)) return;
+        processedCallSignalIdsRef.current.add(signal._sid);
+        if (processedCallSignalIdsRef.current.size > 500) {
+          const oldest = processedCallSignalIdsRef.current.values().next().value;
+          if (oldest) processedCallSignalIdsRef.current.delete(oldest);
         }
-      } catch (err) {
-        console.error("Error processing WebRTC signal:", err);
       }
+
+      const curCallId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && curCallId && data.callId !== curCallId) return;
+
+      const primaryTargetId = activeCallTargetIdRef.current || activeCallTargetId;
+      const pc = peerConnectionRef.current;
+
+      // 1. Additional Mesh Participant peer connection
+      if (senderId && primaryTargetId && senderId !== primaryTargetId) {
+        let mpc = meshPeersRef.current.get(senderId) || null;
+        if (!mpc && (data?.callId || curCallId) && pc) {
+          mpc = await ensureMeshPeerConnection(senderId, data?.callId || curCallId, false);
+        }
+        if (mpc) {
+          const mQueue = meshCandidateQueuesRef.current.get(senderId) || [];
+          meshCandidateQueuesRef.current.set(senderId, mQueue);
+          await processWebRtcSignalForPeer(
+            mpc,
+            mQueue,
+            senderId,
+            data?.callId || curCallId,
+            signal
+          );
+          return;
+        }
+      }
+
+      // 2. Primary 1:1 PeerConnection ready
+      if (pc && (!senderId || !primaryTargetId || senderId === primaryTargetId)) {
+        await processWebRtcSignalForPeer(
+          pc,
+          iceCandidateQueueRef.current,
+          senderId || primaryTargetId,
+          data?.callId || curCallId,
+          signal
+        );
+        return;
+      }
+
+      // 3. Buffer early signal while callee is verifying camera/mic or building RTCPeerConnection
+      const key = senderId || "primary";
+      const existingBuf = pendingCallSignalsRef.current.get(key) || [];
+      existingBuf.push(data);
+      pendingCallSignalsRef.current.set(key, existingBuf);
     };
 
     const handleParticipantReconnecting = (data: any) => {
@@ -3255,38 +3669,114 @@ export function UnifiedChatApp({
     const handleParticipantJoined = (data: any) => {
       const cId = activeCallIdRef.current || activeCallId;
       if (data?.callId && data.callId === cId) {
+        if (Array.isArray(data.activeParticipants)) {
+          const primaryPeerId = activeCallTargetIdRef.current || activeCallTargetId;
+          data.activeParticipants.forEach((ap: any) => {
+            const pId = ap?.userId;
+            if (!pId || pId === currentUserId || pId === primaryPeerId) return;
+            setAdditionalParticipants((prev) => {
+              if (prev.some((x) => x.userId === pId)) return prev;
+              const existingStream = meshRemoteStreamsRef.current.get(pId);
+              return [
+                ...prev,
+                {
+                  userId: pId,
+                  name: ap.name || contacts.find((c) => (c.userId || c.id) === pId)?.name || "Colleague",
+                  avatarUrl: ap.avatarUrl || contacts.find((c) => (c.userId || c.id) === pId)?.avatarUrl || null,
+                  state: "JOINED",
+                  stream: existingStream,
+                  isCameraOff: false,
+                  isMuted: false,
+                },
+              ];
+            });
+          });
+        }
         if (data.reconnected) {
           setPeerReconnecting(null);
-          toast.success(`${activeCallTargetName || "Colleague"} reconnected!`);
+          toast.success(`${activeCallTargetNameRef.current || activeCallTargetName || "Colleague"} reconnected!`);
         } else if (data.userId && data.userId !== currentUserId) {
           const uId = data.userId;
-          setAdditionalParticipants((prev) => {
-            const idx = prev.findIndex((p) => p.userId === uId);
-            const joinedPart: GridParticipant = {
-              userId: uId,
-              name: data.user?.name || "Colleague",
-              avatarUrl: data.user?.avatarUrl || null,
-              state: "JOINED",
-              isCameraOff: false,
-              isMuted: false,
-            };
-            if (idx >= 0) {
-              const copy = [...prev];
-              copy[idx] = { ...copy[idx], ...joinedPart };
-              return copy;
-            }
-            return [...prev, joinedPart];
-          });
-          toast.success(`${data.user?.name || "Colleague"} joined the call`);
+          const joinedName =
+            data.user?.name ||
+            contacts.find((c) => (c.userId || c.id) === uId)?.name ||
+            "Colleague";
+          const joinedAvatar =
+            data.user?.avatarUrl ||
+            data.user?.avatar ||
+            contacts.find((c) => (c.userId || c.id) === uId)?.avatarUrl ||
+            null;
+
+          if (uId !== (activeCallTargetIdRef.current || activeCallTargetId)) {
+            setAdditionalParticipants((prev) => {
+              const idx = prev.findIndex((p) => p.userId === uId);
+              const existingStream = meshRemoteStreamsRef.current.get(uId);
+              const joinedPart: GridParticipant = {
+                userId: uId,
+                name: joinedName,
+                avatarUrl: joinedAvatar,
+                state: "JOINED",
+                stream: existingStream || prev[idx]?.stream,
+                isCameraOff: existingStream
+                  ? !existingStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live")
+                  : false,
+                isMuted: false,
+              };
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = { ...copy[idx], ...joinedPart };
+                return copy;
+              }
+              return [...prev, joinedPart];
+            });
+            ensureMeshPeerConnection(uId, cId, false).catch(() => {});
+          }
+          toast.success(`${joinedName} joined the call`);
         }
       }
+    };
+
+    const handleParticipantLeft = (data: any) => {
+      const cId = activeCallIdRef.current || activeCallId;
+      if (!data?.userId || (data?.callId && cId && data.callId !== cId)) return;
+      const uId = data.userId;
+      if (uId === currentUserId) return;
+
+      const mpc = meshPeersRef.current.get(uId);
+      if (mpc) {
+        try {
+          mpc.close();
+        } catch {}
+        meshPeersRef.current.delete(uId);
+      }
+      meshCandidateQueuesRef.current.delete(uId);
+      const mStream = meshRemoteStreamsRef.current.get(uId);
+      if (mStream) {
+        mStream.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        meshRemoteStreamsRef.current.delete(uId);
+      }
+
+      let departingName =
+        data?.userName ||
+        contacts.find((c) => (c.userId || c.id) === uId)?.name ||
+        "Colleague";
+      setAdditionalParticipants((prev) => {
+        const found = prev.find((p) => p.userId === uId);
+        if (found?.name) departingName = found.name;
+        return prev.filter((p) => p.userId !== uId);
+      });
+      toast.info(`${departingName} has left the call`);
     };
 
     const handleParticipantInvited = (data: any) => {
       const cId = activeCallIdRef.current || activeCallId;
       if (data?.callId && data.callId === cId) {
         const uId = data.invitedUser?.id || data.participant?.userId;
-        if (uId && uId !== currentUserId) {
+        if (uId && uId !== currentUserId && uId !== (activeCallTargetIdRef.current || activeCallTargetId)) {
           setAdditionalParticipants((prev) => {
             if (prev.some((p) => p.userId === uId)) return prev;
             return [
@@ -3306,6 +3796,11 @@ export function UnifiedChatApp({
     };
 
     const handleCallEnded = (data: any) => {
+      const curCallId = activeCallIdRef.current || activeCallId;
+      if (data?.callId && curCallId && data.callId !== curCallId) {
+        return;
+      }
+
       if (callTimeoutTimerRef.current) {
         clearTimeout(callTimeoutTimerRef.current);
         callTimeoutTimerRef.current = null;
@@ -3314,38 +3809,31 @@ export function UnifiedChatApp({
         clearTimeout(incomingCallTimerRef.current);
         incomingCallTimerRef.current = null;
       }
-      const finalDuration = data?.durationSeconds !== undefined
-        ? Math.max(0, Math.round(Number(data.durationSeconds)))
-        : callDurationSeconds;
 
-      if (callStatus === "connected" || finalDuration > 0) {
-        setCallSummary({
-          callId: data?.callId || activeCallIdRef.current || activeCallId,
-          targetName: activeCallTargetName || "Colleague",
-          targetAvatar: activeCallTargetAvatar,
-          targetId: activeCallTargetId,
-          targetEmail: activeCallTargetEmail,
-          callType: activeCallType,
-          durationSeconds: finalDuration,
-          startedAt: new Date(Date.now() - finalDuration * 1000),
-          endedAt: new Date(),
-          endReason: data?.reason === "peer_disconnected"
-            ? "Colleague disconnected (30-second grace window expired)"
-            : data?.reason === "PEER_DISCONNECTED"
-            ? "Colleague disconnected (30-second grace window expired)"
-            : data?.reason || "Call completed",
-          networkQuality: networkQuality,
-          networkRttMs: networkRttMs,
-        });
-        setActiveCallModalOpen(true);
-      } else {
-        setActiveCallModalOpen(false);
-        setCallSummary(null);
+      const peerName =
+        data?.endedByName ||
+        activeCallTargetNameRef.current ||
+        activeCallTargetName ||
+        "Colleague";
+      const wasActive =
+        Boolean(curCallId) ||
+        callStatusRef.current === "connected" ||
+        callStatusRef.current === "calling" ||
+        callStatusRef.current === "ringing";
+
+      if (wasActive && data?.endedBy !== currentUserId) {
+        toast.info(`${peerName} has left the call`);
       }
 
+      // Immediately close opponent profile & release all hardware tracks (Items 5 & 6)
+      setActiveCallModalOpen(false);
+      setIsCallMinimized(false);
+      setCallSummary(null);
+      setActiveCallTargetAvatar(null);
       cleanUpMedia();
       setPeerReconnecting(null);
       setIncomingCall(null);
+      callStatusRef.current = "ended";
       setCallStatus("ended");
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
     };
@@ -3427,8 +3915,13 @@ export function UnifiedChatApp({
     socket.on("call.ended", handleCallEnded);
     socket.on("call.participant.reconnecting", handleParticipantReconnecting);
     socket.on("call:participant:reconnecting", handleParticipantReconnecting);
+    socket.on("call:participant_reconnecting", handleParticipantReconnecting);
     socket.on("call.participant.joined", handleParticipantJoined);
     socket.on("call:participant:joined", handleParticipantJoined);
+    socket.on("call:participant_joined", handleParticipantJoined);
+    socket.on("call.participant.left", handleParticipantLeft);
+    socket.on("call:participant:left", handleParticipantLeft);
+    socket.on("call:participant_left", handleParticipantLeft);
     socket.on("call.participant_invited", handleParticipantInvited);
     socket.on("call:participant_invited", handleParticipantInvited);
 
@@ -3444,10 +3937,13 @@ export function UnifiedChatApp({
     const handleCallError = (data: any) => {
       console.warn("[CALL:ERROR]", data?.message);
       toast.error(data?.message || "Call action failed.");
-      if (callStatus === "ringing" || callStatus === "calling") {
+      if (callStatusRef.current === "ringing" || callStatusRef.current === "calling") {
         cleanUpMedia();
         setActiveCallModalOpen(false);
+        setIsCallMinimized(false);
+        setCallSummary(null);
         setIncomingCall(null);
+        callStatusRef.current = "ended";
         setCallStatus("ended");
         setActiveCallId("");
       }
@@ -3455,16 +3951,49 @@ export function UnifiedChatApp({
     socket.on("call:error", handleCallError);
 
     const handleMediaState = (data: any) => {
-      if (data?.type === "screen-share") {
-        setRemoteIsScreenSharing(!!data.active);
-        if (data.active) {
-          toast.info(`${activeCallTargetName || "Colleague"} started sharing screen`);
-        } else {
-          toast.info(`${activeCallTargetName || "Colleague"} stopped sharing screen`);
+      const senderId = data?.fromUserId || data?.userId || "";
+      const primaryPeerId = activeCallTargetIdRef.current || activeCallTargetId;
+      const isAdditionalPeer = Boolean(senderId && primaryPeerId && senderId !== primaryPeerId);
+      const peerLabel = isAdditionalPeer
+        ? contacts.find((c) => (c.userId || c.id) === senderId)?.name || "Colleague"
+        : activeCallTargetNameRef.current || activeCallTargetName || "Colleague";
+
+      if (isAdditionalPeer) {
+        setAdditionalParticipants((prev) =>
+          prev.map((p) => {
+            if (p.userId !== senderId) return p;
+            if (data?.type === "screen-share") {
+              return { ...p, isScreenSharing: Boolean(data.active) };
+            }
+            if (data?.type === "video-mute") {
+              return { ...p, isCameraOff: Boolean(data.active) };
+            }
+            if (data?.type === "audio-mute") {
+              return { ...p, isMuted: Boolean(data.active) };
+            }
+            return p;
+          })
+        );
+        if (data?.type === "screen-share") {
+          toast.info(
+            data.active
+              ? `${peerLabel} started sharing screen`
+              : `${peerLabel} stopped sharing screen`
+          );
         }
+        return;
+      }
+
+      if (data?.type === "screen-share") {
+        setRemoteIsScreenSharing(Boolean(data.active));
+        toast.info(
+          data.active
+            ? `${peerLabel} started sharing screen`
+            : `${peerLabel} stopped sharing screen`
+        );
       }
       if (data?.type === "video-mute") {
-        setRemoteIsVideoOff(!!data.active);
+        setRemoteIsVideoOff(Boolean(data.active));
       }
     };
     socket.on("call:media-state", handleMediaState);
@@ -3480,6 +4009,9 @@ export function UnifiedChatApp({
       if (eventName === "call:ended") handleCallEnded(data);
       if (eventName === "call:busy") handleCallBusy(data);
       if (eventName === "call:media-state") handleMediaState(data);
+      if (eventName === "call:participant_joined") handleParticipantJoined(data);
+      if (eventName === "call:participant_left") handleParticipantLeft(data);
+      if (eventName === "call:participant_invited") handleParticipantInvited(data);
       if (eventName === "group-call:incoming") handleIncomingGroupMeeting(data);
       if (eventName === "group-call:ended") handleGroupMeetingEnded(data);
       if (eventName === "group-call:state_sync") handleGroupStateSync(data);
@@ -3536,8 +4068,13 @@ export function UnifiedChatApp({
       socket.off("call:media-state", handleMediaState);
       socket.off("call.participant.reconnecting", handleParticipantReconnecting);
       socket.off("call:participant:reconnecting", handleParticipantReconnecting);
+      socket.off("call:participant_reconnecting", handleParticipantReconnecting);
       socket.off("call.participant.joined", handleParticipantJoined);
       socket.off("call:participant:joined", handleParticipantJoined);
+      socket.off("call:participant_joined", handleParticipantJoined);
+      socket.off("call.participant.left", handleParticipantLeft);
+      socket.off("call:participant:left", handleParticipantLeft);
+      socket.off("call:participant_left", handleParticipantLeft);
       socket.off("call.participant_invited", handleParticipantInvited);
       socket.off("call:participant_invited", handleParticipantInvited);
 
@@ -3560,6 +4097,10 @@ export function UnifiedChatApp({
     activeCallId,
     startRingtone,
     activeCallTargetName,
+    contacts,
+    emitWebRtcSignal,
+    processWebRtcSignalForPeer,
+    ensureMeshPeerConnection,
     handleIncomingGroupMeeting,
     handleGroupStateSync,
     handleGroupUserJoined,
@@ -4120,31 +4661,8 @@ export function UnifiedChatApp({
     }
   }, [preCallModalOpen, preCallStream, preCallType, preCallVideoOff]);
 
-  const emitWebRtcSignal = (targetUserId: string, callId: string, signal: any) => {
-    const socket = getSocketClient();
-    if (socket?.connected) {
-      socket.emit("call:signal", {
-        toUserId: targetUserId,
-        targetUserId,
-        callId,
-        signal,
-      });
-    } else {
-      const token = typeof window !== "undefined"
-        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
-        : null;
-      if (token) {
-        fetch(`/api/calls/${encodeURIComponent(callId)}/signal`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ toUserId: targetUserId, signal }),
-        }).catch(() => {});
-      }
-    }
-  };
-
-  // Main Call Initiation Entrypoint (routes via Pre-Call screen)
-  const handleInitiateCall = (
+  // Main Call Initiation Entrypoint — Auto-checks camera & mic and immediately dials (Item 1)
+  const handleInitiateCall = async (
     type: "audio" | "video",
     targetUserId: string,
     name: string,
@@ -4153,9 +4671,9 @@ export function UnifiedChatApp({
     avatarUrl?: string | null
   ) => {
     let resolvedTargetId = targetUserId;
-    if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
+    if ((!resolvedTargetId || resolvedTargetId === currentUserId) && activeThreadId?.startsWith("direct_")) {
       const parts = activeThreadId.slice("direct_".length).split("_");
-      resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
+      resolvedTargetId = parts.find((p) => p && p !== currentUserId) || parts[0];
     }
     const resolvedAvatar =
       avatarUrl ||
@@ -4163,10 +4681,46 @@ export function UnifiedChatApp({
       (activeTargetUserId === resolvedTargetId ? (participantProfile as any)?.avatarUrl : null) ||
       conversations.find((c) => c.otherParticipantId === resolvedTargetId)?.avatarUrl ||
       null;
-    openPreCallModal(type, resolvedTargetId, name, phone, email, resolvedAvatar);
+
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Media devices are unavailable in this browser context.");
+      }
+      const verifiedStream = await acquireCallMediaStream(type === "video");
+      const hasAudio = verifiedStream.getAudioTracks().some((t) => t.readyState === "live");
+      const hasVideo =
+        type !== "video" || verifiedStream.getVideoTracks().some((t) => t.readyState === "live");
+      if (!hasAudio || !hasVideo) {
+        verifiedStream.getTracks().forEach((t) => t.stop());
+        throw new Error(
+          type === "video"
+            ? "Camera and microphone must both be active to start a video call."
+            : "Microphone must be active to start an audio call."
+        );
+      }
+      registerActiveMediaStream(verifiedStream);
+      await startActualCall(
+        type,
+        resolvedTargetId,
+        name,
+        phone,
+        email,
+        verifiedStream,
+        false,
+        false,
+        resolvedAvatar
+      );
+    } catch (err: any) {
+      toast.error(
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+          ? `Please allow ${type === "video" ? "Camera & Microphone" : "Microphone"} access to start the call.`
+          : err?.message || "Unable to access camera/microphone. Check device permissions."
+      );
+      openPreCallModal(type, resolvedTargetId, name, phone, email, resolvedAvatar);
+    }
   };
 
-  // Actual Dialing after Pre-Call Confirmation
+  // Actual Dialing with Immediate WebRTC Setup & Dual Socket/REST Invite
   const startActualCall = async (
     type: "audio" | "video",
     targetUserId: string,
@@ -4180,9 +4734,9 @@ export function UnifiedChatApp({
   ) => {
     try {
       let resolvedTargetId = targetUserId;
-      if (!resolvedTargetId && activeThreadId?.startsWith("direct_")) {
+      if ((!resolvedTargetId || resolvedTargetId === currentUserId) && activeThreadId?.startsWith("direct_")) {
         const parts = activeThreadId.slice("direct_".length).split("_");
-        resolvedTargetId = parts.find((p) => p !== currentUserId) || parts[0];
+        resolvedTargetId = parts.find((p) => p && p !== currentUserId) || parts[0];
       }
 
       const resolvedAvatar =
@@ -4194,11 +4748,25 @@ export function UnifiedChatApp({
 
       let stream = passedStream;
       if (!stream || stream.getTracks().length === 0) {
-        stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(type === "video"));
+        stream = await acquireCallMediaStream(type === "video");
       }
+      registerActiveMediaStream(stream);
+
+      const callId = `call_${Date.now()}`;
+      activeCallIdRef.current = callId;
+      activeCallTargetIdRef.current = resolvedTargetId;
+      activeCallTargetNameRef.current = name;
+      callStatusRef.current = "calling";
+      acceptedOfferSentForCallRef.current = "";
+      pendingCallSignalsRef.current.clear();
+      iceCandidateQueueRef.current = [];
+      remoteStreamRef.current = null;
+      setRemoteStreamState(null);
+      setCallSummary(null);
 
       localStreamRef.current = stream;
       setLocalStreamState(stream);
+      setActiveCallId(callId);
       setActiveCallType(type);
       setActiveCallTargetName(name);
       setActiveCallTargetPhone(phone);
@@ -4210,6 +4778,7 @@ export function UnifiedChatApp({
       setCallDurationSeconds(0);
       setIsMuted(initialMicMuted);
       setIsVideoOff(initialVideoOff);
+      setIsCallMinimized(false);
       setActiveCallModalOpen(true);
 
       if (initialMicMuted) {
@@ -4243,8 +4812,6 @@ export function UnifiedChatApp({
         localVideoRef.current.srcObject = stream;
       }
 
-      const callId = `call_${Date.now()}`;
-      setActiveCallId(callId);
       const socket = getSocketClient();
       pc.onicecandidate = (event) => {
         if (event.candidate) {
@@ -4252,27 +4819,44 @@ export function UnifiedChatApp({
         }
       };
 
+      const trackedRemoteTracks = new Map<string, MediaStreamTrack>();
       pc.ontrack = (event) => {
-        if (!remoteStreamRef.current) {
-          remoteStreamRef.current = new MediaStream();
-        }
-        event.streams[0]?.getTracks().forEach((track) => {
-          if (!remoteStreamRef.current!.getTracks().some((t) => t.id === track.id)) {
-            remoteStreamRef.current!.addTrack(track);
+        const incomingTracks = event.streams?.[0]?.getTracks() || (event.track ? [event.track] : []);
+        incomingTracks.forEach((track) => {
+          for (const [k, existing] of trackedRemoteTracks.entries()) {
+            if (existing.kind === track.kind && existing.id !== track.id) {
+              trackedRemoteTracks.delete(k);
+            }
           }
+          trackedRemoteTracks.set(`${track.kind}:${track.id}`, track);
         });
-        setRemoteStreamState(remoteStreamRef.current);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
-        }
+
+        const publishRemoteStream = () => {
+          const liveTracks = Array.from(trackedRemoteTracks.values()).filter(
+            (t) => t.readyState !== "ended"
+          );
+          const nextStream = new MediaStream(liveTracks);
+          remoteStreamRef.current = nextStream;
+          setRemoteStreamState(nextStream);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = nextStream;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = nextStream;
+            remoteAudioRef.current.play?.().catch?.(() => {});
+          }
+        };
+
+        publishRemoteStream();
+        incomingTracks.forEach((t) => {
+          t.onunmute = publishRemoteStream;
+        });
       };
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
+          callStatusRef.current = "connected";
           setCallStatus("connected");
         }
       };
@@ -4292,6 +4876,8 @@ export function UnifiedChatApp({
         toast.info("No answer. Call timed out.");
         cleanUpMedia();
         setActiveCallModalOpen(false);
+        setCallSummary(null);
+        callStatusRef.current = "ended";
         setCallStatus("ended");
         queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
       }, 60000);
@@ -4311,33 +4897,30 @@ export function UnifiedChatApp({
         });
       }
 
-      // Authoritative Persistent Calls API dispatch (supports Vercel serverless & background sync)
-      const token = typeof window !== "undefined"
-        ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token"))
-        : null;
-      if (token) {
-        fetch("/api/calls/invite", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            targetUserId: resolvedTargetId,
-            callType: type,
-            callId,
-            callerPhone: phone,
-            threadId: activeThreadId,
-          }),
-        }).then(async (res) => {
-          if (res.status === 409) {
-            const body = await res.json();
-            toast.error(body.error || "User is currently in another call.");
+      // Authoritative Persistent Calls API dispatch (Pusher, Web Push, FCM & cross-port safe)
+      api
+        .post("/api/calls/invite", {
+          targetUserId: resolvedTargetId,
+          callType: type,
+          callId,
+          callerPhone: phone,
+          threadId: activeThreadId,
+        })
+        .catch((err: any) => {
+          const status = err?.status || err?.response?.status;
+          if (status === 409) {
+            toast.error(
+              err?.data?.error || err?.response?.data?.error || "User is currently in another call."
+            );
             cleanUpMedia();
             setActiveCallModalOpen(false);
+            setCallSummary(null);
+            callStatusRef.current = "ended";
             setCallStatus("ended");
+          } else {
+            console.warn("[startActualCall] REST invite fallback error:", err);
           }
-        }).catch((err) => {
-          console.warn("[startActualCall] REST invite fallback error:", err);
         });
-      }
     } catch (err: any) {
       if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
         toast.error("Microphone/Camera permission denied.");
@@ -4348,95 +4931,161 @@ export function UnifiedChatApp({
     }
   };
 
-  // Screen Sharing Toggle
+  // Screen Sharing Toggle (Supports 1:1, Audio-to-Screen Upgrade Renegotiation, and Multi-Peer Mesh)
   const toggleScreenShare = async () => {
     const pc = peerConnectionRef.current;
     if (!pc) return;
+    const cId = activeCallIdRef.current || activeCallId;
+    const primaryTargetId = activeCallTargetIdRef.current || activeCallTargetId;
 
-    if (isScreenSharing) {
-      if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach((t) => t.stop());
-        screenStreamRef.current = null;
-      }
-      if (originalVideoTrackRef.current && localStreamRef.current) {
-        const senders = pc.getSenders();
-        const vs = senders.find((s) => s.track?.kind === "video");
-        if (vs) {
-          await vs.replaceTrack(originalVideoTrackRef.current);
-        }
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStreamRef.current;
-        }
-      }
-      setIsScreenSharing(false);
+    const emitScreenState = (active: boolean) => {
       const socket = getSocketClient();
-      if (socket && (activeCallIdRef.current || activeCallId)) {
-        socket.emit("call:media-state", {
-          callId: activeCallIdRef.current || activeCallId,
-          targetUserId: activeCallTargetId,
-          type: "screen-share",
-          active: false,
+      if (socket?.connected && cId) {
+        if (primaryTargetId) {
+          socket.emit("call:media-state", {
+            callId: cId,
+            targetUserId: primaryTargetId,
+            type: "screen-share",
+            active,
+          });
+        }
+        meshPeersRef.current.forEach((_, peerId) => {
+          socket.emit("call:media-state", {
+            callId: cId,
+            targetUserId: peerId,
+            type: "screen-share",
+            active,
+          });
         });
       }
-      toast.info("Screen sharing ended");
+      if (cId) {
+        api
+          .post(`/api/calls/${encodeURIComponent(cId)}/media-state`, {
+            type: "screen-share",
+            active,
+          })
+          .catch(() => {});
+      }
+    };
+
+    const syncOutgoingVideoTrack = async (
+      nextTrack: MediaStreamTrack | null,
+      streamForNewSender?: MediaStream | null
+    ) => {
+      const allConnections: Array<{ peerId: string; conn: RTCPeerConnection }> = [];
+      if (primaryTargetId && pc.signalingState !== "closed") {
+        allConnections.push({ peerId: primaryTargetId, conn: pc });
+      }
+      meshPeersRef.current.forEach((mpc, peerId) => {
+        if (mpc.signalingState !== "closed") {
+          allConnections.push({ peerId, conn: mpc });
+        }
+      });
+
+      for (const { peerId, conn } of allConnections) {
+        try {
+          const videoTransceiver = conn
+            .getTransceivers?.()
+            ?.find(
+              (tr) =>
+                tr.sender?.track?.kind === "video" || tr.receiver?.track?.kind === "video"
+            );
+          const videoSender =
+            videoTransceiver?.sender ||
+            conn.getSenders().find((s) => s.track?.kind === "video");
+
+          if (videoSender) {
+            await videoSender.replaceTrack(nextTrack);
+            if (nextTrack && videoTransceiver && videoTransceiver.direction === "recvonly") {
+              videoTransceiver.direction = "sendrecv";
+              if (cId && conn.signalingState === "stable") {
+                const offer = await conn.createOffer();
+                await conn.setLocalDescription(offer);
+                emitWebRtcSignal(peerId, cId, { type: "offer", sdp: offer });
+              }
+            }
+          } else if (nextTrack && streamForNewSender && cId) {
+            conn.addTrack(nextTrack, streamForNewSender);
+            if (conn.signalingState === "stable") {
+              const offer = await conn.createOffer();
+              await conn.setLocalDescription(offer);
+              emitWebRtcSignal(peerId, cId, { type: "offer", sdp: offer });
+            }
+          }
+        } catch (err) {
+          console.warn("[ScreenShare] Failed syncing video track for peer", peerId, err);
+        }
+      }
+    };
+
+    const stopSharingAndRestoreCamera = async (notifyToast = true) => {
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => {
+          try {
+            t.stop();
+          } catch {}
+        });
+        screenStreamRef.current = null;
+      }
+      setScreenStreamState(null);
+      const restoreTrack =
+        originalVideoTrackRef.current && originalVideoTrackRef.current.readyState === "live"
+          ? originalVideoTrackRef.current
+          : localStreamRef.current?.getVideoTracks().find((t) => t.readyState === "live") || null;
+      await syncOutgoingVideoTrack(restoreTrack, localStreamRef.current);
+      if (localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setIsScreenSharing(false);
+      emitScreenState(false);
+      if (notifyToast) {
+        toast.info("Screen sharing ended");
+      }
+    };
+
+    if (isScreenSharing) {
+      await stopSharingAndRestoreCamera(true);
     } else {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
           toast.error("Screen sharing not supported on this browser.");
           return;
         }
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
         const screenTrack = screenStream.getVideoTracks()[0];
-        if (!screenTrack) return;
+        if (!screenTrack) {
+          screenStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        registerActiveMediaStream(screenStream);
+
+        if (!originalVideoTrackRef.current || originalVideoTrackRef.current.readyState !== "live") {
+          originalVideoTrackRef.current =
+            localStreamRef.current?.getVideoTracks().find((t) => t.readyState === "live") || null;
+        }
 
         screenStreamRef.current = screenStream;
         setScreenStreamState(screenStream);
-        const senders = pc.getSenders();
-        const vs = senders.find((s) => s.track?.kind === "video");
-        if (vs) {
-          if (!originalVideoTrackRef.current) {
-            originalVideoTrackRef.current = vs.track;
-          }
-          await vs.replaceTrack(screenTrack);
+
+        // Upgrade voice call UI to video stage while sharing screen so both peers see presentation stage
+        if (activeCallType === "audio") {
+          setActiveCallType("video");
         }
 
-        screenTrack.onended = async () => {
-          if (originalVideoTrackRef.current && pc.signalingState !== "closed") {
-            const curSenders = pc.getSenders();
-            const curVs = curSenders.find((s) => s.track?.kind === "video");
-            if (curVs) {
-              await curVs.replaceTrack(originalVideoTrackRef.current);
-            }
-            if (localVideoRef.current && localStreamRef.current) {
-              localVideoRef.current.srcObject = localStreamRef.current;
-            }
-          }
-          setIsScreenSharing(false);
-          screenStreamRef.current = null;
-          const sock = getSocketClient();
-          if (sock && (activeCallIdRef.current || activeCallId)) {
-            sock.emit("call:media-state", {
-              callId: activeCallIdRef.current || activeCallId,
-              targetUserId: activeCallTargetId,
-              type: "screen-share",
-              active: false,
-            });
-          }
+        await syncOutgoingVideoTrack(screenTrack, screenStream);
+
+        screenTrack.onended = () => {
+          stopSharingAndRestoreCamera(false).catch(() => {});
         };
 
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
         }
         setIsScreenSharing(true);
-        const socket = getSocketClient();
-        if (socket && (activeCallIdRef.current || activeCallId)) {
-          socket.emit("call:media-state", {
-            callId: activeCallIdRef.current || activeCallId,
-            targetUserId: activeCallTargetId,
-            type: "screen-share",
-            active: true,
-          });
-        }
+        emitScreenState(true);
         toast.success("Screen sharing started");
       } catch (err: any) {
         if (err.name !== "NotAllowedError") {
@@ -4478,6 +5127,7 @@ export function UnifiedChatApp({
           frameRate: { ideal: 30, max: 30 },
         },
       });
+      registerActiveMediaStream(newStream);
       const newTrack = newStream.getVideoTracks()[0];
       if (newTrack) {
         if (localStreamRef.current) {
@@ -4488,10 +5138,17 @@ export function UnifiedChatApp({
           }
           localStreamRef.current.addTrack(newTrack);
         }
+        originalVideoTrackRef.current = newTrack;
         if (pc) {
           const vs = pc.getSenders().find((s) => s.track?.kind === "video");
           if (vs) {
             await vs.replaceTrack(newTrack);
+          }
+        }
+        for (const mpc of meshPeersRef.current.values()) {
+          const mvs = mpc.getSenders().find((s) => s.track?.kind === "video");
+          if (mvs) {
+            await mvs.replaceTrack(newTrack).catch(() => {});
           }
         }
         if (localVideoRef.current) {
@@ -4505,10 +5162,60 @@ export function UnifiedChatApp({
     }
   };
 
-  // Accept Incoming Call (Callee)
+  // Accept Incoming Call (Callee — Enforces Strict Mic/Camera Permission Gate before connecting, Item 4)
   const handleAcceptIncomingCall = async (incomingOverride?: any) => {
     const targetCall = incomingOverride || incomingCall;
     if (!targetCall) return;
+
+    const isVideoCall = targetCall.type === "video";
+    let stream: MediaStream | null = null;
+
+    // 1. Check pre-verified stream from FullScreenIncomingCall if available & live
+    if (typeof window !== "undefined" && (window as any).__HRMS_VERIFIED_CALLEE_STREAM__) {
+      const preVerified = (window as any).__HRMS_VERIFIED_CALLEE_STREAM__;
+      if (preVerified.callId === targetCall.callId && preVerified.stream instanceof MediaStream) {
+        const candidateStream: MediaStream = preVerified.stream;
+        const okAudio = candidateStream.getAudioTracks().some((t) => t.readyState === "live");
+        const okVideo =
+          !isVideoCall || candidateStream.getVideoTracks().some((t) => t.readyState === "live");
+        if (okAudio && okVideo) {
+          stream = candidateStream;
+        }
+      }
+      delete (window as any).__HRMS_VERIFIED_CALLEE_STREAM__;
+    }
+
+    // 2. Otherwise strictly request & verify microphone (+ camera for video calls) BEFORE connecting!
+    if (!stream) {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Camera/Microphone API is unavailable.");
+        }
+        const acquired = await acquireCallMediaStream(isVideoCall);
+        const hasLiveAudio = acquired.getAudioTracks().some((t) => t.readyState === "live");
+        const hasLiveVideo =
+          !isVideoCall || acquired.getVideoTracks().some((t) => t.readyState === "live");
+        if (!hasLiveAudio || !hasLiveVideo) {
+          acquired.getTracks().forEach((t) => t.stop());
+          throw new Error(
+            isVideoCall
+              ? "Both camera and microphone must be active to join this video call."
+              : "A working microphone is required to join this call."
+          );
+        }
+        stream = acquired;
+      } catch (mediaErr: any) {
+        // Item 4: Do NOT connect and do NOT auto-reject — prompt callee to grant permission & retry!
+        toast.error(
+          isVideoCall
+            ? "Please allow Camera and Microphone permissions in your browser to attend this video call."
+            : "Please allow Microphone permission in your browser to attend this call."
+        );
+        return;
+      }
+    }
+
+    registerActiveMediaStream(stream);
     stopRingtone();
     if (incomingCallTimerRef.current) {
       clearTimeout(incomingCallTimerRef.current);
@@ -4516,15 +5223,15 @@ export function UnifiedChatApp({
     }
 
     try {
-      const isVideoCall = targetCall.type === "video";
-      let stream: MediaStream | null = null;
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(isVideoCall));
-        }
-      } catch (mediaErr: any) {
-        console.warn("Could not capture device media, continuing call:", mediaErr.message);
-      }
+      activeCallIdRef.current = targetCall.callId;
+      activeCallTargetIdRef.current = targetCall.fromUserId;
+      activeCallTargetNameRef.current = targetCall.callerName || "Colleague";
+      callStatusRef.current = "connected";
+      acceptedOfferSentForCallRef.current = targetCall.callId;
+      iceCandidateQueueRef.current = [];
+      remoteStreamRef.current = null;
+      setRemoteStreamState(null);
+      setCallSummary(null);
 
       localStreamRef.current = stream;
       setLocalStreamState(stream);
@@ -4533,13 +5240,20 @@ export function UnifiedChatApp({
       setActiveCallTargetPhone(targetCall.callerPhone || "");
       setActiveCallTargetEmail(targetCall.callerEmail || "");
       setActiveCallTargetId(targetCall.fromUserId);
-      setActiveCallTargetAvatar(targetCall.callerAvatarUrl || (incomingCall as any).callerAvatar || null);
+      setActiveCallTargetAvatar(
+        targetCall.callerAvatarUrl ||
+          targetCall.callerAvatar ||
+          (incomingCall as any)?.callerAvatarUrl ||
+          (incomingCall as any)?.callerAvatar ||
+          null
+      );
       setActiveCallId(targetCall.callId);
       setActiveCallRole("callee");
       setCallStatus("connected");
       setCallDurationSeconds(0);
       setIsMuted(false);
-      setIsVideoOff(!stream || !stream.getVideoTracks().some((t) => t.enabled));
+      setIsVideoOff(!stream.getVideoTracks().some((t) => t.enabled && t.readyState === "live"));
+      setIsCallMinimized(false);
       setActiveCallModalOpen(true);
 
       let rtcIceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
@@ -4556,63 +5270,144 @@ export function UnifiedChatApp({
       });
       peerConnectionRef.current = pc;
 
-      if (stream) {
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-      }
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream!));
 
-      if (isVideoCall && localVideoRef.current && stream) {
+      if (isVideoCall && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
 
-      const socket = getSocketClient();
       pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          socket.emit("call:signal", {
-            toUserId: targetCall.fromUserId,
-            targetUserId: targetCall.fromUserId,
-            callId: targetCall.callId,
-            signal: { type: "candidate", candidate: event.candidate },
+        if (event.candidate) {
+          emitWebRtcSignal(targetCall.fromUserId, targetCall.callId, {
+            type: "candidate",
+            candidate: event.candidate,
           });
         }
       };
 
+      const trackedRemoteTracks = new Map<string, MediaStreamTrack>();
       pc.ontrack = (event) => {
-        if (!remoteStreamRef.current) {
-          remoteStreamRef.current = new MediaStream();
-        }
-        event.streams[0]?.getTracks().forEach((t) => {
-          if (!remoteStreamRef.current!.getTracks().some((tr) => tr.id === t.id)) {
-            remoteStreamRef.current!.addTrack(t);
+        const incomingTracks = event.streams?.[0]?.getTracks() || (event.track ? [event.track] : []);
+        incomingTracks.forEach((t) => {
+          for (const [k, existing] of trackedRemoteTracks.entries()) {
+            if (existing.kind === t.kind && existing.id !== t.id) {
+              trackedRemoteTracks.delete(k);
+            }
           }
+          trackedRemoteTracks.set(`${t.kind}:${t.id}`, t);
         });
-        setRemoteStreamState(remoteStreamRef.current);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
-          remoteVideoRef.current.play().catch(() => {});
-        }
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = remoteStreamRef.current;
-        }
+
+        const publishRemoteStream = () => {
+          const liveTracks = Array.from(trackedRemoteTracks.values()).filter(
+            (tr) => tr.readyState !== "ended"
+          );
+          const nextStream = new MediaStream(liveTracks);
+          remoteStreamRef.current = nextStream;
+          setRemoteStreamState(nextStream);
+          if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = nextStream;
+            remoteVideoRef.current.play().catch(() => {});
+          }
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = nextStream;
+            remoteAudioRef.current.play?.().catch?.(() => {});
+          }
+        };
+
+        publishRemoteStream();
+        incomingTracks.forEach((t) => {
+          t.onunmute = publishRemoteStream;
+        });
       };
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
+          callStatusRef.current = "connected";
           setCallStatus("connected");
         }
       };
 
-      // Emit accept
-      if (socket) {
-        socket.emit("call:accept", {
-          toUserId: targetCall.fromUserId,
-          callId: targetCall.callId,
+      // Replay any early signals buffered while media permissions / PeerConnection were initializing
+      const bufferedFromCaller = [
+        ...(pendingCallSignalsRef.current.get(targetCall.fromUserId) || []),
+        ...(pendingCallSignalsRef.current.get("primary") || []),
+      ];
+      pendingCallSignalsRef.current.delete(targetCall.fromUserId);
+      pendingCallSignalsRef.current.delete("primary");
+      for (const pkt of bufferedFromCaller) {
+        if (pkt?.signal) {
+          await processWebRtcSignalForPeer(
+            pc,
+            iceCandidateQueueRef.current,
+            targetCall.fromUserId,
+            targetCall.callId,
+            pkt.signal
+          );
+        }
+      }
+
+      const socket = getSocketClient();
+
+      if (targetCall.isAdditionalParticipant) {
+        // Item 12: 3rd+ participant invited into an active call — join & establish full WebRTC Mesh!
+        if (socket?.connected) {
+          socket.emit("call:accept_invitation", {
+            callId: targetCall.callId,
+          });
+        }
+        const joinRes: any = await api
+          .post(`/api/calls/${encodeURIComponent(targetCall.callId)}/accept-invitation`, {})
+          .catch(() => null);
+
+        // Send initial SDP offer to the inviter on primary pc
+        const offerToInviter = await pc.createOffer();
+        await pc.setLocalDescription(offerToInviter);
+        emitWebRtcSignal(targetCall.fromUserId, targetCall.callId, {
+          type: "offer",
+          sdp: offerToInviter,
         });
+
+        // Connect WebRTC Mesh to all other active participants in the call (e.g. User-B)
+        const activePeers: any[] =
+          joinRes?.data?.activeParticipants || joinRes?.activeParticipants || [];
+        for (const peer of activePeers) {
+          const peerId = peer?.userId;
+          if (!peerId || peerId === currentUserId || peerId === targetCall.fromUserId) continue;
+          const peerContact = contacts.find((c) => (c.userId || c.id) === peerId);
+          setAdditionalParticipants((prev) => {
+            if (prev.some((p) => p.userId === peerId)) return prev;
+            return [
+              ...prev,
+              {
+                userId: peerId,
+                name: peer.name || peerContact?.name || "Colleague",
+                avatarUrl: peer.avatarUrl || peerContact?.avatarUrl || null,
+                state: "JOINED",
+                isCameraOff: false,
+                isMuted: false,
+              },
+            ];
+          });
+          await ensureMeshPeerConnection(peerId, targetCall.callId, true);
+        }
+      } else {
+        // Standard 1:1 call accept — triggers caller's handleCallAccepted to send SDP offer
+        if (socket?.connected) {
+          socket.emit("call:accept", {
+            toUserId: targetCall.fromUserId,
+            targetUserId: targetCall.fromUserId,
+            callId: targetCall.callId,
+          });
+        }
+        api
+          .post(`/api/calls/${encodeURIComponent(targetCall.callId)}/accept`, {})
+          .catch(() => {});
       }
 
       setIncomingCall(null);
     } catch (err: any) {
-      toast.error(`Permission denied or device error: ${err.message}`);
-      handleRejectIncomingCall("permission_denied");
+      toast.error(`Failed to connect call: ${err.message || "WebRTC setup error"}`);
+      cleanUpMedia();
     }
   };
 
@@ -4624,39 +5419,45 @@ export function UnifiedChatApp({
       incomingCallTimerRef.current = null;
     }
     if (!incomingCall) return;
+    const rejCallId = incomingCall.callId;
+    const rejFromId = incomingCall.fromUserId;
     try {
       const socket = getSocketClient();
-      if (socket) {
+      if (socket?.connected) {
         socket.emit("call:reject", {
-          toUserId: incomingCall.fromUserId,
-          targetUserId: incomingCall.fromUserId,
-          callId: incomingCall.callId,
+          toUserId: rejFromId,
+          targetUserId: rejFromId,
+          callId: rejCallId,
           reason,
         });
       }
     } catch {}
+    api
+      .post(`/api/calls/${encodeURIComponent(rejCallId)}/reject`, { reason })
+      .catch(() => {});
     setIncomingCall(null);
   };
 
   // Global Call Acceptance & URL callId Sync
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleGlobalAccepted = (e: any) => {
-      const call = e.detail;
+    const acceptFromGlobalPayload = (call: any) => {
       if (call?.callId) {
         handleAcceptIncomingCall({
           callId: call.callId,
-          fromUserId: call.callerId,
-          type: call.callType,
-          callerName: call.callerName,
-          callerAvatarUrl: call.callerAvatar,
+          fromUserId: call.callerId || call.fromUserId,
+          type: call.callType || call.type || "audio",
+          callerName: call.callerName || "Colleague",
+          callerPhone: call.callerPhone,
+          callerEmail: call.callerEmail,
+          callerAvatarUrl: call.callerAvatar || call.callerAvatarUrl,
           threadId: call.threadId,
+          isAdditionalParticipant: Boolean(call.isAdditionalParticipant),
         });
       }
     };
-    window.addEventListener("hrms:global-call-accepted", handleGlobalAccepted);
-    const handleGlobalGroupAccepted = (e: any) => {
-      const call = e.detail;
+
+    const acceptGroupFromGlobalPayload = (call: any) => {
       if (call?.callId) {
         handleAcceptGroupMeeting({
           callId: call.callId,
@@ -4669,116 +5470,164 @@ export function UnifiedChatApp({
         });
       }
     };
+
+    const handleGlobalAccepted = (e: any) => {
+      const call = e.detail;
+      if ((window as any).__HRMS_PENDING_ACCEPTED_CALL__?.callId === call?.callId) {
+        delete (window as any).__HRMS_PENDING_ACCEPTED_CALL__;
+      }
+      acceptFromGlobalPayload(call);
+    };
+    window.addEventListener("hrms:global-call-accepted", handleGlobalAccepted);
+
+    const handleGlobalGroupAccepted = (e: any) => {
+      const call = e.detail;
+      if ((window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__?.callId === call?.callId) {
+        delete (window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__;
+      }
+      acceptGroupFromGlobalPayload(call);
+    };
     window.addEventListener("hrms:global-group-call-accepted", handleGlobalGroupAccepted);
+
+    // Consume pending accepted call if user clicked Accept while navigating to /hr/chat
+    if ((window as any).__HRMS_PENDING_ACCEPTED_CALL__ && !activeCallIdRef.current) {
+      const pending = (window as any).__HRMS_PENDING_ACCEPTED_CALL__;
+      delete (window as any).__HRMS_PENDING_ACCEPTED_CALL__;
+      acceptFromGlobalPayload(pending);
+    }
+    if ((window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__ && !activeMeeting) {
+      const pendingGroup = (window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__;
+      delete (window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__;
+      acceptGroupFromGlobalPayload(pendingGroup);
+    }
 
     const params = new URLSearchParams(window.location.search);
     const callIdParam = params.get("callId");
     const autoAnswer = params.get("autoAnswer") === "true";
     if (callIdParam && !activeCallIdRef.current) {
-      const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token");
-      if (token) {
-        fetch(`/api/calls/${encodeURIComponent(callIdParam)}/status`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((r) => r.json())
-          .then((res) => {
-            if (res?.success && res?.data) {
-              const d = res.data;
-              if (d.status === "ringing" || d.status === "connected") {
-                if (autoAnswer && d.callerId !== currentUserId) {
-                  handleAcceptIncomingCall({
-                    callId: d.callId,
-                    fromUserId: d.callerId,
-                    type: d.callType,
-                    callerName: d.callerName,
-                    callerAvatarUrl: d.callerAvatar,
-                    threadId: d.threadId,
-                  });
-                }
-              }
+      api
+        .get(`/api/calls/${encodeURIComponent(callIdParam)}/status`)
+        .then((res: any) => {
+          const d = res?.data || res;
+          if (d?.callId && (d.status === "ringing" || d.status === "connected")) {
+            if (autoAnswer && d.callerId !== currentUserId) {
+              handleAcceptIncomingCall({
+                callId: d.callId,
+                fromUserId: d.callerId,
+                type: d.callType,
+                callerName: d.callerName,
+                callerAvatarUrl: d.callerAvatar,
+                threadId: d.threadId,
+                isAdditionalParticipant: Boolean(d.isAdditionalParticipant),
+              });
             }
-          })
-          .catch(() => {});
-      }
+          }
+        })
+        .catch(() => {});
     }
 
     return () => {
       window.removeEventListener("hrms:global-call-accepted", handleGlobalAccepted);
       window.removeEventListener("hrms:global-group-call-accepted", handleGlobalGroupAccepted);
     };
-  }, [currentUserId, handleAcceptIncomingCall]);
+  }, [currentUserId, activeMeeting, handleAcceptIncomingCall, handleAcceptGroupMeeting]);
 
-  // End / Cancel Call
+  // End / Cancel Call — Immediately releases hardware camera & mic and closes call UI (Items 5 & 6)
   const handleEndCall = async () => {
     const finalDuration = callDurationSeconds;
-    const isConnectedCall = callStatus === "connected";
+    const cId = activeCallIdRef.current || activeCallId;
+    const targetId = activeCallTargetIdRef.current || activeCallTargetId;
+    const targetName = activeCallTargetNameRef.current || activeCallTargetName || "Colleague";
+    const targetPhone = activeCallTargetPhone;
+    const targetEmail = activeCallTargetEmail;
+    const targetAvatar = activeCallTargetAvatar;
+    const role = activeCallRole;
+    const cType = activeCallType;
+    const prevStatus = callStatusRef.current || callStatus;
+    const isConnectedCall = prevStatus === "connected";
 
-    if (isConnectedCall) {
-      setCallSummary({
-        callId: activeCallId,
-        targetName: activeCallTargetName || "Colleague",
-        targetAvatar: activeCallTargetAvatar,
-        targetId: activeCallTargetId,
-        targetEmail: activeCallTargetEmail,
-        callType: activeCallType,
-        durationSeconds: finalDuration,
-        startedAt: new Date(Date.now() - finalDuration * 1000),
-        endedAt: new Date(),
-        endReason: "You ended the call",
-        networkQuality: networkQuality,
-        networkRttMs: networkRttMs,
-      });
-      setActiveCallModalOpen(true);
-      setCallStatus("ended");
-    } else {
-      setActiveCallModalOpen(false);
-      setCallSummary(null);
+    if (callTimeoutTimerRef.current) {
+      clearTimeout(callTimeoutTimerRef.current);
+      callTimeoutTimerRef.current = null;
     }
+
+    // Immediately stop all hardware tracks and close call modal/profile (Items 5 & 6)
+    cleanUpMedia();
+    setPeerReconnecting(null);
+    setActiveCallModalOpen(false);
+    setIsCallMinimized(false);
+    setCallSummary(null);
     setActiveCallTargetAvatar(null);
+    callStatusRef.current = "ended";
+    setCallStatus("ended");
 
     try {
       const socket = getSocketClient();
-      if (socket && activeCallTargetId) {
-        if (callStatus === "calling" || callStatus === "ringing") {
+      if (socket?.connected && targetId && cId) {
+        if (prevStatus === "calling" || prevStatus === "ringing") {
           socket.emit("call:cancel", {
-            toUserId: activeCallTargetId,
-            callId: activeCallId,
+            toUserId: targetId,
+            targetUserId: targetId,
+            callId: cId,
           });
         } else {
           socket.emit("call:hangup", {
-            toUserId: activeCallTargetId,
-            callId: activeCallId,
+            toUserId: targetId,
+            targetUserId: targetId,
+            callId: cId,
             durationSeconds: finalDuration,
           });
         }
       }
 
-      if (activeCallId) {
-        await api.post("/api/chat/calls", {
-          callSessionId: activeCallId,
-          callerId: activeCallRole === "caller" ? currentUserId : activeCallTargetId,
-          callerName: activeCallRole === "caller" ? ((currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Colleague") : (activeCallTargetName || "Colleague"),
-          callerPhone: activeCallTargetPhone || "Internal Call",
-          callerEmail: activeCallRole === "caller" ? currentUser?.email : activeCallTargetEmail,
-          callerAvatarUrl: activeCallRole === "caller"
-            ? ((currentUser as any)?.avatarUrl || (currentUser as any)?.profile?.avatarUrl || null)
-            : (activeCallTargetAvatar || null),
-          receiverId: activeCallRole === "caller" ? activeCallTargetId : currentUserId,
-          receiverName: activeCallRole === "caller" ? (activeCallTargetName || "Colleague") : ((currentUser as any)?.profile?.fullName || (currentUser as any)?.name || currentUser?.email || "Colleague"),
-          direction: activeCallRole === "caller" ? "outgoing" : "incoming",
-          callType: activeCallType,
-          durationSeconds: Math.max(finalDuration, 1),
-          status: "completed",
-          notes: `${activeCallType === "video" ? "Video conference" : "Voice call"} session from Chat interface.`,
-        }).catch(() => {});
+      if (cId) {
+        api
+          .post(`/api/calls/${encodeURIComponent(cId)}/${isConnectedCall ? "end" : "cancel"}`, {
+            durationSeconds: finalDuration,
+          })
+          .catch(() => {});
+
+        await api
+          .post("/api/chat/calls", {
+            callSessionId: cId,
+            callerId: role === "caller" ? currentUserId : targetId,
+            callerName:
+              role === "caller"
+                ? (currentUser as any)?.profile?.fullName ||
+                  (currentUser as any)?.name ||
+                  currentUser?.email ||
+                  "Colleague"
+                : targetName,
+            callerPhone: targetPhone || "Internal Call",
+            callerEmail: role === "caller" ? currentUser?.email : targetEmail,
+            callerAvatarUrl:
+              role === "caller"
+                ? (currentUser as any)?.avatarUrl || (currentUser as any)?.profile?.avatarUrl || null
+                : targetAvatar || null,
+            receiverId: role === "caller" ? targetId : currentUserId,
+            receiverName:
+              role === "caller"
+                ? targetName
+                : (currentUser as any)?.profile?.fullName ||
+                  (currentUser as any)?.name ||
+                  currentUser?.email ||
+                  "Colleague",
+            direction: role === "caller" ? "outgoing" : "incoming",
+            callType: cType,
+            durationSeconds: Math.max(finalDuration, isConnectedCall ? 1 : 0),
+            status: isConnectedCall ? "completed" : "cancelled",
+            notes: `${cType === "video" ? "Video conference" : "Voice call"} session from Chat interface.`,
+          })
+          .catch(() => {});
       }
       queryClient.invalidateQueries({ queryKey: ["chat", "calls"] });
-      toast.info(`Call ended (${formatDuration(finalDuration)}). Logged to call history.`);
+      toast.info(
+        isConnectedCall
+          ? `Call ended (${formatDuration(finalDuration)}).`
+          : "Call cancelled."
+      );
     } catch {
       toast.info("Call ended.");
-    } finally {
-      cleanUpMedia();
-      setPeerReconnecting(null);
     }
   };
 
@@ -4793,13 +5642,22 @@ export function UnifiedChatApp({
     }
     const socket = getSocketClient();
     const cId = activeCallIdRef.current || activeCallId;
-    if (socket && cId && activeCallTargetId) {
+    const targetId = activeCallTargetIdRef.current || activeCallTargetId;
+    if (socket?.connected && cId && targetId) {
       socket.emit("call:media-state", {
         callId: cId,
-        targetUserId: activeCallTargetId,
+        targetUserId: targetId,
         type: "audio-mute",
         active: nextMuted,
       });
+    }
+    if (cId) {
+      api
+        .post(`/api/calls/${encodeURIComponent(cId)}/media-state`, {
+          type: "audio-mute",
+          active: nextMuted,
+        })
+        .catch(() => {});
     }
   };
 
@@ -4814,13 +5672,22 @@ export function UnifiedChatApp({
     }
     const socket = getSocketClient();
     const cId = activeCallIdRef.current || activeCallId;
-    if (socket && cId && activeCallTargetId) {
+    const targetId = activeCallTargetIdRef.current || activeCallTargetId;
+    if (socket?.connected && cId && targetId) {
       socket.emit("call:media-state", {
         callId: cId,
-        targetUserId: activeCallTargetId,
+        targetUserId: targetId,
         type: "video-mute",
         active: nextVideoOff,
       });
+    }
+    if (cId) {
+      api
+        .post(`/api/calls/${encodeURIComponent(cId)}/media-state`, {
+          type: "video-mute",
+          active: nextVideoOff,
+        })
+        .catch(() => {});
     }
   };
 
@@ -5070,6 +5937,9 @@ export function UnifiedChatApp({
       });
 
       const formData = new FormData();
+      if (activeThreadId) {
+        formData.append("threadId", activeThreadId);
+      }
       formData.append("files", audioFile);
       const uploadRes: any = await api.upload("/api/chat/upload", formData);
       const uploadedFile = (uploadRes?.files || uploadRes?.data || [])[0];
@@ -5085,6 +5955,8 @@ export function UnifiedChatApp({
         recipientId: activeThreadType === "direct" ? activeTargetUserId : undefined,
         groupId: activeThreadType === "group" ? activeGroupId : undefined,
         voiceNote: {
+          id: uploadedFile.id,
+          mediaId: uploadedFile.mediaId || uploadedFile.id,
           url: uploadedFile.url,
           durationSeconds: Math.max(durationToSend, 1),
           size: audioFile.size,
@@ -5257,7 +6129,7 @@ export function UnifiedChatApp({
     if (!attachments || attachments.length === 0) return;
     setActiveViewer({
       items: attachments.map((a) => ({
-        url: a.signedPreviewUrl || a.url,
+        url: resolveChatAttachmentUrl(a.signedPreviewUrl || a.url),
         name: a.name || a.fileName || "Attachment",
         size: a.size || a.fileSize,
         mimeType: a.mimeType,
@@ -5457,6 +6329,9 @@ export function UnifiedChatApp({
       // 2. Upload un-uploaded files to Media Library
       if (filesToUpload.length > 0) {
         const formData = new FormData();
+        if (activeThreadId) {
+          formData.append("threadId", activeThreadId);
+        }
         filesToUpload.forEach((f) => {
           if (f.file) formData.append("files", f.file);
         });
@@ -5493,27 +6368,33 @@ export function UnifiedChatApp({
 
       // Clear or reconcile optimistic message immediately upon server confirmation
       const canonicalMsg = res?.message || res;
+      const formattedCanonical = formatMessageItem(canonicalMsg, currentUserId);
       setOptimisticMessages((prev) =>
-        prev.filter((m) => m.clientTempId !== tempId && m.id !== tempId && m.id !== canonicalMsg?.id)
+        prev.filter((m) => m.clientTempId !== tempId && m.id !== tempId && m.id !== formattedCanonical.id)
       );
 
       // Instant cache update
       queryClient.setQueryData(["chat", "messages", activeThreadId], (old: any) => {
-        if (!old || !old.messages) return old;
-        const exists = old.messages.some((m: any) => m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId));
+        if (!old || !old.messages) return { messages: [formattedCanonical], hasMore: false };
+        const exists = old.messages.some(
+          (m: any) =>
+            m.id === formattedCanonical.id ||
+            (formattedCanonical.clientTempId && m.clientTempId === formattedCanonical.clientTempId)
+        );
         if (exists) {
           return {
             ...old,
             messages: old.messages.map((m: any) =>
-              m.id === canonicalMsg.id || (canonicalMsg.clientTempId && m.clientTempId === canonicalMsg.clientTempId)
-                ? canonicalMsg
+              m.id === formattedCanonical.id ||
+              (formattedCanonical.clientTempId && m.clientTempId === formattedCanonical.clientTempId)
+                ? formattedCanonical
                 : m
             ),
           };
         }
         return {
           ...old,
-          messages: [...old.messages, canonicalMsg],
+          messages: [...old.messages, formattedCanonical],
         };
       });
 
@@ -6114,7 +6995,7 @@ export function UnifiedChatApp({
 
   return (
     <div
-      className="flex h-[calc(100dvh-4rem)] min-h-[32rem] w-full overflow-hidden bg-background border-t border-border font-sans"
+      className="flex h-full max-h-full min-h-0 w-full overflow-hidden bg-background border-t border-border font-sans"
       style={{ fontFamily: '"Public Sans", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
     >
       {/* ─────────────────────────────────────────────────────────────────── */}
@@ -7561,8 +8442,10 @@ export function UnifiedChatApp({
                                   {msg.attachments.map((att, aIdx) => {
                                     const isImage = att.mimeType?.startsWith("image/");
                                     const isPdf = att.mimeType?.includes("pdf") || att.name?.toLowerCase().endsWith(".pdf");
-                                    const previewSrc = att.signedPreviewUrl || att.url;
-                                    const downloadHref = att.signedDownloadUrl || att.signedPreviewUrl || att.url;
+                                    const previewSrc = resolveChatAttachmentUrl(att.signedPreviewUrl || att.url);
+                                    const downloadHref = resolveChatAttachmentUrl(
+                                      att.signedDownloadUrl || att.signedPreviewUrl || att.url
+                                    );
 
                                     return isImage ? (
                                       <div
@@ -9291,7 +10174,7 @@ export function UnifiedChatApp({
                         </div>
                       </div>
                       <a
-                        href={f.signedDownloadUrl || f.signedPreviewUrl || f.url}
+                        href={resolveChatAttachmentUrl(f.signedDownloadUrl || f.signedPreviewUrl || f.url)}
                         download={f.name}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -10382,6 +11265,7 @@ export function UnifiedChatApp({
                 remoteIsSpeaking={remoteIsSpeaking}
                 localIsSpeaking={localIsSpeaking}
                 isMuted={isMuted}
+                participants={activeCallParticipants}
                 onToggleMute={toggleMute}
                 onToggleVideo={toggleVideo}
                 onMinimize={() => setIsCallMinimized(true)}
@@ -10541,6 +11425,8 @@ export function UnifiedChatApp({
         open={inCallAddParticipantOpen}
         onOpenChange={setInCallAddParticipantOpen}
         callId={activeCallIdRef.current || activeCallId || ""}
+        currentUserId={currentUserId}
+        activeCallTargetId={activeCallTargetIdRef.current || activeCallTargetId}
         activeParticipantIds={activeCallParticipants.map((p) => p.userId)}
         contacts={contacts.map((c) => ({
           userId: c.userId || c.id,
@@ -10807,7 +11693,6 @@ export function UnifiedChatApp({
         isScreenSharing={meetingIsScreenSharing}
         localStream={meetingLocalStreamRef.current}
         screenStream={meetingScreenStreamRef.current}
-        sfuConfig={meetingSfuConfig}
         availableColleagues={contacts.map((c) => ({
           id: c.userId || c.id,
           name: c.name || "Colleague",

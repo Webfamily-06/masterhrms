@@ -1,6 +1,23 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import {
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  MonitorUp,
+  StopCircle,
+  UserPlus,
+  PhoneOff,
+  Maximize2,
+  ChevronDown,
+  MessageSquare,
+  Volume2,
+  User,
+  RefreshCw,
+  AudioLines,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GridParticipant } from "./adaptive-video-grid";
 
@@ -17,8 +34,11 @@ export interface DreamsVideoCallScreenProps {
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   screenStream?: MediaStream | null;
+  remoteScreenStream?: MediaStream | null;
+  remotePresenterName?: string | null;
   localVideoRef?: React.RefObject<HTMLVideoElement | null>;
   remoteVideoRef?: React.RefObject<HTMLVideoElement | null>;
+  remoteAudioRef?: React.RefObject<HTMLAudioElement | null>;
   participants?: GridParticipant[];
   activeSpeakerId?: string | null;
 
@@ -48,16 +68,63 @@ function formatDuration(totalSeconds: number): string {
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
 
+function RemoteStreamAudio({
+  stream,
+  audioRef,
+}: {
+  stream: MediaStream | null | undefined;
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
+}) {
+  const internalRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const el = internalRef.current;
+    if (!el) return;
+    if (stream && stream.getAudioTracks().length > 0) {
+      if (el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+      el.muted = false;
+      el.volume = 1;
+      el.play().catch(() => {});
+    } else {
+      el.srcObject = null;
+    }
+  }, [stream]);
+
+  return (
+    <audio
+      ref={(el) => {
+        internalRef.current = el;
+        if (audioRef) {
+          (audioRef as React.MutableRefObject<HTMLAudioElement | null>).current = el;
+        }
+        if (el && stream && stream.getAudioTracks().length > 0 && el.srcObject !== stream) {
+          el.srcObject = stream;
+          el.muted = false;
+          el.volume = 1;
+          el.play().catch(() => {});
+        }
+      }}
+      autoPlay
+      playsInline
+      className="sr-only pointer-events-none"
+    />
+  );
+}
+
 export function DreamsVideoCallScreen({
   targetName,
   targetAvatar,
   callDurationSeconds,
-  callStatus,
   localStream,
   remoteStream,
   screenStream,
+  remoteScreenStream,
+  remotePresenterName,
   localVideoRef,
   remoteVideoRef,
+  remoteAudioRef,
   participants = [],
   isMuted,
   isVideoOff,
@@ -80,50 +147,67 @@ export function DreamsVideoCallScreen({
   const presentationVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Assemble full participants list
-  const fullList: GridParticipant[] = participants.length > 0 ? participants : [
-    {
-      userId: "local-user",
-      name: "You",
-      avatarUrl: null,
-      stream: localStream,
-      isLocal: true,
-      isCameraOff: isVideoOff,
-      isMuted,
-    },
-    {
-      userId: "remote-user",
-      name: targetName || "Colleague",
-      avatarUrl: targetAvatar || null,
-      stream: remoteStream,
-      isLocal: false,
-      isCameraOff: remoteIsVideoOff,
-      isMuted: false,
-    },
-  ];
+  const fullList: GridParticipant[] =
+    participants.length > 0
+      ? participants
+      : [
+          {
+            userId: "local-user",
+            name: "You",
+            avatarUrl: null,
+            stream: localStream,
+            isLocal: true,
+            isCameraOff: isVideoOff,
+            isMuted,
+          },
+          {
+            userId: "remote-user",
+            name: targetName || "Colleague",
+            avatarUrl: targetAvatar || null,
+            stream: remoteStream,
+            isLocal: false,
+            isCameraOff: remoteIsVideoOff,
+            isMuted: false,
+          },
+        ];
+
+  // Collect all unique remote streams for guaranteed unmuted audio playback
+  const uniqueRemoteStreams: MediaStream[] = [];
+  if (remoteStream) uniqueRemoteStreams.push(remoteStream);
+  for (const p of fullList) {
+    if (!p.isLocal && p.stream && !uniqueRemoteStreams.includes(p.stream)) {
+      uniqueRemoteStreams.push(p.stream);
+    }
+  }
 
   // Determine which participant is in the hero stage
-  // Default: Primary remote participant is hero; local user is in strip
   const defaultHero = fullList.find((p) => !p.isLocal) || fullList[0];
   const currentHero = selectedHeroUserId
-    ? (fullList.find((p) => p.userId === selectedHeroUserId) || defaultHero)
+    ? fullList.find((p) => p.userId === selectedHeroUserId) || defaultHero
     : defaultHero;
 
   const isHeroLocal = !!currentHero?.isLocal;
-  const heroName = currentHero ? (isHeroLocal ? "You" : currentHero.name) : targetName || "Colleague";
+  const heroName = currentHero
+    ? isHeroLocal
+      ? "You"
+      : currentHero.name
+    : targetName || "Colleague";
   const heroAvatar = currentHero?.avatarUrl || (isHeroLocal ? null : targetAvatar);
 
-  // Determine whether Hero camera video is actively streaming
-  const activeHeroStream = isHeroLocal ? localStream : (currentHero?.stream || remoteStream);
-  const hasLiveVideoTrack = !!activeHeroStream && activeHeroStream.getVideoTracks().some(
-    (t) => t.enabled && t.readyState === "live"
-  );
+  const activeHeroStream = isHeroLocal ? localStream : currentHero?.stream || remoteStream;
+  const hasLiveVideoTrack =
+    !!activeHeroStream &&
+    activeHeroStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live");
   const isHeroVideoActive = isHeroLocal
-    ? (!isVideoOff && hasLiveVideoTrack)
-    : (!remoteIsVideoOff && !currentHero?.isCameraOff && hasLiveVideoTrack);
+    ? !isVideoOff && hasLiveVideoTrack
+    : !remoteIsVideoOff && !currentHero?.isCameraOff && hasLiveVideoTrack;
 
   const isPresentationActive = isScreenSharing || remoteIsScreenSharing;
+  const activePresentationStream = isScreenSharing
+    ? screenStream || localStream
+    : remoteScreenStream || remoteStream;
 
-  // Keep Hero video element synchronized with live stream
+  // Synchronize Hero video element
   useEffect(() => {
     const videoEl = heroVideoRef.current;
     if (!videoEl || isPresentationActive) return;
@@ -137,98 +221,105 @@ export function DreamsVideoCallScreen({
     }
   }, [activeHeroStream, isHeroLocal, isHeroVideoActive, isPresentationActive]);
 
-  // Keep Presentation video element synchronized
+  // Synchronize Presentation video element
   useEffect(() => {
     const presEl = presentationVideoRef.current;
     if (!presEl || !isPresentationActive) return;
-    const streamToPresent = isScreenSharing ? (screenStream || localStream) : remoteStream;
-    if (streamToPresent) {
-      if (presEl.srcObject !== streamToPresent) {
-        presEl.srcObject = streamToPresent;
+    if (activePresentationStream) {
+      if (presEl.srcObject !== activePresentationStream) {
+        presEl.srcObject = activePresentationStream;
       }
       presEl.play().catch(() => {});
     }
-  }, [isPresentationActive, isScreenSharing, screenStream, localStream, remoteStream]);
-
-  // Filmstrip shows all participants who are NOT currently displayed as hero (or all if > 2)
-  const filmstripList = fullList;
+  }, [isPresentationActive, activePresentationStream]);
 
   return (
     <div
       data-testid="dreams-video-call-screen"
       className="w-full h-full flex flex-col font-sans select-none text-gray-900 dark:text-white bg-white dark:bg-card"
     >
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 lg:mb-4 px-1 shrink-0">
+      {/* Always-mounted unmuted audio outputs for every remote participant */}
+      {uniqueRemoteStreams.map((stream, idx) => (
+        <RemoteStreamAudio
+          key={stream.id || idx}
+          stream={stream}
+          audioRef={idx === 0 ? remoteAudioRef : undefined}
+        />
+      ))}
+
+      {/* Clean Single Header (Zero duplicated Add Participant icon) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2.5 lg:mb-3 px-1 shrink-0">
         <div className="flex items-center gap-2">
-          <h1 className="text-gray-900 dark:text-white text-lg sm:text-xl font-bold mb-0">Video Call</h1>
-          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Encrypted
+          <h1 className="text-gray-900 dark:text-white text-base sm:text-lg font-bold mb-0">
+            Video Call
+          </h1>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Encrypted</span>
           </span>
+          {fullList.length > 2 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary border border-primary/20">
+              {fullList.length} in call
+            </span>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={onAddParticipant}
-          data-testid="call-btn-add-new-header"
-          className="btn-sm bg-dark text-white border border-dark inline-flex items-center gap-1.5 hover:bg-primary-hover hover:border-primary-hover cursor-pointer px-3 py-1.5 rounded-md text-xs font-semibold shadow-xs transition-colors"
-        >
-          <i className="ph ph-plus"></i> Add New
-        </button>
+        <span className="text-xs font-mono font-semibold text-muted-foreground">
+          {formatDuration(callDurationSeconds)}
+        </span>
       </div>
 
       {/* Main video call wrapper */}
       <div className="bg-white dark:bg-card border border-border-color rounded-md p-3 sm:p-4 flex flex-col gap-3 sm:gap-4 flex-1 min-h-0 overflow-hidden shadow-xs">
         {/* Main Stage: Either Presentation Canvas OR Hero Speaker Tile */}
         {isPresentationActive ? (
-          /* 1. HIGH-DEFINITION SCREEN SHARE PRESENTATION CANVAS */
           <div
             id="call-presentation-canvas"
             data-testid="screen-share-presentation-stage"
-            className="relative rounded-md overflow-hidden bg-slate-950 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] border border-border-color/40 shadow-inner"
+            className="relative rounded-md overflow-hidden bg-slate-950 aspect-video flex items-center justify-center flex-1 min-h-[220px] sm:min-h-[320px] border border-border-color/40 shadow-inner"
           >
             <video
               ref={(el) => {
                 presentationVideoRef.current = el;
-                const streamToPresent = isScreenSharing ? (screenStream || localStream) : remoteStream;
-                if (el && streamToPresent && el.srcObject !== streamToPresent) {
-                  el.srcObject = streamToPresent;
+                if (el && activePresentationStream && el.srcObject !== activePresentationStream) {
+                  el.srcObject = activePresentationStream;
                   el.play().catch(() => {});
                 }
               }}
               autoPlay
               playsInline
-              muted={isScreenSharing}
+              muted
               className="w-full h-full object-contain"
             />
 
-            {/* Top Presenter Status Banner */}
             <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
               <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-md shadow-md flex items-center gap-1.5">
-                <i className="ph-duotone ph-monitor-arrow-up text-sm animate-pulse"></i>
-                <span>{isScreenSharing ? "You are presenting" : `${targetName || "Colleague"} is presenting`}</span>
+                <MonitorUp className="size-3.5 animate-pulse" />
+                <span>
+                  {isScreenSharing
+                    ? "You are presenting"
+                    : `${remotePresenterName || targetName || "Colleague"} is presenting`}
+                </span>
               </span>
               <span className="bg-slate-900/90 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-sm border border-white/10 font-mono">
                 {formatDuration(callDurationSeconds)}
               </span>
             </div>
 
-            {/* Local Presenter Quick Stop Button */}
             {isScreenSharing && (
-              <div className="absolute top-3 right-20 z-20">
+              <div className="absolute top-3 right-24 z-20">
                 <button
                   type="button"
                   id="btn-stop-sharing-top"
                   data-testid="btn-stop-presentation"
                   onClick={onToggleScreenShare}
-                  className="bg-danger text-white text-xs font-semibold px-3 py-1 rounded-md shadow-md hover:bg-danger-hover cursor-pointer flex items-center gap-1.5 transition-colors"
+                  className="bg-rose-600 text-white text-xs font-semibold px-3 py-1 rounded-md shadow-md hover:bg-rose-500 cursor-pointer flex items-center gap-1.5 transition-colors"
                 >
-                  <i className="ph ph-stop-circle text-sm"></i>
+                  <StopCircle className="size-3.5" />
                   <span>Stop Sharing</span>
                 </button>
               </div>
             )}
 
-            {/* Top-right controls */}
             <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
               <button
                 type="button"
@@ -237,7 +328,7 @@ export function DreamsVideoCallScreen({
                 title="Minimize to widget"
                 aria-label="Minimize"
               >
-                <i className="ph ph-caret-down text-base"></i>
+                <ChevronDown className="size-4" />
               </button>
               <button
                 type="button"
@@ -246,26 +337,24 @@ export function DreamsVideoCallScreen({
                 title="Toggle fullscreen"
                 aria-label="Fullscreen"
               >
-                <i className="ph ph-arrows-out text-base"></i>
+                <Maximize2 className="size-4" />
               </button>
             </div>
           </div>
         ) : (
-          /* 2. HERO SPEAKER VIDEO TILE */
           <div
             data-testid="hero-video-stage"
-            className="relative rounded-md overflow-hidden bg-slate-900 aspect-video flex items-center justify-center flex-1 min-h-[240px] sm:min-h-[340px] border border-border-color/40 shadow-inner"
+            className="relative rounded-md overflow-hidden bg-slate-900 aspect-video flex items-center justify-center flex-1 min-h-[220px] sm:min-h-[320px] border border-border-color/40 shadow-inner"
           >
-            {/* Live Camera Video Element */}
             <video
               id="video-call-hero-video"
               ref={(el) => {
                 heroVideoRef.current = el;
                 if (!isHeroLocal && remoteVideoRef) {
-                  (remoteVideoRef as any).current = el;
+                  (remoteVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
                 }
                 if (isHeroLocal && localVideoRef) {
-                  (localVideoRef as any).current = el;
+                  (localVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
                 }
                 if (el && activeHeroStream && el.srcObject !== activeHeroStream) {
                   el.srcObject = activeHeroStream;
@@ -274,14 +363,13 @@ export function DreamsVideoCallScreen({
               }}
               autoPlay
               playsInline
-              muted={isHeroLocal}
+              muted
               className={cn(
                 "w-full h-full object-cover absolute inset-0 z-0",
-                !isHeroVideoActive && "hidden"
+                !isHeroVideoActive && "opacity-0 pointer-events-none"
               )}
             />
 
-            {/* Avatar & Camera Off Fallback (Only shown when hero camera is off/inactive) */}
             {!isHeroVideoActive && (
               <div className="flex flex-col items-center justify-center gap-3 z-10 p-4">
                 <div
@@ -298,23 +386,22 @@ export function DreamsVideoCallScreen({
                       }}
                     />
                   ) : (
-                    <i className="ph-duotone ph-user text-5xl sm:text-6xl text-white"></i>
+                    <User className="size-12 sm:size-14 text-white" />
                   )}
                 </div>
                 <div className="text-center">
                   <p className="text-white text-sm font-semibold mb-0.5">{heroName}</p>
                   <p className="text-xs text-slate-400 mb-0 flex items-center justify-center gap-1.5">
-                    <i className="ph ph-video-camera-slash text-danger"></i>
+                    <VideoOff className="size-3.5 text-rose-400" />
                     <span>Camera is turned off</span>
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Top-left badges (Name + Timer) */}
             <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
               <span className="bg-slate-900/90 text-white text-xs sm:text-sm font-semibold px-2.5 py-1 rounded-md shadow-sm border border-white/10 flex items-center gap-1.5 backdrop-blur-xs">
-                <span className="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="truncate max-w-[140px] sm:max-w-[200px]">{heroName}</span>
               </span>
               <span className="bg-slate-900/90 text-white text-xs sm:text-sm font-semibold px-2 py-1 rounded-md shadow-sm border border-white/10 font-mono backdrop-blur-xs">
@@ -322,7 +409,6 @@ export function DreamsVideoCallScreen({
               </span>
             </div>
 
-            {/* Top-right fullscreen & minimize */}
             <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
               <button
                 type="button"
@@ -331,7 +417,7 @@ export function DreamsVideoCallScreen({
                 title="Minimize to widget"
                 aria-label="Minimize"
               >
-                <i className="ph ph-caret-down text-base"></i>
+                <ChevronDown className="size-4" />
               </button>
               <button
                 type="button"
@@ -340,40 +426,44 @@ export function DreamsVideoCallScreen({
                 title="Toggle fullscreen"
                 aria-label="Fullscreen"
               >
-                <i className="ph ph-arrows-out text-base"></i>
+                <Maximize2 className="size-4" />
               </button>
             </div>
 
-            {/* Reconnecting Alert Banner */}
             {isReconnecting && (
               <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
-                <i className="ph ph-arrows-clockwise animate-spin"></i>
+                <RefreshCw className="size-3.5 animate-spin" />
                 <span>Reconnecting WebRTC media stream...</span>
               </div>
             )}
 
-            {/* Peer Reconnecting (Grace Period) */}
             {peerReconnecting && (
               <div className="absolute top-14 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-bold shadow-lg flex items-center gap-2 z-30 animate-pulse">
-                <i className="ph ph-arrows-clockwise animate-spin"></i>
-                <span>{targetName} disconnected. Grace period: {peerReconnecting.graceSecondsRemaining}s</span>
+                <RefreshCw className="size-3.5 animate-spin" />
+                <span>
+                  {targetName} reconnecting ({peerReconnecting.graceSecondsRemaining}s)
+                </span>
               </div>
             )}
           </div>
         )}
 
-        {/* Participant Strip (Filmstrip) */}
+        {/* Participant Filmstrip */}
         <div
           id="video-call-filmstrip"
           data-testid="call-participant-filmstrip"
           className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 sm:gap-3 shrink-0"
         >
-          {filmstripList.map((participant, index) => {
+          {fullList.map((participant, index) => {
             const isLocal = participant.isLocal;
             const isCurrentHero = currentHero?.userId === participant.userId;
-            const pStream = isLocal ? localStream : (participant.stream || remoteStream);
-            const pHasVideo = !!pStream && pStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live");
-            const pVideoActive = isLocal ? (!isVideoOff && pHasVideo) : (!remoteIsVideoOff && !participant.isCameraOff && pHasVideo);
+            const pStream = isLocal ? localStream : participant.stream || remoteStream;
+            const pHasVideo =
+              !!pStream &&
+              pStream.getVideoTracks().some((t) => t.enabled && t.readyState === "live");
+            const pVideoActive = isLocal
+              ? !isVideoOff && pHasVideo
+              : !participant.isCameraOff && pHasVideo;
 
             const gradients = [
               "from-slate-700 to-slate-800",
@@ -392,12 +482,13 @@ export function DreamsVideoCallScreen({
                 onClick={() => setSelectedHeroUserId(participant.userId)}
                 className={cn(
                   "relative lg:aspect-4/2 aspect-[4/3] rounded-md overflow-hidden bg-gradient-to-br flex items-center justify-center cursor-pointer transition-all border shadow-xs",
-                  isCurrentHero ? "border-primary ring-2 ring-primary/60 scale-[1.02]" : "border-border-color/40 hover:scale-[1.02]",
+                  isCurrentHero
+                    ? "border-primary ring-2 ring-primary/60 scale-[1.01]"
+                    : "border-border-color/40 hover:scale-[1.01]",
                   gradientClass
                 )}
-                title={`Click to focus on ${participant.name}`}
+                title={`Focus on ${participant.name}`}
               >
-                {/* Live Video for participant in filmstrip */}
                 {pVideoActive && (
                   <video
                     ref={(el) => {
@@ -406,38 +497,35 @@ export function DreamsVideoCallScreen({
                         el.play().catch(() => {});
                       }
                       if (isLocal && localVideoRef) {
-                        (localVideoRef as any).current = el;
+                        (localVideoRef as React.MutableRefObject<HTMLVideoElement | null>).current =
+                          el;
                       }
                     }}
                     autoPlay
                     playsInline
-                    muted={isLocal}
+                    muted
                     className="w-full h-full object-cover absolute inset-0 z-0"
                   />
                 )}
 
-                {/* Avatar Fallback */}
-                {!pVideoActive && (
-                  participant.avatarUrl ? (
+                {!pVideoActive &&
+                  (participant.avatarUrl ? (
                     <img
                       src={participant.avatarUrl}
                       alt={participant.name}
                       className="size-10 sm:size-12 rounded-full object-cover border-2 border-white/80 shadow z-10"
                     />
                   ) : (
-                    <i className="ph-duotone ph-user text-white text-3xl sm:text-4xl opacity-80 z-10"></i>
-                  )
-                )}
+                    <User className="size-8 sm:size-10 text-white/80 z-10" />
+                  ))}
 
-                {/* Speaking Waveform Badge */}
                 {participant.isSpeaking && (
                   <span className="absolute top-2 left-2 size-6 rounded-full bg-slate-900/90 flex items-center justify-center shadow-xs z-20">
-                    <i className="ph-fill ph-waveform text-purple animate-pulse text-xs"></i>
+                    <AudioLines className="size-3.5 text-emerald-400 animate-pulse" />
                   </span>
                 )}
 
-                {/* Participant Name Badge */}
-                <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap border border-white/20 z-20">
+                <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-md shadow-sm whitespace-nowrap border border-white/20 z-20 max-w-[92%] truncate">
                   {participant.name} {isLocal && "(You)"}
                 </span>
               </div>
@@ -445,105 +533,102 @@ export function DreamsVideoCallScreen({
           })}
         </div>
 
-        {/* Control bar */}
+        {/* Single Bottom Control Dock (Zero duplicate icons) */}
         <div className="border-t border-border-color pt-3 sm:pt-4 flex items-center justify-center gap-2 sm:gap-3 shrink-0">
-          {/* Mute Mic */}
           <button
             type="button"
             data-testid="call-btn-mute"
             onClick={onToggleMute}
             className={cn(
-              "size-8 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
+              "size-9 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
               isMuted
-                ? "bg-red-50 text-danger border border-danger/40 dark:bg-red-950/40"
-                : "bg-light text-gray-900 hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                ? "bg-red-50 text-rose-600 border border-rose-500/40 dark:bg-red-950/40 dark:text-rose-400"
+                : "bg-slate-100 text-gray-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
             )}
             title={isMuted ? "Unmute Mic" : "Mute Mic"}
             aria-label="Mute"
           >
-            <i className={cn("text-base sm:text-lg", isMuted ? "ph-duotone ph-microphone-slash text-danger" : "ph-duotone ph-microphone")}></i>
+            {isMuted ? <MicOff className="size-4 sm:size-5" /> : <Mic className="size-4 sm:size-5" />}
           </button>
 
-          {/* Camera Video Toggle */}
           <button
             type="button"
             data-testid="call-btn-video"
             onClick={onToggleVideo}
             className={cn(
-              "size-8 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
+              "size-9 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
               isVideoOff
-                ? "bg-red-50 text-danger border border-danger/40 dark:bg-red-950/40"
-                : "bg-light text-gray-900 hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                ? "bg-red-50 text-rose-600 border border-rose-500/40 dark:bg-red-950/40 dark:text-rose-400"
+                : "bg-slate-100 text-gray-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
             )}
             title={isVideoOff ? "Turn Video On" : "Turn Video Off"}
             aria-label="Video"
           >
-            <i className={cn("text-base sm:text-lg", isVideoOff ? "ph-duotone ph-video-camera-slash text-danger" : "ph-duotone ph-video-camera")}></i>
+            {isVideoOff ? (
+              <VideoOff className="size-4 sm:size-5" />
+            ) : (
+              <Video className="size-4 sm:size-5" />
+            )}
           </button>
 
-          {/* Minimize to Chat */}
           <button
             type="button"
             data-testid="call-btn-minimize"
             onClick={onMinimize}
-            className="size-8 sm:size-10 rounded-full bg-light text-gray-900 inline-flex items-center justify-center hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
-            title="Chat"
+            className="size-9 sm:size-10 rounded-full bg-slate-100 text-gray-900 inline-flex items-center justify-center hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
+            title="Minimize to Chat"
             aria-label="Chat"
           >
-            <i className="ph-duotone ph-chat-circle text-base sm:text-lg"></i>
+            <MessageSquare className="size-4 sm:size-5" />
           </button>
 
-          {/* End Call (Red Highlight Button in Center) */}
           <button
             type="button"
             data-testid="call-btn-hangup"
             onClick={onEndCall}
-            className="size-9 sm:size-11 rounded-full bg-danger text-white inline-flex items-center justify-center hover:bg-danger-hover cursor-pointer shadow-md transition-transform hover:scale-105 active:scale-95"
+            className="size-10 sm:size-11 rounded-full bg-rose-600 text-white inline-flex items-center justify-center hover:bg-rose-500 cursor-pointer shadow-md transition-transform hover:scale-105 active:scale-95"
             title="End Call"
             aria-label="End call"
           >
-            <i className="ph-fill ph-phone-slash text-lg sm:text-xl"></i>
+            <PhoneOff className="size-5" />
           </button>
 
-          {/* Volume / Audio Settings */}
           <button
             type="button"
             data-testid="call-btn-settings"
             onClick={onOpenSettings}
-            className="size-8 sm:size-10 rounded-full bg-light text-gray-900 inline-flex items-center justify-center hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
-            title="Audio / Device Settings"
+            className="size-9 sm:size-10 rounded-full bg-slate-100 text-gray-900 inline-flex items-center justify-center hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
+            title="Audio & Camera Settings"
             aria-label="Volume"
           >
-            <i className="ph-duotone ph-speaker-high text-base sm:text-lg"></i>
+            <Volume2 className="size-4 sm:size-5" />
           </button>
 
-          {/* In-Call Add Participant */}
           <button
             type="button"
             data-testid="call-btn-add-participant"
             onClick={onAddParticipant}
-            className="size-8 sm:size-10 rounded-full bg-light text-gray-900 inline-flex items-center justify-center hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
+            className="size-9 sm:size-10 rounded-full bg-slate-100 text-gray-900 inline-flex items-center justify-center hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700 cursor-pointer transition-colors"
             title="Add Colleague to Call"
             aria-label="Add Participant"
           >
-            <i className="ph-duotone ph-user-plus text-base sm:text-lg"></i>
+            <UserPlus className="size-4 sm:size-5" />
           </button>
 
-          {/* Screen Share */}
           <button
             type="button"
             data-testid="call-btn-screenshare"
             onClick={onToggleScreenShare}
             className={cn(
-              "size-8 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
+              "size-9 sm:size-10 rounded-full inline-flex items-center justify-center cursor-pointer transition-all",
               isScreenSharing
                 ? "bg-primary text-white ring-2 ring-primary shadow-sm"
-                : "bg-light text-gray-900 hover:bg-light-hover dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
+                : "bg-slate-100 text-gray-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
             )}
             title={isScreenSharing ? "Stop Screen Share" : "Share Screen"}
             aria-label="Screen share"
           >
-            <i className="ph-duotone ph-monitor-arrow-up text-base sm:text-lg"></i>
+            <MonitorUp className="size-4 sm:size-5" />
           </button>
         </div>
       </div>

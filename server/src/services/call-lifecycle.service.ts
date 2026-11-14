@@ -941,53 +941,79 @@ export class CallLifecycleService {
       }
       const participant = participants[0];
 
-      if (participant.state !== "INVITED" && participant.state !== "RINGING") {
-        if (participant.state === "JOINED") {
-          return { call, participant, alreadyJoined: true };
-        }
+      const alreadyJoined = participant.state === "JOINED";
+      if (!alreadyJoined && participant.state !== "INVITED" && participant.state !== "RINGING") {
         throw new CallConflictError(`Participant state is ${participant.state}, cannot accept`);
       }
 
       const joinedAt = new Date();
-
-      // If call is still RINGING, transition to ACTIVE
       let updatedCall = call;
-      if (call.status === "RINGING") {
-        updatedCall = await tx.call.update({
-          where: { id: call.id },
-          data: { status: "ACTIVE", answeredAt: joinedAt },
+      let updatedParticipant = participant;
+
+      if (!alreadyJoined) {
+        // If call is still RINGING, transition to ACTIVE
+        if (call.status === "RINGING") {
+          updatedCall = await tx.call.update({
+            where: { id: call.id },
+            data: { status: "ACTIVE", answeredAt: joinedAt },
+          });
+        }
+
+        // Update participant to JOINED
+        updatedParticipant = await tx.callParticipant.update({
+          where: { id: participant.id },
+          data: {
+            state: "JOINED",
+            joinedAt,
+          },
+        });
+
+        // Record audit event
+        await tx.callEvent.create({
+          data: {
+            callId: call.id,
+            actorId: userId,
+            eventType: "PARTICIPANT_JOINED",
+            metadata: { joinedBy: userId, deviceId },
+            createdAt: joinedAt,
+          },
         });
       }
 
-      // Update participant to JOINED
-      const updatedParticipant = await tx.callParticipant.update({
-        where: { id: participant.id },
-        data: {
-          state: "JOINED",
-          joinedAt,
-        },
-      });
+      // User details for broadcast + full active roster for WebRTC mesh setup
+      const [user, joinedRows] = await Promise.all([
+        tx.user.findUnique({
+          where: { id: userId },
+          include: { profile: true },
+        }),
+        tx.callParticipant.findMany({
+          where: { callId: call.id, state: "JOINED" },
+        }),
+      ]);
 
-      // Record audit event
-      await tx.callEvent.create({
-        data: {
-          callId: call.id,
-          actorId: userId,
-          eventType: "PARTICIPANT_JOINED",
-          metadata: { joinedBy: userId, deviceId },
-          createdAt: joinedAt,
-        },
-      });
+      const joinedUsers = joinedRows.length
+        ? await tx.user.findMany({
+            where: { id: { in: joinedRows.map((p) => p.userId) } },
+            include: { profile: true },
+          })
+        : [];
+      const userMap = new Map(joinedUsers.map((u) => [u.id, u]));
 
-      // User details for broadcast
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        include: { profile: true },
+      const activeParticipants = joinedRows.map((p) => {
+        const u = userMap.get(p.userId);
+        return {
+          userId: p.userId,
+          role: p.role,
+          state: p.state,
+          name: u?.profile?.fullName || u?.email || "Colleague",
+          avatarUrl: u?.profile?.avatarUrl || null,
+        };
       });
 
       return {
         call: updatedCall,
         participant: updatedParticipant,
+        activeParticipants,
         user: {
           id: user?.id || userId,
           name: user?.profile?.fullName || user?.email || "Colleague",

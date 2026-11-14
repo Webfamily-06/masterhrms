@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from "react";
 import { getSocketClient, isSocketDisabled } from "@/lib/socket";
+import { api, getAuthToken } from "@/lib/api";
+import { initFirebaseMessagingIfConfigured } from "@/lib/firebase";
 import { toast } from "sonner";
 
 export interface IncomingCallInfo {
@@ -18,6 +20,7 @@ export interface IncomingCallInfo {
   isGroup?: boolean;
   groupId?: string;
   groupName?: string;
+  isAdditionalParticipant?: boolean;
 }
 
 interface IncomingCallContextValue {
@@ -33,7 +36,7 @@ interface IncomingCallContextValue {
   isPushSupported: boolean;
   pushPermission: NotificationPermission;
   isSubscribedToPush: boolean;
-  enablePushNotifications: () => Promise<boolean>;
+  enablePushNotifications: (silentOrEvent?: boolean | React.SyntheticEvent) => Promise<boolean>;
 }
 
 export const IncomingCallContext = createContext<IncomingCallContextValue | null>(null);
@@ -181,38 +184,42 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     }
   }, []);
 
-  const enablePushNotifications = useCallback(async (): Promise<boolean> => {
+  const enablePushNotifications = useCallback(async (silentOrEvent?: boolean | React.SyntheticEvent): Promise<boolean> => {
+    const isSilent = silentOrEvent === true;
     if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-      toast.error("Web Push is not supported in this browser.");
+      if (!isSilent) toast.error("Web Push is not supported in this browser.");
       return false;
     }
 
     try {
-      const permission = await Notification.requestPermission();
+      let permission: NotificationPermission =
+        "Notification" in window ? Notification.permission : "denied";
+      if (permission !== "granted") {
+        permission = await Notification.requestPermission();
+      }
       setPushPermission(permission);
       if (permission !== "granted") {
-        toast.warning("Push notifications permission was denied.");
+        if (!isSilent) toast.warning("Push notifications permission was denied.");
         return false;
       }
 
       const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
       await navigator.serviceWorker.ready;
+      initFirebaseMessagingIfConfigured(reg).catch(() => {});
 
-      const token = localStorage.getItem("hrms_auth_token");
+      const token = getAuthToken();
       if (!token) {
-        toast.error("You must be logged in to enable call notifications.");
+        if (!isSilent) toast.error("You must be logged in to enable call notifications.");
         return false;
       }
 
-      const statusRes = await fetch("/api/notifications/push/status", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const statusData = await statusRes.json();
-      if (!statusData?.success || !statusData?.data?.vapidPublicKey) {
+      const statusData = await api.get<any>("/notifications/push/status");
+      const vapidKey = statusData?.data?.vapidPublicKey || statusData?.vapidPublicKey;
+      if (!vapidKey) {
         throw new Error(statusData?.error || "Failed to retrieve VAPID public key");
       }
 
-      const applicationServerKey = urlBase64ToUint8Array(statusData.data.vapidPublicKey);
+      const applicationServerKey = urlBase64ToUint8Array(vapidKey);
 
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
@@ -223,73 +230,85 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       }
 
       const subJson = sub.toJSON();
-      const saveRes = await fetch("/api/notifications/push/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          endpoint: subJson.endpoint,
-          keys: subJson.keys,
-          deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop",
-        }),
+      const saveData = await api.post<any>("/notifications/push/subscribe", {
+        endpoint: subJson.endpoint,
+        keys: subJson.keys,
+        deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop",
       });
 
-      const saveData = await saveRes.json();
-      if (saveData?.success) {
+      if (saveData?.success !== false) {
         setIsSubscribedToPush(true);
-        toast.success("Incoming call notifications enabled!");
+        if (!isSilent) toast.success("Device notifications enabled!");
         return true;
       }
       return false;
     } catch (err: any) {
-      console.error("[IncomingCallProvider] Push subscription error:", err);
-      toast.error(err.message || "Failed to enable notifications");
+      if (!isSilent) {
+        console.error("[IncomingCallProvider] Push subscription error:", err);
+        toast.error(err.message || "Failed to enable notifications");
+      }
       return false;
     }
   }, []);
 
+  // Always auto-register /sw.js, initialize Firebase Messaging if configured, and sync Web Push subscription
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-    const checkSub = async () => {
-      try {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          const sub = await reg.pushManager.getSubscription();
-          setIsSubscribedToPush(!!sub);
+    let cleanupGestureListener: (() => void) | null = null;
 
-          // Automatic Device Registration Sync:
-          // If the user has granted notification permission and is authenticated,
-          // ensure their Web Push subscription exists and is synchronized with the backend.
-          const token = localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token");
-          if (token && "Notification" in window && Notification.permission === "granted") {
-            if (!sub) {
-              enablePushNotifications().catch(() => {});
-            } else {
-              const subJson = sub.toJSON();
-              fetch("/api/notifications/push/subscribe", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                  endpoint: subJson.endpoint,
-                  keys: subJson.keys,
-                  deviceType: /Mobile|Android|iPhone/i.test(navigator.userAgent) ? "mobile" : "desktop",
-                }),
-              }).then((r) => r.json()).then((d) => {
-                if (d?.success) setIsSubscribedToPush(true);
-              }).catch(() => {});
-            }
-          }
+    const registerAndSyncPush = async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+        await navigator.serviceWorker.ready;
+        initFirebaseMessagingIfConfigured(reg).catch(() => {});
+
+        const existingSub = await reg.pushManager.getSubscription();
+        setIsSubscribedToPush(!!existingSub);
+
+        const token = getAuthToken();
+        if (!token || !("Notification" in window)) return;
+
+        setPushPermission(Notification.permission);
+        if (Notification.permission === "granted") {
+          await enablePushNotifications(true).catch(() => {});
+        } else if (
+          Notification.permission === "default" &&
+          !sessionStorage.getItem("hrms_notif_prompted")
+        ) {
+          const onFirstInteraction = () => {
+            if (sessionStorage.getItem("hrms_notif_prompted")) return;
+            sessionStorage.setItem("hrms_notif_prompted", "1");
+            window.removeEventListener("pointerdown", onFirstInteraction);
+            window.removeEventListener("keydown", onFirstInteraction);
+            Notification.requestPermission()
+              .then((perm) => {
+                setPushPermission(perm);
+                if (perm === "granted") {
+                  enablePushNotifications(true).catch(() => {});
+                }
+              })
+              .catch(() => {});
+          };
+          window.addEventListener("pointerdown", onFirstInteraction, { once: true, passive: true });
+          window.addEventListener("keydown", onFirstInteraction, { once: true });
+          cleanupGestureListener = () => {
+            window.removeEventListener("pointerdown", onFirstInteraction);
+            window.removeEventListener("keydown", onFirstInteraction);
+          };
         }
       } catch (err) {
-        console.warn("[IncomingCallContext] Background subscription check:", err);
+        console.warn("[IncomingCallContext] Service worker registration/sync warning:", err);
       }
     };
-    checkSub();
+
+    registerAndSyncPush();
+    const onAuthChanged = () => registerAndSyncPush();
+    window.addEventListener("auth-token-changed", onAuthChanged);
+
+    return () => {
+      window.removeEventListener("auth-token-changed", onAuthChanged);
+      if (cleanupGestureListener) cleanupGestureListener();
+    };
   }, [enablePushNotifications]);
 
   const stopCallAlert = useCallback(() => {
@@ -308,15 +327,13 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     if (!data?.callId) return;
 
     // Defer group meeting modal to UnifiedChatApp when mounted on the Chat page (which renders IncomingGroupMeetingDialog),
-    // while keeping FullScreenIncomingCall active for all 1:1 incoming calls!
+    // while keeping FullScreenIncomingCall active for all 1:1 and mid-call colleague invites!
     if (data.isGroup && typeof window !== "undefined" && (window as any).__HRMS_CHAT_APP_MOUNTED__) {
       return;
     }
 
     // DEVICE-LEVEL SESSION SECURITY: Validate active authentication on this device
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
-      : null;
+    const token = getAuthToken();
     if (!token) {
       console.warn("[IncomingCallProvider] Ignored incoming call on unauthenticated/logged-out device.");
       return;
@@ -365,6 +382,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       isGroup: !!data.isGroup,
       groupId: data.groupId,
       groupName: data.groupName,
+      isAdditionalParticipant: Boolean(data.isAdditionalParticipant),
     });
 
     setIsRinging(true);
@@ -429,7 +447,8 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     });
   }, [stopCallAlert]);
 
-  // Server-authoritative, strictly idempotent Accept Call
+  // Coordinate call acceptance: DO NOT emit server `call:accept` BEFORE UnifiedChatApp prepares RTCPeerConnection!
+  // Otherwise, the caller sends the SDP offer before the callee's RTCPeerConnection is mounted, causing dropped audio/video.
   const acceptCall = useCallback(() => {
     if (isActingRef.current || !incomingCall) return;
     isActingRef.current = true;
@@ -440,92 +459,48 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     stopCallAlert();
     setIncomingCall(null);
 
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
-      : null;
+    if (typeof window === "undefined") return;
+
+    const userRaw = localStorage.getItem("hrms_user");
+    let prefix = "/tenant";
+    if (userRaw) {
+      try {
+        const u = JSON.parse(userRaw);
+        if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
+          prefix = "/hr";
+        } else if (u.roles?.includes("employee")) {
+          prefix = "/me";
+        }
+      } catch {}
+    }
 
     // Handle Group Call Acceptance
     if (call.isGroup) {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("hrms:global-group-call-accepted", {
-            detail: call,
-          })
-        );
-
-        const userRaw = localStorage.getItem("hrms_user");
-        let prefix = "/tenant";
-        if (userRaw) {
-          try {
-            const u = JSON.parse(userRaw);
-            if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
-              prefix = "/hr";
-            } else if (u.roles?.includes("employee")) {
-              prefix = "/me";
-            }
-          } catch {}
-        }
-
-        if (!window.location.pathname.includes("/chat")) {
-          window.location.href = `${prefix}/chat?groupId=${encodeURIComponent(call.groupId || "")}&meetingCallId=${encodeURIComponent(call.callId)}&autoJoin=true`;
-        }
-      }
-      return;
-    }
-
-    // Handle 1:1 or Mid-call Colleague Call Acceptance
-    if (token) {
-      fetch(`/api/calls/${encodeURIComponent(call.callId)}/accept`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      }).catch(() => {});
-
-      // Also call accept-invitation if this was an in-call mid-call invite
-      fetch(`/api/calls/${encodeURIComponent(call.callId)}/accept-invitation`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      }).catch(() => {});
-    }
-
-    try {
-      const socket = getSocketClient();
-      if (socket) {
-        socket.emit("call:accept", {
-          callId: call.callId,
-          targetUserId: call.callerId,
-        });
-      }
-    } catch {}
-
-    if (typeof window !== "undefined") {
+      (window as any).__HRMS_PENDING_ACCEPTED_GROUP_CALL__ = call;
       window.dispatchEvent(
-        new CustomEvent("hrms:global-call-accepted", {
+        new CustomEvent("hrms:global-group-call-accepted", {
           detail: call,
         })
       );
 
-      const userRaw = localStorage.getItem("hrms_user");
-      let prefix = "/tenant";
-      if (userRaw) {
-        try {
-          const u = JSON.parse(userRaw);
-          if (u.roles?.includes("hr_admin") || u.roles?.includes("admin")) {
-            prefix = "/hr";
-          } else if (u.roles?.includes("employee")) {
-            prefix = "/me";
-          }
-        } catch {}
-      }
-
       if (!window.location.pathname.includes("/chat")) {
-        window.location.href = `${prefix}/chat?callId=${encodeURIComponent(call.callId)}&autoAnswer=true`;
+        window.location.href = `${prefix}/chat?groupId=${encodeURIComponent(call.groupId || "")}&meetingCallId=${encodeURIComponent(call.callId)}&autoJoin=true`;
       }
+      return;
+    }
+
+    // Handle 1:1 or Mid-call Colleague Call Acceptance:
+    // Store pending call on window (in case we navigate to /chat) AND dispatch event for mounted UnifiedChatApp.
+    // UnifiedChatApp creates RTCPeerConnection + local tracks FIRST and then emits call:accept / POST /calls/:id/accept.
+    (window as any).__HRMS_PENDING_ACCEPTED_CALL__ = call;
+    window.dispatchEvent(
+      new CustomEvent("hrms:global-call-accepted", {
+        detail: call,
+      })
+    );
+
+    if (!window.location.pathname.includes("/chat")) {
+      window.location.href = `${prefix}/chat?callId=${encodeURIComponent(call.callId)}&autoAnswer=true`;
     }
   }, [incomingCall, stopCallAlert]);
 
@@ -540,19 +515,9 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     stopCallAlert();
     setIncomingCall(null);
 
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
-      : null;
-
+    const token = getAuthToken();
     if (token) {
-      fetch(`/api/calls/${encodeURIComponent(call.callId)}/reject`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ reason }),
-      }).catch(() => {});
+      api.post(`/calls/${encodeURIComponent(call.callId)}/reject`, { reason }).catch(() => {});
     }
 
     try {
@@ -579,7 +544,7 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return;
 
     let socket: any = null;
-    const authToken = localStorage.getItem("hrms_auth_token");
+    const authToken = getAuthToken();
     if (!isSocketDisabled() && authToken) {
       try {
         socket = getSocketClient();
@@ -665,15 +630,49 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
     };
     window.addEventListener("hrms:pusher", handlePusherEvent);
 
-    const handleSwMessage = (event: MessageEvent) => {
+    const handleSwMessage = async (event: MessageEvent) => {
       const data = event.data;
       if (!data) return;
-      if (data.type === "CALL_INCOMING") handleIncomingCallEvent(data.payload);
-      if (data.type === "CALL_CANCELLED") handleCallCancelledEvent(data.payload);
-      if (data.type === "CALL_ACCEPTED_ON_DEVICE") {
-        acceptCall();
+      if (data.type === "CALL_INCOMING" || data.type === "CALL_INCOMING_PUSH") {
+        handleIncomingCallEvent(data.payload || data);
       }
-      if (data.type === "CALL_DECLINED_ON_DEVICE") {
+      if (data.type === "CALL_CANCELLED" || data.type === "CALL_CANCELLED_PUSH") {
+        handleCallCancelledEvent(data.payload || data);
+      }
+      if (data.type === "CALL_ACCEPTED_ON_DEVICE") {
+        const callPayload = data.payload || incomingCallRef.current;
+        if (callPayload && !incomingCallRef.current) {
+          handleIncomingCallEvent(callPayload);
+        }
+        // Verify microphone & camera access BEFORE accepting from notification (Item 4)
+        const activeCall = incomingCallRef.current || callPayload;
+        if (activeCall) {
+          const isVid = String(activeCall.callType || "audio").toLowerCase() === "video";
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: true,
+              video: isVid,
+            });
+            (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ = {
+              callId: activeCall.callId,
+              stream,
+              createdAt: Date.now(),
+            };
+            if (!(window as any).__HRMS_ACTIVE_MEDIA_STREAMS__) {
+              (window as any).__HRMS_ACTIVE_MEDIA_STREAMS__ = new Set();
+            }
+            (window as any).__HRMS_ACTIVE_MEDIA_STREAMS__.add(stream);
+            acceptCall();
+          } catch {
+            toast.error(
+              isVid
+                ? "Please allow Camera and Microphone permissions to answer the video call."
+                : "Please allow Microphone permission to answer the audio call."
+            );
+          }
+        }
+      }
+      if (data.type === "CALL_DECLINED_ON_DEVICE" || data.type === "CALL_ACTION_REJECT") {
         rejectCall("declined_via_notification");
       }
     };
@@ -707,23 +706,16 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
   }, [handleIncomingCallEvent, handleGroupIncoming, handleCallCancelledEvent, handleAnsweredElsewhere, stopCallAlert, acceptCall, rejectCall]);
 
   const checkPendingCall = useCallback(async () => {
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("hrms_auth_token") || localStorage.getItem("auth_token") || localStorage.getItem("token"))
-      : null;
+    const token = getAuthToken();
     if (!token) return;
 
     try {
-      const res = await fetch("/api/calls/pending", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const body = await res.json();
-        if (body?.success && body?.hasPendingCall && body?.data) {
-          handleIncomingCallEvent(body.data);
-        } else if (body?.success && !body?.hasPendingCall && incomingCallRef.current) {
-          stopCallAlert();
-          setIncomingCall(null);
-        }
+      const body = await api.get<any>("/calls/pending");
+      if (body?.success && body?.hasPendingCall && body?.data) {
+        handleIncomingCallEvent(body.data);
+      } else if (body?.success && !body?.hasPendingCall && incomingCallRef.current) {
+        stopCallAlert();
+        setIncomingCall(null);
       }
     } catch {}
   }, [handleIncomingCallEvent, stopCallAlert]);

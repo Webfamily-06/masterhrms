@@ -157,9 +157,13 @@ self.addEventListener("push", (event) => {
         .then((clients) => {
           clients.forEach((client) => {
             client.postMessage({
-              type: "CALL_CANCELLED_PUSH",
+              type: "CALL_CANCELLED",
               callId,
               reason: payload.reason || "cancelled",
+              payload: {
+                callId,
+                reason: payload.reason || "cancelled",
+              },
             });
           });
         })
@@ -218,13 +222,14 @@ self.addEventListener("push", (event) => {
         .then((clients) => {
           clients.forEach((client) => {
             client.postMessage({
-              type: "CALL_INCOMING_PUSH",
+              type: "CALL_INCOMING",
               callId,
-              callerId: payload.callerId,
+              callerId: options.data.callerId,
               callerName,
-              callerAvatar: payload.callerAvatar,
+              callerAvatar: options.data.callerAvatar,
               callType,
               actionUrl,
+              payload: options.data,
             });
           });
         })
@@ -294,7 +299,7 @@ self.addEventListener("notificationclick", (event) => {
         .matchAll({ type: "window", includeUncontrolled: true })
         .then((clients) => {
           clients.forEach((c) => {
-            c.postMessage({ type: "CALL_ACTION_REJECT", callId });
+            c.postMessage({ type: "CALL_DECLINED_ON_DEVICE", callId });
           });
           return fetch(`/api/calls/${encodeURIComponent(callId)}/reject`, {
             method: "POST",
@@ -322,13 +327,21 @@ self.addEventListener("notificationclick", (event) => {
         for (const client of clientList) {
           if ("focus" in client) {
             client.focus();
-            client.postMessage({
-              type: "NOTIFICATION_CLICK_NAVIGATE",
-              callId,
-              targetPath,
-              actionUrl: targetPath,
-              data,
-            });
+            if (action === "accept" && callId) {
+              client.postMessage({
+                type: "CALL_ACCEPTED_ON_DEVICE",
+                callId,
+                payload: data,
+              });
+            } else {
+              client.postMessage({
+                type: "NOTIFICATION_CLICK_NAVIGATE",
+                callId,
+                targetPath,
+                actionUrl: targetPath,
+                data,
+              });
+            }
 
             // If the client is not currently on targetPath, navigate
             const clientUrl = new URL(client.url);
