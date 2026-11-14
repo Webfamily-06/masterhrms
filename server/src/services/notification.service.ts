@@ -1,3 +1,4 @@
+import { trackBackgroundTask } from "../lib/background-tasks";
 import { getTenantDb, getTenantContext } from "../context/tenant-context";
 import { rawPrisma } from "../prisma";
 import { getIO } from "../socket";
@@ -297,3 +298,8 @@ export class NotificationService {
     });
   }
 }
+
+// Serverless-safe: Web Push delivery is fire-and-forget at call sites; track it for the current request.
+const originalDispatchWebPush = NotificationService.dispatchWebPush.bind(NotificationService);
+NotificationService.dispatchWebPush = ((tenantId: string, userId: string, payload: any) =>
+  trackBackgroundTask(originalDispatchWebPush(tenantId, userId, payload))) as typeof NotificationService.dispatchWebPush;

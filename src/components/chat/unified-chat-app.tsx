@@ -12,11 +12,11 @@
  *    - Pusher: High-availability secondary/fallback transport for call invitations,
  *      missed calls, background notifications, and offline event delivery.
  * 3. Group & Multi-Participant Calling Architecture:
- *    - 1-to-1 and multi-party meetings use pure peer-to-peer WebRTC Mesh with STUN/TURN.
- * 4. NAT Traversal & Production Relay:
- *    - STUN (stun:stun.l.google.com:19302) resolves public IP mapping for direct P2P.
- *    - Symmetric NAT/strict enterprise firewalls require TURN relay servers (e.g., Coturn,
- *      Twilio Network Traversal, or Cloudflare Calls).
+ *    - 1-to-1 and multi-party meetings use pure peer-to-peer WebRTC Mesh (free, STUN only).
+ * 4. NAT Traversal (free, no third-party relay):
+ *    - Free public Google STUN servers resolve public IP mappings for direct P2P.
+ *    - No TURN relay is used, so networks that block peer-to-peer UDP (strict symmetric NAT /
+ *      enterprise firewalls) cannot connect media.
  * 5. Mobile Picture-in-Picture (PiP):
  *    - Handled via HTML5 Video element requestPictureInPicture API where supported by
  *      mobile browsers; full OS-level background PiP requires native React Native / Swift / Kotlin wrappers.
@@ -2581,7 +2581,7 @@ export function UnifiedChatApp({
         stream = verified.stream;
         (window as any).__HRMS_VERIFIED_CALLEE_STREAM__ = null;
       } else {
-        stream = await navigator.mediaDevices.getUserMedia(mediaConstraints(meetingData.callType === "video"));
+        stream = await acquireCallMediaStream(meetingData.callType === "video");
       }
       registerActiveMediaStream(stream);
       meetingLocalStreamRef.current = stream;
@@ -2755,12 +2755,16 @@ export function UnifiedChatApp({
     if (activeMeeting) {
       const durationSeconds = Math.max(1, Math.round((Date.now() - activeMeeting.startedAt) / 1000));
       const socket = getSocketClient();
-      if (socket) {
+      if (socket?.connected) {
         socket.emit("group-call:leave", {
           callId: activeMeeting.callId,
           durationSeconds,
         });
       }
+      // REST is authoritative on serverless deployments where Socket.IO is unavailable
+      api
+        .post(`/api/chat/meetings/${encodeURIComponent(activeMeeting.callId)}/leave`, { durationSeconds })
+        .catch(() => {});
     }
     cleanUpMeetingMedia();
     toast.info("You left the meeting.");
@@ -2786,12 +2790,15 @@ export function UnifiedChatApp({
   const handleMeetingRemoveParticipant = (targetUserId: string) => {
     if (!activeMeeting) return;
     const socket = getSocketClient();
-    if (socket) {
+    if (socket?.connected) {
       socket.emit("group-call:remove_participant", {
         callId: activeMeeting.callId,
         targetUserId,
       });
     }
+    api
+      .post(`/api/chat/meetings/${encodeURIComponent(activeMeeting.callId)}/remove`, { targetUserId })
+      .catch(() => {});
     setMeetingParticipants((prev) => prev.filter((p) => p.userId !== targetUserId));
     toast.info("Participant removed from meeting.");
   };
@@ -2807,7 +2814,7 @@ export function UnifiedChatApp({
     }
     api
       .post(`/api/chat/meetings/${encodeURIComponent(activeMeeting.callId)}/invite`, {
-        targetUserIds,
+        userIds: targetUserIds,
       })
       .catch(() => {});
     toast.success(`Ringing ${targetUserIds.length} colleague${targetUserIds.length > 1 ? "s" : ""}...`);
@@ -2950,8 +2957,35 @@ export function UnifiedChatApp({
     }
   }, [currentUserId, cleanUpMeetingMedia]);
 
+  // Trickle-ICE batching: every relayed signal is an HTTP request + Pusher event on serverless deployments,
+  // so ICE candidates gathered within 250ms are coalesced into a single `candidates` signal.
+  const pendingIceBatchesRef = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; candidates: any[] }>>(new Map());
+
   const emitWebRtcSignal = useCallback((targetUserId: string, callId: string, signal: any) => {
     if (!targetUserId || !callId || !signal) return;
+    if (signal.type === "candidate" && signal.candidate && !signal._batched) {
+      const key = `${callId}::${targetUserId}`;
+      const candidateJson =
+        typeof signal.candidate?.toJSON === "function" ? signal.candidate.toJSON() : signal.candidate;
+      const existing = pendingIceBatchesRef.current.get(key);
+      if (existing) {
+        existing.candidates.push(candidateJson);
+        return;
+      }
+      const entry = {
+        candidates: [candidateJson],
+        timer: setTimeout(() => {
+          pendingIceBatchesRef.current.delete(key);
+          emitWebRtcSignal(targetUserId, callId, {
+            type: "candidates",
+            candidates: entry.candidates,
+            _batched: true,
+          });
+        }, 250),
+      };
+      pendingIceBatchesRef.current.set(key, entry);
+      return;
+    }
     const enrichedSignal = signal._sid
       ? signal
       : { ...signal, _sid: `sig_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
@@ -3027,6 +3061,17 @@ export function UnifiedChatApp({
             } catch {}
           } else {
             candidateQueue.push(signal.candidate);
+          }
+        } else if (signal.type === "candidates" && Array.isArray(signal.candidates)) {
+          for (const cand of signal.candidates) {
+            if (!cand) continue;
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch {}
+            } else {
+              candidateQueue.push(cand);
+            }
           }
         }
       } catch (err) {
@@ -5437,6 +5482,24 @@ export function UnifiedChatApp({
       .catch(() => {});
     setIncomingCall(null);
   };
+
+  // Serverless-safe liveness heartbeat: lets the backend distinguish real in-progress calls from
+  // zombie sessions (lost hang-ups) so new calls are never blocked with "User is currently on another call".
+  useEffect(() => {
+    const directCallId =
+      activeCallModalOpen && activeCallId && callStatus !== "ended" ? activeCallId : null;
+    const meetingCallId = isMeetingOpen && activeMeeting?.callId ? activeMeeting.callId : null;
+    const ids = [directCallId, meetingCallId].filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    const beat = () => {
+      ids.forEach((id) => {
+        api.post(`/api/calls/${encodeURIComponent(id)}/heartbeat`, {}).catch(() => {});
+      });
+    };
+    beat();
+    const timer = setInterval(beat, 20000);
+    return () => clearInterval(timer);
+  }, [activeCallModalOpen, activeCallId, callStatus, isMeetingOpen, activeMeeting?.callId]);
 
   // Global Call Acceptance & URL callId Sync
   useEffect(() => {

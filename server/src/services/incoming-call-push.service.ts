@@ -1,3 +1,4 @@
+import { trackBackgroundTask } from "../lib/background-tasks";
 import { VapidService } from "./vapid.service";
 import { PushSubscriptionStore, StoredPushSubscription } from "./push-subscription.store";
 
@@ -166,3 +167,11 @@ export class IncomingCallPushService {
     return { attempts: subscriptions.length, successful, failed, sentCount: successful };
   }
 }
+
+// Serverless-safe: keep Web Push deliveries alive until they settle, even when callers fire-and-forget.
+const originalSendIncomingCallPush = IncomingCallPushService.sendIncomingCallPush.bind(IncomingCallPushService);
+const originalSendCallCancelledPush = IncomingCallPushService.sendCallCancelledPush.bind(IncomingCallPushService);
+IncomingCallPushService.sendIncomingCallPush = ((session: Parameters<typeof originalSendIncomingCallPush>[0]) =>
+  trackBackgroundTask(originalSendIncomingCallPush(session))) as typeof IncomingCallPushService.sendIncomingCallPush;
+IncomingCallPushService.sendCallCancelledPush = ((session: Parameters<typeof originalSendCallCancelledPush>[0]) =>
+  trackBackgroundTask(originalSendCallCancelledPush(session))) as typeof IncomingCallPushService.sendCallCancelledPush;

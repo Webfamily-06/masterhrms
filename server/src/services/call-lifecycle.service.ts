@@ -35,6 +35,145 @@ export class CallLifecycleService {
     return rawPrisma || prisma;
   }
 
+  /** A participant without a heartbeat for this long is considered disconnected (serverless-safe busy detection). */
+  static readonly HEARTBEAT_STALE_MS = 75_000;
+  private static readonly LIVE_PARTICIPANT_STATES = ["RINGING", "JOINED", "RECONNECTING"];
+
+  private static lastActivityMs(call: any, userId: string): number {
+    const meta = call?.metadata && typeof call.metadata === "object" ? (call.metadata as any) : null;
+    const hb = Number(meta?.heartbeats?.[userId]);
+    if (Number.isFinite(hb) && hb > 0) return hb;
+    return new Date(call.answeredAt || call.startedAt).getTime();
+  }
+
+  /**
+   * Records a liveness heartbeat for a participant of a direct call or group meeting.
+   * Uses an atomic JSONB merge so concurrent heartbeats from different participants never clobber each other.
+   */
+  static async recordHeartbeat(params: { tenantId: string; callId: string; userId: string }) {
+    const { tenantId, callId, userId } = params;
+    const db = this.db();
+    const call = await db.call.findFirst({
+      where: {
+        tenantId,
+        status: { in: ["RINGING", "ACTIVE"] },
+        OR: [{ id: callId }, { roomKey: callId }, { roomKey: `group_meeting:${callId}` }],
+      },
+      select: { id: true, status: true, participants: { where: { userId }, select: { id: true, state: true } } },
+    });
+    if (!call || call.participants.length === 0) {
+      return { ok: false, active: false };
+    }
+    const now = Date.now();
+    await db.$executeRaw`
+      UPDATE "calls"
+      SET "metadata" = COALESCE(NULLIF("metadata", 'null'::jsonb), '{}'::jsonb)
+        || jsonb_build_object(
+          'heartbeats',
+          COALESCE(NULLIF("metadata", 'null'::jsonb)->'heartbeats', '{}'::jsonb)
+            || jsonb_build_object(${userId}::text, ${now}::bigint)
+        )
+      WHERE "id" = ${call.id}
+    `;
+    return { ok: true, active: true, status: call.status, participantState: call.participants[0].state };
+  }
+
+  /**
+   * Serverless-safe stale session reaper.
+   *
+   * On serverless deployments in-memory timers (ringing timeout, reconnect grace) never fire and
+   * hang-up requests can be lost, leaving Call rows stuck in RINGING/ACTIVE forever. Those zombie
+   * rows made every new call fail with "User is currently on another call". This reaper closes:
+   *  - any open participation of the initiating user (they are clearly not in another call),
+   *  - RINGING calls whose ringing window expired,
+   *  - participants that have not sent a heartbeat within HEARTBEAT_STALE_MS.
+   */
+  static async reapStaleSessions(params: { tenantId: string; initiatorId: string; otherUserIds?: string[] }) {
+    const { tenantId, initiatorId, otherUserIds = [] } = params;
+    const db = this.db();
+    const userIds = Array.from(new Set([initiatorId, ...otherUserIds].filter(Boolean)));
+    if (userIds.length === 0) return { reapedCalls: 0, reapedParticipants: 0 };
+
+    const openCalls = await db.call.findMany({
+      where: {
+        tenantId,
+        status: { in: ["RINGING", "ACTIVE"] },
+        participants: { some: { userId: { in: userIds }, state: { in: this.LIVE_PARTICIPANT_STATES } } },
+      },
+      include: { participants: true },
+    });
+
+    const now = Date.now();
+    let reapedCalls = 0;
+    let reapedParticipants = 0;
+
+    for (const call of openCalls) {
+      const ringingExpired =
+        call.status === "RINGING" && call.ringingExpiresAt && now >= new Date(call.ringingExpiresAt).getTime();
+
+      for (const p of call.participants) {
+        if (!userIds.includes(p.userId) || !this.LIVE_PARTICIPANT_STATES.includes(p.state)) continue;
+        const isInitiator = p.userId === initiatorId;
+        const heartbeatStale = now - this.lastActivityMs(call, p.userId) > this.HEARTBEAT_STALE_MS;
+        if (!(ringingExpired || isInitiator || heartbeatStale)) continue;
+
+        await db.callParticipant
+          .update({
+            where: { id: p.id },
+            data: {
+              state: p.state === "RINGING" ? "MISSED" : "LEFT",
+              leftAt: new Date(),
+              leaveReason: "STALE_SESSION_REAPED",
+            },
+          })
+          .catch(() => {});
+        (p as any).state = p.state === "RINGING" ? "MISSED" : "LEFT";
+        reapedParticipants++;
+      }
+
+      const live = call.participants.filter((p) => this.LIVE_PARTICIPANT_STATES.includes(p.state));
+      const joined = call.participants.filter((p) => ["JOINED", "RECONNECTING"].includes(p.state));
+      const hostLive = live.some((p) => p.role === "HOST");
+      const shouldEndCall =
+        ringingExpired ||
+        live.length === 0 ||
+        (call.type === "DIRECT" && call.status === "ACTIVE" && joined.length < 2) ||
+        (call.type === "DIRECT" && call.status === "RINGING" && !hostLive);
+
+      if (shouldEndCall) {
+        await db.call
+          .update({
+            where: { id: call.id },
+            data: {
+              status: ringingExpired ? "MISSED" : "ENDED",
+              endedAt: new Date(),
+              endReason: "STALE_SESSION_REAPED",
+            },
+          })
+          .catch(() => {});
+        if (call.historyRecordId) {
+          await db.callHistoryRecord
+            .update({
+              where: { id: call.historyRecordId },
+              data: {
+                status: ringingExpired || !call.answeredAt ? "missed" : "completed",
+                endedAt: new Date(),
+              },
+            })
+            .catch(() => {});
+        }
+        reapedCalls++;
+      }
+    }
+
+    if (reapedCalls > 0 || reapedParticipants > 0) {
+      console.log(
+        `[CallLifecycle] Reaped ${reapedCalls} stale call(s) and ${reapedParticipants} stale participant(s) for tenant ${tenantId}.`
+      );
+    }
+    return { reapedCalls, reapedParticipants };
+  }
+
   /**
    * 1. INITIATE CALL (Atomic 1-on-1 direct session creation)
    */
@@ -70,6 +209,11 @@ export class CallLifecycleService {
     } = params;
 
     const db = this.db();
+
+    // Close zombie sessions left behind by lost hang-ups / frozen serverless timers before the busy check
+    await this.reapStaleSessions({ tenantId, initiatorId: callerId, otherUserIds: [targetUserId] }).catch((err) =>
+      console.warn("[CallLifecycle] Stale session reaper warning:", err?.message)
+    );
 
     // Check if either party is already in an active/ringing call in this tenant
     const busyCall = await db.call.findFirst({

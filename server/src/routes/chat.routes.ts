@@ -22,6 +22,7 @@ import { recordSystemEvent } from "../services/chat-system-events.service";
 import { ChatFolderService } from "../services/files/chat-folder.service";
 import { WebRtcIceService } from "../services/webrtc-ice.service";
 import { IncomingCallPushService } from "../services/incoming-call-push.service";
+import { CallLifecycleService } from "../services/call-lifecycle.service";
 import {
   ChatService,
   ChatDomainError,
@@ -4906,10 +4907,12 @@ chatRouter.post("/calls/bulk-delete", async (req: AuthRequest, res: Response) =>
  * was cleared by a process restart or routed to another backend instance.
  */
 async function resolveOrRecoverGroupMeeting(callId: string, tenantId: string) {
+  // The PostgreSQL Call/CallParticipant rows are authoritative. On serverless deployments every request can
+  // land on a different instance, so an in-memory roster is only used as a cache for media flags and is
+  // always re-synchronised from the database (otherwise peers that joined via another instance never
+  // receive join/leave/signal events and the WebRTC mesh cannot form).
   const existingMem = activeGroupCalls.get(callId);
-  if (existingMem && existingMem.tenantId === tenantId) {
-    return existingMem;
-  }
+  const memForTenant = existingMem && existingMem.tenantId === tenantId ? existingMem : null;
 
   const db = rawPrisma || prisma;
   const dbCall = await db.call
@@ -4923,7 +4926,17 @@ async function resolveOrRecoverGroupMeeting(callId: string, tenantId: string) {
     })
     .catch(() => null);
 
-  if (!dbCall || !dbCall.groupId) return null;
+  if (!dbCall || !dbCall.groupId) {
+    if (memForTenant && dbCall === null) {
+      // Meeting row missing (DB write failed) — fall back to the in-memory session only when it was never persisted.
+      const persisted = await db.call
+        .findFirst({ where: { roomKey: `group_meeting:${callId}`, tenantId }, select: { status: true } })
+        .catch(() => null);
+      if (!persisted) return memForTenant;
+      activeGroupCalls.delete(callId);
+    }
+    return null;
+  }
 
   const group = await db.chatGroup
     .findFirst({
@@ -4948,22 +4961,30 @@ async function resolveOrRecoverGroupMeeting(callId: string, tenantId: string) {
 
   for (const p of dbCall.participants) {
     const prof = profMap.get(p.userId);
-    if (p.state === "JOINED") {
+    if (p.state === "JOINED" || p.state === "RECONNECTING") {
+      const cached = memForTenant?.participants.get(p.userId);
       participants.set(p.userId, {
         userId: p.userId,
-        name: cleanPersonName(prof?.fullName || "Participant"),
-        avatar: prof?.avatarUrl || null,
+        name: cached?.name || cleanPersonName(prof?.fullName || "Participant"),
+        avatar: cached?.avatar ?? prof?.avatarUrl ?? null,
         role: p.role === "HOST" ? "host" : "participant",
         joinedAt: p.joinedAt || dbCall.startedAt,
-        isMuted: false,
-        isCameraOff: dbCall.media === "AUDIO",
-        isScreenSharing: false,
-        isSpeaking: false,
-        socketIds: new Set<string>(),
+        isMuted: cached?.isMuted ?? false,
+        isCameraOff: cached?.isCameraOff ?? dbCall.media === "AUDIO",
+        isScreenSharing: cached?.isScreenSharing ?? false,
+        isSpeaking: cached?.isSpeaking ?? false,
+        socketIds: cached?.socketIds || new Set<string>(),
       });
     } else if (p.state === "INVITED" || p.state === "RINGING") {
       invitedUserIds.add(p.userId);
     }
+  }
+
+  if (memForTenant) {
+    // Mutate the cached object in place so existing references (socket handlers) stay consistent.
+    memForTenant.participants = participants as any;
+    memForTenant.invitedUserIds = invitedUserIds;
+    return memForTenant;
   }
 
   const recovered = {
@@ -5034,19 +5055,24 @@ chatRouter.post("/meetings/start", async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ success: false, error: "You cannot start a meeting for this group." });
     }
 
-    for (const [, call] of activeCalls) {
-      if (
-        call.tenantId === tenantId &&
-        (call.status === "ringing" || call.status === "connected") &&
-        (call.callerId === userId || call.targetUserId === userId)
-      ) {
-        return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in an active call." });
-      }
+    // Serverless-safe busy detection: reap zombie sessions of the host, then trust only the database.
+    await CallLifecycleService.reapStaleSessions({ tenantId, initiatorId: userId }).catch(() => {});
+    const hostBusy = await (rawPrisma || prisma).call.findFirst({
+      where: {
+        tenantId,
+        status: { in: ["RINGING", "ACTIVE"] },
+        participants: { some: { userId, state: { in: ["RINGING", "JOINED", "RECONNECTING"] } } },
+      },
+      select: { id: true },
+    });
+    if (hostBusy) {
+      return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in an active call." });
     }
-
-    for (const [, meeting] of activeGroupCalls) {
+    for (const [mId, meeting] of activeGroupCalls) {
       if (meeting.tenantId === tenantId && meeting.participants.has(userId)) {
-        return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in another meeting." });
+        // Database confirmed the host is free; drop the stale in-memory membership.
+        meeting.participants.delete(userId);
+        if (meeting.participants.size === 0) activeGroupCalls.delete(mId);
       }
     }
 
@@ -5353,7 +5379,8 @@ chatRouter.post("/meetings/:callId/media-state", async (req: AuthRequest, res: R
     const tenantId = req.user?.tenantId || "default";
     const userId = req.user?.userId || "";
     const { callId } = req.params;
-    const { isMuted, isCameraOff, isScreenSharing, isSpeaking } = req.body || {};
+    const { isMuted, isScreenSharing, isSpeaking } = req.body || {};
+    const isCameraOff = typeof req.body?.isCameraOff === "boolean" ? req.body.isCameraOff : req.body?.isVideoOff;
 
     const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
     if (!session || session.tenantId !== tenantId) {
@@ -5401,9 +5428,11 @@ chatRouter.post("/meetings/:callId/invite", async (req: AuthRequest, res: Respon
     const { callId } = req.params;
     const rawUserIds: string[] = Array.isArray(req.body?.userIds)
       ? req.body.userIds
-      : req.body?.targetUserId
-        ? [req.body.targetUserId]
-        : [];
+      : Array.isArray(req.body?.targetUserIds)
+        ? req.body.targetUserIds
+        : req.body?.targetUserId
+          ? [req.body.targetUserId]
+          : [];
 
     if (rawUserIds.length === 0) {
       return res.status(400).json({ error: "userIds array is required." });
@@ -5522,6 +5551,57 @@ chatRouter.post("/meetings/:callId/leave", async (req: AuthRequest, res: Respons
     return res.json({ success: true });
   } catch (err: any) {
     return handleChatError(res, err, "Failed to leave meeting");
+  }
+});
+
+// POST /api/chat/meetings/:callId/remove - Host removes a participant (REST + Pusher parity for serverless)
+chatRouter.post("/meetings/:callId/remove", async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || "";
+    const { callId } = req.params;
+    const targetUserId = String(req.body?.targetUserId || "");
+    if (!targetUserId) return res.status(400).json({ error: "targetUserId is required." });
+
+    const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+    if (!session || session.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Active meeting session not found." });
+    }
+    const isHost =
+      session.creatorId === userId ||
+      req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
+      false;
+    if (!isHost) return res.status(403).json({ error: "Only the meeting host can remove participants." });
+
+    const removed = session.participants.get(targetUserId);
+    session.participants.delete(targetUserId);
+    session.invitedUserIds.delete(targetUserId);
+
+    const db = rawPrisma || prisma;
+    const dbCall = await db.call
+      .findUnique({ where: { roomKey: `group_meeting:${callId}` }, select: { id: true } })
+      .catch(() => null);
+    if (dbCall?.id) {
+      await db.callParticipant
+        .updateMany({
+          where: { callId: dbCall.id, userId: targetUserId },
+          data: { state: "LEFT", leftAt: new Date(), leaveReason: "REMOVED_BY_HOST" },
+        })
+        .catch(() => {});
+    }
+
+    const io = getIO();
+    const removedPayload = { callId, userId: targetUserId, removedBy: userId };
+    io?.to(`user:${targetUserId}`).emit("group-call:removed", removedPayload);
+    void PusherService.triggerUserEvent(tenantId, targetUserId, "group-call:removed", removedPayload).catch(() => {});
+    const leftPayload = { callId, userId: targetUserId, userName: removed?.name || "Participant" };
+    for (const pid of session.participants.keys()) {
+      io?.to(`user:${pid}`).emit("group-call:user_left", leftPayload);
+      void PusherService.triggerUserEvent(tenantId, pid, "group-call:user_left", leftPayload).catch(() => {});
+    }
+    return res.json({ success: true });
+  } catch (err: any) {
+    return handleChatError(res, err, "Failed to remove participant");
   }
 });
 

@@ -142,34 +142,17 @@ async function runMultiParticipantMeetingTests() {
   // ──────────────────────────────────────────────────────────────────────────
   // TEST 1: WebRtcIceService STUN Default Diagnostics
   // ──────────────────────────────────────────────────────────────────────────
-  console.log("▶ [Test 1] WebRtcIceService STUN diagnostics when TURN is unset...");
-  const origTurnSecret = process.env.TURN_SHARED_SECRET;
-  const origTurnUrl = process.env.TURN_SERVER_URL;
-  delete process.env.TURN_SHARED_SECRET;
-  delete process.env.TURN_SERVER_URL;
-
+  console.log("▶ [Test 1] WebRtcIceService free STUN-only configuration (no TURN / paid relay)...");
   const diag = WebRtcIceService.getDiagnostics(userHostId);
   assert.strictEqual(diag.mode, "webrtc_mesh");
   assert.strictEqual(diag.configured, true, "WebRTC Mesh is always operational with STUN");
-  assert.strictEqual(diag.turnConfigured, false);
+  assert.strictEqual(diag.relay, "none");
   const stunOnly = WebRtcIceService.getIceServers(userHostId);
   assert(stunOnly.length >= 1, "Must include STUN servers");
-  console.log("  ✔ Default WebRTC Mesh STUN diagnostics verified.");
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // TEST 2: RFC 7635 Ephemeral HMAC-SHA1 Coturn TURN Credentials
-  // ──────────────────────────────────────────────────────────────────────────
-  console.log("▶ [Test 2] Generates & verifies RFC 7635 ephemeral TURN credentials...");
-  process.env.TURN_SHARED_SECRET = "test_coturn_secret_entropy_12345";
-  process.env.TURN_PUBLIC_HOST = "turn.masterhrms.test";
-
-  const iceWithTurn = WebRtcIceService.getIceServers(userHostId, 3600);
-  const turnEntry = iceWithTurn.find((s) => Boolean(s.username && s.credential));
-  assert(turnEntry, "Must generate ephemeral TURN entry");
-  const verified = WebRtcIceService.verifyTurnCredentials(turnEntry!.username!, turnEntry!.credential!);
-  assert.strictEqual(verified.valid, true, "Generated TURN HMAC-SHA1 credential must verify");
-  assert.strictEqual(verified.userId, userHostId);
-  console.log("  ✔ Ephemeral Coturn TURN credentials generated & verified.");
+  const allUrls = stunOnly.flatMap((s) => (Array.isArray(s.urls) ? s.urls : [s.urls]));
+  assert(allUrls.every((u) => u.startsWith("stun:")), "Only free STUN URLs are allowed (no turn:/turns:)");
+  assert(stunOnly.every((s) => !s.username && !s.credential), "No relay credentials are issued");
+  console.log("  ✔ Free STUN-only ICE configuration verified (zero TURN, zero credentials).");
 
   // ──────────────────────────────────────────────────────────────────────────
   // TEST 3: Multi-Party Socket.IO & Pusher Handshake and Lifecycle
@@ -326,19 +309,10 @@ async function runMultiParticipantMeetingTests() {
     m2Client.disconnect();
     extClient.disconnect();
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // TEST 4: Tampered TURN Signature Rejection
-    // ──────────────────────────────────────────────────────────────────────────
-    console.log("▶ [Test 4] Tampered TURN HMAC-SHA1 signature rejected...");
-    const tampered = WebRtcIceService.verifyTurnCredentials(`${Math.floor(Date.now() / 1000) + 600}:attacker`, "forged_sig");
-    assert.strictEqual(tampered.valid, false, "Tampered TURN credential must be rejected");
-    console.log("  ✔ Tampered TURN credential rejected safely.");
   } finally {
     if (server) {
       await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
-    if (origTurnSecret) process.env.TURN_SHARED_SECRET = origTurnSecret; else delete process.env.TURN_SHARED_SECRET;
-    if (origTurnUrl) process.env.TURN_SERVER_URL = origTurnUrl; else delete process.env.TURN_SERVER_URL;
   }
 
   console.log("\n================================================================================");

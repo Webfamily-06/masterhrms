@@ -213,8 +213,6 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
     }
 
     const db = rawPrisma || prisma;
-    const now = Date.now();
-    const sixtySecondsAgo = new Date(now - 60000);
 
     // Idempotency guard: if Socket.IO `call:invite` already registered this exact `callId`, do not create a duplicate DB session
     if (passedCallId) {
@@ -241,74 +239,7 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
       }
     }
 
-    // Busy check: in-memory and database
-    let busyUserId: string | null = null;
-    for (const [, session] of activeCalls) {
-      if (
-        session.tenantId === tenantId &&
-        (session.status === "ringing" || session.status === "connected") &&
-        (session.callerId === resolvedTargetId || session.targetUserId === resolvedTargetId ||
-          session.callerId === callerId || session.targetUserId === callerId)
-      ) {
-        busyUserId = (session.callerId === resolvedTargetId || session.targetUserId === resolvedTargetId)
-          ? resolvedTargetId
-          : callerId;
-        break;
-      }
-    }
-
-    if (!busyUserId) {
-      const activeDbCall = await db.callHistoryRecord.findFirst({
-        where: {
-          tenantId,
-          status: { in: ["ringing", "connected"] },
-          startedAt: { gte: sixtySecondsAgo },
-          OR: [
-            { callerId: resolvedTargetId },
-            { receiverId: resolvedTargetId },
-            { callerId },
-            { receiverId: callerId },
-          ],
-        },
-      });
-      if (activeDbCall) {
-        busyUserId = (activeDbCall.callerId === resolvedTargetId || activeDbCall.receiverId === resolvedTargetId)
-          ? resolvedTargetId
-          : callerId;
-      }
-    }
-
     const callId = passedCallId || "call_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
-
-    if (busyUserId) {
-      const busyPayload = {
-        callId,
-        targetUserId: resolvedTargetId,
-        busyUserId,
-        reason: busyUserId === resolvedTargetId
-          ? "User is currently on another call."
-          : "You are already in another call.",
-      };
-
-      const io = getIO();
-      if (busyUserId === resolvedTargetId) {
-        const recipientNotice = {
-          ...busyPayload,
-          requestedBy: callerId,
-          requestedByName: req.user!.email || "A colleague",
-          reason: "Another incoming call was blocked because you are already in a call.",
-        };
-        io?.to("user:" + resolvedTargetId).emit("call:busy", recipientNotice);
-        void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:busy", recipientNotice).catch(() => { });
-      }
-
-      return res.status(409).json({
-        success: false,
-        busy: true,
-        busyUserId,
-        error: busyPayload.reason,
-      });
-    }
 
     // Lookup caller and target profiles for display
     const [callerUser, targetUser] = await Promise.all([
@@ -322,7 +253,10 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
     const targetAvatar = targetUser?.profile?.avatarUrl || null;
     const finalThreadId = threadId || "direct_" + [callerId, resolvedTargetId].sort().join("_");
 
-    // 1. Authoritative CallSession creation (Atomic Call, CallParticipant, CallEvent, CallHistoryRecord)
+    // 1. Authoritative CallSession creation (Atomic Call, CallParticipant, CallEvent, CallHistoryRecord).
+    // The lifecycle service reaps zombie sessions (lost hang-ups / frozen serverless timers) and then performs
+    // the authoritative database busy check. In-memory registries are NOT trusted for busy detection because
+    // serverless instances never share or expire them reliably.
     let lifecycleSession: any = null;
     try {
       lifecycleSession = await CallLifecycleService.createCallSession({
@@ -340,6 +274,31 @@ callRouter.post("/invite", requireAuth, async (req: AuthRequest, res: Response) 
         roomKey: callId,
       });
     } catch (err: any) {
+      if (err instanceof CallConflictError) {
+        const busyUserId = /You are already/i.test(err.message) ? callerId : resolvedTargetId;
+        const busyPayload = {
+          callId,
+          targetUserId: resolvedTargetId,
+          busyUserId,
+          reason: err.message,
+        };
+        if (busyUserId === resolvedTargetId) {
+          const recipientNotice = {
+            ...busyPayload,
+            requestedBy: callerId,
+            requestedByName: callerName,
+            reason: "Another incoming call was blocked because you are already in a call.",
+          };
+          getIO()?.to("user:" + resolvedTargetId).emit("call:busy", recipientNotice);
+          void PusherService.triggerUserEvent(tenantId, resolvedTargetId, "call:busy", recipientNotice).catch(() => { });
+        }
+        return res.status(409).json({
+          success: false,
+          busy: true,
+          busyUserId,
+          error: err.message,
+        });
+      }
       console.warn("[CallRoutes] Lifecycle session creation fallback:", err.message);
       await db.callHistoryRecord.create({
         data: {
@@ -575,13 +534,19 @@ callRouter.post("/:callId/media-state", requireAuth, async (req: AuthRequest, re
         where: { tenantId, OR: [{ id: callId }, { roomKey: callId }] },
         include: { participants: true },
       });
-      if (!dbCall || !dbCall.participants.some((p: any) => p.userId === userId)) {
-        return res.status(403).json({ success: false, error: "Call not found or unauthorized" });
-      }
-      for (const p of dbCall.participants) {
-        if (p.userId !== userId && ["JOINED", "RINGING", "INVITED", "RECONNECTING"].includes(p.state)) {
-          recipientIds.add(p.userId);
+      if (dbCall && dbCall.participants.some((p: any) => p.userId === userId)) {
+        for (const p of dbCall.participants) {
+          if (p.userId !== userId && ["JOINED", "RINGING", "INVITED", "RECONNECTING"].includes(p.state)) {
+            recipientIds.add(p.userId);
+          }
         }
+      } else {
+        const hist = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } }).catch(() => null);
+        if (!hist || (hist.callerId !== userId && hist.receiverId !== userId)) {
+          return res.status(403).json({ success: false, error: "Call not found or unauthorized" });
+        }
+        const peer = hist.callerId === userId ? hist.receiverId : hist.callerId;
+        if (peer) recipientIds.add(peer);
       }
     }
 
@@ -806,11 +771,26 @@ callRouter.post("/:callId/accept", requireAuth, async (req: AuthRequest, res: Re
           code: err.code,
         });
       } else if (err instanceof CallNotFoundError) {
-        return res.status(404).json({
-          success: false,
-          error: err.message,
-          code: err.code,
-        });
+        // Legacy / degraded sessions that only exist as a CallHistoryRecord: still connect the call so
+        // the caller receives `call:accepted` and starts WebRTC negotiation instead of hanging forever.
+        const db = rawPrisma || prisma;
+        const hist = await db.callHistoryRecord
+          .findFirst({ where: { tenantId, callSessionId: callId } })
+          .catch(() => null);
+        if (!hist || hist.receiverId !== userId || !["ringing", "connected"].includes(String(hist.status))) {
+          return res.status(404).json({
+            success: false,
+            error: err.message,
+            code: err.code,
+          });
+        }
+        const answeredAt = new Date();
+        await db.callHistoryRecord
+          .update({ where: { id: hist.id }, data: { status: "connected", answeredAt } as any })
+          .catch(() =>
+            db.callHistoryRecord.update({ where: { id: hist.id }, data: { status: "connected" } }).catch(() => {})
+          );
+        acceptResult = { call: { startedBy: hist.callerId, answeredAt, threadId: hist.groupId } };
       } else {
         throw err;
       }
@@ -1023,26 +1003,60 @@ callRouter.post("/:callId/cancel", requireAuth, async (req: AuthRequest, res: Re
     const userId = req.user!.userId || (req.user as any).id;
     const tenantId = req.user!.tenantId!;
 
+    const db = rawPrisma || prisma;
+
+    // Resolve every peer from the authoritative database BEFORE state changes (serverless instances do not
+    // share the in-memory registry, so relying on it meant callees were never told the caller hung up).
+    const peerTargetSet = new Set<string>();
+    const session = activeCalls.get(callId);
+    if (session && session.tenantId === tenantId) {
+      for (const id of getActiveCallParticipantIds(session)) if (id !== userId) peerTargetSet.add(id);
+    }
+    const dbCallBefore = await db.call
+      .findFirst({ where: { tenantId, OR: [{ id: callId }, { roomKey: callId }] }, include: { participants: true } })
+      .catch(() => null);
+    if (dbCallBefore) {
+      for (const p of dbCallBefore.participants) {
+        if (p.userId !== userId && ["JOINED", "RINGING", "INVITED", "RECONNECTING"].includes(p.state)) peerTargetSet.add(p.userId);
+      }
+    } else {
+      const hist = await db.callHistoryRecord.findFirst({ where: { tenantId, callSessionId: callId } }).catch(() => null);
+      if (hist) {
+        if (hist.callerId && hist.callerId !== userId) peerTargetSet.add(hist.callerId);
+        if (hist.receiverId && hist.receiverId !== userId) peerTargetSet.add(hist.receiverId);
+        if (hist.status === "ringing" || hist.status === "connected") {
+          await db.callHistoryRecord
+            .update({ where: { id: hist.id }, data: { status: "cancelled", endedAt: new Date() } })
+            .catch(() => {});
+        }
+      }
+    }
+    const peerTargets = Array.from(peerTargetSet);
+
     let cancelledCall: any = null;
-    try {
-      cancelledCall = await CallLifecycleService.cancelCallTransaction({
-        tenantId,
-        callId,
-        callerId: userId,
-        reason: "Caller cancelled",
-      });
-    } catch (err: any) {
-      if (err instanceof CallForbiddenError) {
-        return res.status(403).json({ success: false, error: err.message, code: err.code });
+    if (dbCallBefore) {
+      try {
+        cancelledCall = await CallLifecycleService.cancelCallTransaction({
+          tenantId,
+          callId,
+          callerId: userId,
+          reason: "Caller cancelled",
+        });
+      } catch (err: any) {
+        if (err instanceof CallForbiddenError && !peerTargets.length) {
+          return res.status(403).json({ success: false, error: err.message, code: err.code });
+        }
+        // Call already answered (ACTIVE) or otherwise not cancellable: terminate it instead so both sides close cleanly.
+        await CallLifecycleService.terminateCallTransaction({
+          tenantId,
+          callId,
+          actorId: userId,
+          endReason: "CANCELLED",
+          finalHistoryStatus: "cancelled",
+        }).catch(() => { });
       }
-      if (err instanceof CallNotFoundError) {
-        return res.status(404).json({ success: false, error: err.message, code: err.code });
-      }
-      throw err;
     }
 
-    const session = activeCalls.get(callId);
-    const peerTargets = session ? getActiveCallParticipantIds(session).filter((id) => id !== userId) : [];
     if (session) {
       if (session.timeoutTimer) {
         clearTimeout(session.timeoutTimer);
@@ -1291,6 +1305,20 @@ callRouter.post("/:callId/reconnect", requireAuth, async (req: AuthRequest, res:
   }
 });
 
+// POST /api/calls/:callId/heartbeat - Participant liveness (direct calls & group meetings) for
+// serverless-safe busy detection and zombie session reaping.
+callRouter.post("/:callId/heartbeat", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { callId } = req.params;
+    const userId = req.user!.userId || (req.user as any).id;
+    const tenantId = req.user!.tenantId!;
+    const result = await CallLifecycleService.recordHeartbeat({ tenantId, callId, userId });
+    return res.json({ success: true, ...result });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message || "Failed to record heartbeat" });
+  }
+});
+
 // POST /api/calls/:callId/invite-colleague - In-Call Colleague Direct Ringing (WebRTC P2P Mesh)
 callRouter.post("/:callId/invite-colleague", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -1488,7 +1516,7 @@ callRouter.post("/:callId/accept-invitation", requireAuth, async (req: AuthReque
 
 /**
  * GET /api/calls/ice-servers
- * Returns server-authoritative ICE servers (STUN + RFC 7635 ephemeral Coturn TURN credentials)
+ * Returns free public STUN ICE servers (no TURN relay, no third-party provider)
  * Scoped to the authenticated user for WebRTC P2P & Mesh calls.
  */
 callRouter.get(

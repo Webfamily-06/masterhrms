@@ -55,25 +55,65 @@ export class VapidService {
   }
 
   /**
+   * Normalizes a Base64URL key copied from dashboards/.env files (strips quotes, whitespace, padding).
+   */
+  private static sanitizeKey(raw: string | undefined): string {
+    return (raw || "")
+      .trim()
+      .replace(/^['"]+|['"]+$/g, "")
+      .replace(/\\n/g, "")
+      .replace(/\s+/g, "")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+
+  /**
    * Resolves or initializes VAPID keys from environment or deterministic seed.
+   * The public key is always derived from the private key so a mismatched / malformed
+   * VAPID_PUBLIC_KEY can never produce "Invalid JWK EC key" signing failures.
    */
   public static getVapidKeys(): VapidKeys {
     if (this.cachedKeys) {
       return this.cachedKeys;
     }
 
-    let pub = process.env.VAPID_PUBLIC_KEY?.trim() || "";
-    let priv = process.env.VAPID_PRIVATE_KEY?.trim() || "";
-    const subject = process.env.VAPID_SUBJECT?.trim() || "mailto:support@masterhrms.com";
+    let pub = this.sanitizeKey(process.env.VAPID_PUBLIC_KEY);
+    let priv = this.sanitizeKey(process.env.VAPID_PRIVATE_KEY);
+    const subject = (process.env.VAPID_SUBJECT || "").trim().replace(/^['"]+|['"]+$/g, "") || "mailto:support@masterhrms.com";
 
-    if (!pub || !priv) {
+    let privBytes: Buffer | null = null;
+    if (priv) {
+      const decoded = fromBase64Url(priv);
+      if (decoded.length === 32) {
+        privBytes = decoded;
+      } else if (decoded.length > 32) {
+        // Some generators export the private scalar with a leading 0x00 byte or as DER; keep the last 32 bytes.
+        privBytes = decoded.subarray(decoded.length - 32);
+      } else {
+        console.warn("[VapidService] VAPID_PRIVATE_KEY is not a 32-byte P-256 scalar; using deterministic fallback key.");
+      }
+    }
+
+    if (!privBytes) {
       // Deterministic fallback keypair derived from JWT_SECRET for test & local environments
       const seedSource = process.env.JWT_SECRET || "master-hrms-vapid-fallback-seed-2026";
-      const seedHash = crypto.createHash("sha256").update(`VAPID_SEED_${seedSource}`).digest();
+      privBytes = crypto.createHash("sha256").update(`VAPID_SEED_${seedSource}`).digest();
+    }
+
+    try {
       const ecdh = crypto.createECDH("prime256v1");
-      ecdh.setPrivateKey(seedHash);
-      if (!pub) pub = toBase64Url(ecdh.getPublicKey());
-      if (!priv) priv = toBase64Url(seedHash);
+      ecdh.setPrivateKey(privBytes);
+      const derivedPub = toBase64Url(ecdh.getPublicKey());
+      if (pub && pub !== derivedPub) {
+        console.warn(
+          "[VapidService] VAPID_PUBLIC_KEY does not match VAPID_PRIVATE_KEY; using the public key derived from the private key. Browsers will re-subscribe automatically."
+        );
+      }
+      pub = derivedPub;
+      priv = toBase64Url(privBytes);
+    } catch (err: any) {
+      console.warn("[VapidService] Failed to derive VAPID public key:", err?.message);
     }
 
     this.cachedKeys = {

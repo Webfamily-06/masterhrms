@@ -186,6 +186,26 @@ let memoryNotifications: RealtimeNotification[] = [];
 const subscribers = new Set<(items: RealtimeNotification[]) => void>();
 const recentOsNotifTags = new Map<string, number>();
 
+/**
+ * Inflates gzip-compressed Pusher envelopes (`{ __gz }`) produced by the backend for payloads
+ * above Pusher's 10KB limit (e.g. WebRTC SDP renegotiation offers during screen sharing).
+ */
+export async function decodePusherPayload(data: any): Promise<any> {
+  if (!data || typeof data !== "object" || typeof data.__gz !== "string") return data;
+  try {
+    const binary = atob(data.__gz);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const DS = (globalThis as any).DecompressionStream;
+    if (!DS) return data;
+    const stream = new Blob([bytes]).stream().pipeThrough(new DS("gzip"));
+    const text = await new Response(stream).text();
+    return JSON.parse(text);
+  } catch {
+    return data;
+  }
+}
+
 export function showBackgroundOsNotification(
   title: string,
   body: string,
@@ -612,34 +632,21 @@ export function useRealtimeSocket() {
           if (currentUserId) {
             userChannel = pusherClient.subscribe(`private-user-${currentUserId}`);
             userChannel.bind("notification:new", onNotification);
-            userChannel.bind("call:incoming", dispatchPusherEvent("call:incoming"));
-            userChannel.bind("call:accepted", dispatchPusherEvent("call:accepted"));
-            userChannel.bind("call:rejected", dispatchPusherEvent("call:rejected"));
-            userChannel.bind("call:cancelled", dispatchPusherEvent("call:cancelled"));
-            userChannel.bind("call:timeout", dispatchPusherEvent("call:timeout"));
-            userChannel.bind("call:signal", dispatchPusherEvent("call:signal"));
-            userChannel.bind("call:ended", dispatchPusherEvent("call:ended"));
-            userChannel.bind("call:busy", dispatchPusherEvent("call:busy"));
-            userChannel.bind("call:media-state", dispatchPusherEvent("call:media-state"));
-            userChannel.bind("call:participant_joined", dispatchPusherEvent("call:participant_joined"));
-            userChannel.bind("call:participant_left", dispatchPusherEvent("call:participant_left"));
-            userChannel.bind("group-call:incoming", dispatchPusherEvent("group-call:incoming"));
-            userChannel.bind("group-call:ended", dispatchPusherEvent("group-call:ended"));
-            userChannel.bind("group-call:signal", dispatchPusherEvent("group-call:signal"));
-            userChannel.bind("group-call:user_joined", dispatchPusherEvent("group-call:user_joined"));
-            userChannel.bind("group-call:user_left", dispatchPusherEvent("group-call:user_left"));
-            userChannel.bind("group-call:media_state", dispatchPusherEvent("group-call:media_state"));
-            userChannel.bind("chat:message", dispatchPusherEvent("chat:message"));
-            userChannel.bind("chat:message_edited", dispatchPusherEvent("chat:message_edited"));
-            userChannel.bind("chat:message_deleted", dispatchPusherEvent("chat:message_deleted"));
-            userChannel.bind("chat:reaction", dispatchPusherEvent("chat:reaction"));
-            userChannel.bind("chat:poll_updated", dispatchPusherEvent("chat:poll_updated"));
-            userChannel.bind("chat:typing", dispatchPusherEvent("chat:typing"));
-            userChannel.bind("chat:read", dispatchPusherEvent("chat:read"));
-            userChannel.bind("chat:delivered", dispatchPusherEvent("chat:delivered"));
-            userChannel.bind("chat:group_created", dispatchPusherEvent("chat:group_created"));
-            userChannel.bind("chat:group_updated", dispatchPusherEvent("chat:group_updated"));
-            userChannel.bind("chat:room_revoked", dispatchPusherEvent("chat:room_revoked"));
+            // Forward EVERY realtime event (calls, group meetings, chat) — Pusher is the only realtime transport
+            // on serverless deployments, so any event missing from a hard-coded list was silently dropped.
+            const directlyHandled = new Set([
+              "notification:new",
+              "calendar:reminder-due",
+              "calendar:event-shared",
+              "calendar:event-updated",
+              "calendar:event-cancelled",
+              "calendar:rsvp-updated",
+            ]);
+            userChannel.bind_global((eventName: string, data: any) => {
+              if (!eventName || eventName.startsWith("pusher:") || eventName.startsWith("pusher_internal:")) return;
+              if (directlyHandled.has(eventName)) return;
+              void decodePusherPayload(data).then((decoded) => dispatchPusherEvent(eventName)(decoded));
+            });
             userChannel.bind("calendar:reminder-due", (data: any) => {
               onNotification({
                 id: `reminder-${data?.reminderId || data?.eventId || Date.now()}`,

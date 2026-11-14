@@ -3,6 +3,7 @@ import { prisma, rawPrisma } from "../prisma";
 import { runWithTenantContext } from "../context/tenant-context";
 import { getIO } from "../socket";
 import { PusherService } from "./pusher.service";
+import { runInBackground } from "../lib/background-tasks";
 import { NotificationService } from "./notification.service";
 import { UrlPreviewService } from "./url-preview.service";
 
@@ -1269,8 +1270,9 @@ export class ChatService {
     });
 
     // 12. Dispatch Scoped In-App & Web Push Notifications Respecting Mute & Notification Preferences
-    setImmediate(() => {
-      void this.dispatchMessageNotifications({
+    // (tracked so serverless runtimes do not freeze before OS push notifications are delivered)
+    runInBackground(() =>
+      this.dispatchMessageNotifications({
         tenantId,
         threadId,
         threadType: authCheck.threadType || "direct",
@@ -1280,8 +1282,8 @@ export class ChatService {
         message: createdMsg,
         participantUserIds,
         mentions: Array.isArray(mentions) ? mentions : [],
-      }).catch(() => {});
-    });
+      }).catch(() => {})
+    );
 
     return {
       message: this.sanitizeMessageForViewer(createdMsg, userId, tenantId),

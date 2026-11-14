@@ -1,9 +1,17 @@
 import Pusher from "pusher";
+import zlib from "zlib";
 import { prisma } from "../prisma";
+import { trackBackgroundTask } from "../lib/background-tasks";
 
 let pusherInstance: Pusher | null = null;
 let pusherConfigInitialized = false;
 let lastConfigFingerprint = "";
+let cachedConfig: { value: PusherConfig; expiresAt: number } | null = null;
+const CONFIG_CACHE_MS = 30_000;
+// Pusher Channels rejects event payloads above 10KB. WebRTC SDP offers/answers (especially
+// renegotiation offers when screen sharing) can approach that, so larger payloads are
+// gzip-compressed and the client transparently inflates `__gz` envelopes.
+const PUSHER_SAFE_PAYLOAD_BYTES = 9000;
 
 export interface PusherConfig {
   appId: string;
@@ -14,6 +22,22 @@ export interface PusherConfig {
   enabled: boolean;
 }
 
+function encodePayloadForPusher(payload: any): any {
+  try {
+    const json = JSON.stringify(payload);
+    if (Buffer.byteLength(json, "utf8") <= PUSHER_SAFE_PAYLOAD_BYTES) return payload;
+    const gz = zlib.gzipSync(Buffer.from(json, "utf8")).toString("base64");
+    return {
+      __gz: gz,
+      callId: payload?.callId,
+      tenantId: payload?.tenantId,
+      timestamp: payload?.timestamp,
+    };
+  } catch {
+    return payload;
+  }
+}
+
 export class PusherService {
   /**
    * Resets the cached singleton instance to force re-instantiation on config changes.
@@ -22,12 +46,26 @@ export class PusherService {
     pusherInstance = null;
     pusherConfigInitialized = false;
     lastConfigFingerprint = "";
+    cachedConfig = null;
+  }
+
+  /**
+   * Resolves Pusher configuration (cached for 30s so realtime call signaling does not pay
+   * two database round-trips per relayed SDP/ICE packet).
+   */
+  public static async getConfig(): Promise<PusherConfig> {
+    if (cachedConfig && cachedConfig.expiresAt > Date.now()) {
+      return cachedConfig.value;
+    }
+    const value = await this.loadConfig();
+    cachedConfig = { value, expiresAt: Date.now() + CONFIG_CACHE_MS };
+    return value;
   }
 
   /**
    * Resolves Pusher configuration from SettingsService, CMS Settings (system-platform-settings), or Environment.
    */
-  public static async getConfig(): Promise<PusherConfig> {
+  private static async loadConfig(): Promise<PusherConfig> {
     let appId = process.env.PUSHER_APP_ID || process.env.VITE_PUSHER_APP_ID || "";
     let key = process.env.PUSHER_KEY || process.env.VITE_PUSHER_KEY || "";
     let secret = process.env.PUSHER_SECRET || process.env.VITE_PUSHER_SECRET || "";
@@ -183,18 +221,27 @@ export class PusherService {
   /**
    * Triggers an in-app event on a user's private channel (private-user-{userId}).
    */
-  public static async triggerUserEvent(
+  public static triggerUserEvent(
+    tenantId: string,
+    userId: string,
+    eventName: string,
+    data: any
+  ): Promise<{ success: boolean; delivered: boolean; error?: string }> {
+    return trackBackgroundTask(this.triggerUserEventNow(tenantId, userId, eventName, data));
+  }
+
+  private static async triggerUserEventNow(
     tenantId: string,
     userId: string,
     eventName: string,
     data: any
   ): Promise<{ success: boolean; delivered: boolean; error?: string }> {
     const channel = `private-user-${userId}`;
-    const payload = {
+    const payload = encodePayloadForPusher({
       ...data,
       tenantId,
       timestamp: new Date().toISOString(),
-    };
+    });
 
     const pusher = await this.getInstance();
     if (!pusher) {
@@ -218,17 +265,25 @@ export class PusherService {
   /**
    * Triggers an in-app event on a tenant's private channel (private-tenant-{tenantId}).
    */
-  public static async triggerTenantEvent(
+  public static triggerTenantEvent(
+    tenantId: string,
+    eventName: string,
+    data: any
+  ): Promise<{ success: boolean; delivered: boolean; error?: string }> {
+    return trackBackgroundTask(this.triggerTenantEventNow(tenantId, eventName, data));
+  }
+
+  private static async triggerTenantEventNow(
     tenantId: string,
     eventName: string,
     data: any
   ): Promise<{ success: boolean; delivered: boolean; error?: string }> {
     const channel = `private-tenant-${tenantId}`;
-    const payload = {
+    const payload = encodePayloadForPusher({
       ...data,
       tenantId,
       timestamp: new Date().toISOString(),
-    };
+    });
 
     const pusher = await this.getInstance();
     if (!pusher) {

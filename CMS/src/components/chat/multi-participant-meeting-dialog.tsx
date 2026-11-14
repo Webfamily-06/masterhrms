@@ -710,6 +710,7 @@ export function MultiParticipantMeetingDialog({
           ...existing,
           ...(typeof data.isMuted === "boolean" ? { isMuted: data.isMuted } : {}),
           ...(typeof data.isVideoOff === "boolean" ? { isCameraOff: data.isVideoOff } : {}),
+          ...(typeof data.isCameraOff === "boolean" ? { isCameraOff: data.isCameraOff } : {}),
           ...(typeof data.isScreenSharing === "boolean"
             ? { isScreenSharing: data.isScreenSharing }
             : {}),

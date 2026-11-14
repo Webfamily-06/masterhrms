@@ -182,6 +182,7 @@ import { runBiometricAutoSync } from "./cron/biometric-sync";
 import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
 import { runSubscriptionExpiryRemindersCron } from "./cron/subscription-reminder.cron";
 import { CalendarReminderScheduler } from "./services/calendar-reminder.scheduler";
+import { backgroundTaskMiddleware } from "./lib/background-tasks";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -189,6 +190,9 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 // Enable reverse-proxy header trust (X-Forwarded-For, X-Forwarded-Proto) for Nginx / Cloudflare
 app.set("trust proxy", 1);
+
+// Serverless-safe realtime delivery: hold the response until tracked Pusher / Web Push work completes
+app.use(backgroundTaskMiddleware);
 
 app.use(securityHeadersMiddleware);
 

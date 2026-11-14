@@ -222,6 +222,24 @@ export function IncomingCallProvider({ children }: { children: React.ReactNode }
       const applicationServerKey = urlBase64ToUint8Array(vapidKey);
 
       let sub = await reg.pushManager.getSubscription();
+      // Re-subscribe when the server VAPID key rotated / was corrected, otherwise the push service
+      // rejects every delivery for the stale subscription and OS notifications silently stop.
+      if (sub) {
+        try {
+          const existingKey = sub.options?.applicationServerKey;
+          if (existingKey) {
+            const bytes = new Uint8Array(existingKey as ArrayBuffer);
+            let bin = "";
+            bytes.forEach((b) => (bin += String.fromCharCode(b)));
+            const existingB64 = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+            const serverB64 = String(vapidKey).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+            if (existingB64 !== serverB64) {
+              await sub.unsubscribe().catch(() => {});
+              sub = null;
+            }
+          }
+        } catch {}
+      }
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
