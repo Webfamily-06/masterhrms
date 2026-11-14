@@ -2338,14 +2338,12 @@ export class LeaveService {
       }
 
       const resolvedCarryEnabled = Boolean(
-        resolvedPolicy ? resolvedPolicy.carryForwardEnabled : lt.carryForward
+        resolvedPolicy ? resolvedPolicy.carryForwardEnabled : false
       );
       const resolvedCarryDays = resolvedPolicy
         ? resolvedPolicy.carryForwardEnabled
           ? Number(resolvedPolicy.maxCarryForwardDays ?? 0)
           : 0
-        : lt.carryForward
-        ? Number(lt.maxCarryForward ?? 0)
         : 0;
 
       return {

@@ -429,7 +429,6 @@ meLeaveRouter.get("/team-calendar", async (req: AuthRequest, res: Response) => {
               id: true,
               firstName: true,
               lastName: true,
-              avatarUrl: true,
               department: { select: { name: true } },
             },
           },
