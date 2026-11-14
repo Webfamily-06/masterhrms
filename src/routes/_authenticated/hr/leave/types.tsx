@@ -266,37 +266,22 @@ export default function HrLeaveTypesPage() {
             <p className="text-xs text-slate-400 mt-0.5 mb-4">
               {editingId
                 ? "Update entitlement and policy flags for this leave category"
-                : "Configure a new leave category for HR & Employee Self-Service"}
+                : "Fill in the details to create a new leave type"}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2 space-y-1.5">
-                  <Label htmlFor="typeName" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Leave Type Name <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="typeName"
-                    placeholder="e.g., Casual Leave, Sick Leave"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="typeCode" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Short Code
-                  </Label>
-                  <Input
-                    id="typeCode"
-                    placeholder="CL"
-                    maxLength={10}
-                    value={form.code}
-                    onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                    className="h-9 text-xs font-mono uppercase border-slate-200 dark:border-slate-700 rounded-lg"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="typeName" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Leave Type Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="typeName"
+                  placeholder="e.g., Casual Leave, Sick Leave"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg"
+                  required
+                />
               </div>
 
               <div className="space-y-1.5">
@@ -306,7 +291,7 @@ export default function HrLeaveTypesPage() {
                 <Textarea
                   id="typeDesc"
                   rows={2}
-                  placeholder="Brief description of when employees can request this leave"
+                  placeholder="Brief description of the leave policies"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="text-xs border-slate-200 dark:border-slate-700 rounded-lg resize-none"
@@ -324,6 +309,7 @@ export default function HrLeaveTypesPage() {
                     min={0}
                     max={365}
                     step="0.5"
+                    placeholder="0"
                     value={form.daysPerYear}
                     onChange={(e) => {
                       const val = e.target.value === "" ? 0 : parseFloat(e.target.value);
@@ -361,39 +347,15 @@ export default function HrLeaveTypesPage() {
                 </div>
               </div>
 
-              <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">Paid Leave</Label>
-                    <p className="text-[11px] text-slate-400">Employees receive salary for approved days</p>
+                    <p className="text-[11px] text-slate-400">Employees will receive salary for these days</p>
                   </div>
                   <Switch
                     checked={form.isPaid}
                     onCheckedChange={(checked) => setForm({ ...form, isPaid: checked })}
-                    className="data-[state=checked]:bg-[#00a76f]"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">Allow Half-Day</Label>
-                    <p className="text-[11px] text-slate-400">Permit 0.5-day First Half / Second Half requests</p>
-                  </div>
-                  <Switch
-                    checked={form.halfDayAllowed}
-                    onCheckedChange={(checked) => setForm({ ...form, halfDayAllowed: checked })}
-                    className="data-[state=checked]:bg-[#00a76f]"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">Sandwich Rule</Label>
-                    <p className="text-[11px] text-slate-400">Count intervening weekends/holidays between leave days</p>
-                  </div>
-                  <Switch
-                    checked={form.sandwichRule}
-                    onCheckedChange={(checked) => setForm({ ...form, sandwichRule: checked })}
                     className="data-[state=checked]:bg-[#00a76f]"
                   />
                 </div>
@@ -443,11 +405,11 @@ export default function HrLeaveTypesPage() {
 
         <div className="lg:col-span-7 xl:col-span-8 space-y-4 min-w-0">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-4 shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
-                  placeholder="Search leave types by name, code, or description..."
+                  placeholder="Search leave types..."
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -513,7 +475,7 @@ export default function HrLeaveTypesPage() {
                       </button>
                     </TableHead>
                     <TableHead className="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300 text-left">
-                      Payment & Rules
+                      Payment Type
                     </TableHead>
                     <TableHead className="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300 text-left">
                       <button
@@ -605,27 +567,15 @@ export default function HrLeaveTypesPage() {
                           </TableCell>
 
                           <TableCell className="py-3.5 px-4 align-middle">
-                            <div className="flex flex-wrap items-center gap-1">
-                              {item.isPaid ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#e8f7f0] border border-[#a3e3c4] text-[#00a76f]">
-                                  Paid
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#ffedd5] border border-[#fed7aa] text-[#ea580c]">
-                                  Unpaid
-                                </span>
-                              )}
-                              {item.halfDayAllowed && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                                  Half-Day
-                                </span>
-                              )}
-                              {item.sandwichRule && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 border border-amber-200 text-amber-700">
-                                  Sandwich
-                                </span>
-                              )}
-                            </div>
+                            {item.isPaid ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#e8f7f0] border border-[#a3e3c4] text-[#00a76f]">
+                                Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[#ffedd5] border border-[#fed7aa] text-[#ea580c]">
+                                Unpaid
+                              </span>
+                            )}
                           </TableCell>
 
                           <TableCell className="py-3.5 px-4 align-middle whitespace-nowrap">

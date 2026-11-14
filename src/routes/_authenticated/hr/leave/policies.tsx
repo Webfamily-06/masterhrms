@@ -354,7 +354,7 @@ export default function HrLeavePoliciesPage() {
             <div className="relative w-full sm:w-64">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search policy name, code, or leave type..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -391,11 +391,11 @@ export default function HrLeavePoliciesPage() {
             className="h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Filter className="w-3.5 h-3.5 text-slate-500" />
-            Refresh
+            Filters
           </button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 pt-1 border-t border-slate-100 dark:border-slate-800 text-xs font-medium">
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs font-medium">
           {(
             [
               { key: "all", label: "All", count: counts.all, icon: LayoutGrid },
@@ -413,10 +413,10 @@ export default function HrLeavePoliciesPage() {
                   setStatusFilter(tab.key);
                   setCurrentPage(1);
                 }}
-                className={`flex items-center gap-1.5 pb-2 border-b-2 transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors cursor-pointer ${
                   active
-                    ? "border-[#00a76f] text-[#00a76f] font-semibold"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-200"
+                    ? "border-[#00a76f] bg-emerald-50/50 text-[#00a76f]"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:border-slate-300"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />

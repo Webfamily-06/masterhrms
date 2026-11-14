@@ -509,38 +509,11 @@ export default function HrLeaveApplicationsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Leave Applications</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Monitor employee absences, review pending requests, and manage leave approvals or reversals.
+            View and manage leave applications.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5">
-            <button
-              type="button"
-              onClick={() => setViewMode("matrix")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
-                viewMode === "matrix"
-                  ? "bg-[#00a76f] text-white"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              Calendar Matrix
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("list")}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
-                viewMode === "list"
-                  ? "bg-[#00a76f] text-white"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-              }`}
-            >
-              <ListFilter className="w-3.5 h-3.5" />
-              All Requests
-            </button>
-          </div>
-
           <Button
             type="button"
             onClick={() => handleOpenAdd()}
@@ -552,68 +525,34 @@ export default function HrLeaveApplicationsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 shadow-xs space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {viewMode === "matrix" ? (
-            <div className="flex items-center justify-between sm:justify-start gap-1.5">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Previous Month"
-                aria-label="Previous Month"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 px-3 min-w-[140px] text-center">
-                {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-              </span>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60 transition-colors cursor-pointer"
-                title="Next Month"
-                aria-label="Next Month"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(["all", "pending", "approved", "rejected", "cancelled"] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter(st);
-                    setListPage(1);
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors cursor-pointer ${
-                    statusFilter === st
-                      ? "bg-[#00a76f] text-white"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200/70"
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-          )}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3.5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handlePrevMonth}
+              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+              title="Previous Month"
+              aria-label="Previous Month"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 min-w-[130px] text-center">
+              {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextMonth}
+              className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+              title="Next Month"
+              aria-label="Next Month"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex items-center gap-2.5">
-            <div className="relative w-full lg:w-52">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <Input
-                placeholder="Search employee or reason..."
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setListPage(1);
-                }}
-                className="pl-8 h-9 text-xs border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900"
-              />
-            </div>
-
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Employee</span>
             <Select
               value={employeeFilter}
               onValueChange={(val) => {
@@ -621,7 +560,7 @@ export default function HrLeaveApplicationsPage() {
                 setListPage(1);
               }}
             >
-              <SelectTrigger className="w-full lg:w-52 h-9 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 font-medium">
+              <SelectTrigger className="w-full sm:w-56 h-9 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 font-medium">
                 <SelectValue placeholder="All Employees" />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -633,65 +572,36 @@ export default function HrLeaveApplicationsPage() {
                 ))}
               </SelectContent>
             </Select>
-
-            {viewMode === "list" && (
-              <Select
-                value={leaveTypeFilter}
-                onValueChange={(val) => {
-                  setLeaveTypeFilter(val);
-                  setListPage(1);
-                }}
-              >
-                <SelectTrigger className="w-full lg:w-44 h-9 rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-700 dark:text-slate-300 font-medium">
-                  <SelectValue placeholder="All Leave Types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Leave Types</SelectItem>
-                  {matrixLeaveTypes.map((lt: any) => (
-                    <SelectItem key={lt.id} value={lt.id}>
-                      {lt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
           </div>
         </div>
       </div>
 
-      {viewMode === "matrix" && (
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500 mr-1">Legend:</span>
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 shadow-xs flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500 mr-1">Legend:</span>
 
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium bg-[#e8f7f0] border-[#a3e3c4] text-[#00a76f]">
-            <span className="w-2 h-2 rounded-full border-2 border-[#00a76f] bg-white dark:bg-slate-900 shrink-0" />
-            <span>Today</span>
-          </div>
-
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-dashed border-amber-400 bg-amber-50 text-amber-800 text-xs font-medium">
-            <Clock className="w-3 h-3 shrink-0" />
-            <span>Pending Approval</span>
-          </div>
-
-          {matrixLeaveTypes.map((lt: any) => (
-            <div
-              key={lt.id}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium"
-              style={{
-                backgroundColor: `${lt.color || "#3b82f6"}15`,
-                borderColor: `${lt.color || "#3b82f6"}55`,
-                color: lt.color || "#3b82f6",
-              }}
-            >
-              <span
-                className="w-2 h-2 rounded-full border-2 bg-white dark:bg-slate-900 shrink-0"
-                style={{ borderColor: lt.color || "#3b82f6" }}
-              />
-              <span>{lt.name}</span>
-            </div>
-          ))}
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium bg-[#e8f7f0] border-[#a3e3c4] text-[#00a76f]">
+          <span className="w-2 h-2 rounded-full border-2 border-[#00a76f] bg-white dark:bg-slate-900 shrink-0" />
+          <span>Today</span>
         </div>
-      )}
+
+        {matrixLeaveTypes.map((lt: any) => (
+          <div
+            key={lt.id}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium"
+            style={{
+              backgroundColor: `${lt.color || "#3b82f6"}15`,
+              borderColor: `${lt.color || "#3b82f6"}55`,
+              color: lt.color || "#3b82f6",
+            }}
+          >
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: lt.color || "#3b82f6" }}
+            />
+            <span>{lt.name}</span>
+          </div>
+        ))}
+      </div>
 
       {viewMode === "matrix" ? (
         <>

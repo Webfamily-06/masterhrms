@@ -239,26 +239,26 @@ export default function HrLeaveBalancesPage() {
 
       {/* 2. Notice Banner */}
       {!bannerDismissed && (
-        <div className="bg-[#fff9e6] border border-[#fde68a] text-[#b45309] rounded-xl p-3.5 shadow-xs flex items-start sm:items-center justify-between gap-3 text-xs">
+        <div className="bg-[#fffbeb] border border-[#fef3c7] text-[#92400e] rounded-xl p-3.5 shadow-xs flex items-start sm:items-center justify-between gap-3 text-xs">
           <div className="flex items-start sm:items-center gap-2">
-            <Info className="w-4 h-4 text-[#b45309] shrink-0 mt-0.5 sm:mt-0" />
+            <Info className="w-4 h-4 text-[#92400e] shrink-0 mt-0.5 sm:mt-0" />
             <span>
-              <span className="font-semibold">Note:</span> If you add a new Employee, Leave Type, or Leave Policy, click{" "}
+              <span className="font-semibold">Note:</span> If you add a new Employee, Leave Type, or Leave Policy, you must click the{" "}
               <button
                 type="button"
                 onClick={() => syncMutation.mutate()}
                 disabled={syncMutation.isPending}
-                className="font-bold underline hover:text-[#92400e] cursor-pointer"
+                className="font-semibold underline hover:text-[#78350f] cursor-pointer"
               >
                 Sync Balances or Re-sync
               </button>{" "}
-              to initialize missing {selectedYear} entitlements idempotently without duplicating existing balances.
+              button to apply the changes for the current year.
             </span>
           </div>
           <button
             type="button"
             onClick={() => setBannerDismissed(true)}
-            className="text-[#b45309]/70 hover:text-[#b45309] transition-colors p-1 shrink-0 cursor-pointer"
+            className="text-[#92400e]/70 hover:text-[#92400e] transition-colors p-1 shrink-0 cursor-pointer"
             title="Dismiss notice"
             aria-label="Dismiss notice"
           >
@@ -275,7 +275,7 @@ export default function HrLeaveBalancesPage() {
             <div className="relative w-full lg:w-56">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <Input
-                placeholder="Search employee name or code..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -354,7 +354,7 @@ export default function HrLeaveBalancesPage() {
             className="h-9 px-3.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60 dark:bg-slate-800/60 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Filter className={`w-3.5 h-3.5 text-slate-500 ${isFetching ? "animate-pulse" : ""}`} />
-            Refresh
+            Filters
           </button>
         </div>
 
@@ -432,7 +432,6 @@ export default function HrLeaveBalancesPage() {
                         </h3>
                         <p className="text-xs text-slate-400 font-mono mt-0.5 uppercase truncate">
                           {emp.employeeCode}
-                          {emp.department ? ` • ${emp.department}` : ""}
                         </p>
                       </div>
                     </div>
@@ -491,12 +490,12 @@ export default function HrLeaveBalancesPage() {
                               <TableCell className="py-2 px-2 text-center">
                                 <button
                                   type="button"
-                                  onClick={() => openAdjustForEmployee(emp.employeeId, b.leaveTypeId)}
+                                  onClick={() => setLedgerModalEmployee(emp)}
                                   className="text-slate-400 hover:text-[#00a76f] transition-colors cursor-pointer p-1"
-                                  title={`Adjust ${b.leaveTypeName} balance`}
-                                  aria-label={`Adjust ${b.leaveTypeName} balance for ${emp.employeeName}`}
+                                  title={`View ${b.leaveTypeName} ledger & balance details`}
+                                  aria-label={`View ${b.leaveTypeName} ledger for ${emp.employeeName}`}
                                 >
-                                  <Scale className="w-3.5 h-3.5" />
+                                  <Info className="w-3.5 h-3.5" />
                                 </button>
                               </TableCell>
                             </TableRow>
