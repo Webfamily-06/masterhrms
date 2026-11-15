@@ -366,6 +366,15 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "route": "/hr/leave/policies",
         "icon": "ShieldCheck",
         "order": 134
+      },
+      {
+        "id": "hr-lv-encashment-compoff",
+        "portal": "hr",
+        "module": "leave",
+        "label": "Leave Encashment & Comp-Off",
+        "route": "/hr/leave/encashment-compoff",
+        "icon": "Coins",
+        "order": 135
       }
     ]
   },
@@ -1190,6 +1199,15 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
         "route": "/me/leave/team-calendar",
         "icon": "Users",
         "order": 134
+      },
+      {
+        "id": "me-lv-encashment-compoff",
+        "portal": "me",
+        "module": "leave",
+        "label": "Leave Encashment & Comp-Off",
+        "route": "/me/leave/encashment-compoff",
+        "icon": "Coins",
+        "order": 135
       }
     ]
   },

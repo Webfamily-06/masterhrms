@@ -11,6 +11,7 @@ import {
   PieChart,
   Layers,
   ShieldCheck,
+  Coins,
   ArrowRight,
   Clock,
   Users,
@@ -97,6 +98,13 @@ export default function HrLeaveOverviewPage() {
       href: "/hr/leave/policies",
       icon: ShieldCheck,
       color: "text-amber-500",
+    },
+    {
+      title: "Leave Encashment & Comp-Off",
+      description: "Manage leave encashment payouts, payroll processing, Comp-Off earn credits, FIFO expiry, and policies.",
+      href: "/hr/leave/encashment-compoff",
+      icon: Coins,
+      color: "text-teal-600",
     },
   ];
 

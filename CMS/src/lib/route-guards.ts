@@ -172,10 +172,28 @@ export function evaluateRouteAccess(
 
   if (options.targetPortal === "hr" && !auth.isTenantAdmin && !auth.isSuperAdmin) {
     const hasHrRole = auth.roles.some((r) =>
-      ["hr_admin", "hr_manager", "manager", "hr", "admin", "tenant_admin"].includes(r)
+      [
+        "hr_admin",
+        "hr_manager",
+        "manager",
+        "hr",
+        "admin",
+        "tenant_admin",
+        "payroll",
+        "payroll_admin",
+        "payroll_officer",
+        "payroll_manager",
+        "finance",
+        "finance_admin",
+      ].includes(String(r).toLowerCase())
     );
     const hasHrPerm = auth.permissions.some(
-      (p) => p.startsWith("hr.") || p.startsWith("employees.") || p.startsWith("attendance.")
+      (p) =>
+        p.startsWith("hr.") ||
+        p.startsWith("hrm.") ||
+        p.startsWith("payroll.") ||
+        p.startsWith("employees.") ||
+        p.startsWith("attendance.")
     );
     if (!hasHrRole && !hasHrPerm) {
       return {

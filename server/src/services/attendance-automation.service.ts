@@ -21,6 +21,7 @@ import { rawPrisma } from "../prisma";
 import { AttendanceService } from "./attendance.service";
 import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
+import { LeaveEncashmentCompOffService } from "./leave-encashment-compoff.service";
 
 export interface JobExecutionResult {
   jobCode: string;
@@ -550,6 +551,50 @@ export class AttendanceAutomationService {
         return { recordsProcessed: 1 };
       }
     );
+  }
+
+  /**
+   * 10. Comp-Off Credit Expiry & Pre-Expiry Warning Automation
+   * Idempotently sweeps expired Comp-Off credit lots into LeaveLedgerEntry (EXPIRY)
+   * and dispatches nearing-expiry notifications to employees and HR.
+   */
+  static async processCompOffExpiries(tenantId: string, referenceDate?: Date) {
+    const dateSlug = (referenceDate || new Date()).toISOString().slice(0, 10);
+    return this.executeJob(
+      tenantId,
+      `ATTN_COMPOFF_EXPIRY_${tenantId}_${dateSlug}`,
+      `Comp-Off Credit Expiry & Nearing-Expiry Sweep (${dateSlug})`,
+      "30 1 * * *",
+      async () => {
+        const summary = await LeaveEncashmentCompOffService.processTenantCompOffExpiry(tenantId, {
+          asOfDate: referenceDate,
+          actorUserId: undefined,
+        });
+        return {
+          recordsProcessed: summary.expiredLotsCount + summary.warningsSent,
+        };
+      }
+    );
+  }
+
+  /**
+   * Global scheduled daily sweep across all active tenants for Comp-Off expiry & pre-expiry alerts.
+   */
+  static async runGlobalCompOffExpirySweep() {
+    const activeTenants = await rawPrisma.tenant.findMany({
+      select: { id: true },
+    });
+
+    let totalProcessed = 0;
+    for (const t of activeTenants) {
+      try {
+        const res = await this.processCompOffExpiries(t.id);
+        totalProcessed += res.recordsProcessed;
+      } catch (err: any) {
+        console.error(`[AttendanceAutomation] Comp-Off expiry sweep failed for tenant ${t.id}:`, err?.message);
+      }
+    }
+    return { tenantsChecked: activeTenants.length, totalProcessed };
   }
 
   /**

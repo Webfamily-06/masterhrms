@@ -451,6 +451,7 @@ import { Route as AuthenticatedMeDocumentsRequestsRouteImport } from './routes/_
 import { Route as AuthenticatedMeLeaveIndexRouteImport } from './routes/_authenticated/me/leave/index'
 import { Route as AuthenticatedMeLeaveApplicationsRouteImport } from './routes/_authenticated/me/leave/applications'
 import { Route as AuthenticatedMeLeaveBalanceRouteImport } from './routes/_authenticated/me/leave/balance'
+import { Route as AuthenticatedMeLeaveEncashmentCompoffRouteImport } from './routes/_authenticated/me/leave/encashment-compoff'
 import { Route as AuthenticatedMeLeavePoliciesRouteImport } from './routes/_authenticated/me/leave/policies'
 import { Route as AuthenticatedMeLeaveTeamCalendarRouteImport } from './routes/_authenticated/me/leave/team-calendar'
 import { Route as AuthenticatedMeLifecycleIndexRouteImport } from './routes/_authenticated/me/lifecycle/index'
@@ -3100,6 +3101,12 @@ const AuthenticatedMeLeaveBalanceRoute =
     path: '/leave/balance',
     getParentRoute: () => AuthenticatedMeRoute,
   } as any)
+const AuthenticatedMeLeaveEncashmentCompoffRoute =
+  AuthenticatedMeLeaveEncashmentCompoffRouteImport.update({
+    id: '/leave/encashment-compoff',
+    path: '/leave/encashment-compoff',
+    getParentRoute: () => AuthenticatedMeRoute,
+  } as any)
 const AuthenticatedMeLeavePoliciesRoute =
   AuthenticatedMeLeavePoliciesRouteImport.update({
     id: '/leave/policies',
@@ -4120,6 +4127,7 @@ export interface FileRoutesByFullPath {
   '/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
   '/me/leave/applications': typeof AuthenticatedMeLeaveApplicationsRoute
   '/me/leave/balance': typeof AuthenticatedMeLeaveBalanceRoute
+  '/me/leave/encashment-compoff': typeof AuthenticatedMeLeaveEncashmentCompoffRoute
   '/me/leave/policies': typeof AuthenticatedMeLeavePoliciesRoute
   '/me/leave/team-calendar': typeof AuthenticatedMeLeaveTeamCalendarRoute
   '/me/lifecycle/awards': typeof AuthenticatedMeLifecycleAwardsRoute
@@ -4657,6 +4665,7 @@ export interface FileRoutesByTo {
   '/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
   '/me/leave/applications': typeof AuthenticatedMeLeaveApplicationsRoute
   '/me/leave/balance': typeof AuthenticatedMeLeaveBalanceRoute
+  '/me/leave/encashment-compoff': typeof AuthenticatedMeLeaveEncashmentCompoffRoute
   '/me/leave/policies': typeof AuthenticatedMeLeavePoliciesRoute
   '/me/leave/team-calendar': typeof AuthenticatedMeLeaveTeamCalendarRoute
   '/me/lifecycle/awards': typeof AuthenticatedMeLifecycleAwardsRoute
@@ -5201,6 +5210,7 @@ export interface FileRoutesById {
   '/_authenticated/me/documents/requests': typeof AuthenticatedMeDocumentsRequestsRoute
   '/_authenticated/me/leave/applications': typeof AuthenticatedMeLeaveApplicationsRoute
   '/_authenticated/me/leave/balance': typeof AuthenticatedMeLeaveBalanceRoute
+  '/_authenticated/me/leave/encashment-compoff': typeof AuthenticatedMeLeaveEncashmentCompoffRoute
   '/_authenticated/me/leave/policies': typeof AuthenticatedMeLeavePoliciesRoute
   '/_authenticated/me/leave/team-calendar': typeof AuthenticatedMeLeaveTeamCalendarRoute
   '/_authenticated/me/lifecycle/awards': typeof AuthenticatedMeLifecycleAwardsRoute
@@ -5744,6 +5754,7 @@ export interface FileRouteTypes {
     | '/me/documents/requests'
     | '/me/leave/applications'
     | '/me/leave/balance'
+    | '/me/leave/encashment-compoff'
     | '/me/leave/policies'
     | '/me/leave/team-calendar'
     | '/me/lifecycle/awards'
@@ -6281,6 +6292,7 @@ export interface FileRouteTypes {
     | '/me/documents/requests'
     | '/me/leave/applications'
     | '/me/leave/balance'
+    | '/me/leave/encashment-compoff'
     | '/me/leave/policies'
     | '/me/leave/team-calendar'
     | '/me/lifecycle/awards'
@@ -6824,6 +6836,7 @@ export interface FileRouteTypes {
     | '/_authenticated/me/documents/requests'
     | '/_authenticated/me/leave/applications'
     | '/_authenticated/me/leave/balance'
+    | '/_authenticated/me/leave/encashment-compoff'
     | '/_authenticated/me/leave/policies'
     | '/_authenticated/me/leave/team-calendar'
     | '/_authenticated/me/lifecycle/awards'
@@ -10072,6 +10085,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeLeaveBalanceRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
+    '/_authenticated/me/leave/encashment-compoff': {
+      id: '/_authenticated/me/leave/encashment-compoff'
+      path: '/leave/encashment-compoff'
+      fullPath: '/me/leave/encashment-compoff'
+      preLoaderRoute: typeof AuthenticatedMeLeaveEncashmentCompoffRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
     '/_authenticated/me/leave/policies': {
       id: '/_authenticated/me/leave/policies'
       path: '/leave/policies'
@@ -11915,6 +11935,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeDocumentsRequestsRoute: typeof AuthenticatedMeDocumentsRequestsRoute
   AuthenticatedMeLeaveApplicationsRoute: typeof AuthenticatedMeLeaveApplicationsRoute
   AuthenticatedMeLeaveBalanceRoute: typeof AuthenticatedMeLeaveBalanceRoute
+  AuthenticatedMeLeaveEncashmentCompoffRoute: typeof AuthenticatedMeLeaveEncashmentCompoffRoute
   AuthenticatedMeLeavePoliciesRoute: typeof AuthenticatedMeLeavePoliciesRoute
   AuthenticatedMeLeaveTeamCalendarRoute: typeof AuthenticatedMeLeaveTeamCalendarRoute
   AuthenticatedMeLifecycleAwardsRoute: typeof AuthenticatedMeLifecycleAwardsRoute
@@ -11999,6 +12020,8 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeDocumentsRequestsRoute: AuthenticatedMeDocumentsRequestsRoute,
   AuthenticatedMeLeaveApplicationsRoute: AuthenticatedMeLeaveApplicationsRoute,
   AuthenticatedMeLeaveBalanceRoute: AuthenticatedMeLeaveBalanceRoute,
+  AuthenticatedMeLeaveEncashmentCompoffRoute:
+    AuthenticatedMeLeaveEncashmentCompoffRoute,
   AuthenticatedMeLeavePoliciesRoute: AuthenticatedMeLeavePoliciesRoute,
   AuthenticatedMeLeaveTeamCalendarRoute: AuthenticatedMeLeaveTeamCalendarRoute,
   AuthenticatedMeLifecycleAwardsRoute: AuthenticatedMeLifecycleAwardsRoute,

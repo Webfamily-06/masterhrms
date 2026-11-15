@@ -70,6 +70,7 @@ describe("MASTERHRMS — Employee Portal Sidebar Navigation & Reconciliation", (
       "/me/leave/balance",
       "/me/leave/policies",
       "/me/leave/team-calendar",
+      "/me/leave/encashment-compoff",
 
       // 4. Recruitment & Career
       "/me/recruitment/job-postings",

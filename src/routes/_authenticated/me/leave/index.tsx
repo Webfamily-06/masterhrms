@@ -11,6 +11,7 @@ import {
   CalendarCheck,
   PieChart,
   ShieldCheck,
+  Coins,
   ArrowRight,
   Clock,
   CheckCircle2,
@@ -89,6 +90,13 @@ export function MeLeaveOverviewPage() {
       href: "/me/leave/team-calendar",
       icon: Users,
       color: "text-amber-500",
+    },
+    {
+      title: "Leave Encashment & Comp-Off",
+      description: "Submit leave encashment and Comp-Off earn requests, track payroll status, and monitor expiry alerts.",
+      href: "/me/leave/encashment-compoff",
+      icon: Coins,
+      color: "text-teal-600",
     },
   ];
 

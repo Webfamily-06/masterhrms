@@ -106,6 +106,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       { label: "Leave Balance", path: "/me/leave/balance", icon: "ph-hourglass-high" },
       { label: "Leave Policies", path: "/me/leave/policies", icon: "ph-shield-check" },
       { label: "Team Leave Calendar", path: "/me/leave/team-calendar", icon: "ph-calendar-dots" },
+      { label: "Leave Encashment & Comp-Off", path: "/me/leave/encashment-compoff", icon: "ph-coins" },
     ],
   },
 

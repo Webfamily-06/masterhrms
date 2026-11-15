@@ -15,6 +15,7 @@ import { runWithTenantContext, TenantContext } from "../context/tenant-context";
 import { StatutoryFormRegistryService } from "./statutory/statutory-form-registry.service";
 import { ContractBillingService } from "./contract-billing.service";
 import { ContractInvoiceService } from "./contract-invoice.service";
+import { LeaveEncashmentCompOffService } from "./leave-encashment-compoff.service";
 
 const db = rawPrisma || prisma;
 
@@ -464,6 +465,27 @@ export class PayrollOrchestratorService {
       claimsByEmp.set(claim.employeeId, list);
     }
 
+    // Stage 9B: Scheduled Leave Encashment Earnings for this payroll period
+    const scheduledEncashments = await db.leaveEncashmentRequest.findMany({
+      where: {
+        tenantId,
+        type: "ENCASHMENT",
+        payrollPeriodMonth: run.periodMonth,
+        payrollPeriodYear: run.periodYear,
+        status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+      },
+      include: {
+        payrollComponent: true,
+        leaveType: true,
+      },
+    });
+    const encashmentsByEmp = new Map<string, any[]>();
+    for (const enc of scheduledEncashments) {
+      const list = encashmentsByEmp.get(enc.employeeId) || [];
+      list.push(enc);
+      encashmentsByEmp.set(enc.employeeId, list);
+    }
+
     let batchTotalGross = new Decimal(0);
     let batchTotalNet = new Decimal(0);
     let batchTotalDeductions = new Decimal(0);
@@ -554,9 +576,25 @@ export class PayrollOrchestratorService {
         loanDeduction = Math.min(emi, balance);
       }
 
-      // Add loan deduction to total deductions and recompute net pay
+      // Add loan deduction & scheduled leave encashment earnings and recompute net pay
+      const empEncashments = encashmentsByEmp.get(emp.id) || [];
+      const leaveEncashmentAmount = empEncashments.reduce(
+        (sum: Decimal, r: any) => sum.plus(new Decimal(r.netPayableAmount ?? r.grossAmount ?? 0)),
+        new Decimal(0)
+      );
+      const encashmentItems = empEncashments.map((r: any) => ({
+        requestId: r.id,
+        requestCode: r.requestCode,
+        leaveTypeName: r.leaveType?.name || "Leave Encashment",
+        componentCode: r.payrollComponent?.code || "LEAVE_ENCASH",
+        componentName: r.payrollComponent?.name || "Leave Encashment",
+        days: Number(r.approvedDays ?? r.days),
+        amount: Number(r.netPayableAmount ?? r.grossAmount ?? 0),
+        payrollRef: r.payrollRef,
+      }));
+
       const finalDeductions = new Decimal(breakdown.deductions.totalDeductions).plus(loanDeduction);
-      const finalGross = new Decimal(breakdown.earnings.totalGross);
+      const finalGross = new Decimal(breakdown.earnings.totalGross).plus(leaveEncashmentAmount);
       const finalNet = Decimal.max(0, finalGross.minus(finalDeductions));
 
       batchTotalGross = batchTotalGross.plus(finalGross);
@@ -571,6 +609,9 @@ export class PayrollOrchestratorService {
         loanDeduction,
         reimbursementAmount,
         empClaims,
+        empEncashments,
+        leaveEncashmentAmount: leaveEncashmentAmount.toNumber(),
+        encashmentItems,
         breakdown,
         gross: finalGross,
         net: finalNet,
@@ -605,6 +646,9 @@ export class PayrollOrchestratorService {
               loanRecovery: item.loanDeduction,
               reimbursements: item.reimbursementAmount,
               claimIds: item.empClaims.map((c: any) => c.id),
+              leaveEncashmentAmount: item.leaveEncashmentAmount,
+              encashmentRequestIds: item.empEncashments.map((e: any) => e.id),
+              encashmentItems: item.encashmentItems,
               attendance: {
                 monthDays,
                 payableDays: item.payableDays,
@@ -635,10 +679,29 @@ export class PayrollOrchestratorService {
               loanRecovery: item.loanDeduction,
               reimbursements: item.reimbursementAmount,
               claimIds: item.empClaims.map((c: any) => c.id),
+              leaveEncashmentAmount: item.leaveEncashmentAmount,
+              encashmentRequestIds: item.empEncashments.map((e: any) => e.id),
+              encashmentItems: item.encashmentItems,
               prorationFactor: item.emp.prorationFactor,
             },
           },
         });
+
+        if (item.empEncashments.length > 0) {
+          await tx.leaveEncashmentRequest.updateMany({
+            where: {
+              tenantId,
+              id: { in: item.empEncashments.map((e: any) => e.id) },
+              status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+            },
+            data: {
+              status: "PAYROLL_PROCESSING",
+              payrollStatus: "PAYROLL_PROCESSING",
+              payrollRunId: runId,
+              payslipId: payslip.id,
+            },
+          });
+        }
       }
 
       // Update PayrollRun totals and state
@@ -1477,6 +1540,13 @@ export class PayrollOrchestratorService {
             closedBy: actor.email,
           },
         },
+      });
+
+      // Reconcile & mark scheduled Leave Encashment items as PAID strictly after verified cycle completion
+      await LeaveEncashmentCompOffService.reconcileAndMarkPayrollPaid(tenantId, {
+        payrollRunId: runId,
+        actorUserId: actor.id,
+        actorEmail: actor.email,
       });
 
       return {

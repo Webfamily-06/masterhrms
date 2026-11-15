@@ -171,6 +171,10 @@ model Tenant {
   jobPostings                  JobPosting[]
   jobTypes                     JobType[]
   journalEntries               JournalEntry[]
+  leaveEncashmentConfigs       LeaveEncashmentConfig[]
+  compOffConfigs               CompOffConfig[]
+  compOffUsageAllocations      CompOffUsageAllocation[]
+  leaveEncashmentCompOffEvents LeaveEncashmentCompOffEvent[]
   leaveEncashmentRequests      LeaveEncashmentRequest[]
   leaveLedgerEntries           LeaveLedgerEntry[]
   leavePolicies                LeavePolicy[]
@@ -436,6 +440,8 @@ model Employee {
   candidatesRecruited          JobCandidate[]                @relation("CandidateRecruiter")
   jobPostingsHiringManaged     JobPosting[]                  @relation("JobHiringManager")
   jobPostingsRecruited         JobPosting[]                  @relation("JobRecruiter")
+  compOffUsageAllocations      CompOffUsageAllocation[]
+  leaveEncashmentCompOffEvents LeaveEncashmentCompOffEvent[]
   leaveEncashmentRequests      LeaveEncashmentRequest[]
   leaveLedgerEntries           LeaveLedgerEntry[]
   leaveRequests                LeaveRequest[]
@@ -513,6 +519,8 @@ model LeaveType {
   isPaid             Boolean                  @default(true) @map("is_paid")
   sandwichRule       Boolean                  @default(false) @map("sandwich_rule")
   encashmentRequests LeaveEncashmentRequest[]
+  encashmentConfigs  LeaveEncashmentConfig[]
+  compOffConfigs     CompOffConfig[]
   leaveRequests      LeaveRequest[]
   leavePolicies      LeavePolicy[]
   tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -540,9 +548,10 @@ model LeaveRequest {
   approvedAt      DateTime?   @map("approved_at")
   createdAt       DateTime    @default(now()) @map("created_at")
   updatedAt       DateTime    @updatedAt @map("updated_at")
-  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType       LeaveType?  @relation(fields: [leaveTypeId], references: [id])
-  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee                Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType               LeaveType?               @relation(fields: [leaveTypeId], references: [id])
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  compOffUsageAllocations CompOffUsageAllocation[]
 
   @@index([tenantId, status])
   @@index([tenantId, employeeId])
@@ -641,25 +650,97 @@ model AttendanceMonthLock {
 }
 
 model LeaveEncashmentRequest {
-  id           String    @id @default(uuid()) @db.VarChar(36)
-  tenantId     String    @map("tenant_id") @db.VarChar(36)
-  employeeId   String    @map("employee_id") @db.VarChar(36)
-  leaveTypeId  String    @map("leave_type_id") @db.VarChar(36)
-  type         String    @default("ENCASHMENT") @db.VarChar(20)
-  days         Decimal   @db.Decimal(5, 2)
-  reason       String?
-  status       String    @default("PENDING") @db.VarChar(20)
-  approverId   String?   @map("approver_id") @db.VarChar(36)
-  approvedAt   DateTime? @map("approved_at")
-  payrollRef   String?   @map("payroll_ref") @db.VarChar(50)
-  workedOnDate DateTime? @map("worked_on_date") @db.Date
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType    LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
-  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                      String                        @id @default(uuid()) @db.VarChar(36)
+  tenantId                String                        @map("tenant_id") @db.VarChar(36)
+  employeeId              String                        @map("employee_id") @db.VarChar(36)
+  leaveTypeId             String                        @map("leave_type_id") @db.VarChar(36)
+  type                    String                        @default("ENCASHMENT") @db.VarChar(20)
+  requestCode             String?                       @map("request_code") @db.VarChar(40)
+  days                    Decimal                       @db.Decimal(5, 2)
+  approvedDays            Decimal?                      @map("approved_days") @db.Decimal(6, 2)
+  availableBalanceSnapshot Decimal?                     @map("available_balance_snapshot") @db.Decimal(6, 2)
+  retainedBalanceSnapshot Decimal?                      @map("retained_balance_snapshot") @db.Decimal(6, 2)
+  effectiveDate           DateTime?                     @map("effective_date") @db.Date
+  supportingDocUrl        String?                       @map("supporting_doc_url") @db.VarChar(500)
+  reason                  String?
+  status                  String                        @default("PENDING") @db.VarChar(40)
+  submittedById           String?                       @map("submitted_by_id") @db.VarChar(36)
+  submittedAt             DateTime?                     @map("submitted_at")
+  managerId               String?                       @map("manager_id") @db.VarChar(36)
+  managerApproverId       String?                       @map("manager_approver_id") @db.VarChar(36)
+  managerApprovedAt       DateTime?                     @map("manager_approved_at")
+  managerComments         String?                       @map("manager_comments")
+  hrApproverId            String?                       @map("hr_approver_id") @db.VarChar(36)
+  hrApprovedAt            DateTime?                     @map("hr_approved_at")
+  hrComments              String?                       @map("hr_comments")
+  approverId              String?                       @map("approver_id") @db.VarChar(36)
+  approvedAt              DateTime?                     @map("approved_at")
+  rejectionReason         String?                       @map("rejection_reason")
+  clarificationNote       String?                       @map("clarification_note")
+  cancellationReason      String?                       @map("cancellation_reason")
+  cancelledAt             DateTime?                     @map("cancelled_at")
+  cancelledById           String?                       @map("cancelled_by_id") @db.VarChar(36)
+  encashmentConfigId      String?                       @map("encashment_config_id") @db.VarChar(36)
+  compOffConfigId         String?                       @map("comp_off_config_id") @db.VarChar(36)
+  configVersion           Int?                          @map("config_version")
+  currency                String?                       @db.VarChar(10)
+  salaryBasisType         String?                       @map("salary_basis_type") @db.VarChar(30)
+  salaryBasisAmount       Decimal?                      @map("salary_basis_amount") @db.Decimal(14, 2)
+  dailyRateDivisor        Decimal?                      @map("daily_rate_divisor") @db.Decimal(6, 2)
+  dailyRate               Decimal?                      @map("daily_rate") @db.Decimal(14, 2)
+  grossAmount             Decimal?                      @map("gross_amount") @db.Decimal(14, 2)
+  adjustmentsAmount       Decimal?                      @default(0.00) @map("adjustments_amount") @db.Decimal(14, 2)
+  netPayableAmount        Decimal?                      @map("net_payable_amount") @db.Decimal(14, 2)
+  calculationSnapshot     Json?                         @map("calculation_snapshot")
+  payrollComponentId      String?                       @map("payroll_component_id") @db.VarChar(36)
+  payrollPeriodMonth      Int?                          @map("payroll_period_month")
+  payrollPeriodYear       Int?                          @map("payroll_period_year")
+  payrollRunId            String?                       @map("payroll_run_id") @db.VarChar(36)
+  payslipId               String?                       @map("payslip_id") @db.VarChar(36)
+  payrollRef              String?                       @map("payroll_ref") @db.VarChar(100)
+  payrollStatus           String?                       @map("payroll_status") @db.VarChar(30)
+  payrollProcessedAt      DateTime?                     @map("payroll_processed_at")
+  paidAt                  DateTime?                     @map("paid_at")
+  failureReason           String?                       @map("failure_reason")
+  ledgerEntryId           String?                       @map("ledger_entry_id") @db.VarChar(36)
+  reversalLedgerEntryId   String?                       @map("reversal_ledger_entry_id") @db.VarChar(36)
+  reversedAt              DateTime?                     @map("reversed_at")
+  reversedById            String?                       @map("reversed_by_id") @db.VarChar(36)
+  reversalReason          String?                       @map("reversal_reason")
+  reversalRef             String?                       @map("reversal_ref") @db.VarChar(100)
+  idempotencyKey          String?                       @map("idempotency_key") @db.VarChar(100)
+  workedOnDate            DateTime?                     @map("worked_on_date") @db.Date
+  workType                String?                       @map("work_type") @db.VarChar(30)
+  attendanceId            String?                       @map("attendance_id") @db.VarChar(36)
+  overtimeRequestId       String?                       @map("overtime_request_id") @db.VarChar(36)
+  actualWorkedHours       Decimal?                      @map("actual_worked_hours") @db.Decimal(5, 2)
+  creditedDays            Decimal?                      @map("credited_days") @db.Decimal(6, 2)
+  usedDays                Decimal                       @default(0.00) @map("used_days") @db.Decimal(6, 2)
+  expiredDays             Decimal                       @default(0.00) @map("expired_days") @db.Decimal(6, 2)
+  remainingDays           Decimal                       @default(0.00) @map("remaining_days") @db.Decimal(6, 2)
+  creditedAt              DateTime?                     @map("credited_at")
+  expiresAt               DateTime?                     @map("expires_at")
+  expiryWarningSentAt     DateTime?                     @map("expiry_warning_sent_at")
+  expiredAt               DateTime?                     @map("expired_at")
+  expiryLedgerEntryId     String?                       @map("expiry_ledger_entry_id") @db.VarChar(36)
+  createdAt               DateTime                      @default(now()) @map("created_at")
+  updatedAt               DateTime                      @updatedAt @map("updated_at")
+  employee                Employee                      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType               LeaveType                     @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  tenant                  Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  encashmentConfig        LeaveEncashmentConfig?        @relation(fields: [encashmentConfigId], references: [id], onDelete: SetNull)
+  compOffConfig           CompOffConfig?                @relation(fields: [compOffConfigId], references: [id], onDelete: SetNull)
+  payrollComponent        SalaryComponent?              @relation(fields: [payrollComponentId], references: [id], onDelete: SetNull)
+  payrollRun              PayrollRun?                   @relation(fields: [payrollRunId], references: [id], onDelete: SetNull)
+  payslip                 Payslip?                      @relation(fields: [payslipId], references: [id], onDelete: SetNull)
+  usageAllocations        CompOffUsageAllocation[]
+  events                  LeaveEncashmentCompOffEvent[]
 
   @@index([tenantId, employeeId, status])
+  @@index([tenantId, type, status, createdAt(sort: Desc)], map: "idx_leave_encash_tenant_type_status_created")
+  @@index([tenantId, payrollPeriodYear, payrollPeriodMonth, payrollStatus], map: "idx_leave_encash_tenant_payroll_period")
+  @@index([tenantId, type, status, expiresAt], map: "idx_leave_encash_tenant_expiry")
+  @@index([tenantId, managerId, status], map: "idx_leave_encash_tenant_manager_status")
   @@map("leave_encashment_requests")
 }
 
@@ -687,6 +768,7 @@ model PayrollRun {
   tenant                  Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   snapshots               PayrollSnapshot[]
   payslips                Payslip[]
+  encashmentRequests      LeaveEncashmentRequest[]
   statutoryReturnFilings  StatutoryReturnFiling[]
 
   @@index([tenantId, status])
@@ -712,9 +794,10 @@ model Payslip {
   pdfUrl              String?     @map("pdf_url") @db.VarChar(500)
   publishedAt         DateTime?   @map("published_at")
   status              String      @default("draft") @db.VarChar(30)
-  employee            Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  payrollRun          PayrollRun? @relation(fields: [payrollRunId], references: [id])
-  tenant              Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee            Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollRun          PayrollRun?              @relation(fields: [payrollRunId], references: [id])
+  tenant              Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  encashmentRequests  LeaveEncashmentRequest[]
 
   @@index([tenantId, employeeId])
   @@index([tenantId, payrollRunId])
@@ -791,9 +874,11 @@ model SalaryComponent {
   description     String?
   createdAt       DateTime              @default(now()) @map("created_at")
   updatedAt       DateTime              @updatedAt @map("updated_at")
-  salaryItems     EmployeeSalaryItem[]
-  tenant          Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  structureItems  SalaryStructureItem[]
+  salaryItems             EmployeeSalaryItem[]
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  structureItems          SalaryStructureItem[]
+  encashmentConfigs       LeaveEncashmentConfig[]
+  encashmentRequests      LeaveEncashmentRequest[]
 
   @@unique([tenantId, code])
   @@index([tenantId, type])
@@ -6998,4 +7083,155 @@ model WebdavToken {
   @@index([tenantId, userId])
   @@index([tokenHash])
   @@map("webdav_tokens")
+}
+
+
+model LeaveEncashmentConfig {
+  id                         String                   @id @default(uuid()) @db.VarChar(36)
+  tenantId                   String                   @map("tenant_id") @db.VarChar(36)
+  name                       String                   @db.VarChar(120)
+  code                       String                   @db.VarChar(50)
+  description                String?
+  enabled                    Boolean                  @default(true)
+  eligibleLeaveTypeIds       Json?                    @map("eligible_leave_type_ids")
+  leaveTypeId                String?                  @map("leave_type_id") @db.VarChar(36)
+  eligibilityCriteria        Json?                    @map("eligibility_criteria")
+  minServiceMonths           Int                      @default(0) @map("min_service_months")
+  minRemainingBalance        Decimal                  @default(0.00) @map("min_remaining_balance") @db.Decimal(6, 2)
+  maxEncashableDaysPerRequest Decimal                 @default(15.00) @map("max_encashable_days_per_request") @db.Decimal(6, 2)
+  maxEncashableDaysPerYear   Decimal                  @default(30.00) @map("max_encashable_days_per_year") @db.Decimal(6, 2)
+  minRetainedBalance         Decimal                  @default(0.00) @map("min_retained_balance") @db.Decimal(6, 2)
+  encashmentFrequency        String                   @default("ANNUAL") @map("encashment_frequency") @db.VarChar(30)
+  periodicLimitDays          Decimal?                 @map("periodic_limit_days") @db.Decimal(6, 2)
+  allowEssSubmission         Boolean                  @default(true) @map("allow_ess_submission")
+  requireSupportingDoc       Boolean                  @default(false) @map("require_supporting_doc")
+  applicableCategories       Json?                    @map("applicable_categories")
+  branchId                   String?                  @map("branch_id") @db.VarChar(36)
+  departmentId               String?                  @map("department_id") @db.VarChar(36)
+  approvalMode               String                   @default("MANAGER_THEN_HR") @map("approval_mode") @db.VarChar(30)
+  salaryBasisType            String                   @default("BASIC") @map("salary_basis_type") @db.VarChar(30)
+  salaryComponentCodes       Json?                    @map("salary_component_codes")
+  dailyRateDivisorMode       String                   @default("SALARY_STRUCTURE") @map("daily_rate_divisor_mode") @db.VarChar(30)
+  dailyRateDivisor           Decimal?                 @map("daily_rate_divisor") @db.Decimal(6, 2)
+  payrollComponentId         String?                  @map("payroll_component_id") @db.VarChar(36)
+  effectiveFrom              DateTime                 @map("effective_from") @db.Date
+  effectiveTo                DateTime?                @map("effective_to") @db.Date
+  status                     String                   @default("active") @db.VarChar(20)
+  version                    Int                      @default(1)
+  previousVersionId          String?                  @map("previous_version_id") @db.VarChar(36)
+  createdById                String?                  @map("created_by_id") @db.VarChar(36)
+  updatedById                String?                  @map("updated_by_id") @db.VarChar(36)
+  createdAt                  DateTime                 @default(now()) @map("created_at")
+  updatedAt                  DateTime                 @updatedAt @map("updated_at")
+  tenant                     Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaveType                  LeaveType?               @relation(fields: [leaveTypeId], references: [id], onDelete: SetNull)
+  payrollComponent           SalaryComponent?         @relation(fields: [payrollComponentId], references: [id], onDelete: SetNull)
+  requests                   LeaveEncashmentRequest[]
+
+  @@unique([tenantId, code, version], map: "uq_leave_encash_config_tenant_code_ver")
+  @@index([tenantId, status, effectiveFrom, effectiveTo], map: "idx_leave_encash_config_tenant_active")
+  @@index([tenantId, branchId, departmentId], map: "idx_leave_encash_config_tenant_scope")
+  @@map("leave_encashment_configs")
+}
+
+model CompOffConfig {
+  id                          String                   @id @default(uuid()) @db.VarChar(36)
+  tenantId                    String                   @map("tenant_id") @db.VarChar(36)
+  name                        String                   @db.VarChar(120)
+  code                        String                   @db.VarChar(50)
+  description                 String?
+  enabled                     Boolean                  @default(true)
+  compOffLeaveTypeId          String?                  @map("comp_off_leave_type_id") @db.VarChar(36)
+  eligibleWorkTypes           Json?                    @map("eligible_work_types")
+  allowWeeklyOff              Boolean                  @default(true) @map("allow_weekly_off")
+  allowPublicHoliday          Boolean                  @default(true) @map("allow_public_holiday")
+  allowApprovedOvertime       Boolean                  @default(true) @map("allow_approved_overtime")
+  allowWorkdayExtraHours      Boolean                  @default(false) @map("allow_workday_extra_hours")
+  requireAttendanceRecord     Boolean                  @default(true) @map("require_attendance_record")
+  requireApprovedOvertimeForOt Boolean                 @default(true) @map("require_approved_overtime_for_ot")
+  minQualifyingHours          Decimal                  @default(4.00) @map("min_qualifying_hours") @db.Decimal(5, 2)
+  halfDayHoursThreshold       Decimal                  @default(4.00) @map("half_day_hours_threshold") @db.Decimal(5, 2)
+  fullDayHoursThreshold       Decimal                  @default(8.00) @map("full_day_hours_threshold") @db.Decimal(5, 2)
+  maxCreditPerDay             Decimal                  @default(1.00) @map("max_credit_per_day") @db.Decimal(5, 2)
+  maxMonthlyCredits           Decimal                  @default(4.00) @map("max_monthly_credits") @db.Decimal(6, 2)
+  maxYearlyCredits            Decimal                  @default(24.00) @map("max_yearly_credits") @db.Decimal(6, 2)
+  submissionDeadlineDays      Int                      @default(30) @map("submission_deadline_days")
+  expiryDays                  Int                      @default(90) @map("expiry_days")
+  expiryWarningDays           Int                      @default(7) @map("expiry_warning_days")
+  allowEssSubmission          Boolean                  @default(true) @map("allow_ess_submission")
+  requireSupportingDoc        Boolean                  @default(false) @map("require_supporting_doc")
+  halfDayAllowed              Boolean                  @default(true) @map("half_day_allowed")
+  applicableCategories        Json?                    @map("applicable_categories")
+  branchId                    String?                  @map("branch_id") @db.VarChar(36)
+  departmentId                String?                  @map("department_id") @db.VarChar(36)
+  approvalMode                String                   @default("MANAGER_THEN_HR") @map("approval_mode") @db.VarChar(30)
+  effectiveFrom               DateTime                 @map("effective_from") @db.Date
+  effectiveTo                 DateTime?                @map("effective_to") @db.Date
+  status                      String                   @default("active") @db.VarChar(20)
+  version                     Int                      @default(1)
+  previousVersionId           String?                  @map("previous_version_id") @db.VarChar(36)
+  createdById                 String?                  @map("created_by_id") @db.VarChar(36)
+  updatedById                 String?                  @map("updated_by_id") @db.VarChar(36)
+  createdAt                   DateTime                 @default(now()) @map("created_at")
+  updatedAt                   DateTime                 @updatedAt @map("updated_at")
+  tenant                      Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  compOffLeaveType            LeaveType?               @relation(fields: [compOffLeaveTypeId], references: [id], onDelete: SetNull)
+  requests                    LeaveEncashmentRequest[]
+
+  @@unique([tenantId, code, version], map: "uq_comp_off_config_tenant_code_ver")
+  @@index([tenantId, status, effectiveFrom, effectiveTo], map: "idx_comp_off_config_tenant_active")
+  @@index([tenantId, branchId, departmentId], map: "idx_comp_off_config_tenant_scope")
+  @@map("comp_off_configs")
+}
+
+model CompOffUsageAllocation {
+  id               String                 @id @default(uuid()) @db.VarChar(36)
+  tenantId         String                 @map("tenant_id") @db.VarChar(36)
+  employeeId       String                 @map("employee_id") @db.VarChar(36)
+  compOffRequestId String                 @map("comp_off_request_id") @db.VarChar(36)
+  leaveRequestId   String                 @map("leave_request_id") @db.VarChar(36)
+  daysAllocated    Decimal                @map("days_allocated") @db.Decimal(5, 2)
+  status           String                 @default("RESERVED") @db.VarChar(20)
+  ledgerEntryId    String?                @map("ledger_entry_id") @db.VarChar(36)
+  restoredAt       DateTime?              @map("restored_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee         Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  compOffRequest   LeaveEncashmentRequest @relation(fields: [compOffRequestId], references: [id], onDelete: Restrict)
+  leaveRequest     LeaveRequest           @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, compOffRequestId, leaveRequestId], map: "uq_comp_off_usage_lot_leave")
+  @@index([tenantId, employeeId, status], map: "idx_comp_off_usage_tenant_emp_status")
+  @@index([tenantId, leaveRequestId], map: "idx_comp_off_usage_tenant_leave")
+  @@map("comp_off_usage_allocations")
+}
+
+model LeaveEncashmentCompOffEvent {
+  id              String                 @id @default(uuid()) @db.VarChar(36)
+  tenantId        String                 @map("tenant_id") @db.VarChar(36)
+  requestId       String                 @map("request_id") @db.VarChar(36)
+  employeeId      String                 @map("employee_id") @db.VarChar(36)
+  transactionType String                 @map("transaction_type") @db.VarChar(40)
+  eventType       String                 @map("event_type") @db.VarChar(50)
+  fromStatus      String?                @map("from_status") @db.VarChar(40)
+  toStatus        String?                @map("to_status") @db.VarChar(40)
+  actorId         String?                @map("actor_id") @db.VarChar(36)
+  actorName       String?                @map("actor_name") @db.VarChar(150)
+  actorRole       String?                @map("actor_role") @db.VarChar(60)
+  days            Decimal?               @db.Decimal(6, 2)
+  amount          Decimal?               @db.Decimal(14, 2)
+  payrollRef      String?                @map("payroll_ref") @db.VarChar(100)
+  ledgerEntryId   String?                @map("ledger_entry_id") @db.VarChar(36)
+  comments        String?
+  metadataJson    Json?                  @map("metadata_json")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  tenant          Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  request         LeaveEncashmentRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  employee        Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, requestId, createdAt], map: "idx_leave_encash_event_request_time")
+  @@index([tenantId, employeeId, createdAt(sort: Desc)], map: "idx_leave_encash_event_emp_time")
+  @@index([tenantId, eventType, createdAt(sort: Desc)], map: "idx_leave_encash_event_type_time")
+  @@map("leave_encashment_compoff_events")
 }

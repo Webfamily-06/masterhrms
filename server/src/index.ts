@@ -118,6 +118,7 @@ import { woocommerceRouter } from "./routes/woocommerce.routes";
 import { shopifyRouter } from "./routes/shopify.routes";
 import { alertsRouter } from "./routes/alerts.routes";
 import { WebhookRetryWorker } from "./modules/outbound-webhooks/webhook-retry.worker";
+import { AttendanceAutomationService } from "./services/attendance-automation.service";
 import { projectsRouter } from "./routes/projects.routes";
 import { suppliersRouter } from "./routes/suppliers.routes";
 import { purchasesRouter } from "./routes/purchases.routes";
@@ -746,6 +747,33 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
   }
   scheduleDailySubscriptionReminders();
   CalendarReminderScheduler.start();
+
+  // Schedule daily idempotent Comp-Off credit expiry & pre-expiry notification sweep (01:30 UTC daily)
+  function scheduleDailyCompOffExpirySweep() {
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 30, 0, 0)
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing scheduled daily Comp-Off credit expiry sweep...");
+        const result = await AttendanceAutomationService.runGlobalCompOffExpirySweep();
+        console.log("✅ [CRON] Comp-Off expiry sweep finished:", result);
+      } catch (err: any) {
+        console.error("❌ [CRON] Comp-Off expiry sweep failed:", err?.message);
+      }
+      scheduleDailyCompOffExpirySweep();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily Comp-Off Expiry Sweep scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:30 UTC)`
+    );
+  }
+  scheduleDailyCompOffExpirySweep();
 
   server.listen(Number(PORT), HOST, async () => {
     console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);

@@ -5,6 +5,7 @@ import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { LeaveService, LeaveHttpError } from "../services/leave.service";
 import { AuditService } from "../services/audit.service";
+import { hrLeaveEncashmentCompOffRouter } from "./hr-leave-encashment-compoff.routes";
 
 export const hrLeaveRouter = Router();
 
@@ -1918,107 +1919,8 @@ hrLeaveRouter.get("/calendar", requirePermission("hrm.leave.view"), async (req: 
 });
 
 // =========================================================================
-// 6. ENCASHMENT & COMP-OFF
+// 6. ENCASHMENT & COMP-OFF (5th Leave Management Module — P3-A)
 // =========================================================================
 
-hrLeaveRouter.get("/encashment-compoff", requirePermission("hrm.leave.view"), async (req: AuthRequest, res: Response) => {
-  try {
-    const tenantId = req.tenantId!;
-    const requests = await rawPrisma.leaveEncashmentRequest.findMany({
-      where: { tenantId },
-      include: {
-        employee: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            employeeCode: true,
-            department: { select: { name: true } },
-          },
-        },
-        leaveType: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    return res.json(requests);
-  } catch (err: any) {
-    return sendLeaveError(res, err, 500);
-  }
-});
+hrLeaveRouter.use("/encashment-compoff", hrLeaveEncashmentCompOffRouter);
 
-hrLeaveRouter.post(
-  "/encashment-compoff/:id/action",
-  requirePermission("hrm.leave.approve"),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const tenantId = req.tenantId!;
-      const { id } = req.params;
-      const { action, comments } = req.body;
-
-      const enc = await rawPrisma.leaveEncashmentRequest.findUnique({
-        where: { id },
-        include: { employee: true },
-      });
-      if (!enc || enc.tenantId !== tenantId) {
-        return res.status(404).json({ error: "Encashment request not found" });
-      }
-
-      await LeaveService.assertReviewerAuthorized(
-        tenantId,
-        req.user!.userId,
-        req.user?.roles,
-        enc.employee
-      );
-
-      if (enc.status !== "PENDING") {
-        return res.status(409).json({ error: `Encashment request is already ${enc.status}.` });
-      }
-
-      const updated = await rawPrisma.$transaction(async (tx) => {
-        const rec = await tx.leaveEncashmentRequest.update({
-          where: { id },
-          data: {
-            status: action === "approve" ? "APPROVED" : "REJECTED",
-            approverId: req.user!.userId,
-            approvedAt: new Date(),
-          },
-        });
-
-        if (action === "approve") {
-          const currentBal = await LeaveService.getEmployeeBalance(
-            tenantId,
-            enc.employeeId,
-            enc.leaveTypeId,
-            new Date().getUTCFullYear(),
-            { tx }
-          );
-          if (currentBal < Number(enc.days)) {
-            throw new LeaveHttpError(
-              `Insufficient leave balance for encashment (Available: ${currentBal}, Requested: ${Number(enc.days)}).`,
-              400
-            );
-          }
-          await tx.leaveLedgerEntry.create({
-            data: {
-              tenantId,
-              employeeId: enc.employeeId,
-              leaveTypeId: enc.leaveTypeId,
-              entryType: "ENCASHMENT",
-              days: Number(enc.days),
-              balance: Math.max(0, Number((currentBal - Number(enc.days)).toFixed(2))),
-              referenceId: id,
-              notes: `Encashment approval for request #${id.slice(0, 8)}. ${comments || ""}`.trim().slice(0, 250),
-              effectiveAt: new Date(),
-            },
-          });
-        }
-
-        return rec;
-      });
-
-      return res.json(updated);
-    } catch (err: any) {
-      return sendLeaveError(res, err, 500);
-    }
-  }
-);

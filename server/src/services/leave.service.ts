@@ -294,18 +294,27 @@ export class LeaveService {
       id: string;
       status: string;
       days: any;
-    }>
+    }>,
+    pendingEncashments: Array<{
+      id: string;
+      status: string;
+      days: any;
+    }> = [],
+    rollingCarryOverCredits: number = 0
   ) {
     let accrued = 0;
     let hasSyncedAccrual = false;
-    let carryForward = 0;
+    let carryForward = Number(rollingCarryOverCredits || 0);
     let manualCredits = 0;
+    let earnedCredits = 0;
     let manualDebits = 0;
-    let encashments = 0;
+    let unreferencedEncashments = 0;
+    let expired = 0;
 
-    // Track reference-linked ledger debits/credits (approvals & compensating reversals)
+    // Track reference-linked ledger debits/credits/encashments (approvals, Comp-Off credits & compensating reversals)
     const refDebits = new Map<string, number>();
     const refCredits = new Map<string, number>();
+    const refEncashments = new Map<string, number>();
 
     for (const entry of yearEntries) {
       const d = Number(entry.days || 0);
@@ -327,18 +336,41 @@ export class LeaveService {
           manualDebits += d;
         }
       } else if (entry.entryType === "ENCASHMENT") {
-        encashments += d;
+        if (entry.referenceId) {
+          refEncashments.set(entry.referenceId, (refEncashments.get(entry.referenceId) || 0) + d);
+        } else {
+          unreferencedEncashments += d;
+        }
+      } else if (entry.entryType === "EXPIRY") {
+        expired += d;
       }
     }
 
     const defaultQuota = lt.daysPerYear !== undefined && lt.daysPerYear !== null ? Number(lt.daysPerYear) : 0;
     const annualEntitlement = hasSyncedAccrual ? accrued : defaultQuota;
 
-    // Net ledger-backed leave usage (DEBIT minus compensating CREDIT per request referenceId)
+    // Net ledger-backed encashments (ENCASHMENT minus compensating reversal CREDIT per referenceId)
+    let encashments = unreferencedEncashments;
+    for (const [refId, encAmt] of refEncashments.entries()) {
+      const reversalCred = refCredits.get(refId) || 0;
+      encashments += Math.max(0, encAmt - reversalCred);
+    }
+
+    // Net ledger-backed leave usage vs standalone earned credits (e.g. Comp-Off CREDITs)
     let netLedgerUsed = 0;
-    for (const [refId, deb] of refDebits.entries()) {
+    const allNonEncashRefs = new Set<string>([
+      ...Array.from(refDebits.keys()),
+      ...Array.from(refCredits.keys()).filter((k) => !refEncashments.has(k)),
+    ]);
+
+    for (const refId of allNonEncashRefs) {
+      const deb = refDebits.get(refId) || 0;
       const cred = refCredits.get(refId) || 0;
-      netLedgerUsed += Math.max(0, deb - cred);
+      if (deb >= cred) {
+        netLedgerUsed += deb - cred;
+      } else {
+        earnedCredits += cred - deb;
+      }
     }
 
     // Include any legacy approved requests in this year that had no ledger DEBIT row
@@ -353,12 +385,23 @@ export class LeaveService {
       }
     }
 
+    // Reserve active pending encashment requests before they are ledgered as ENCASHMENT
+    for (const enc of pendingEncashments) {
+      if (!refEncashments.has(enc.id)) {
+        pending += Number(enc.days || 0);
+      }
+    }
+
     const used = Number((netLedgerUsed + legacyUnledgeredApproved).toFixed(2));
     const pendingRounded = Number(pending.toFixed(2));
+    const expiredRounded = Number(expired.toFixed(2));
     const total = Number(
-      Math.max(0, annualEntitlement + carryForward + manualCredits - manualDebits - encashments).toFixed(2)
+      Math.max(
+        0,
+        annualEntitlement + carryForward + manualCredits + earnedCredits - manualDebits - encashments
+      ).toFixed(2)
     );
-    const available = Number(Math.max(0, total - used - pendingRounded).toFixed(2));
+    const available = Number(Math.max(0, total - used - expiredRounded - pendingRounded).toFixed(2));
 
     return {
       leaveTypeId: lt.id,
@@ -374,9 +417,11 @@ export class LeaveService {
       annualEntitlement: Number(annualEntitlement.toFixed(2)),
       accrued: Number(annualEntitlement.toFixed(2)),
       carryForward: Number(carryForward.toFixed(2)),
-      manualCredits: Number(manualCredits.toFixed(2)),
+      manualCredits: Number((manualCredits + earnedCredits).toFixed(2)),
+      earnedCredits: Number(earnedCredits.toFixed(2)),
       manualDebits: Number(manualDebits.toFixed(2)),
       encashments: Number(encashments.toFixed(2)),
+      expired: expiredRounded,
       total,
       used,
       pending: pendingRounded,
@@ -385,24 +430,329 @@ export class LeaveService {
   }
 
   /**
-   * Derive authoritative available leave balance from immutable LeaveLedgerEntry + LeaveRequest records.
+   * Checks whether a LeaveType serves as a Compensatory Off (Comp-Off) leave type for the tenant.
+   */
+  static async isCompOffLeaveType(
+    tenantId: string,
+    leaveType: { id: string; code?: string | null; name?: string | null },
+    db: any = rawPrisma
+  ): Promise<boolean> {
+    const codeUpper = String(leaveType.code || "").trim().toUpperCase();
+    const nameStr = String(leaveType.name || "").trim();
+    if (
+      ["COM", "COMP", "COMP_OFF", "COMPOFF", "CO", "COFF"].includes(codeUpper) ||
+      /comp[\s_-]*off|compensatory/i.test(nameStr)
+    ) {
+      return true;
+    }
+    const linkedConfig = await db.compOffConfig.findFirst({
+      where: { tenantId, compOffLeaveTypeId: leaveType.id, status: "active" },
+      select: { id: true },
+    });
+    return Boolean(linkedConfig);
+  }
+
+  /**
+   * Idempotently expires any Comp-Off credit lots for an employee whose expiresAt has passed
+   * while preserving already consumed days and writing an auditable EXPIRY ledger entry.
+   */
+  static async sweepOverdueCompOffLotsForEmployee(
+    tenantId: string,
+    employeeId: string,
+    db: any = rawPrisma
+  ): Promise<number> {
+    const now = new Date();
+    const overdueLots = await db.leaveEncashmentRequest.findMany({
+      where: {
+        tenantId,
+        employeeId,
+        type: "COMP_OFF",
+        status: { in: ["CREDITED", "PARTIALLY_USED"] },
+        expiresAt: { lt: now },
+        remainingDays: { gt: 0 },
+      },
+    });
+    if (overdueLots.length === 0) return 0;
+
+    let expiredCount = 0;
+    for (const lot of overdueLots) {
+      const rem = Number(lot.remainingDays || 0);
+      if (rem <= 0) continue;
+
+      const existingExpiry = await db.leaveLedgerEntry.findFirst({
+        where: { tenantId, referenceId: lot.id, entryType: "EXPIRY" },
+        select: { id: true },
+      });
+
+      let expiryLedgerId = existingExpiry?.id || null;
+      if (!existingExpiry) {
+        const balBefore = await this.getEmployeeBalance(
+          tenantId,
+          employeeId,
+          lot.leaveTypeId,
+          now.getUTCFullYear(),
+          { tx: db, skipCompOffSweep: true }
+        );
+        const createdLedger = await db.leaveLedgerEntry.create({
+          data: {
+            tenantId,
+            employeeId,
+            leaveTypeId: lot.leaveTypeId,
+            entryType: "EXPIRY",
+            days: rem,
+            balance: Math.max(0, Number((balBefore - rem).toFixed(2))),
+            referenceId: lot.id,
+            notes: `Auto-expired unused Comp-Off credit (${lot.requestCode || lot.id.slice(0, 8)})`.slice(0, 250),
+            effectiveAt: lot.expiresAt || now,
+          },
+        });
+        expiryLedgerId = createdLedger.id;
+      }
+
+      const prevExpired = Number(lot.expiredDays || 0);
+      await db.leaveEncashmentRequest.update({
+        where: { id: lot.id },
+        data: {
+          expiredDays: Number((prevExpired + rem).toFixed(2)),
+          remainingDays: 0,
+          status: "EXPIRED",
+          expiredAt: now,
+          expiryLedgerEntryId: expiryLedgerId,
+        },
+      });
+
+      await db.leaveEncashmentCompOffEvent.create({
+        data: {
+          tenantId,
+          requestId: lot.id,
+          employeeId,
+          transactionType: "COMP_OFF",
+          eventType: "EXPIRED",
+          fromStatus: lot.status,
+          toStatus: "EXPIRED",
+          days: rem,
+          ledgerEntryId: expiryLedgerId,
+          comments: `Unused Comp-Off credit (${rem} day(s)) expired on ${lot.expiresAt?.toISOString().slice(0, 10) || now.toISOString().slice(0, 10)}.`,
+        },
+      });
+
+      expiredCount++;
+    }
+    return expiredCount;
+  }
+
+  /**
+   * Computes rolling carry-over credits into `targetYear` from Comp-Off lots credited prior to `startOfYear`
+   * whose expiry falls inside or after `targetYear` (or had no expiry).
+   */
+  private static computePriorYearCompOffCarryIntoYear(
+    priorLots: Array<{
+      days: any;
+      approvedDays?: any;
+      expiredAt?: Date | null;
+      expiredDays?: any;
+      usageAllocations?: Array<{
+        daysAllocated: any;
+        status: string;
+        leaveRequest?: { startDate: Date } | null;
+      }>;
+    }>,
+    startOfYear: Date
+  ): number {
+    let carry = 0;
+    for (const lot of priorLots) {
+      const credited = Number(lot.approvedDays ?? lot.days ?? 0);
+      if (credited <= 0) continue;
+      let priorUsed = 0;
+      for (const alloc of lot.usageAllocations || []) {
+        if (alloc.status === "CONSUMED" && alloc.leaveRequest?.startDate && alloc.leaveRequest.startDate < startOfYear) {
+          priorUsed += Number(alloc.daysAllocated || 0);
+        }
+      }
+      let priorExpired = 0;
+      if (lot.expiredAt && lot.expiredAt < startOfYear) {
+        priorExpired = Number(lot.expiredDays || 0);
+      }
+      carry += Math.max(0, credited - priorUsed - priorExpired);
+    }
+    return Number(carry.toFixed(2));
+  }
+
+  /**
+   * Returns FIFO-ordered non-expired Comp-Off credit lots available on `referenceDate`,
+   * subtracting active RESERVED allocations from other pending leave requests.
+   */
+  static async getAvailableCompOffLotsForDate(
+    tenantId: string,
+    employeeId: string,
+    leaveTypeId: string,
+    referenceDate: Date,
+    options?: {
+      excludeLeaveRequestId?: string;
+      db?: any;
+      skipSweep?: boolean;
+    }
+  ) {
+    const db = options?.db || rawPrisma;
+    if (!options?.skipSweep) {
+      await this.sweepOverdueCompOffLotsForEmployee(tenantId, employeeId, db);
+    }
+
+    const refDay = new Date(referenceDate);
+    refDay.setUTCHours(0, 0, 0, 0);
+
+    const lots = await db.leaveEncashmentRequest.findMany({
+      where: {
+        tenantId,
+        employeeId,
+        leaveTypeId,
+        type: "COMP_OFF",
+        status: { in: ["CREDITED", "PARTIALLY_USED"] },
+        remainingDays: { gt: 0 },
+        OR: [{ expiresAt: null }, { expiresAt: { gte: refDay } }],
+      },
+      include: {
+        usageAllocations: {
+          where: {
+            status: "RESERVED",
+            ...(options?.excludeLeaveRequestId
+              ? { leaveRequestId: { not: options.excludeLeaveRequestId } }
+              : {}),
+          },
+          include: {
+            leaveRequest: { select: { id: true, status: true } },
+          },
+        },
+      },
+      orderBy: [{ expiresAt: "asc" }, { workedOnDate: "asc" }, { createdAt: "asc" }],
+    });
+
+    const availableLots = lots
+      .map((lot: any) => {
+        const activeReserved = (lot.usageAllocations || [])
+          .filter((a: any) => !a.leaveRequest || a.leaveRequest.status === "pending")
+          .reduce((sum: number, a: any) => sum + Number(a.daysAllocated || 0), 0);
+        const netAvailable = Number(Math.max(0, Number(lot.remainingDays || 0) - activeReserved).toFixed(2));
+        return {
+          ...lot,
+          activeReserved: Number(activeReserved.toFixed(2)),
+          netAvailable,
+        };
+      })
+      .filter((l: any) => l.netAvailable > 0);
+
+    const totalNetAvailable = Number(
+      availableLots.reduce((sum: number, l: any) => sum + l.netAvailable, 0).toFixed(2)
+    );
+
+    return { lots: availableLots, totalNetAvailable };
+  }
+
+  /**
+   * Reserves Comp-Off credit lots in FIFO order (`RESERVED`) for a pending LeaveRequest.
+   */
+  static async reserveCompOffLotsFifo(
+    tx: any,
+    params: {
+      tenantId: string;
+      employeeId: string;
+      leaveTypeId: string;
+      leaveRequestId: string;
+      requiredDays: number;
+      leaveEndDate: Date;
+    }
+  ) {
+    const { tenantId, employeeId, leaveTypeId, leaveRequestId, requiredDays, leaveEndDate } = params;
+    await tx.$queryRaw`SELECT id FROM employees WHERE id = ${employeeId} AND tenant_id = ${tenantId} FOR UPDATE`;
+
+    // Clear any stale RESERVED rows for this leaveRequestId first (for updates)
+    await tx.compOffUsageAllocation.deleteMany({
+      where: { tenantId, leaveRequestId, status: "RESERVED" },
+    });
+
+    const { lots, totalNetAvailable } = await this.getAvailableCompOffLotsForDate(
+      tenantId,
+      employeeId,
+      leaveTypeId,
+      leaveEndDate,
+      { excludeLeaveRequestId: leaveRequestId, db: tx }
+    );
+
+    if (totalNetAvailable < requiredDays) {
+      throw new LeaveHttpError(
+        `Insufficient non-expired Comp-Off balance. Available non-expired credit: ${totalNetAvailable} day(s), Required: ${requiredDays} day(s).`,
+        400,
+        "INSUFFICIENT_COMPOFF_BALANCE"
+      );
+    }
+
+    let remainingToReserve = Number(requiredDays.toFixed(2));
+    const allocations: any[] = [];
+
+    for (const lot of lots) {
+      if (remainingToReserve <= 0) break;
+      const take = Number(Math.min(lot.netAvailable, remainingToReserve).toFixed(2));
+      if (take <= 0) continue;
+
+      const created = await tx.compOffUsageAllocation.create({
+        data: {
+          tenantId,
+          employeeId,
+          compOffRequestId: lot.id,
+          leaveRequestId,
+          daysAllocated: take,
+          status: "RESERVED",
+        },
+      });
+      allocations.push({ ...created, requestCode: lot.requestCode || lot.id.slice(0, 8) });
+      remainingToReserve = Number((remainingToReserve - take).toFixed(2));
+    }
+
+    return allocations;
+  }
+
+  /**
+   * Releases RESERVED Comp-Off allocations when a pending leave application is rejected or cancelled.
+   */
+  static async releaseReservedCompOffLots(tx: any, tenantId: string, leaveRequestId: string) {
+    await tx.compOffUsageAllocation.updateMany({
+      where: { tenantId, leaveRequestId, status: "RESERVED" },
+      data: { status: "RESTORED", restoredAt: new Date() },
+    });
+  }
+
+  /**
+   * Derive authoritative available leave balance from immutable LeaveLedgerEntry + LeaveRequest + pending Encashment records.
    */
   static async getEmployeeBalance(
     tenantId: string,
     employeeId: string,
     leaveTypeId: string,
     year?: number,
-    options?: { tx?: any; excludeRequestId?: string; ignorePending?: boolean }
+    options?: {
+      tx?: any;
+      excludeRequestId?: string;
+      excludeEncashmentId?: string;
+      ignorePending?: boolean;
+      skipCompOffSweep?: boolean;
+    }
   ): Promise<number> {
     const db = options?.tx || rawPrisma;
     const targetYear = year || new Date().getUTCFullYear();
     const startOfYear = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
     const endOfYear = new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59, 999));
 
-    const [leaveType, entries, requests] = await Promise.all([
-      db.leaveType.findFirst({
-        where: { id: leaveTypeId, tenantId },
-      }),
+    const leaveType = await db.leaveType.findFirst({
+      where: { id: leaveTypeId, tenantId },
+    });
+    if (!leaveType) return 0;
+
+    const isCompOff = await this.isCompOffLeaveType(tenantId, leaveType, db);
+    if (isCompOff && !options?.skipCompOffSweep) {
+      await this.sweepOverdueCompOffLotsForEmployee(tenantId, employeeId, db);
+    }
+
+    const [entries, requests, pendingEncashments, priorYearCompOffLots] = await Promise.all([
       db.leaveLedgerEntry.findMany({
         where: {
           tenantId,
@@ -423,15 +773,66 @@ export class LeaveService {
         },
         select: { id: true, status: true, days: true },
       }),
+      options?.ignorePending
+        ? Promise.resolve([])
+        : db.leaveEncashmentRequest.findMany({
+            where: {
+              tenantId,
+              employeeId,
+              leaveTypeId,
+              type: "ENCASHMENT",
+              status: { in: ["PENDING", "MANAGER_APPROVED", "HR_APPROVED"] },
+              OR: [
+                { effectiveDate: { gte: startOfYear, lte: endOfYear } },
+                { effectiveDate: null, createdAt: { gte: startOfYear, lte: endOfYear } },
+              ],
+              ...(options?.excludeEncashmentId ? { id: { not: options.excludeEncashmentId } } : {}),
+            },
+            select: { id: true, status: true, days: true },
+          }),
+      isCompOff
+        ? db.leaveEncashmentRequest.findMany({
+            where: {
+              tenantId,
+              employeeId,
+              leaveTypeId,
+              type: "COMP_OFF",
+              creditedAt: { lt: startOfYear },
+              OR: [{ expiresAt: null }, { expiresAt: { gte: startOfYear } }],
+            },
+            select: {
+              days: true,
+              approvedDays: true,
+              expiredAt: true,
+              expiredDays: true,
+              usageAllocations: {
+                where: { status: "CONSUMED" },
+                select: {
+                  daysAllocated: true,
+                  status: true,
+                  leaveRequest: { select: { startDate: true } },
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
-    if (!leaveType) return 0;
-    const summary = this.computeLeaveTypeBalanceSummary(leaveType, entries, requests);
+    const rollingCarry = isCompOff
+      ? this.computePriorYearCompOffCarryIntoYear(priorYearCompOffLots, startOfYear)
+      : 0;
+    const summary = this.computeLeaveTypeBalanceSummary(
+      leaveType,
+      entries,
+      requests,
+      pendingEncashments,
+      rollingCarry
+    );
     return summary.available;
   }
 
   /**
-   * Comprehensive single-employee leave balances breakdown across leave types (3 parallel queries).
+   * Comprehensive single-employee leave balances breakdown across leave types (parallel queries).
    */
   static async getEmployeeDetailedBalances(
     tenantId: string,
@@ -443,7 +844,9 @@ export class LeaveService {
     const startOfYear = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
     const endOfYear = new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59, 999));
 
-    const [leaveTypes, ledgerEntries, leaveRequests] = await Promise.all([
+    await this.sweepOverdueCompOffLotsForEmployee(tenantId, employeeId);
+
+    const [leaveTypes, ledgerEntries, leaveRequests, pendingEncashments, priorYearCompOffLots] = await Promise.all([
       rawPrisma.leaveType.findMany({
         where: options?.includeInactiveWithHistory ? { tenantId } : { tenantId, status: "active" },
         orderBy: [{ status: "asc" }, { name: "asc" }],
@@ -465,6 +868,43 @@ export class LeaveService {
         },
         select: { id: true, leaveTypeId: true, status: true, days: true },
       }),
+      rawPrisma.leaveEncashmentRequest.findMany({
+        where: {
+          tenantId,
+          employeeId,
+          type: "ENCASHMENT",
+          status: { in: ["PENDING", "MANAGER_APPROVED", "HR_APPROVED"] },
+          OR: [
+            { effectiveDate: { gte: startOfYear, lte: endOfYear } },
+            { effectiveDate: null, createdAt: { gte: startOfYear, lte: endOfYear } },
+          ],
+        },
+        select: { id: true, leaveTypeId: true, status: true, days: true },
+      }),
+      rawPrisma.leaveEncashmentRequest.findMany({
+        where: {
+          tenantId,
+          employeeId,
+          type: "COMP_OFF",
+          creditedAt: { lt: startOfYear },
+          OR: [{ expiresAt: null }, { expiresAt: { gte: startOfYear } }],
+        },
+        select: {
+          leaveTypeId: true,
+          days: true,
+          approvedDays: true,
+          expiredAt: true,
+          expiredDays: true,
+          usageAllocations: {
+            where: { status: "CONSUMED" },
+            select: {
+              daysAllocated: true,
+              status: true,
+              leaveRequest: { select: { startDate: true } },
+            },
+          },
+        },
+      }),
     ]);
 
     const entriesByType = new Map<string, any[]>();
@@ -480,23 +920,37 @@ export class LeaveService {
       reqsByType.get(r.leaveTypeId)!.push(r);
     }
 
+    const encByType = new Map<string, any[]>();
+    for (const enc of pendingEncashments) {
+      if (!encByType.has(enc.leaveTypeId)) encByType.set(enc.leaveTypeId, []);
+      encByType.get(enc.leaveTypeId)!.push(enc);
+    }
+
+    const priorLotsByType = new Map<string, any[]>();
+    for (const lot of priorYearCompOffLots) {
+      if (!priorLotsByType.has(lot.leaveTypeId)) priorLotsByType.set(lot.leaveTypeId, []);
+      priorLotsByType.get(lot.leaveTypeId)!.push(lot);
+    }
+
     return leaveTypes
       .filter((lt) => {
         if (lt.status === "active") return true;
         if (!options?.includeInactiveWithHistory) return false;
-        return entriesByType.has(lt.id) || reqsByType.has(lt.id);
+        return entriesByType.has(lt.id) || reqsByType.has(lt.id) || encByType.has(lt.id);
       })
       .map((lt) =>
         this.computeLeaveTypeBalanceSummary(
           lt,
           entriesByType.get(lt.id) || [],
-          reqsByType.get(lt.id) || []
+          reqsByType.get(lt.id) || [],
+          encByType.get(lt.id) || [],
+          this.computePriorYearCompOffCarryIntoYear(priorLotsByType.get(lt.id) || [], startOfYear)
         )
       );
   }
 
   /**
-   * High-performance bulk balance aggregation for N employees in constant 3 parallel queries (eliminates 3N+2 N+1 storm).
+   * High-performance bulk balance aggregation for N employees in constant parallel queries (eliminates N+1 storm).
    */
   static async getBulkEmployeeDetailedBalances(
     tenantId: string,
@@ -522,7 +976,7 @@ export class LeaveService {
       leaveTypeWhere.id = options.leaveTypeId;
     }
 
-    const [activeLeaveTypes, ledgerEntries, leaveRequests] = await Promise.all([
+    const [activeLeaveTypes, ledgerEntries, leaveRequests, pendingEncashments, priorYearCompOffLots] = await Promise.all([
       rawPrisma.leaveType.findMany({
         where: leaveTypeWhere,
         orderBy: { name: "asc" },
@@ -554,6 +1008,54 @@ export class LeaveService {
             select: { id: true, employeeId: true, leaveTypeId: true, status: true, days: true },
           })
         : Promise.resolve([]),
+      employeeIds.length > 0
+        ? rawPrisma.leaveEncashmentRequest.findMany({
+            where: {
+              tenantId,
+              employeeId: { in: employeeIds },
+              type: "ENCASHMENT",
+              status: { in: ["PENDING", "MANAGER_APPROVED", "HR_APPROVED"] },
+              OR: [
+                { effectiveDate: { gte: startOfYear, lte: endOfYear } },
+                { effectiveDate: null, createdAt: { gte: startOfYear, lte: endOfYear } },
+              ],
+              ...(options?.leaveTypeId && options.leaveTypeId !== "all"
+                ? { leaveTypeId: options.leaveTypeId }
+                : {}),
+            },
+            select: { id: true, employeeId: true, leaveTypeId: true, status: true, days: true },
+          })
+        : Promise.resolve([]),
+      employeeIds.length > 0
+        ? rawPrisma.leaveEncashmentRequest.findMany({
+            where: {
+              tenantId,
+              employeeId: { in: employeeIds },
+              type: "COMP_OFF",
+              creditedAt: { lt: startOfYear },
+              OR: [{ expiresAt: null }, { expiresAt: { gte: startOfYear } }],
+              ...(options?.leaveTypeId && options.leaveTypeId !== "all"
+                ? { leaveTypeId: options.leaveTypeId }
+                : {}),
+            },
+            select: {
+              employeeId: true,
+              leaveTypeId: true,
+              days: true,
+              approvedDays: true,
+              expiredAt: true,
+              expiredDays: true,
+              usageAllocations: {
+                where: { status: "CONSUMED" },
+                select: {
+                  daysAllocated: true,
+                  status: true,
+                  leaveRequest: { select: { startDate: true } },
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const entriesMap = new Map<string, any[]>();
@@ -571,13 +1073,29 @@ export class LeaveService {
       reqsMap.get(k)!.push(r);
     }
 
+    const encMap = new Map<string, any[]>();
+    for (const enc of pendingEncashments) {
+      const k = `${enc.employeeId}::${enc.leaveTypeId}`;
+      if (!encMap.has(k)) encMap.set(k, []);
+      encMap.get(k)!.push(enc);
+    }
+
+    const priorLotsMap = new Map<string, any[]>();
+    for (const lot of priorYearCompOffLots) {
+      const k = `${lot.employeeId}::${lot.leaveTypeId}`;
+      if (!priorLotsMap.has(k)) priorLotsMap.set(k, []);
+      priorLotsMap.get(k)!.push(lot);
+    }
+
     const data = employees.map((emp) => {
       const empBalances = activeLeaveTypes.map((lt) => {
         const k = `${emp.id}::${lt.id}`;
         return this.computeLeaveTypeBalanceSummary(
           lt,
           entriesMap.get(k) || [],
-          reqsMap.get(k) || []
+          reqsMap.get(k) || [],
+          encMap.get(k) || [],
+          this.computePriorYearCompOffCarryIntoYear(priorLotsMap.get(k) || [], startOfYear)
         );
       });
 
@@ -955,8 +1473,9 @@ export class LeaveService {
       }
     }
 
-    // 10. Live ledger balance check for target year
-    const availableBalance = await this.getEmployeeBalance(
+    // 10. Live ledger balance & non-expired Comp-Off lot check for target year
+    const isCompOff = await this.isCompOffLeaveType(tenantId, leaveType);
+    let availableBalance = await this.getEmployeeBalance(
       tenantId,
       employeeId,
       leaveTypeId,
@@ -964,7 +1483,21 @@ export class LeaveService {
       { excludeRequestId: options.excludeRequestId }
     );
 
-    if (leaveType.isPaid && availableBalance < deductibleDays) {
+    if (isCompOff) {
+      const { totalNetAvailable } = await this.getAvailableCompOffLotsForDate(
+        tenantId,
+        employeeId,
+        leaveTypeId,
+        end,
+        { excludeLeaveRequestId: options.excludeRequestId }
+      );
+      availableBalance = Number(Math.min(availableBalance, totalNetAvailable).toFixed(2));
+      if (deductibleDays > 0 && totalNetAvailable < deductibleDays) {
+        warnings.push(
+          `Insufficient non-expired Comp-Off balance for ${leaveType.name}. Available non-expired credit: ${totalNetAvailable} day(s), Required: ${deductibleDays} day(s).`
+        );
+      }
+    } else if (leaveType.isPaid && availableBalance < deductibleDays) {
       warnings.push(
         `Insufficient leave balance for ${leaveType.name}. Available: ${availableBalance} day(s), Required: ${deductibleDays} day(s).`
       );
@@ -983,6 +1516,7 @@ export class LeaveService {
       sandwichDaysAdded: totalSandwichDays,
       sandwichDates: Array.from(sandwichDatesSet).sort(),
       isPaid: leaveType.isPaid,
+      isCompOff,
       leaveTypeName: leaveType.name,
       availableBalance,
       remainingBalance: Number((availableBalance - deductibleDays).toFixed(2)),
@@ -1102,6 +1636,17 @@ export class LeaveService {
         },
         include: { leaveType: true, employee: true },
       });
+
+      if (dryRun.isCompOff) {
+        await this.reserveCompOffLotsFifo(tx, {
+          tenantId,
+          employeeId,
+          leaveTypeId: data.leaveTypeId,
+          leaveRequestId: req.id,
+          requiredDays: dryRun.totalDays,
+          leaveEndDate: end,
+        });
+      }
 
       await OutboxService.createEvent(
         {
@@ -1248,19 +1793,36 @@ export class LeaveService {
       throw new LeaveHttpError("Invalid attachment URL: browser blob URLs cannot be persisted.", 400);
     }
 
-    const updated = await rawPrisma.leaveRequest.update({
-      where: { id: requestId },
-      data: {
-        leaveTypeId: nextLeaveTypeId,
-        startDate: start,
-        endDate: end,
-        days: dryRun.totalDays,
-        halfDay: nextHalfDay,
-        halfDaySession: nextSession,
-        reason: nextReason,
-        attachmentUrl: nextAttachmentUrl || null,
-      },
-      include: { leaveType: true, employee: true },
+    const updated = await rawPrisma.$transaction(async (tx) => {
+      const rec = await tx.leaveRequest.update({
+        where: { id: requestId },
+        data: {
+          leaveTypeId: nextLeaveTypeId,
+          startDate: start,
+          endDate: end,
+          days: dryRun.totalDays,
+          halfDay: nextHalfDay,
+          halfDaySession: nextSession,
+          reason: nextReason,
+          attachmentUrl: nextAttachmentUrl || null,
+        },
+        include: { leaveType: true, employee: true },
+      });
+
+      if (dryRun.isCompOff) {
+        await this.reserveCompOffLotsFifo(tx, {
+          tenantId,
+          employeeId: existing.employeeId,
+          leaveTypeId: nextLeaveTypeId,
+          leaveRequestId: requestId,
+          requiredDays: dryRun.totalDays,
+          leaveEndDate: end,
+        });
+      } else {
+        await this.releaseReservedCompOffLots(tx, tenantId, requestId);
+      }
+
+      return rec;
     });
 
     AuditService.logMutation({
@@ -1421,6 +1983,8 @@ export class LeaveService {
           throw new LeaveHttpError("Leave request was already processed by another reviewer.", 409);
         }
 
+        await this.releaseReservedCompOffLots(tx, tenantId, requestId);
+
         const req = await tx.leaveRequest.findUnique({
           where: { id: requestId },
           include: { leaveType: true, employee: true },
@@ -1469,6 +2033,10 @@ export class LeaveService {
     // APPROVE ACTION
     await this.assertDateSpanUnlocked(tenantId, request.startDate, request.endDate);
 
+    const isCompOff = request.leaveType
+      ? await this.isCompOffLeaveType(tenantId, request.leaveType)
+      : false;
+
     const [{ policy: effectivePolicy }, holidays] = await Promise.all([
       request.leaveTypeId
         ? this.resolveEffectivePolicy(
@@ -1495,8 +2063,12 @@ export class LeaveService {
     end.setUTCHours(0, 0, 0, 0);
 
     const approved = await rawPrisma.$transaction(async (tx) => {
-      // Verify balance before approving paid leave
-      if (request.leaveTypeId && request.leaveType?.isPaid !== false) {
+      if (isCompOff) {
+        await tx.$queryRaw`SELECT id FROM employees WHERE id = ${request.employeeId} AND tenant_id = ${tenantId} FOR UPDATE`;
+      }
+
+      // Verify balance before approving paid or Comp-Off leave
+      if (request.leaveTypeId && (request.leaveType?.isPaid !== false || isCompOff)) {
         const availableBefore = await this.getEmployeeBalance(
           tenantId,
           request.employeeId,
@@ -1513,6 +2085,64 @@ export class LeaveService {
         }
       }
 
+      // If Comp-Off, ensure valid non-expired FIFO allocations exist before approving
+      let compOffAllocationsToConsume: Array<{
+        id: string;
+        compOffRequestId: string;
+        allocatedDays: number;
+        compOffLot: any;
+      }> = [];
+
+      if (isCompOff && request.leaveTypeId) {
+        const existingReserved = await tx.compOffUsageAllocation.findMany({
+          where: { tenantId, leaveRequestId: requestId, status: "RESERVED" },
+          include: { compOffRequest: true },
+        });
+
+        let needsReallocation = existingReserved.length === 0;
+        const reqDaysNum = Number(request.days);
+        const reservedSum = Number(
+          existingReserved.reduce((s: number, a: any) => s + Number(a.daysAllocated || 0), 0).toFixed(2)
+        );
+        if (reservedSum !== reqDaysNum) needsReallocation = true;
+
+        for (const r of existingReserved) {
+          const lot = r.compOffRequest;
+          if (
+            !lot ||
+            !["CREDITED", "PARTIALLY_USED"].includes(lot.status) ||
+            Number(lot.remainingDays || 0) < Number(r.daysAllocated || 0) ||
+            (lot.expiresAt && lot.expiresAt < end)
+          ) {
+            needsReallocation = true;
+            break;
+          }
+        }
+
+        if (needsReallocation) {
+          await this.reserveCompOffLotsFifo(tx, {
+            tenantId,
+            employeeId: request.employeeId,
+            leaveTypeId: request.leaveTypeId,
+            leaveRequestId: requestId,
+            requiredDays: reqDaysNum,
+            leaveEndDate: end,
+          });
+        }
+
+        const readyAllocations = await tx.compOffUsageAllocation.findMany({
+          where: { tenantId, leaveRequestId: requestId, status: "RESERVED" },
+          include: { compOffRequest: true },
+          orderBy: { createdAt: "asc" },
+        });
+        compOffAllocationsToConsume = readyAllocations.map((a: any) => ({
+          id: a.id,
+          compOffRequestId: a.compOffRequestId,
+          allocatedDays: Number(a.daysAllocated),
+          compOffLot: a.compOffRequest,
+        }));
+      }
+
       // Atomic status claim (prevents double-approval race conditions!)
       const claimed = await tx.leaveRequest.updateMany({
         where: { id: requestId, tenantId, status: "pending" },
@@ -1527,15 +2157,17 @@ export class LeaveService {
         throw new LeaveHttpError("Leave request was already processed by another reviewer.", 409);
       }
 
-      // Write exactly ONE immutable ledger entry (DEBIT)
+      // Write exactly ONE immutable ledger entry (DEBIT), preserving source Comp-Off credit reference when applicable
+      let createdDebitId: string | null = null;
       if (request.leaveTypeId) {
         const existingDebit = await tx.leaveLedgerEntry.findFirst({
           where: { tenantId, referenceId: requestId, entryType: "DEBIT" },
           select: { id: true },
         });
 
-        if (!existingDebit) {
-          // Compute balance BEFORE this debit (excluding this request which is now approved & has no debit yet -> wait: excludeRequestId excludes it from legacyUnledgeredApproved too!)
+        if (existingDebit) {
+          createdDebitId = existingDebit.id;
+        } else {
           const balanceBeforeDebit = await this.getEmployeeBalance(
             tenantId,
             request.employeeId,
@@ -1544,8 +2176,17 @@ export class LeaveService {
             { tx, excludeRequestId: requestId }
           );
           const runningBalanceAfter = Number(Math.max(0, balanceBeforeDebit - Number(request.days)).toFixed(2));
+          const sourceCompOffRefText =
+            compOffAllocationsToConsume.length > 0
+              ? ` [Comp-Off Ref: ${compOffAllocationsToConsume
+                  .map(
+                    (c) =>
+                      `${c.compOffLot?.requestCode || c.compOffRequestId.slice(0, 8)}:${c.allocatedDays}d`
+                  )
+                  .join(", ")}]`
+              : "";
 
-          await tx.leaveLedgerEntry.create({
+          const debitRec = await tx.leaveLedgerEntry.create({
             data: {
               tenantId,
               employeeId: request.employeeId,
@@ -1554,12 +2195,65 @@ export class LeaveService {
               days: request.days,
               balance: runningBalanceAfter,
               referenceId: requestId,
-              notes: comments
-                ? `Approved leave #${requestId.slice(0, 8)} (${comments})`.slice(0, 250)
-                : `Approved leave application #${requestId.slice(0, 8)}`,
+              notes: (comments
+                ? `Approved leave #${requestId.slice(0, 8)} (${comments})${sourceCompOffRefText}`
+                : `Approved leave application #${requestId.slice(0, 8)}${sourceCompOffRefText}`
+              ).slice(0, 250),
               effectiveAt: request.startDate,
             },
           });
+          createdDebitId = debitRec.id;
+        }
+      }
+
+      // Consume Comp-Off FIFO lots and record audit events
+      if (compOffAllocationsToConsume.length > 0) {
+        for (const alloc of compOffAllocationsToConsume) {
+          await tx.compOffUsageAllocation.update({
+            where: { id: alloc.id },
+            data: {
+              status: "CONSUMED",
+              ledgerEntryId: createdDebitId,
+            },
+          });
+
+          const lot = await tx.leaveEncashmentRequest.findUnique({
+            where: { id: alloc.compOffRequestId },
+          });
+          if (lot) {
+            const newUsed = Number((Number(lot.usedDays || 0) + alloc.allocatedDays).toFixed(2));
+            const newRem = Number(Math.max(0, Number(lot.remainingDays || 0) - alloc.allocatedDays).toFixed(2));
+            const nextLotStatus = newRem <= 0 ? "USED" : "PARTIALLY_USED";
+            await tx.leaveEncashmentRequest.update({
+              where: { id: lot.id },
+              data: {
+                usedDays: newUsed,
+                remainingDays: newRem,
+                status: nextLotStatus,
+              },
+            });
+
+            await tx.leaveEncashmentCompOffEvent.create({
+              data: {
+                tenantId,
+                requestId: lot.id,
+                employeeId: request.employeeId,
+                transactionType: "COMP_OFF",
+                eventType: "UTILIZED",
+                actorId: reviewerId === "SYSTEM_POLICY_AUTO_APPROVAL" ? null : reviewerId,
+                fromStatus: lot.status,
+                toStatus: nextLotStatus,
+                days: alloc.allocatedDays,
+                ledgerEntryId: createdDebitId,
+                comments: `Consumed ${alloc.allocatedDays} day(s) against Leave Application #${requestId.slice(0, 8)}.`,
+                metadataJson: {
+                  leaveRequestId: requestId,
+                  allocatedDays: alloc.allocatedDays,
+                  remainingDays: newRem,
+                },
+              },
+            });
+          }
         }
       }
 
@@ -1647,6 +2341,17 @@ export class LeaveService {
         type: "LEAVE_APPROVED",
         actionUrl: "/me/leave/applications",
       }).catch(() => {});
+
+      if (isCompOff) {
+        NotificationService.createNotification({
+          tenantId,
+          userId: request.employee.userId,
+          title: "Comp-Off Balance Utilized",
+          message: `${request.days} day(s) of Comp-Off credit were utilized for your approved leave application.`,
+          type: "COMP_OFF_BALANCE_CHANGED",
+          actionUrl: "/me/leave/encashment-compoff",
+        }).catch(() => {});
+      }
     }
 
     broadcastToTenant(tenantId, "leave.approved", {
@@ -1661,7 +2366,7 @@ export class LeaveService {
       action: "LEAVE_APPLICATION_APPROVED",
       entityType: "LeaveRequest",
       entityId: requestId,
-      metadata: { comments, employeeId: request.employeeId, days: Number(request.days) },
+      metadata: { comments, employeeId: request.employeeId, days: Number(request.days), isCompOff },
     }).catch(() => {});
 
     return approved;
@@ -1694,6 +2399,10 @@ export class LeaveService {
       await this.assertDateSpanUnlocked(tenantId, request.startDate, request.endDate);
     }
 
+    const isCompOff = request.leaveType
+      ? await this.isCompOffLeaveType(tenantId, request.leaveType)
+      : false;
+
     const holidays = await rawPrisma.holiday.findMany({
       where: {
         tenantId,
@@ -1709,6 +2418,10 @@ export class LeaveService {
     today.setUTCHours(0, 0, 0, 0);
 
     const cancelled = await rawPrisma.$transaction(async (tx) => {
+      if (isCompOff) {
+        await tx.$queryRaw`SELECT id FROM employees WHERE id = ${request.employeeId} AND tenant_id = ${tenantId} FOR UPDATE`;
+      }
+
       const claimed = await tx.leaveRequest.updateMany({
         where: { id: requestId, tenantId, status: { in: ["pending", "approved"] } },
         data: {
@@ -1720,14 +2433,35 @@ export class LeaveService {
         throw new LeaveHttpError("Leave request was already cancelled.", 409);
       }
 
+      if (request.status === "pending") {
+        await this.releaseReservedCompOffLots(tx, tenantId, requestId);
+      }
+
       // If it was approved, create a single compensating CREDIT entry (strictly idempotent)
       if (request.status === "approved" && request.leaveTypeId) {
+        const consumedAllocations = await tx.compOffUsageAllocation.findMany({
+          where: { tenantId, leaveRequestId: requestId, status: "CONSUMED" },
+          include: { compOffRequest: true },
+        });
+        const sourceRefsNote =
+          consumedAllocations.length > 0
+            ? ` [Comp-Off Ref: ${consumedAllocations
+                .map(
+                  (a: any) =>
+                    `${a.compOffRequest?.requestCode || a.compOffRequestId.slice(0, 8)}:${Number(a.allocatedDays)}d`
+                )
+                .join(", ")}]`
+            : "";
+
+        let reversalCreditId: string | null = null;
         const existingCredit = await tx.leaveLedgerEntry.findFirst({
           where: { tenantId, referenceId: requestId, entryType: "CREDIT" },
           select: { id: true },
         });
 
-        if (!existingCredit) {
+        if (existingCredit) {
+          reversalCreditId = existingCredit.id;
+        } else {
           // Ensure a DEBIT existed or create compensating CREDIT that restores exact post-reversal balance
           const existingDebit = await tx.leaveLedgerEntry.findFirst({
             where: { tenantId, referenceId: requestId, entryType: "DEBIT" },
@@ -1767,7 +2501,7 @@ export class LeaveService {
           );
           const restoredBalance = Number((balanceBeforeCredit + Number(request.days)).toFixed(2));
 
-          await tx.leaveLedgerEntry.create({
+          const creditEntry = await tx.leaveLedgerEntry.create({
             data: {
               tenantId,
               employeeId: request.employeeId,
@@ -1776,13 +2510,138 @@ export class LeaveService {
               days: request.days,
               balance: restoredBalance,
               referenceId: requestId,
-              notes: `Compensating reversal for ${options?.actionLabel || "cancelled"} leave #${requestId.slice(0, 8)}. Reason: ${reason || "Cancelled"}`.slice(
+              notes: `Compensating reversal for ${options?.actionLabel || "cancelled"} leave #${requestId.slice(0, 8)}${sourceRefsNote}. Reason: ${reason || "Cancelled"}`.slice(
                 0,
                 250
               ),
               effectiveAt: request.startDate,
             },
           });
+          reversalCreditId = creditEntry.id;
+        }
+
+        // Restore Comp-Off source lots (or immediately expire if lot's expiresAt already passed)
+        if (consumedAllocations.length > 0) {
+          const nowTs = new Date();
+          for (const alloc of consumedAllocations) {
+            await tx.compOffUsageAllocation.update({
+              where: { id: alloc.id },
+              data: {
+                status: "RESTORED",
+                ledgerEntryId: reversalCreditId || alloc.ledgerEntryId,
+                restoredAt: nowTs,
+              },
+            });
+
+            const lot = await tx.leaveEncashmentRequest.findUnique({
+              where: { id: alloc.compOffRequestId },
+            });
+            if (!lot) continue;
+
+            const allocDays = Number(alloc.daysAllocated || 0);
+            const newUsed = Number(Math.max(0, Number(lot.usedDays || 0) - allocDays).toFixed(2));
+            const isAlreadyPastExpiry = Boolean(lot.expiresAt && lot.expiresAt < nowTs);
+
+            if (!isAlreadyPastExpiry) {
+              const newRem = Number((Number(lot.remainingDays || 0) + allocDays).toFixed(2));
+              const nextLotStatus = newUsed > 0 ? "PARTIALLY_USED" : "CREDITED";
+              await tx.leaveEncashmentRequest.update({
+                where: { id: lot.id },
+                data: {
+                  usedDays: newUsed,
+                  remainingDays: newRem,
+                  status: nextLotStatus,
+                },
+              });
+
+              await tx.leaveEncashmentCompOffEvent.create({
+                data: {
+                  tenantId,
+                  requestId: lot.id,
+                  employeeId: request.employeeId,
+                  transactionType: "COMP_OFF",
+                  eventType: "USAGE_RESTORED",
+                  actorId: actorId,
+                  fromStatus: lot.status,
+                  toStatus: nextLotStatus,
+                  days: allocDays,
+                  ledgerEntryId: reversalCreditId,
+                  comments: `Restored ${allocDays} day(s) from cancelled Leave Application #${requestId.slice(0, 8)}.`,
+                  metadataJson: { leaveRequestId: requestId, restoredDays: allocDays, remainingDays: newRem },
+                },
+              });
+            } else {
+              // Underlying Comp-Off lot expired while leave was active: record EXPIRY ledger so expired credit cannot be reused
+              const balBeforeExp = await this.getEmployeeBalance(
+                tenantId,
+                request.employeeId,
+                request.leaveTypeId,
+                nowTs.getUTCFullYear(),
+                { tx, skipCompOffSweep: true }
+              );
+              const existingLotExpiry = await tx.leaveLedgerEntry.findFirst({
+                where: { tenantId, referenceId: lot.id, entryType: "EXPIRY" },
+                select: { id: true, days: true },
+              });
+
+              let expLedgerId = existingLotExpiry?.id || null;
+              if (!existingLotExpiry) {
+                const expEntry = await tx.leaveLedgerEntry.create({
+                  data: {
+                    tenantId,
+                    employeeId: request.employeeId,
+                    leaveTypeId: request.leaveTypeId,
+                    entryType: "EXPIRY",
+                    days: allocDays,
+                    balance: Math.max(0, Number((balBeforeExp - allocDays).toFixed(2))),
+                    referenceId: lot.id,
+                    notes: `Expired restored Comp-Off credit (${lot.requestCode || lot.id.slice(0, 8)}) upon leave cancellation`.slice(
+                      0,
+                      250
+                    ),
+                    effectiveAt: lot.expiresAt || nowTs,
+                  },
+                });
+                expLedgerId = expEntry.id;
+              } else {
+                await tx.leaveLedgerEntry.update({
+                  where: { id: existingLotExpiry.id },
+                  data: {
+                    days: Number((Number(existingLotExpiry.days || 0) + allocDays).toFixed(2)),
+                  },
+                });
+              }
+
+              const newExp = Number((Number(lot.expiredDays || 0) + allocDays).toFixed(2));
+              await tx.leaveEncashmentRequest.update({
+                where: { id: lot.id },
+                data: {
+                  usedDays: newUsed,
+                  expiredDays: newExp,
+                  remainingDays: 0,
+                  status: "EXPIRED",
+                  expiredAt: lot.expiredAt || nowTs,
+                  expiryLedgerEntryId: expLedgerId,
+                },
+              });
+
+              await tx.leaveEncashmentCompOffEvent.create({
+                data: {
+                  tenantId,
+                  requestId: lot.id,
+                  employeeId: request.employeeId,
+                  transactionType: "COMP_OFF",
+                  eventType: "EXPIRED",
+                  actorId: actorId,
+                  fromStatus: lot.status,
+                  toStatus: "EXPIRED",
+                  days: allocDays,
+                  ledgerEntryId: expLedgerId,
+                  comments: `Restored ${allocDays} day(s) from cancelled Leave #${requestId.slice(0, 8)} immediately expired (past expiry date).`,
+                },
+              });
+            }
+          }
         }
 
         // Revert attendance records for affected dates
@@ -1840,6 +2699,17 @@ export class LeaveService {
       return req!;
     });
 
+    if (isCompOff && request.status === "approved" && request.employee?.userId) {
+      NotificationService.createNotification({
+        tenantId,
+        userId: request.employee.userId,
+        title: "Comp-Off Balance Updated",
+        message: `Your cancelled Comp-Off leave request (${request.days} day(s)) has been reconciled in your balance.`,
+        type: "COMP_OFF_BALANCE_CHANGED",
+        actionUrl: "/me/leave/encashment-compoff",
+      }).catch(() => {});
+    }
+
     AuditService.logMutation({
       tenantId,
       actorId,
@@ -1849,7 +2719,7 @@ export class LeaveService {
           : "LEAVE_APPLICATION_CANCELLED",
       entityType: "LeaveRequest",
       entityId: requestId,
-      metadata: { reason, employeeId: request.employeeId, days: Number(request.days) },
+      metadata: { reason, employeeId: request.employeeId, days: Number(request.days), isCompOff },
     }).catch(() => {});
 
     broadcastToTenant(tenantId, "leave.cancelled", { id: requestId, employeeId: request.employeeId });
@@ -2084,7 +2954,7 @@ export class LeaveService {
       const cur = netDeltaMap.get(k) || 0;
       if (adj.entryType === "CREDIT" || adj.entryType === "CARRY_FORWARD") {
         netDeltaMap.set(k, cur + d);
-      } else if (adj.entryType === "DEBIT" || adj.entryType === "ENCASHMENT") {
+      } else if (adj.entryType === "DEBIT" || adj.entryType === "ENCASHMENT" || adj.entryType === "EXPIRY") {
         netDeltaMap.set(k, cur - d);
       }
     }

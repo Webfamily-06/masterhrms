@@ -167,6 +167,8 @@ describe("HR Sidebar Navigation Reconciliation & Coverage Suite", () => {
       "/hr/leave/applications",
       "/hr/leave/balances",
       "/hr/leave/policies",
+      "/hr/leave/types",
+      "/hr/leave/encashment-compoff",
     ];
     expectedWorkspace.forEach((p) => expect(allPaths).toContain(p));
 

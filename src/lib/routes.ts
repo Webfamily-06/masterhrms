@@ -93,6 +93,7 @@ export const ROUTES = {
       balances: "/hr/leave/balances",
       types: "/hr/leave/types",
       policies: "/hr/leave/policies",
+      encashmentCompOff: "/hr/leave/encashment-compoff",
     },
 
     // 3. Talent and Growth
@@ -223,6 +224,7 @@ export const ROUTES = {
       balance: "/me/leave/balance",
       policies: "/me/leave/policies",
       teamCalendar: "/me/leave/team-calendar",
+      encashmentCompOff: "/me/leave/encashment-compoff",
     },
 
     // 3. Talent and Growth
