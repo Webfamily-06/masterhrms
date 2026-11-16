@@ -998,12 +998,82 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "id": "hr-settings",
     "portal": "hr",
     "module": "settings",
-    "label": "HR Settings",
+    "label": "Organization Settings",
     "route": "/hr/settings",
     "icon": "Settings",
-    "order": 440,
-    "section": "Communication & Content",
+    "order": 500,
+    "section": "Settings & Administration",
     "roles": ["hr_admin", "hr", "hr_manager", "admin", "tenant_admin", "super_admin"]
+  },
+  {
+    "id": "hr-branding",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Workspace Branding",
+    "route": "/hr/settings?tab=workspace-branding",
+    "icon": "Palette",
+    "order": 505,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-company-profile",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Company Profile",
+    "route": "/hr/settings?tab=company-profile",
+    "icon": "Building2",
+    "order": 510,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-custom-domain",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Custom Domain",
+    "route": "/settings/custom-domain",
+    "icon": "Globe",
+    "order": 515,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-custom-fields",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Custom Fields",
+    "route": "/custom-fields",
+    "icon": "Sliders",
+    "order": 520,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-users-roles",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Users & Roles",
+    "route": "/users",
+    "icon": "Users",
+    "order": 525,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-email-accounts",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Email Accounts",
+    "route": "/settings/email-accounts",
+    "icon": "Mail",
+    "order": 530,
+    "section": "Settings & Administration"
+  },
+  {
+    "id": "hr-subscription",
+    "portal": "hr",
+    "module": "settings",
+    "label": "Subscription & Billing",
+    "route": "/subscription",
+    "icon": "CreditCard",
+    "order": 535,
+    "section": "Settings & Administration"
   },
   {
     "id": "me-dashboard",
@@ -1832,7 +1902,17 @@ export function getNavigationForPortal(
     // 4. Permission authorization
     if (item.permission) {
       if (!isSuperAdmin && !isTenantAdmin) {
-        if (!permissions.includes(item.permission)) {
+        const hasPerm =
+          permissions.includes(item.permission) ||
+          permissions.includes("*") ||
+          permissions.includes("admin") ||
+          permissions.includes("hrm.manage") ||
+          permissions.includes("hrm.*") ||
+          (item.permission.startsWith("settings.") &&
+            (permissions.includes("settings.manage") ||
+              permissions.includes("settings.*") ||
+              roles.some((r) => ["admin", "hr_admin", "workspace_admin", "manager"].includes(r))));
+        if (!hasPerm) {
           return false;
         }
       }

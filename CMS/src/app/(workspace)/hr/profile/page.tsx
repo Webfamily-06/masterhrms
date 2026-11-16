@@ -1,7 +1,7 @@
 'use client';
-import {  createFileRoute  } from "@/src/lib/router-compat";
-import MyProfilePage from "../../me/profile/page";
 
+import { MyProfileView } from "@/components/profile/my-profile-view";
 
-
-export default MyProfilePage;
+export default function HrProfilePage() {
+  return <MyProfileView />;
+}

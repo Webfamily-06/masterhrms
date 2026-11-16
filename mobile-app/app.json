@@ -1,0 +1,19 @@
+{
+  "name": "MasterHRMS",
+  "displayName": "MasterHRMS",
+  "expo": {
+    "name": "MasterHRMS",
+    "slug": "masterhrms",
+    "version": "0.0.1",
+    "entryPoint": "./index.js",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.masterhrms.app"
+    }
+  }
+}

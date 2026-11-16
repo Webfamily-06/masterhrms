@@ -268,9 +268,7 @@ export class BrandingResolverService {
 
     const rawFooter = brandingData.values["branding.footer_text"];
     const footerText =
-      rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
-        ? rawFooter
-        : "© 2026 Webfamily Tech Solutions. All rights reserved.";
+      rawFooter || "© 2026 Webfamily Tech Solutions. All rights reserved.";
 
     const CURRENCY_SYMBOL_MAP: Record<string, string> = {
       INR: "₹",

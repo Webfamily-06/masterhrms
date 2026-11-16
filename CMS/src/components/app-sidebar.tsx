@@ -52,6 +52,10 @@ import {
   Code,
   Webhook,
   Bot,
+  Palette,
+  Globe,
+  SlidersHorizontal,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -415,11 +419,17 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
         </SidebarGroup>
 
         {/* Settings */}
-        <SectionLabel label="Settings" />
+        <SectionLabel label="Settings & System" />
         <SidebarGroup className="p-0">
           <SidebarGroupContent>
             <SidebarMenu>
-              <SimpleNavItem item={{ title: "Organization Settings", url: "/settings", icon: Building2 }} />
+              <SimpleNavItem item={{ title: "Organization Settings", url: "/hr/settings", icon: Building2 }} />
+              <SimpleNavItem item={{ title: "Workspace Branding", url: "/hr/settings?tab=workspace-branding", icon: Palette }} />
+              <SimpleNavItem item={{ title: "Company Profile", url: "/hr/settings?tab=company-profile", icon: Briefcase }} />
+              <SimpleNavItem item={{ title: "Custom Domain", url: "/settings/custom-domain", icon: Globe }} />
+              <SimpleNavItem item={{ title: "Custom Fields", url: "/custom-fields", icon: SlidersHorizontal }} />
+              <SimpleNavItem item={{ title: "Users & Roles", url: "/users", icon: Users }} />
+              <SimpleNavItem item={{ title: "Email Accounts", url: "/settings/email-accounts", icon: Mail }} />
               <SimpleNavItem item={{ title: "Subscription & Billing", url: "/subscription", icon: CreditCard }} />
             </SidebarMenu>
           </SidebarGroupContent>

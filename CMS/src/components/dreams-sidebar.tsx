@@ -56,6 +56,8 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   Chat: "hrAppsChat",
   Scrumboard: "hrAppsScrum",
   "Todo & Tasks": "hrAppsTodo",
+  Settings: "hrSettings",
+  "Settings & Administration": "hrSettingsAdmin",
 };
 
 const HR_ICON_MAP: Record<string, string> = {
@@ -131,6 +133,20 @@ const HR_ICON_MAP: Record<string, string> = {
   "Call History": "ph-phone-call",
   "System States": "ph-stack",
   "System States Directory": "ph-stack",
+
+  // 08. Settings & System
+  "Settings & System": "ph-gear",
+  "Settings & Administration": "ph-gear",
+  "General Settings": "ph-gear",
+  Settings: "ph-sliders-horizontal",
+  "Settings Quick Hub": "ph-squares-four",
+  "Workspace Branding": "ph-paint-brush-broad",
+  "Company Profile": "ph-buildings",
+  "Custom Domain": "ph-globe",
+  "Dynamic Custom Fields": "ph-code",
+  "Users & Roles": "ph-user-gear",
+  "Email Accounts": "ph-envelope",
+  "Subscription & Billing": "ph-credit-card",
 };
 
 interface DreamsSidebarProps {
@@ -2436,6 +2452,26 @@ export function DreamsSidebar({
             </li>
             <li>
               <Link
+                to="/hr/settings?tab=workspace-branding"
+                onClick={onCloseMobile}
+                className={cn(currentPath.includes("workspace-branding") && "active")}
+              >
+                <i className="ph-duotone ph-paint-brush-broad"></i>
+                <span>Workspace Branding</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/hr/settings?tab=company-profile"
+                onClick={onCloseMobile}
+                className={cn(currentPath.includes("company-profile") && "active")}
+              >
+                <i className="ph-duotone ph-buildings"></i>
+                <span>Company Profile</span>
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/settings/custom-domain"
                 onClick={onCloseMobile}
                 className={cn(currentPath.startsWith("/settings/custom-domain") && "active")}
@@ -2462,6 +2498,16 @@ export function DreamsSidebar({
               >
                 <i className="ph-duotone ph-user-gear"></i>
                 <span>Users & Roles</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/settings/email-accounts"
+                onClick={onCloseMobile}
+                className={cn(currentPath === "/settings/email-accounts" && "active")}
+              >
+                <i className="ph-duotone ph-envelope"></i>
+                <span>Email Accounts</span>
               </Link>
             </li>
             <li>

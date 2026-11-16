@@ -13,6 +13,16 @@ describe("WORKSPACE BRANDING MATRIX: FINAL AUTHORITY", () => {
   let baseUrl: string;
 
   beforeAll(async () => {
+    await db.tenant.upsert({
+      where: { slug: "master" },
+      update: {},
+      create: {
+        id: "master-workspace-test-tenant",
+        name: "Master Workspace",
+        slug: "master",
+      },
+    });
+
     testApp = express();
     testApp.use(express.json());
     testApp.use(workspaceHostMiddleware as any);

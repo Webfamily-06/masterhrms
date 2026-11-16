@@ -1355,9 +1355,7 @@ workspaceRouter.get("/settings", async (req: AuthRequest, res: Response) => {
     const defaultBrand = {
       titleText: brandingGroup.values["branding.app_name"] || tenant.name,
       footerText:
-        brandingGroup.values["branding.footer_text"] &&
-        !brandingGroup.values["branding.footer_text"].includes("Apex HRMS") &&
-        !brandingGroup.values["branding.footer_text"].includes("Persisted Forever")
+        brandingGroup.values["branding.footer_text"]
           ? brandingGroup.values["branding.footer_text"]
           : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
       logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl,
