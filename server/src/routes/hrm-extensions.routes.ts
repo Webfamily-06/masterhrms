@@ -14,6 +14,8 @@ import { runProbationContractExpiryCron } from "../cron/probation-contract-expir
 import { runReportingManagerChangeScheduler } from "../cron/reporting-manager-change.cron";
 import { getPlatformMaintenanceConfig, evaluateMaintenanceStatus } from "../middleware/maintenance";
 import { getBaseDomain } from "../lib/workspace-host";
+import { AttendanceService } from "../services/attendance.service";
+import { LeaveService } from "../services/leave.service";
 
 export const overtimeRouter = Router();
 export const wfhRouter = Router();
@@ -27,7 +29,34 @@ export const systemMaintenanceRouter = Router();
 
 overtimeRouter.use(requireAuth, resolveTenantContext);
 
-// GET /api/overtime — list all overtime requests
+async function resolveOvertimeCallerScope(req: AuthRequest, tenantId: string) {
+  const perms = req.user?.permissions || [];
+  const isHrAdmin =
+    LeaveService.isElevatedHrUser(req.user?.roles) ||
+    perms.includes("*") ||
+    perms.includes("hrm.attendance.manage");
+  const selfEmp = await prisma.employee.findFirst({
+    where: { tenantId, userId: req.user?.userId },
+    select: { id: true },
+  });
+  if (isHrAdmin) {
+    return { isHrAdmin: true, selfEmpId: selfEmp?.id || null, allowedEmployeeIds: null as string[] | null };
+  }
+  if (!selfEmp) {
+    return { isHrAdmin: false, selfEmpId: null, allowedEmployeeIds: [] as string[] };
+  }
+  const reports = await prisma.employee.findMany({
+    where: { tenantId, managerId: selfEmp.id },
+    select: { id: true },
+  });
+  return {
+    isHrAdmin: false,
+    selfEmpId: selfEmp.id,
+    allowedEmployeeIds: [selfEmp.id, ...reports.map((r) => r.id)],
+  };
+}
+
+// GET /api/overtime — list overtime requests within caller organizational scope
 overtimeRouter.get("/", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
@@ -37,8 +66,24 @@ overtimeRouter.get("/", async (req: AuthRequest, res: Response) => {
     const { status, employeeId } = req.query;
     const where: any = { tenantId };
 
+    const scope = await resolveOvertimeCallerScope(req, tenantId);
+    if (!scope.isHrAdmin) {
+      if (!scope.allowedEmployeeIds || scope.allowedEmployeeIds.length === 0) {
+        return res.json(formatPaginatedResponse([], 0, pagination));
+      }
+      if (employeeId && employeeId !== "all") {
+        if (!scope.allowedEmployeeIds.includes(String(employeeId))) {
+          return res.status(403).json({ error: "Forbidden: Employee outside your organizational scope." });
+        }
+        where.employeeId = String(employeeId);
+      } else {
+        where.employeeId = { in: scope.allowedEmployeeIds };
+      }
+    } else if (employeeId && employeeId !== "all") {
+      where.employeeId = String(employeeId);
+    }
+
     if (status && status !== "all") where.status = String(status);
-    if (employeeId && employeeId !== "all") where.employeeId = String(employeeId);
 
     if (pagination.search) {
       where.OR = [
@@ -79,15 +124,38 @@ overtimeRouter.post("/", async (req: AuthRequest, res: Response) => {
     if (!tenantId) return;
 
     const { employeeId, overtimeDate, hoursRequested, overtimeType, reason } = req.body;
-    if (!employeeId || !overtimeDate || !hoursRequested) {
+    if (!overtimeDate || !hoursRequested) {
       return res.status(400).json({ error: "employeeId, overtimeDate, hoursRequested are required" });
     }
+
+    const scope = await resolveOvertimeCallerScope(req, tenantId);
+    let targetEmployeeId = employeeId ? String(employeeId) : scope.selfEmpId;
+    if (!targetEmployeeId) {
+      return res.status(400).json({ error: "employeeId, overtimeDate, hoursRequested are required" });
+    }
+
+    if (!scope.isHrAdmin) {
+      if (!scope.allowedEmployeeIds || !scope.allowedEmployeeIds.includes(targetEmployeeId)) {
+        return res.status(403).json({ error: "Forbidden: You cannot submit overtime for another employee." });
+      }
+    } else {
+      const targetEmp = await prisma.employee.findFirst({
+        where: { id: targetEmployeeId, tenantId },
+        select: { id: true },
+      });
+      if (!targetEmp) {
+        return res.status(404).json({ error: "Employee not found in this workspace." });
+      }
+    }
+
+    const parsedDate = new Date(overtimeDate);
+    await AttendanceService.assertMonthUnlocked(tenantId, parsedDate);
 
     const record = await prisma.overtimeRequest.create({
       data: {
         tenantId,
-        employeeId,
-        overtimeDate: new Date(overtimeDate),
+        employeeId: targetEmployeeId,
+        overtimeDate: parsedDate,
         hoursRequested: parseFloat(hoursRequested),
         overtimeType: overtimeType || "regular",
         reason: reason || null,
@@ -100,11 +168,12 @@ overtimeRouter.post("/", async (req: AuthRequest, res: Response) => {
 
     res.status(201).json(record);
   } catch (err: any) {
+    if (err?.code === "PERIOD_LOCKED") return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
     res.status(500).json({ error: err.message });
   }
 });
 
-// PUT /api/overtime/:id/review — approve or reject
+// PUT /api/overtime/:id/review — approve or reject (HR Admin or Reporting Manager only, never self)
 overtimeRouter.put("/:id/review", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
@@ -117,14 +186,39 @@ overtimeRouter.put("/:id/review", async (req: AuthRequest, res: Response) => {
 
     const existing = await prisma.overtimeRequest.findFirst({
       where: { id: req.params.id, tenantId },
+      include: { employee: { select: { id: true, userId: true, managerId: true } } },
     });
     if (!existing) return res.status(404).json({ error: "Overtime request not found" });
+
+    const scope = await resolveOvertimeCallerScope(req, tenantId);
+    const callerUserId = (req.user as any)?.userId || (req.user as any)?.id;
+    if (
+      (scope.selfEmpId && existing.employeeId === scope.selfEmpId) ||
+      (existing.employee?.userId && existing.employee.userId === callerUserId)
+    ) {
+      return res.status(403).json({
+        error: "Forbidden: Self-approval of overtime requests is not permitted.",
+        code: "SELF_APPROVAL_FORBIDDEN",
+      });
+    }
+
+    const isDirectManager = Boolean(scope.selfEmpId && existing.employee?.managerId === scope.selfEmpId);
+    if (!scope.isHrAdmin && !isDirectManager) {
+      return res.status(403).json({
+        error: "Forbidden: Only HR Administrators or the employee's reporting manager can review overtime requests.",
+        code: "FORBIDDEN",
+      });
+    }
+
+    if (status === "approved") {
+      await AttendanceService.assertMonthUnlocked(tenantId, existing.overtimeDate);
+    }
 
     const updated = await prisma.overtimeRequest.update({
       where: { id: req.params.id },
       data: {
         status,
-        reviewedBy: (req.user as any)?.id || (req.user as any)?.userId || null,
+        reviewedBy: callerUserId || null,
         reviewedAt: new Date(),
         reviewRemarks: reviewRemarks || null,
       },
@@ -132,6 +226,7 @@ overtimeRouter.put("/:id/review", async (req: AuthRequest, res: Response) => {
 
     res.json(updated);
   } catch (err: any) {
+    if (err?.code === "PERIOD_LOCKED") return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
     res.status(500).json({ error: err.message });
   }
 });
@@ -147,6 +242,14 @@ overtimeRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
     });
     if (!existing) return res.status(404).json({ error: "Not found" });
 
+    const scope = await resolveOvertimeCallerScope(req, tenantId);
+    const isOwnPending = scope.selfEmpId === existing.employeeId && existing.status === "pending";
+    if (!scope.isHrAdmin && !isOwnPending) {
+      return res.status(403).json({
+        error: "Forbidden: Only HR Administrators or the requester (while pending) can delete an overtime request.",
+      });
+    }
+
     await prisma.overtimeRequest.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err: any) {
@@ -154,19 +257,25 @@ overtimeRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/overtime/stats — summary counts
+// GET /api/overtime/stats — summary counts within caller organizational scope
 overtimeRouter.get("/stats", async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = resolveTenantId(req, res);
     if (!tenantId) return;
 
+    const scope = await resolveOvertimeCallerScope(req, tenantId);
+    const baseWhere: any = { tenantId };
+    if (!scope.isHrAdmin) {
+      baseWhere.employeeId = { in: scope.allowedEmployeeIds && scope.allowedEmployeeIds.length > 0 ? scope.allowedEmployeeIds : ["__NONE__"] };
+    }
+
     const [total, pending, approved, rejected, hoursAgg] = await Promise.all([
-      prisma.overtimeRequest.count({ where: { tenantId } }),
-      prisma.overtimeRequest.count({ where: { tenantId, status: "pending" } }),
-      prisma.overtimeRequest.count({ where: { tenantId, status: "approved" } }),
-      prisma.overtimeRequest.count({ where: { tenantId, status: "rejected" } }),
+      prisma.overtimeRequest.count({ where: baseWhere }),
+      prisma.overtimeRequest.count({ where: { ...baseWhere, status: "pending" } }),
+      prisma.overtimeRequest.count({ where: { ...baseWhere, status: "approved" } }),
+      prisma.overtimeRequest.count({ where: { ...baseWhere, status: "rejected" } }),
       prisma.overtimeRequest.aggregate({
-        where: { tenantId, status: "approved" },
+        where: { ...baseWhere, status: "approved" },
         _sum: { hoursRequested: true },
       }),
     ]);

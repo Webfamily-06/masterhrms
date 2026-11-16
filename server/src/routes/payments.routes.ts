@@ -7,8 +7,45 @@ import { autoPostSaleToLedger } from "../services/ledger-posting.service";
 import { broadcastToTenant } from "../socket";
 import { requireEntitlement } from "../middleware/entitlements";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { SettingsService } from "../services/settings/settings.service";
+import { resolveBranding } from "../services/branding/branding-resolver.service";
 
 export const paymentsRouter = Router();
+
+// Helper: Resolve workspace currency & Razorpay credentials from authoritative SettingsService
+async function resolveTenantGatewayDefaults(tenantId: string) {
+  const [branding, paymentsGroup] = await Promise.all([
+    resolveBranding({ scope: "TENANT", tenantId }).catch(() => null),
+    SettingsService.getGroup("TENANT", tenantId, "payments", { decryptSecrets: true }).catch(() => null),
+  ]);
+  const pv = paymentsGroup?.values || {};
+  const ps = paymentsGroup?.sources || {};
+  const workspaceCurrency = branding?.locale?.defaultCurrency || "INR";
+  const resolvedCurrency =
+    ps["payments.currency"] === "TENANT" && pv["payments.currency"]
+      ? String(pv["payments.currency"]).toUpperCase()
+      : workspaceCurrency.toUpperCase();
+  const currencySymbol = branding?.locale?.currencySymbol || (resolvedCurrency === "USD" ? "$" : resolvedCurrency === "EUR" ? "€" : "₹");
+  const settingsKeyId = pv["payments.razorpay_key_id"] || "";
+  const rawSecret = pv["payments.razorpay_key_secret"] || "";
+  const settingsKeySecret =
+    typeof rawSecret === "string" && !rawSecret.includes("••••") ? rawSecret : "";
+  const settingsWebhookSecret =
+    typeof pv["payments.razorpay_webhook_secret"] === "string" && !pv["payments.razorpay_webhook_secret"].includes("••••")
+      ? pv["payments.razorpay_webhook_secret"]
+      : "";
+
+  return {
+    currency: resolvedCurrency,
+    currencySymbol,
+    settingsKeyId,
+    settingsKeySecret,
+    settingsWebhookSecret,
+    hasTenantCurrencyOverride: Boolean(
+      ps["payments.currency"] === "TENANT" || branding?.locale?.defaultCurrency
+    ),
+  };
+}
 
 // Enforce authentication, tenant context, and Razorpay Gateway entitlement
 paymentsRouter.use(requireAuth, resolveTenantContext, requireEntitlement("razorpay-gateway"));
@@ -21,9 +58,10 @@ paymentsRouter.get("/razorpay/config", requireAuth, async (req: AuthRequest, res
     const tenantId = req.user!.tenantId!;
     const slug = `system-razorpay-gateway-${tenantId}`;
 
-    const page = await prisma.cmsPage.findUnique({
-      where: { slug },
-    });
+    const [page, gatewayDefaults] = await Promise.all([
+      prisma.cmsPage.findUnique({ where: { slug } }),
+      resolveTenantGatewayDefaults(tenantId),
+    ]);
 
     let content: any = { transactions: [], config: {} };
     if (page?.content) {
@@ -35,13 +73,22 @@ paymentsRouter.get("/razorpay/config", requireAuth, async (req: AuthRequest, res
     }
 
     const cfg = content.config || {};
+    const effectiveKeyId = gatewayDefaults.settingsKeyId || cfg.keyId || "";
+    const hasSecret = Boolean(gatewayDefaults.settingsKeySecret || cfg.keySecret);
+    // Workspace currency from Tenant Admin Settings takes authority unless gateway config explicitly set a non-INR currency
+    const effectiveCurrency =
+      gatewayDefaults.currency !== "INR"
+        ? gatewayDefaults.currency
+        : cfg.currency || gatewayDefaults.currency || "INR";
+
     return res.json({
       config: {
-        keyId: cfg.keyId || "",
-        keySecretMasked: cfg.keySecret ? "••••••••••••••••" : "",
-        hasKeySecret: !!cfg.keySecret,
-        webhookSecret: cfg.webhookSecret || "",
-        currency: cfg.currency || "INR",
+        keyId: effectiveKeyId,
+        keySecretMasked: hasSecret ? "••••••••••••••••" : "",
+        hasKeySecret: hasSecret,
+        webhookSecret: gatewayDefaults.settingsWebhookSecret || cfg.webhookSecret || "",
+        currency: effectiveCurrency,
+        currencySymbol: gatewayDefaults.currencySymbol,
         environment: cfg.environment || "sandbox",
       },
       transactionsCount: (content.transactions || []).length,
@@ -60,7 +107,10 @@ paymentsRouter.post("/razorpay/config", requireAuth, async (req: AuthRequest, re
     const slug = `system-razorpay-gateway-${tenantId}`;
     const { keyId, keySecret, webhookSecret, currency, environment } = req.body;
 
-    const page = await prisma.cmsPage.findUnique({ where: { slug } });
+    const [page, gatewayDefaults] = await Promise.all([
+      prisma.cmsPage.findUnique({ where: { slug } }),
+      resolveTenantGatewayDefaults(tenantId),
+    ]);
     let existingContent: any = { transactions: [], config: {} };
     if (page?.content) {
       try {
@@ -78,7 +128,7 @@ paymentsRouter.post("/razorpay/config", requireAuth, async (req: AuthRequest, re
       keyId: keyId !== undefined ? keyId : existingContent.config?.keyId || "",
       keySecret: updatedSecret,
       webhookSecret: webhookSecret !== undefined ? webhookSecret : existingContent.config?.webhookSecret || "",
-      currency: currency || existingContent.config?.currency || "INR",
+      currency: currency || existingContent.config?.currency || gatewayDefaults.currency || "INR",
       environment: environment || existingContent.config?.environment || "sandbox",
       updatedAt: new Date().toISOString(),
     };
@@ -114,6 +164,26 @@ paymentsRouter.post("/razorpay/config", requireAuth, async (req: AuthRequest, re
       },
     });
 
+    // Synchronize gateway configuration & currency into authoritative SettingsService (TENANT scope)
+    try {
+      const paymentUpdates: Record<string, any> = {
+        "payments.currency": newConfig.currency,
+        "payments.razorpay_enabled": Boolean(newConfig.keyId),
+        "payments.razorpay_key_id": newConfig.keyId || "",
+      };
+      if (keySecret && !keySecret.includes("••••")) {
+        paymentUpdates["payments.razorpay_key_secret"] = keySecret;
+      }
+      if (webhookSecret !== undefined && !String(webhookSecret).includes("••••")) {
+        paymentUpdates["payments.razorpay_webhook_secret"] = webhookSecret;
+      }
+      await SettingsService.setGroup("TENANT", tenantId, "payments", paymentUpdates, {
+        userId: req.user?.userId,
+      });
+    } catch {
+      // Non-fatal fallback
+    }
+
     return res.json({
       message: "Razorpay API credentials and configuration saved securely!",
       config: {
@@ -136,15 +206,18 @@ paymentsRouter.post("/razorpay/create-order", requireAuth, async (req: AuthReque
   try {
     const tenantId = req.user!.tenantId!;
     const slug = `system-razorpay-gateway-${tenantId}`;
-    const { amount, currency = "INR", receipt, notes = {} } = req.body;
+    const { amount, currency: requestedCurrency, receipt, notes = {} } = req.body;
 
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || parsedAmount <= 0) {
       return res.status(400).json({ error: "Valid payment amount is required" });
     }
 
-    // Retrieve credentials
-    const page = await prisma.cmsPage.findUnique({ where: { slug } });
+    // Retrieve credentials & authoritative workspace currency
+    const [page, gatewayDefaults] = await Promise.all([
+      prisma.cmsPage.findUnique({ where: { slug } }),
+      resolveTenantGatewayDefaults(tenantId),
+    ]);
     let config: any = {};
     if (page?.content) {
       try {
@@ -155,8 +228,15 @@ paymentsRouter.post("/razorpay/create-order", requireAuth, async (req: AuthReque
       }
     }
 
-    const keyId = config.keyId || process.env.RAZORPAY_KEY_ID;
-    const keySecret = config.keySecret || process.env.RAZORPAY_KEY_SECRET;
+    const currency = (
+      requestedCurrency ||
+      gatewayDefaults.currency ||
+      config.currency ||
+      "INR"
+    ).toUpperCase();
+
+    const keyId = gatewayDefaults.settingsKeyId || config.keyId || process.env.RAZORPAY_KEY_ID;
+    const keySecret = gatewayDefaults.settingsKeySecret || config.keySecret || process.env.RAZORPAY_KEY_SECRET;
     if (!keyId || !keySecret) {
       return res.status(503).json({ error: "Razorpay is not configured for this workspace." });
     }
@@ -289,13 +369,14 @@ paymentsRouter.post("/razorpay/verify", requireAuth, async (req: AuthRequest, re
       isPaid: true,
     }).catch((e) => console.error("Auto post gateway payment to ledger error:", e));
 
+    const gatewayDefaults = await resolveTenantGatewayDefaults(tenantId);
     const txnRecord = {
       id: `txn-${Date.now()}`,
       paymentId,
       orderId,
       customer: customerName || sale.customerName || "Online Customer",
       amount: parsedAmount || Number(sale.total),
-      currency: "INR",
+      currency: gatewayDefaults.currency,
       status: "captured",
       method,
       timestamp: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
@@ -394,13 +475,14 @@ paymentsRouter.post("/razorpay/test-payment", requireAuth, async (req: AuthReque
       }
     }
 
+    const gatewayDefaults = await resolveTenantGatewayDefaults(tenantId);
     const newTxn = {
       id: `txn-${Date.now()}`,
       paymentId: payId,
       orderId: ordId,
       customer: customerName,
       amount: parsedAmount,
-      currency: "INR",
+      currency: gatewayDefaults.currency,
       status: "captured",
       method,
       timestamp: new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }),
@@ -433,7 +515,7 @@ paymentsRouter.post("/razorpay/test-payment", requireAuth, async (req: AuthReque
 
     return res.status(201).json({
       success: true,
-      message: `Test payment of ₹${parsedAmount} captured and auto-posted to General Ledger!`,
+      message: `Test payment of ${gatewayDefaults.currencySymbol}${parsedAmount} (${gatewayDefaults.currency}) captured and auto-posted to General Ledger!`,
       transaction: newTxn,
       saleId: sale.id,
       invoiceNo,

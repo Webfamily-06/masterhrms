@@ -1421,123 +1421,35 @@ exports.crmRouter.delete("/companies/:id", auth_1.requireAuth, tenant_context_mi
 // ==========================================
 // CALL HISTORY (Relational MySQL backed)
 // ==========================================
-// GET /api/crm/calls - List call history records
+// GET /api/crm/calls - List external CRM call history records (strictly isolated from private internal employee WebRTC calls)
 exports.crmRouter.get("/calls", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { search, callType, sort = "desc" } = req.query;
-        const where = { tenantId };
+        const where = {
+            tenantId,
+            callSessionId: null,
+            callerId: null,
+            receiverId: null,
+            groupId: null,
+            callerPhone: { notIn: ["Internal Call", "Group Meeting"] },
+        };
         if (callType && callType !== "all") {
             where.callType = String(callType);
         }
         if (search) {
             const q = String(search).trim();
             where.OR = [
-                { callerName: { contains: q } },
-                { callerEmail: { contains: q } },
-                { callerPhone: { contains: q } },
+                { callerName: { contains: q, mode: "insensitive" } },
+                { callerEmail: { contains: q, mode: "insensitive" } },
+                { callerPhone: { contains: q, mode: "insensitive" } },
             ];
         }
-        let calls = await prisma_1.prisma.callHistoryRecord.findMany({
+        const calls = await prisma_1.prisma.callHistoryRecord.findMany({
             where,
             orderBy: { callTime: sort === "asc" ? "asc" : "desc" },
+            take: 200,
         });
-        // Auto-seed realistic demo calls if empty
-        if (calls.length === 0 && !search && (!callType || callType === "all")) {
-            const now = Date.now();
-            await prisma_1.prisma.callHistoryRecord.createMany({
-                data: [
-                    {
-                        tenantId,
-                        callerName: "Anthony Lewis",
-                        callerEmail: "anthony@example.com",
-                        callerPhone: "(123) 4567 890",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-32.jpg",
-                        callType: "incoming",
-                        durationSeconds: 145, // 02:25
-                        callTime: new Date(now - 2 * 3600 * 1000),
-                        totalCalls: 20,
-                        avgCallSeconds: 30,
-                        avgWaitSeconds: 5,
-                        status: "completed",
-                    },
-                    {
-                        tenantId,
-                        callerName: "Brian Villalobos",
-                        callerEmail: "brian@example.com",
-                        callerPhone: "(179) 7382 829",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-09.jpg",
-                        callType: "outgoing",
-                        durationSeconds: 70, // 01:10
-                        callTime: new Date(now - 5 * 3600 * 1000),
-                        totalCalls: 12,
-                        avgCallSeconds: 45,
-                        avgWaitSeconds: 3,
-                        status: "completed",
-                    },
-                    {
-                        tenantId,
-                        callerName: "Harvey Smith",
-                        callerEmail: "harvey@example.com",
-                        callerPhone: "(184) 2719 738",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-01.jpg",
-                        callType: "video",
-                        durationSeconds: 240, // 04:00
-                        callTime: new Date(now - 24 * 3600 * 1000),
-                        totalCalls: 8,
-                        avgCallSeconds: 120,
-                        avgWaitSeconds: 10,
-                        status: "completed",
-                    },
-                    {
-                        tenantId,
-                        callerName: "Stephan Peralt",
-                        callerEmail: "peralt@example.com",
-                        callerPhone: "(193) 7839 748",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-33.jpg",
-                        callType: "incoming",
-                        durationSeconds: 95,
-                        callTime: new Date(now - 28 * 3600 * 1000),
-                        totalCalls: 15,
-                        avgCallSeconds: 25,
-                        avgWaitSeconds: 4,
-                        status: "completed",
-                    },
-                    {
-                        tenantId,
-                        callerName: "Doglas Martini",
-                        callerEmail: "martni@example.com",
-                        callerPhone: "(183) 9302 890",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-34.jpg",
-                        callType: "outgoing",
-                        durationSeconds: 65,
-                        callTime: new Date(now - 48 * 3600 * 1000),
-                        totalCalls: 18,
-                        avgCallSeconds: 35,
-                        avgWaitSeconds: 6,
-                        status: "completed",
-                    },
-                    {
-                        tenantId,
-                        callerName: "Lori Broaddus",
-                        callerEmail: "broaddus@example.com",
-                        callerPhone: "(168) 8392 823",
-                        callerAvatarUrl: "https://smarthr.dreamstechnologies.com/html/assets/img/users/user-02.jpg",
-                        callType: "missed",
-                        durationSeconds: 0,
-                        callTime: new Date(now - 72 * 3600 * 1000),
-                        totalCalls: 5,
-                        avgCallSeconds: 0,
-                        avgWaitSeconds: 15,
-                        status: "missed",
-                    },
-                ],
-            });
-            calls = await prisma_1.prisma.callHistoryRecord.findMany({
-                where,
-                orderBy: { callTime: "desc" },
-            });
-        }
         return res.json(calls);
     }
     catch (err) {
@@ -1545,7 +1457,7 @@ exports.crmRouter.get("/calls", auth_1.requireAuth, tenant_context_middleware_1.
         return res.status(500).json({ error: err.message || "Failed to fetch call history" });
     }
 });
-// POST /api/crm/calls - Log a new call
+// POST /api/crm/calls - Log an external CRM phone call
 exports.crmRouter.post("/calls", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
@@ -1553,12 +1465,16 @@ exports.crmRouter.post("/calls", auth_1.requireAuth, tenant_context_middleware_1
         if (!callerName || !callerPhone) {
             return res.status(400).json({ error: "Caller name and phone number are required." });
         }
+        const cleanPhone = String(callerPhone).trim();
+        if (cleanPhone === "Internal Call" || cleanPhone === "Group Meeting") {
+            return res.status(400).json({ error: "Invalid external phone number." });
+        }
         const record = await prisma_1.prisma.callHistoryRecord.create({
             data: {
                 tenantId,
-                callerName: callerName.trim(),
-                callerEmail: callerEmail ? callerEmail.trim() : null,
-                callerPhone: callerPhone.trim(),
+                callerName: String(callerName).trim(),
+                callerEmail: callerEmail ? String(callerEmail).trim() : null,
+                callerPhone: cleanPhone,
                 callerAvatarUrl: callerAvatarUrl || null,
                 callType,
                 durationSeconds: Number(durationSeconds) || 0,
@@ -1574,40 +1490,77 @@ exports.crmRouter.post("/calls", auth_1.requireAuth, tenant_context_middleware_1
         return res.status(500).json({ error: err.message || "Failed to log call" });
     }
 });
-// DELETE /api/crm/calls/:id - Delete a call record
+// DELETE /api/crm/calls/:id - Soft-hide or delete ONLY external CRM call logs (never internal chat/WebRTC call history)
 exports.crmRouter.delete("/calls/:id", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
-        const { id } = req.params;
-        const deleted = await prisma_1.prisma.callHistoryRecord.deleteMany({
-            where: { id, tenantId },
-        });
-        if (deleted.count === 0) {
-            return res.status(404).json({ error: "Call record not found." });
+        const isAdminOrHr = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin", "manager"].includes(r));
+        if (!isAdminOrHr) {
+            return res.status(403).json({ error: "Only managers or administrators can delete CRM call logs." });
         }
-        return res.json({ success: true, message: "Call record deleted." });
+        const { id } = req.params;
+        const existing = await prisma_1.prisma.callHistoryRecord.findFirst({
+            where: {
+                id,
+                tenantId,
+                callSessionId: null,
+                callerId: null,
+                receiverId: null,
+                groupId: null,
+            },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "External CRM call record not found or protected." });
+        }
+        const currentUserId = req.user?.userId || "system";
+        const hidden = Array.from(new Set([...(existing.hiddenByUserIds || []), currentUserId]));
+        await prisma_1.prisma.callHistoryRecord.update({
+            where: { id },
+            data: { hiddenByUserIds: hidden },
+        });
+        return res.json({ success: true, message: "CRM call record archived." });
     }
     catch (err) {
         console.error("CRM Calls DELETE error:", err);
-        return res.status(500).json({ error: err.message || "Failed to delete call record" });
+        return res.status(500).json({ error: err.message || "Failed to archive call record" });
     }
 });
-// POST /api/crm/calls/bulk-delete - Delete multiple call records
+// POST /api/crm/calls/bulk-delete - Soft-hide external CRM call logs only
 exports.crmRouter.post("/calls/bulk-delete", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
+        const isAdminOrHr = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin", "manager"].includes(r));
+        if (!isAdminOrHr) {
+            return res.status(403).json({ error: "Only managers or administrators can delete CRM call logs." });
+        }
         const { ids } = req.body;
         if (!Array.isArray(ids) || ids.length === 0) {
             return res.status(400).json({ error: "Array of IDs required." });
         }
-        const deleted = await prisma_1.prisma.callHistoryRecord.deleteMany({
-            where: { id: { in: ids }, tenantId },
+        const currentUserId = req.user?.userId || "system";
+        const externalRecords = await prisma_1.prisma.callHistoryRecord.findMany({
+            where: {
+                id: { in: ids },
+                tenantId,
+                callSessionId: null,
+                callerId: null,
+                receiverId: null,
+                groupId: null,
+            },
+            select: { id: true, hiddenByUserIds: true },
         });
-        return res.json({ success: true, count: deleted.count });
+        for (const rec of externalRecords) {
+            const hidden = Array.from(new Set([...(rec.hiddenByUserIds || []), currentUserId]));
+            await prisma_1.prisma.callHistoryRecord.update({
+                where: { id: rec.id },
+                data: { hiddenByUserIds: hidden },
+            });
+        }
+        return res.json({ success: true, count: externalRecords.length });
     }
     catch (err) {
         console.error("CRM Calls Bulk DELETE error:", err);
-        return res.status(500).json({ error: err.message || "Failed to bulk delete call records" });
+        return res.status(500).json({ error: err.message || "Failed to archive call records" });
     }
 });
 // =========================================================================

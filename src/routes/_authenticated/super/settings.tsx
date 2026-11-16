@@ -192,6 +192,18 @@ export type SuperSettings = {
   pusherCluster: string;
   pusherEnabled: boolean;
 
+  // Firebase Push & FCM
+  firebaseEnabled: boolean;
+  firebaseApiKey: string;
+  firebaseAuthDomain: string;
+  firebaseProjectId: string;
+  firebaseStorageBucket: string;
+  firebaseMessagingSenderId: string;
+  firebaseAppId: string;
+  firebaseMeasurementId: string;
+  firebaseVapidKey: string;
+  firebaseServiceAccountJson: string;
+
   // Payment Gateways (PayPal, Razorpay, Bank)
   paypalClientId: string;
   paypalSecret: string;
@@ -337,6 +349,17 @@ const DEFAULT_SETTINGS: SuperSettings = {
   pusherCluster: ((import.meta.env as any).VITE_PUSHER_CLUSTER as string) || "ap2",
   pusherEnabled: ((import.meta.env as any).VITE_PUSHER_ENABLED as string) !== "false",
 
+  firebaseEnabled: Boolean((import.meta.env as any).VITE_FIREBASE_PROJECT_ID),
+  firebaseApiKey: ((import.meta.env as any).VITE_FIREBASE_API_KEY as string) || "",
+  firebaseAuthDomain: ((import.meta.env as any).VITE_FIREBASE_AUTH_DOMAIN as string) || "",
+  firebaseProjectId: ((import.meta.env as any).VITE_FIREBASE_PROJECT_ID as string) || "",
+  firebaseStorageBucket: ((import.meta.env as any).VITE_FIREBASE_STORAGE_BUCKET as string) || "",
+  firebaseMessagingSenderId: ((import.meta.env as any).VITE_FIREBASE_MESSAGING_SENDER_ID as string) || "",
+  firebaseAppId: ((import.meta.env as any).VITE_FIREBASE_APP_ID as string) || "",
+  firebaseMeasurementId: ((import.meta.env as any).VITE_FIREBASE_MEASUREMENT_ID as string) || "",
+  firebaseVapidKey: ((import.meta.env as any).VITE_FIREBASE_VAPID_KEY as string) || "",
+  firebaseServiceAccountJson: "",
+
   paypalClientId: "",
   paypalSecret: "",
   paypalMode: "sandbox",
@@ -479,6 +502,11 @@ function SuperSettingsAdmin() {
             label: "WebSockets & Events",
             description: "Pusher & Soketi real-time event broadcasting",
           },
+          {
+            id: "firebase",
+            label: "Firebase Push & FCM",
+            description: "Web Push VAPID, Firebase SDK & Service Account",
+          },
         ],
       },
       {
@@ -520,6 +548,7 @@ function SuperSettingsAdmin() {
   const [showAppleKey, setShowAppleKey] = useState(false);
   const [showPusherSecret, setShowPusherSecret] = useState(false);
   const [isTestingPusher, setIsTestingPusher] = useState(false);
+  const [isTestingFirebase, setIsTestingFirebase] = useState(false);
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -556,6 +585,15 @@ function SuperSettingsAdmin() {
   async function handleTestPusher() {
     setIsTestingPusher(true);
     try {
+      await api.put("/v1/settings/PLATFORM/pusher", {
+        "pusher.enabled": Boolean(form.pusherEnabled),
+        "pusher.app_id": form.pusherAppId || "",
+        "pusher.key": form.pusherKey || "",
+        "pusher.cluster": form.pusherCluster || "ap2",
+        ...(form.pusherSecret && !form.pusherSecret.includes("••••")
+          ? { "pusher.secret": form.pusherSecret }
+          : {}),
+      }).catch(() => {});
       const res: any = await api.post("/pusher/test", {
         appId: form.pusherAppId,
         key: form.pusherKey,
@@ -577,6 +615,42 @@ function SuperSettingsAdmin() {
       });
     } finally {
       setIsTestingPusher(false);
+    }
+  }
+
+  async function handleTestFirebase() {
+    setIsTestingFirebase(true);
+    try {
+      await api.put("/v1/settings/PLATFORM/firebase", {
+        "firebase.enabled": Boolean(form.firebaseEnabled),
+        "firebase.api_key": form.firebaseApiKey || "",
+        "firebase.auth_domain": form.firebaseAuthDomain || "",
+        "firebase.project_id": form.firebaseProjectId || "",
+        "firebase.storage_bucket": form.firebaseStorageBucket || "",
+        "firebase.messaging_sender_id": form.firebaseMessagingSenderId || "",
+        "firebase.app_id": form.firebaseAppId || "",
+        "firebase.measurement_id": form.firebaseMeasurementId || "",
+        "firebase.vapid_key": form.firebaseVapidKey || "",
+        ...(form.firebaseServiceAccountJson && !form.firebaseServiceAccountJson.includes("••••")
+          ? { "firebase.service_account_json": form.firebaseServiceAccountJson }
+          : {}),
+      });
+      const res: any = await api.post("/v1/settings/PLATFORM/firebase/test", {});
+      if (res?.success) {
+        toast.success("Firebase Configuration Verified!", {
+          description: res.message || `Verified project ${form.firebaseProjectId}.`,
+        });
+      } else {
+        toast.error("Firebase Verification Failed", {
+          description: res?.error || "Invalid Firebase project or service account configuration.",
+        });
+      }
+    } catch (err: any) {
+      toast.error("Firebase Test Error", {
+        description: err.response?.data?.error || err.message || "Failed to verify Firebase settings.",
+      });
+    } finally {
+      setIsTestingFirebase(false);
     }
   }
 
@@ -672,10 +746,13 @@ function SuperSettingsAdmin() {
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
       try {
-        const [brandingRes, paymentsRes, emailRes] = await Promise.all([
+        const [brandingRes, paymentsRes, emailRes, pusherRes, firebaseRes, localeRes] = await Promise.all([
           api.get("/v1/settings/PLATFORM/branding").catch(() => null),
           api.get("/v1/settings/PLATFORM/payments").catch(() => null),
           api.get("/v1/settings/PLATFORM/email").catch(() => null),
+          api.get("/v1/settings/PLATFORM/pusher").catch(() => null),
+          api.get("/v1/settings/PLATFORM/firebase").catch(() => null),
+          api.get("/v1/settings/PLATFORM/locale").catch(() => null),
         ]);
         let cmsContent: any = {};
         try {
@@ -700,6 +777,39 @@ function SuperSettingsAdmin() {
           if (ev["email.reply_to"]) merged.smtpReplyTo = ev["email.reply_to"];
           if (ev["email.ignore_tls"] !== undefined) merged.smtpIgnoreTls = Boolean(ev["email.ignore_tls"]);
           if (ev["email.provider_type"]) merged.smtpProvider = ev["email.provider_type"];
+          if (ev["email.smtp_password"]?.set) merged.smtpPass = "••••••••••••••••";
+        }
+
+        // Overlay authoritative Pusher from SettingsService if available
+        if (pusherRes?.values) {
+          const psv = pusherRes.values;
+          if (psv["pusher.enabled"] !== undefined) merged.pusherEnabled = Boolean(psv["pusher.enabled"]);
+          if (psv["pusher.app_id"]) merged.pusherAppId = String(psv["pusher.app_id"]);
+          if (psv["pusher.key"]) merged.pusherKey = String(psv["pusher.key"]);
+          if (psv["pusher.cluster"]) merged.pusherCluster = String(psv["pusher.cluster"]);
+          if (psv["pusher.secret"]?.set) merged.pusherSecret = "••••••••••••••••";
+        }
+
+        // Overlay authoritative Firebase from SettingsService if available
+        if (firebaseRes?.values) {
+          const fbv = firebaseRes.values;
+          if (fbv["firebase.enabled"] !== undefined) merged.firebaseEnabled = Boolean(fbv["firebase.enabled"]);
+          if (fbv["firebase.api_key"]) merged.firebaseApiKey = String(fbv["firebase.api_key"]);
+          if (fbv["firebase.auth_domain"]) merged.firebaseAuthDomain = String(fbv["firebase.auth_domain"]);
+          if (fbv["firebase.project_id"]) merged.firebaseProjectId = String(fbv["firebase.project_id"]);
+          if (fbv["firebase.storage_bucket"]) merged.firebaseStorageBucket = String(fbv["firebase.storage_bucket"]);
+          if (fbv["firebase.messaging_sender_id"]) merged.firebaseMessagingSenderId = String(fbv["firebase.messaging_sender_id"]);
+          if (fbv["firebase.app_id"]) merged.firebaseAppId = String(fbv["firebase.app_id"]);
+          if (fbv["firebase.measurement_id"]) merged.firebaseMeasurementId = String(fbv["firebase.measurement_id"]);
+          if (fbv["firebase.vapid_key"]) merged.firebaseVapidKey = String(fbv["firebase.vapid_key"]);
+          if (fbv["firebase.service_account_json"]?.set) merged.firebaseServiceAccountJson = "••••••••••••••••";
+        }
+
+        // Overlay authoritative Locale from SettingsService if available
+        if (localeRes?.values) {
+          const lv = localeRes.values;
+          if (lv["locale.default_currency"] && !cmsContent.defaultCurrency) merged.defaultCurrency = lv["locale.default_currency"];
+          if (lv["locale.currency_symbol"] && !cmsContent.currencySymbol) merged.currencySymbol = lv["locale.currency_symbol"];
         }
 
         // Overlay authoritative payments from SettingsService if available
@@ -816,6 +926,35 @@ function SuperSettingsAdmin() {
           "email.reply_to": updatedForm.smtpReplyTo || `support@${getPlatformBaseDomain()}`,
           "email.ignore_tls": Boolean(updatedForm.smtpIgnoreTls),
         }).catch((err) => console.warn("Failed to sync email to SettingsService:", err)),
+        api.put("/v1/settings/PLATFORM/pusher", {
+          "pusher.enabled": Boolean(updatedForm.pusherEnabled),
+          "pusher.app_id": updatedForm.pusherAppId || "",
+          "pusher.key": updatedForm.pusherKey || "",
+          "pusher.cluster": updatedForm.pusherCluster || "ap2",
+          ...(updatedForm.pusherSecret && !updatedForm.pusherSecret.includes("••••")
+            ? { "pusher.secret": updatedForm.pusherSecret }
+            : {}),
+        }).catch((err) => console.warn("Failed to sync pusher to SettingsService:", err)),
+        api.put("/v1/settings/PLATFORM/firebase", {
+          "firebase.enabled": Boolean(updatedForm.firebaseEnabled),
+          "firebase.api_key": updatedForm.firebaseApiKey || "",
+          "firebase.auth_domain": updatedForm.firebaseAuthDomain || "",
+          "firebase.project_id": updatedForm.firebaseProjectId || "",
+          "firebase.storage_bucket": updatedForm.firebaseStorageBucket || "",
+          "firebase.messaging_sender_id": updatedForm.firebaseMessagingSenderId || "",
+          "firebase.app_id": updatedForm.firebaseAppId || "",
+          "firebase.measurement_id": updatedForm.firebaseMeasurementId || "",
+          "firebase.vapid_key": updatedForm.firebaseVapidKey || "",
+          ...(updatedForm.firebaseServiceAccountJson && !updatedForm.firebaseServiceAccountJson.includes("••••")
+            ? { "firebase.service_account_json": updatedForm.firebaseServiceAccountJson }
+            : {}),
+        }).catch((err) => console.warn("Failed to sync firebase to SettingsService:", err)),
+        api.put("/v1/settings/PLATFORM/locale", {
+          "locale.default_currency": updatedForm.defaultCurrency || "INR",
+          "locale.currency_symbol": updatedForm.currencySymbol || "₹",
+          "locale.date_format": updatedForm.dateFormat || "YYYY-MM-DD",
+          "locale.time_format": updatedForm.timeFormat || "24h",
+        }).catch((err) => console.warn("Failed to sync locale to SettingsService:", err)),
       ]);
 
       // 2. Also keep CMS page updated for backward compatibility
@@ -3165,6 +3304,175 @@ function SuperSettingsAdmin() {
                     <Save className="size-4" />
                   )}
                   Save Pusher Settings
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 5B: FIREBASE PUSH & FCM */}
+        <TabsContent value="firebase" className="space-y-6 pt-4">
+          <Card className="p-6 border shadow-xs space-y-6">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <Key className="size-5 text-primary" /> Firebase Push Notifications & FCM Engine
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Configure Firebase Cloud Messaging (FCM), Web Push VAPID keys, and Admin Service Account credentials.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${
+                    form.firebaseEnabled
+                      ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                      : "bg-muted text-muted-foreground border-border"
+                  }`}
+                >
+                  {form.firebaseEnabled ? "Enabled" : "Disabled"}
+                </span>
+                <Switch
+                  checked={form.firebaseEnabled}
+                  onCheckedChange={(checked) => setForm({ ...form, firebaseEnabled: checked })}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                <ShieldCheck className="size-4" />
+                <span>Encrypted Database Vault + Live Runtime & .env Synchronization</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Public SDK keys are served dynamically to web & mobile clients via <code>/api/v1/public/app-config</code> (overriding static build-time env vars). The Service Account JSON is encrypted with AES-256-GCM in PostgreSQL and synchronized to runtime <code>process.env</code> and writable local <code>.env</code> files.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-5">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Firebase Project ID *</Label>
+                <Input
+                  value={form.firebaseProjectId}
+                  onChange={(e) => setForm({ ...form, firebaseProjectId: e.target.value })}
+                  placeholder="e.g. masterhrms-prod"
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Web API Key *</Label>
+                <Input
+                  value={form.firebaseApiKey}
+                  onChange={(e) => setForm({ ...form, firebaseApiKey: e.target.value })}
+                  placeholder="AIzaSy..."
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Auth Domain</Label>
+                <Input
+                  value={form.firebaseAuthDomain}
+                  onChange={(e) => setForm({ ...form, firebaseAuthDomain: e.target.value })}
+                  placeholder="masterhrms-prod.firebaseapp.com"
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Storage Bucket</Label>
+                <Input
+                  value={form.firebaseStorageBucket}
+                  onChange={(e) => setForm({ ...form, firebaseStorageBucket: e.target.value })}
+                  placeholder="masterhrms-prod.firebasestorage.app"
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Messaging Sender ID *</Label>
+                <Input
+                  value={form.firebaseMessagingSenderId}
+                  onChange={(e) => setForm({ ...form, firebaseMessagingSenderId: e.target.value })}
+                  placeholder="e.g. 123456789012"
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Firebase App ID *</Label>
+                <Input
+                  value={form.firebaseAppId}
+                  onChange={(e) => setForm({ ...form, firebaseAppId: e.target.value })}
+                  placeholder="1:123456789012:web:abcdef123456"
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Web Push VAPID Key (Public Certificate)</Label>
+                <Input
+                  value={form.firebaseVapidKey}
+                  onChange={(e) => setForm({ ...form, firebaseVapidKey: e.target.value })}
+                  placeholder="BEl62iUYgUivxIkv69yViEuiBIa..."
+                  className="text-xs font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Measurement ID (Optional)</Label>
+                <Input
+                  value={form.firebaseMeasurementId}
+                  onChange={(e) => setForm({ ...form, firebaseMeasurementId: e.target.value })}
+                  placeholder="G-XXXXXXXXXX"
+                  className="text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t">
+              <Label className="text-xs font-semibold">
+                Firebase Admin Service Account JSON (Server-Side Encrypted Secret)
+              </Label>
+              <Textarea
+                value={form.firebaseServiceAccountJson}
+                onChange={(e) => setForm({ ...form, firebaseServiceAccountJson: e.target.value })}
+                placeholder='{"type":"service_account","project_id":"...","private_key":"-----BEGIN PRIVATE KEY-----..."} (leave masked to keep existing secret)'
+                className="text-xs font-mono h-28"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Never exposed to client browsers. Used by backend push dispatchers to sign FCM HTTP v1 tokens.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Lock className="size-4 text-emerald-600" />
+                <span>AES-256-GCM Secret Vault + Runtime Hot-Reload Active</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestFirebase}
+                  disabled={isTestingFirebase || !form.firebaseProjectId || !form.firebaseApiKey}
+                  className="gap-2"
+                >
+                  {isTestingFirebase ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4 text-primary" />
+                  )}
+                  {isTestingFirebase ? "Verifying..." : "Test Firebase Config"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={saveMutation.isPending}
+                  className="gap-2"
+                >
+                  {saveMutation.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  Save Firebase Settings
                 </Button>
               </div>
             </div>

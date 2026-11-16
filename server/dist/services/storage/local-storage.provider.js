@@ -61,18 +61,27 @@ class LocalStorageProvider {
         };
     }
     /**
-     * Verifies that the file exists on the local filesystem.
+     * Verifies that the file exists on the local filesystem (or durable PostgreSQL blob store in serverless).
      */
-    async verifyUpload(storageKey, expectedSize) {
+    async verifyUpload(storageKey, _expectedSize) {
         const filePath = this.resolvePhysicalPath(storageKey);
-        if (!fs_1.default.existsSync(filePath)) {
-            return { exists: false, sizeBytes: 0 };
+        if (fs_1.default.existsSync(filePath)) {
+            const stat = fs_1.default.statSync(filePath);
+            return {
+                exists: true,
+                sizeBytes: stat.size,
+            };
         }
-        const stat = fs_1.default.statSync(filePath);
-        return {
-            exists: true,
-            sizeBytes: stat.size,
-        };
+        const cleanKey = storageKey.replace(/^[/\\]+/, "");
+        const blob = (await media_service_1.MediaService.fetchMediaBlobByRelativePath(`files/${cleanKey}`)) ||
+            (await media_service_1.MediaService.fetchMediaBlobByRelativePath(cleanKey));
+        if (blob) {
+            return {
+                exists: true,
+                sizeBytes: blob.buffer.length,
+            };
+        }
+        return { exists: false, sizeBytes: 0 };
     }
     /**
      * Generates a signed download URL using HMAC signature.
@@ -118,15 +127,17 @@ class LocalStorageProvider {
         }
     }
     /**
-     * Saves a buffer directly to local disk.
+     * Saves a buffer directly to local disk and mirrors to durable PostgreSQL blob storage.
      */
-    async uploadBuffer(storageKey, buffer, _mimeType) {
+    async uploadBuffer(storageKey, buffer, mimeType) {
         const filePath = this.resolvePhysicalPath(storageKey);
         const dir = path_1.default.dirname(filePath);
         if (!fs_1.default.existsSync(dir)) {
             fs_1.default.mkdirSync(dir, { recursive: true });
         }
         fs_1.default.writeFileSync(filePath, buffer);
+        const cleanKey = storageKey.replace(/^[/\\]+/, "");
+        await media_service_1.MediaService.persistRelativeMediaBlob(`files/${cleanKey}`, buffer, mimeType);
         return true;
     }
     /**

@@ -27,6 +27,7 @@ const quota_service_1 = require("../services/files/quota.service");
 const storage_provider_factory_1 = require("../services/storage/storage-provider.factory");
 const local_storage_provider_1 = require("../services/storage/local-storage.provider");
 const media_service_1 = require("../services/media/media.service");
+const chat_service_1 = require("../services/chat.service");
 const prisma_1 = require("../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const system_folder_service_1 = require("../services/files/system-folder.service");
@@ -891,10 +892,6 @@ exports.filesRouter.get("/stream", async (req, res) => {
                 return res.status(403).json({ error: "Invalid or expired signature." });
             }
             const filePath = storageProvider.getPhysicalPath(key);
-            if (!fs_1.default.existsSync(filePath)) {
-                return res.status(404).json({ error: "Physical file asset not found." });
-            }
-            const stat = fs_1.default.statSync(filePath);
             const filename = encodeURIComponent(downloadName || path_1.default.basename(key));
             const ext = path_1.default.extname(downloadName || key).toLowerCase();
             const mimeMap = {
@@ -910,6 +907,20 @@ exports.filesRouter.get("/stream", async (req, res) => {
                 ".txt": "text/plain",
                 ".csv": "text/csv",
             };
+            if (!fs_1.default.existsSync(filePath)) {
+                const cleanKey = key.replace(/^[/\\]+/, "");
+                const blob = (await media_service_1.MediaService.fetchMediaBlobByRelativePath(`files/${cleanKey}`)) ||
+                    (await media_service_1.MediaService.fetchMediaBlobByRelativePath(cleanKey));
+                if (!blob) {
+                    return res.status(404).json({ error: "Physical file asset not found." });
+                }
+                res.setHeader("Content-Type", blob.mimeType || mimeMap[ext] || "application/octet-stream");
+                res.setHeader("Content-Length", blob.buffer.length);
+                res.setHeader("Content-Disposition", `${isInline ? "inline" : "attachment"}; filename="${filename}"; filename*=UTF-8''${filename}`);
+                res.setHeader("Cache-Control", "private, max-age=3600");
+                return res.status(200).send(blob.buffer);
+            }
+            const stat = fs_1.default.statSync(filePath);
             res.setHeader("Content-Type", mimeMap[ext] || "application/octet-stream");
             res.setHeader("Content-Length", stat.size);
             res.setHeader("Content-Disposition", `${isInline ? "inline" : "attachment"}; filename="${filename}"; filename*=UTF-8''${filename}`);
@@ -925,28 +936,73 @@ exports.filesRouter.get("/stream", async (req, res) => {
     }
 });
 /**
- * GET /api/v1/files/:id/stream (Legacy stream route)
+ * GET /api/v1/files/:id/stream (Authenticated & Tenant-Isolated Stream Route)
  */
-exports.filesRouter.get("/:id/stream", async (req, res) => {
+exports.filesRouter.get("/:id/stream", auth_1.requireAuth, async (req, res) => {
     try {
+        const { isSuper, tenantId, userId, userRoles, userPermissions } = getAuthContext(req);
         const { id } = req.params;
-        const item = await prisma.mediaFile.findUnique({ where: { id } });
+        const isInline = req.query.inline === "true";
+        const { file: item } = await file_acl_service_1.FileAclService.verifyPermission({
+            fileId: id,
+            tenantId,
+            userId,
+            action: isInline ? "preview" : "download",
+            isSuper,
+            userRoles,
+            userPermissions,
+        });
         if (!item || item.deletedAt || item.status === "TRASHED") {
             return res.status(404).json({ error: "File asset not found or has been trashed." });
         }
         if (item.isFolder || item.type === "FOLDER") {
             return res.status(400).json({ error: "Cannot download directory stream." });
         }
-        // Resolve physical file on disk
+        // Enforce strict participant check on private chat attachments even for workspace admins
+        const folderLower = String(item.folder || "").toLowerCase();
+        const pathLower = String(item.filePath || "").toLowerCase();
+        const isChatMedia = item.systemModule === "chat" ||
+            folderLower.includes("communication") ||
+            folderLower.includes("organization chat") ||
+            pathLower.includes("communication/") ||
+            pathLower.includes("chat/");
+        if (isChatMedia) {
+            const chatAllowed = await chat_service_1.ChatService.authorizeChatMediaAccess({
+                mediaFile: item,
+                tenantId: item.tenantId || tenantId || "",
+                userId,
+                roles: userRoles,
+            });
+            if (!chatAllowed) {
+                return res.status(403).json({
+                    error: "Forbidden: You are not authorized to access this chat attachment.",
+                    code: "UNAUTHORIZED_CHAT_MEDIA_ACCESS",
+                });
+            }
+        }
+        // Resolve physical file on disk (or fallback to durable cloud/PostgreSQL blob storage)
         const root = (0, media_service_1.getUploadsRoot)();
-        const absolutePath = path_1.default.resolve(root, item.filePath);
-        if (!fs_1.default.existsSync(absolutePath)) {
-            return res.status(404).json({ error: "Physical file asset not found on storage disk." });
+        const cleanRel = String(item.filePath || "").replace(/^[/\\]+/, "");
+        const candidatePaths = [
+            path_1.default.resolve(root, cleanRel),
+            path_1.default.resolve(root, "files", cleanRel),
+        ];
+        const absolutePath = candidatePaths.find((p) => fs_1.default.existsSync(p));
+        const mimeType = item.mimeType || "application/octet-stream";
+        const filename = encodeURIComponent(item.fileName);
+        if (!absolutePath) {
+            const cloudBuffer = (await media_service_1.MediaService.fetchCloudMediaBuffer(item.tenantId, cleanRel, item.id)) ||
+                (await media_service_1.MediaService.fetchCloudMediaBuffer(item.tenantId, `files/${cleanRel}`, item.id));
+            if (!cloudBuffer) {
+                return res.status(404).json({ error: "Physical file asset not found on storage disk." });
+            }
+            res.setHeader("Content-Type", mimeType);
+            res.setHeader("Content-Length", cloudBuffer.length);
+            res.setHeader("Content-Disposition", `${isInline ? "inline" : "attachment"}; filename="${filename}"; filename*=UTF-8''${filename}`);
+            res.setHeader("Cache-Control", "private, max-age=3600");
+            return res.status(200).send(cloudBuffer);
         }
         const stat = fs_1.default.statSync(absolutePath);
-        const mimeType = item.mimeType || "application/octet-stream";
-        const isInline = req.query.inline === "true";
-        const filename = encodeURIComponent(item.fileName);
         res.setHeader("Content-Type", mimeType);
         res.setHeader("Content-Length", stat.size);
         res.setHeader("Content-Disposition", `${isInline ? "inline" : "attachment"}; filename="${filename}"; filename*=UTF-8''${filename}`);
@@ -955,6 +1011,9 @@ exports.filesRouter.get("/:id/stream", async (req, res) => {
         return readStream.pipe(res);
     }
     catch (err) {
+        if (err?.status === 403 || err?.status === 404) {
+            return res.status(err.status).json({ error: err.message });
+        }
         console.error("[Files Legacy Stream Error]:", err);
         return res.status(500).json({ error: err.message || "Failed to stream file asset." });
     }

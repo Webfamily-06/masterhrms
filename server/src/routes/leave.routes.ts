@@ -448,18 +448,36 @@ leaveRouter.delete("/types/:id", requireAuth, async (req: AuthRequest, res: Resp
       return res.status(404).json({ error: "Leave type not found." });
     }
 
-    const [requestCount, ledgerCount, policyCount] = await Promise.all([
-      rawPrisma.leaveRequest.count({ where: { tenantId, leaveTypeId: id } }),
-      rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
-      rawPrisma.leavePolicy.count({ where: { tenantId, leaveTypeId: id } }),
-    ]);
+    const [requestCount, ledgerCount, policyCount, encashmentConfigCount, compOffConfigCount, encashmentRequestCount] =
+      await Promise.all([
+        rawPrisma.leaveRequest.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveLedgerEntry.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leavePolicy.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.leaveEncashmentConfig.count({ where: { tenantId, leaveTypeId: id } }),
+        rawPrisma.compOffConfig.count({ where: { tenantId, compOffLeaveTypeId: id } }),
+        rawPrisma.leaveEncashmentRequest.count({ where: { tenantId, leaveTypeId: id } }),
+      ]);
 
-    if (requestCount > 0 || ledgerCount > 0 || policyCount > 0) {
+    if (
+      requestCount > 0 ||
+      ledgerCount > 0 ||
+      policyCount > 0 ||
+      encashmentConfigCount > 0 ||
+      compOffConfigCount > 0 ||
+      encashmentRequestCount > 0
+    ) {
       return res.status(400).json({
         error: `Cannot delete "${existing.name}" because it has linked leave records. Deactivate it instead.`,
         code: "LEAVE_TYPE_IN_USE",
         canDeactivate: existing.status !== "inactive",
-        references: { requestCount, ledgerCount, policyCount },
+        references: {
+          requestCount,
+          ledgerCount,
+          policyCount,
+          encashmentConfigCount,
+          compOffConfigCount,
+          encashmentRequestCount,
+        },
       });
     }
 

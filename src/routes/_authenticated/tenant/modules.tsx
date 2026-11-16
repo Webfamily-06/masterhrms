@@ -1,12 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Boxes, CheckCircle2, ShieldCheck, Sparkles, Loader2 } from "lucide-react";
+import { Boxes, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ERP_MODULES } from "@/lib/erp-modules";
 
@@ -19,43 +17,64 @@ export const Route = createFileRoute("/_authenticated/tenant/modules")({
 
 function TenantModulesPage() {
   const qc = useQueryClient();
-  const [enabledKeys, setEnabledKeys] = useState<string[]>([
-    "hrm",
-    "recruitment",
-    "payroll",
-    "attendance",
-    "performance",
-    "training",
-    "assets",
-  ]);
 
-  const toggleModule = (key: string) => {
+  const { data: serverModules, isLoading } = useQuery<any[]>({
+    queryKey: ["workspace-modules-status"],
+    queryFn: async () => {
+      const res = await api.get<any[]>("/workspace/modules");
+      return Array.isArray(res) ? res : [];
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ moduleKey, isEnabled }: { moduleKey: string; isEnabled: boolean }) => {
+      return api.put("/workspace/modules", { moduleKey, isEnabled });
+    },
+    onSuccess: (_res, vars) => {
+      toast.success(`Module '${vars.moduleKey}' ${vars.isEnabled ? "enabled" : "disabled"} across workspace.`);
+      qc.invalidateQueries({ queryKey: ["workspace-modules-status"] });
+      qc.invalidateQueries({ queryKey: ["tenant-dashboard-metrics"] });
+      qc.invalidateQueries({ queryKey: ["current-profile"] });
+      qc.invalidateQueries({ queryKey: ["app-config"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update workspace module status.");
+    },
+  });
+
+  const modulesList = serverModules && serverModules.length > 0
+    ? serverModules
+    : ERP_MODULES.map((m) => ({ ...m, isEnabled: true }));
+
+  const handleToggle = (key: string, currentEnabled: boolean) => {
     if (key === "hrm") {
       toast.info("Core HRM module is required and cannot be disabled.");
       return;
     }
-    setEnabledKeys((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    );
-    toast.success(`Module state updated.`);
+    toggleMutation.mutate({ moduleKey: key, isEnabled: !currentEnabled });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Modules & Feature Toggles
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Enable or disable platform suites across your workspace in real-time.
+            Enable or disable platform suites across your workspace dashboards and sidebars in real-time.
           </p>
         </div>
+        {isLoading && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Syncing workspace modules...
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {ERP_MODULES.map((mod) => {
-          const isEnabled = enabledKeys.includes(mod.key);
+        {modulesList.map((mod: any) => {
+          const isEnabled = mod.isEnabled !== false;
           const isCore = mod.key === "hrm";
 
           return (
@@ -80,7 +99,8 @@ function TenantModulesPage() {
                   ) : (
                     <Switch
                       checked={isEnabled}
-                      onCheckedChange={() => toggleModule(mod.key)}
+                      disabled={toggleMutation.isPending}
+                      onCheckedChange={() => handleToggle(mod.key, isEnabled)}
                     />
                   )}
                 </div>
@@ -90,7 +110,7 @@ function TenantModulesPage() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
-                  <span>Included in Sovereign Plan</span>
+                  <span>Workspace Decision Authority</span>
                   <span className={isEnabled ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
                     {isEnabled ? "Active" : "Disabled"}
                   </span>

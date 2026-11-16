@@ -185,6 +185,7 @@ export const ROUTES = {
       custom: "/hr/reports/custom",
     },
     profile: "/hr/profile",
+    settings: "/hr/settings",
   },
 
   // ── Employee Self-Service Portal (/me/*) ──
@@ -295,6 +296,7 @@ export const ROUTES = {
 
     // 6. My Account
     profile: "/me/profile",
+    settings: "/me/settings",
     helpdesk: "/me/helpdesk",
     account: "/me/account",
 

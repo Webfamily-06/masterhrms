@@ -19,6 +19,7 @@ const evaluator_1 = require("../services/formula-engine/evaluator");
 const jurisdictions_1 = require("../constants/jurisdictions");
 const statutory_rule_registry_service_1 = require("../services/statutory-rule-registry.service");
 const statutory_amendment_ingestion_service_1 = require("../services/statutory-amendment-ingestion.service");
+const leave_encashment_compoff_service_1 = require("../services/leave-encashment-compoff.service");
 exports.hrPayrollRouter = (0, express_1.Router)();
 // Apply Auth & Tenant Context to all HR Payroll Endpoints
 exports.hrPayrollRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
@@ -139,6 +140,20 @@ exports.hrPayrollRouter.post("/runs/:id/calculate", async (req, res) => {
                 reimbursementMethod: "payroll_addition",
             },
         });
+        // Fetch scheduled Leave Encashment requests for this payroll period
+        const scheduledEncashments = await db.leaveEncashmentRequest.findMany({
+            where: {
+                tenantId,
+                type: "ENCASHMENT",
+                payrollPeriodMonth: run.periodMonth,
+                payrollPeriodYear: run.periodYear,
+                status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+            },
+            include: {
+                payrollComponent: true,
+                leaveType: true,
+            },
+        });
         let totalGrossAmount = new decimal_js_1.default(0);
         let totalDeductionsAmount = new decimal_js_1.default(0);
         let totalNetAmount = new decimal_js_1.default(0);
@@ -215,6 +230,24 @@ exports.hrPayrollRouter.post("/runs/:id/calculate", async (req, res) => {
                         isTaxable: false,
                     });
                 }
+                // Add Scheduled Leave Encashment Earnings
+                const empEncashments = scheduledEncashments.filter((e) => e.employeeId === emp.id);
+                let totalEncashmentAmount = new decimal_js_1.default(0);
+                for (const enc of empEncashments) {
+                    const encAmt = new decimal_js_1.default(enc.netPayableAmount ?? enc.grossAmount ?? 0).toDecimalPlaces(2);
+                    if (encAmt.greaterThan(0)) {
+                        totalEncashmentAmount = totalEncashmentAmount.plus(encAmt);
+                        grossEarnings = grossEarnings.plus(encAmt);
+                        earningsBreakdown.push({
+                            code: enc.payrollComponent?.code || "LEAVE_ENCASH",
+                            name: enc.payrollComponent?.name || `Leave Encashment (${enc.leaveType?.name || "Leave"})`,
+                            amount: encAmt.toNumber(),
+                            isTaxable: enc.payrollComponent?.isTaxable ?? true,
+                            referenceId: enc.id,
+                            requestCode: enc.requestCode,
+                        });
+                    }
+                }
                 // Deductions from assigned components
                 let totalDeductions = new decimal_js_1.default(0);
                 for (const item of assignment.items) {
@@ -269,6 +302,8 @@ exports.hrPayrollRouter.post("/runs/:id/calculate", async (req, res) => {
                     attendance: att,
                     earnings: earningsBreakdown,
                     deductions: deductionsBreakdown,
+                    leaveEncashmentAmount: totalEncashmentAmount.toNumber(),
+                    encashmentRequestIds: empEncashments.map((e) => e.id),
                     grossSalary: grossEarnings.toNumber(),
                     totalDeductions: totalDeductions.toNumber(),
                     netPay: netPay.toNumber(),
@@ -292,7 +327,7 @@ exports.hrPayrollRouter.post("/runs/:id/calculate", async (req, res) => {
                     },
                 });
                 // Create Draft Payslip
-                await tx.payslip.create({
+                const createdPayslip = await tx.payslip.create({
                     data: {
                         tenantId,
                         payrollRunId: run.id,
@@ -307,6 +342,21 @@ exports.hrPayrollRouter.post("/runs/:id/calculate", async (req, res) => {
                         breakdown: snapshotData,
                     },
                 });
+                if (empEncashments.length > 0) {
+                    await tx.leaveEncashmentRequest.updateMany({
+                        where: {
+                            tenantId,
+                            id: { in: empEncashments.map((e) => e.id) },
+                            status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+                        },
+                        data: {
+                            status: "PAYROLL_PROCESSING",
+                            payrollStatus: "PAYROLL_PROCESSING",
+                            payrollRunId: run.id,
+                            payslipId: createdPayslip.id,
+                        },
+                    });
+                }
             }
             // Compute variance against previous month
             const prevMonth = run.periodMonth === 1 ? 12 : run.periodMonth - 1;
@@ -501,6 +551,12 @@ exports.hrPayrollRouter.post("/runs/:id/publish", async (req, res) => {
                     approvalStatus: "finalized",
                 },
             });
+        });
+        // Reconcile & mark scheduled Leave Encashment items as PAID strictly after verified payroll publish
+        await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.reconcileAndMarkPayrollPaid(tenantId, {
+            payrollRunId: run.id,
+            actorUserId: actorId,
+            actorEmail: req.user?.email || null,
         });
         await audit_service_1.AuditService.log({
             tenantId,

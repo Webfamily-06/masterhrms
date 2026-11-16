@@ -1,13 +1,53 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.activeGroupCalls = exports.activeCalls = void 0;
+exports.getActiveCallParticipantIds = getActiveCallParticipantIds;
 exports.initSocket = initSocket;
 exports.getIO = getIO;
 exports.getOnlineUsersForTenant = getOnlineUsersForTenant;
+exports.recordRestUserPresence = recordRestUserPresence;
+exports.getOnlineUsersForTenantAsync = getOnlineUsersForTenantAsync;
 exports.broadcastToTenant = broadcastToTenant;
 exports.broadcastToUser = broadcastToUser;
 exports.broadcastToPlatform = broadcastToPlatform;
 exports.broadcastToAll = broadcastToAll;
+const crypto_1 = __importDefault(require("crypto"));
 const socket_io_1 = require("socket.io");
 const prisma_1 = require("./prisma");
 const tenant_context_1 = require("./context/tenant-context");
@@ -18,10 +58,87 @@ const notification_service_1 = require("./services/notification.service");
 const pusher_service_1 = require("./services/pusher.service");
 const incoming_call_push_service_1 = require("./services/incoming-call-push.service");
 const call_lifecycle_service_1 = require("./services/call-lifecycle.service");
-const meeting_sfu_service_1 = require("./services/meeting-sfu.service");
+const chat_service_1 = require("./services/chat.service");
 let ioInstance = null;
 const tenantPresence = new Map();
+const SOCKET_INSTANCE_ID = `node_${crypto_1.default.randomUUID().slice(0, 12)}`;
+const sessionStatusCache = new Map();
+const distributedPresenceCache = new Map();
+let callSweeperInterval = null;
+const ALLOWED_RECORD_ENTITY_MAP = {
+    LeaveRequest: { model: "leaveRequest" },
+    AttendanceRecord: { model: "attendanceRecord" },
+    ExpenseClaim: { model: "expenseClaim" },
+    HelpdeskTicket: { model: "helpdeskTicket" },
+    Project: { model: "project" },
+    ProjectTask: { model: "projectTask" },
+    CrmLead: { model: "crmLead" },
+    CrmDeal: { model: "crmDeal" },
+    Employee: { model: "employee", ownerField: "userId" },
+};
+async function verifyActiveDeviceSession(sessionId, expectedUserId) {
+    if (!sessionId)
+        return true;
+    const cached = sessionStatusCache.get(sessionId);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.valid;
+    }
+    const db = prisma_1.rawPrisma || prisma_1.prisma;
+    if (!db.deviceSession?.findUnique)
+        return true;
+    const session = await db.deviceSession
+        .findUnique({
+        where: { id: sessionId },
+        select: { userId: true, revoked: true, expiresAt: true },
+    })
+        .catch(() => null);
+    const isValid = Boolean(session &&
+        !session.revoked &&
+        session.userId === expectedUserId &&
+        (!session.expiresAt || new Date(session.expiresAt).getTime() > Date.now()));
+    sessionStatusCache.set(sessionId, { valid: isValid, expiresAt: Date.now() + 5000 });
+    return isValid;
+}
+async function syncDistributedPresence(tenantId, userId, localCount) {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        if (!db.chatUserPresence?.upsert)
+            return;
+        const now = new Date();
+        await db.chatUserPresence.upsert({
+            where: { tenantId_userId: { tenantId, userId } },
+            create: {
+                tenantId,
+                userId,
+                status: localCount > 0 ? "online" : "offline",
+                activeConnections: Math.max(0, localCount),
+                instanceId: SOCKET_INSTANCE_ID,
+                lastSeenAt: now,
+            },
+            update: {
+                status: localCount > 0 ? "online" : "offline",
+                activeConnections: Math.max(0, localCount),
+                instanceId: SOCKET_INSTANCE_ID,
+                lastSeenAt: now,
+            },
+        });
+        distributedPresenceCache.delete(tenantId);
+    }
+    catch {
+        // Non-fatal in unit test environments
+    }
+}
 exports.activeCalls = new Map();
+function getActiveCallParticipantIds(session) {
+    const ids = new Set([session.callerId, session.targetUserId]);
+    if (session.extraParticipantIds) {
+        for (const id of session.extraParticipantIds) {
+            if (id)
+                ids.add(id);
+        }
+    }
+    return Array.from(ids);
+}
 exports.activeGroupCalls = new Map();
 function initSocket(server, allowedOrigins) {
     ioInstance = new socket_io_1.Server(server, {
@@ -37,15 +154,56 @@ function initSocket(server, allowedOrigins) {
             credentials: true,
         },
     });
+    if (process.env.REDIS_URL && ioInstance) {
+        void (async () => {
+            try {
+                const redisAdapterPkgName = "@socket.io/redis-adapter";
+                const redisPkgName = "redis";
+                const [{ createAdapter }, { createClient }] = await Promise.all([
+                    Promise.resolve(`${redisAdapterPkgName}`).then(s => __importStar(require(s))),
+                    Promise.resolve(`${redisPkgName}`).then(s => __importStar(require(s))),
+                ]);
+                const pubClient = createClient({ url: process.env.REDIS_URL });
+                const subClient = pubClient.duplicate();
+                await Promise.all([pubClient.connect(), subClient.connect()]);
+                ioInstance?.adapter(createAdapter(pubClient, subClient));
+                console.log("⚡ [WebSocket] Attached Socket.IO Redis distributed adapter.");
+            }
+            catch (err) {
+                console.warn("⚡ [WebSocket] REDIS_URL set but Redis adapter unavailable; falling back to PostgreSQL presence:", err?.message);
+            }
+        })();
+    }
+    if (!callSweeperInterval) {
+        callSweeperInterval = setInterval(() => {
+            void call_lifecycle_service_1.CallLifecycleService.recoverExpiredCalls()
+                .then((res) => {
+                if (res.expiredRinging > 0 || res.expiredReconnecting > 0) {
+                    console.log(`[CallSweeper] Recovered ${res.expiredRinging} timed-out & ${res.expiredReconnecting} grace-expired calls.`);
+                }
+            })
+                .catch(() => { });
+        }, 15_000);
+        callSweeperInterval.unref();
+    }
     ioInstance.use(async (socket, next) => {
         try {
             const identity = (0, jwt_1.verifyToken)(socket.handshake.auth?.token || "");
             if (identity.mfaPending)
                 throw new Error("Complete two-factor verification");
-            const user = await prisma_1.prisma.user.findUnique({ where: { id: identity.userId }, include: { profile: true, roles: true } });
+            const userId = identity.userId || identity.id;
+            if (!userId)
+                throw new Error("Invalid token identity");
+            if (identity.sessionId) {
+                const sessionOk = await verifyActiveDeviceSession(String(identity.sessionId), userId);
+                if (!sessionOk)
+                    throw new Error("Session revoked or expired");
+            }
+            const user = await prisma_1.prisma.user.findUnique({ where: { id: userId }, include: { profile: true, roles: true } });
             if (!user)
                 throw new Error("Account not found");
-            const isSuper = user.roles.some((role) => role.role === "super_admin");
+            const roleNames = Array.isArray(user.roles) ? user.roles.map((role) => role.role) : [];
+            const isSuper = roleNames.includes("super_admin");
             const tenantId = isSuper ? (identity.tenantId || null) : (user.profile?.tenantId || null);
             if (!isSuper && !tenantId)
                 throw new Error("Workspace context required");
@@ -57,7 +215,17 @@ function initSocket(server, allowedOrigins) {
             }
             const tokenExpiry = Number(identity.exp) * 1000;
             const expiry = !isSuper && policy?.expiresAt ? Math.min(tokenExpiry, new Date(policy.expiresAt).getTime()) : tokenExpiry;
-            socket.data = { tenantId, userId: user.id, name: user.profile?.fullName || user.email, avatar: user.profile?.avatarUrl, isSuper, expiry };
+            socket.data = {
+                tenantId,
+                userId: user.id,
+                email: user.email,
+                name: user.profile?.fullName || user.email,
+                avatar: user.profile?.avatarUrl,
+                roles: roleNames,
+                sessionId: identity.sessionId || null,
+                isSuper,
+                expiry,
+            };
             next();
         }
         catch {
@@ -79,18 +247,32 @@ function initSocket(server, allowedOrigins) {
                 }
                 const tenantMap = tenantPresence.get(tId);
                 const prev = tenantMap.get(uId) || 0;
-                tenantMap.set(uId, prev + 1);
+                const nextCount = prev + 1;
+                tenantMap.set(uId, nextCount);
+                void syncDistributedPresence(tId, uId, nextCount);
                 if (prev === 0) {
                     ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "online" });
                 }
             }
         }
         socket.join(`user:${socket.data.userId}`);
+        const presenceHeartbeat = setInterval(() => {
+            if (socket.data.tenantId && socket.data.userId) {
+                const currentCount = tenantPresence.get(socket.data.tenantId)?.get(socket.data.userId) || 1;
+                void syncDistributedPresence(socket.data.tenantId, socket.data.userId, currentCount);
+            }
+        }, 45_000);
+        presenceHeartbeat.unref();
         const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.data.expiry - Date.now(), 2147483647)));
         expiryTimer.unref();
         socket.use(async (_packet, next) => {
             try {
                 (0, jwt_1.verifyToken)(socket.handshake.auth?.token || "");
+                if (socket.data.sessionId) {
+                    const sessionOk = await verifyActiveDeviceSession(socket.data.sessionId, socket.data.userId);
+                    if (!sessionOk)
+                        throw new Error("Session revoked");
+                }
                 if (socket.data.tenantId && !socket.data.isSuper) {
                     (0, workspace_policy_service_1.assertWorkspaceActive)(await (0, workspace_policy_service_1.getWorkspacePolicy)(socket.data.tenantId));
                 }
@@ -101,111 +283,224 @@ function initSocket(server, allowedOrigins) {
                 next(new Error("Workspace access expired"));
             }
         });
-        // Join tenant room for isolated multi-tenant broadcasting
         socket.on("join-tenant", (tenantId) => {
-            if (tenantId === socket.data.tenantId) {
+            if (tenantId && tenantId === socket.data.tenantId) {
                 socket.join(`tenant:${tenantId}`);
-                console.log(`⚡ [WebSocket] Socket ${socket.id} joined room tenant:${tenantId}`);
+            }
+            else {
+                socket.emit("chat:error", { code: "TENANT_FORBIDDEN", error: "Cannot join foreign workspace room." });
             }
         });
-        // Subscribe to specific entity record rooms
-        socket.on("subscribe:record", (payload) => {
-            if (payload?.entityType && payload?.entityId) {
-                socket.join(`record:${payload.entityType}:${payload.entityId}`);
+        socket.on("subscribe:record", async (payload, acknowledge) => {
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const entityType = typeof payload?.entityType === "string" ? payload.entityType.trim() : "";
+            const entityId = typeof payload?.entityId === "string" ? payload.entityId.trim() : "";
+            if (!tenantId || !userId || !entityType || !entityId || entityId.length > 64 || /[^a-zA-Z0-9_-]/.test(entityId)) {
+                const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Invalid record subscription parameters." };
+                socket.emit("record:error", errPayload);
+                acknowledge?.(errPayload);
+                return;
+            }
+            const allowCfg = ALLOWED_RECORD_ENTITY_MAP[entityType];
+            if (!allowCfg) {
+                const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: `Entity type '${entityType}' is not permitted for live record subscription.` };
+                socket.emit("record:error", errPayload);
+                acknowledge?.(errPayload);
+                return;
+            }
+            try {
+                const db = prisma_1.rawPrisma || prisma_1.prisma;
+                const delegate = db[allowCfg.model];
+                const record = delegate?.findFirst
+                    ? await delegate.findFirst({ where: { id: entityId, tenantId } })
+                    : null;
+                if (!record) {
+                    const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Record not found in your workspace." };
+                    socket.emit("record:error", errPayload);
+                    acknowledge?.(errPayload);
+                    return;
+                }
+                const isAdminOrHr = (socket.data.roles || []).some((r) => ["super_admin", "tenant_admin", "hr_admin", "manager"].includes(r));
+                if (!isAdminOrHr && allowCfg.ownerField && record[allowCfg.ownerField] && record[allowCfg.ownerField] !== userId) {
+                    const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Insufficient permissions for this record." };
+                    socket.emit("record:error", errPayload);
+                    acknowledge?.(errPayload);
+                    return;
+                }
+                const qualifiedRoom = `tenant:${tenantId}:record:${entityType}:${entityId}`;
+                socket.join(qualifiedRoom);
+                acknowledge?.({ ok: true, room: qualifiedRoom });
+            }
+            catch {
+                const errPayload = { ok: false, code: "RECORD_FORBIDDEN", error: "Failed to authorize record subscription." };
+                socket.emit("record:error", errPayload);
+                acknowledge?.(errPayload);
             }
         });
         socket.on("unsubscribe:record", (payload) => {
-            if (payload?.entityType && payload?.entityId) {
-                socket.leave(`record:${payload.entityType}:${payload.entityId}`);
+            const tenantId = socket.data.tenantId;
+            if (tenantId && payload?.entityType && payload?.entityId) {
+                socket.leave(`tenant:${tenantId}:record:${payload.entityType}:${payload.entityId}`);
             }
         });
-        // Handle real-time chat direct messages with DB persistence
-        socket.on("chat:send", async (payload) => {
+        socket.on("chat:join", async (payload, acknowledge) => {
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+            if (!tenantId || !userId || !threadId) {
+                const err = { ok: false, code: "CHAT_UNAUTHORIZED", error: "Valid threadId and workspace session required." };
+                socket.emit("chat:error", err);
+                acknowledge?.(err);
+                return;
+            }
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId,
+                roles: socket.data.roles || [],
+                allowAdminModeration: false,
+            });
+            if (!authCheck.authorized) {
+                const err = {
+                    ok: false,
+                    code: authCheck.code || "CHAT_UNAUTHORIZED",
+                    error: authCheck.reason || "Access denied to conversation room.",
+                };
+                socket.emit("chat:error", { ...err, threadId });
+                acknowledge?.(err);
+                return;
+            }
+            const room = chat_service_1.ChatService.getThreadRoomName(tenantId, threadId);
+            socket.join(room);
+            acknowledge?.({ ok: true, room });
+        });
+        socket.on("chat:leave", (payload) => {
+            const tenantId = socket.data.tenantId;
+            const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+            if (tenantId && threadId) {
+                socket.leave(chat_service_1.ChatService.getThreadRoomName(tenantId, threadId));
+            }
+        });
+        socket.on("chat:send", async (payload, acknowledge) => {
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const msgInput = payload?.message || payload || {};
+            const clientTempId = msgInput.clientTempId || payload?.clientTempId || null;
             try {
-                const tenantId = socket.data.tenantId;
-                const msg = payload.message || {};
-                const saved = await prisma_1.prisma.chatMessage.create({
-                    data: {
-                        tenantId,
-                        threadId: payload.threadId || "general",
-                        senderId: socket.data.userId,
-                        senderName: socket.data.name,
-                        senderAvatar: socket.data.avatar || null,
-                        content: msg.content || msg.text || "",
-                        attachments: msg.attachments || null,
-                        replyToId: msg.replyToId || null,
-                        replyTo: msg.replyTo || null,
-                        voiceNote: msg.voiceNote || null,
-                        poll: msg.poll || null,
-                        urlPreviews: msg.urlPreviews || null,
-                    },
+                if (!tenantId || !userId) {
+                    throw new Error("Workspace context required");
+                }
+                const result = await chat_service_1.ChatService.sendMessage({
+                    tenantId,
+                    userId,
+                    roles: socket.data.roles || [],
+                    senderNameHint: socket.data.name,
+                    senderAvatarHint: socket.data.avatar,
+                    senderEmailHint: socket.data.email,
+                    threadId: payload?.threadId || msgInput.threadId,
+                    content: msgInput.content ?? msgInput.text ?? "",
+                    attachments: msgInput.attachments,
+                    replyToId: msgInput.replyToId,
+                    replyTo: msgInput.replyTo,
+                    voiceNote: msgInput.voiceNote,
+                    poll: msgInput.poll,
+                    urlPreviews: msgInput.urlPreviews,
+                    clientTempId,
+                    mentions: msgInput.mentions,
                 });
-                ioInstance?.to(`tenant:${tenantId}`).emit("chat:message", {
-                    threadId: payload.threadId,
-                    message: saved,
-                });
+                const okPayload = {
+                    ok: true,
+                    clientTempId,
+                    message: result.message,
+                    deduplicated: result.deduplicated,
+                };
+                socket.emit("chat:send:ack", okPayload);
+                acknowledge?.(okPayload);
             }
             catch (err) {
-                console.error("Socket chat:send DB error:", err.message);
-                socket.emit("chat:error", { error: "Message could not be saved" });
+                const code = err?.code || "CHAT_SEND_FAILED";
+                const errorMsg = err?.message || "Message could not be saved";
+                socket.emit("chat:error", { code, error: errorMsg, clientTempId, threadId: payload?.threadId });
+                acknowledge?.({ ok: false, code, error: errorMsg });
             }
         });
-        // Handle real-time chat typing indicator
-        socket.on("chat:typing", (payload) => {
-            if (!socket.data.tenantId || !payload?.threadId)
+        socket.on("chat:typing", async (payload) => {
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+            if (!tenantId || !userId || !threadId)
                 return;
-            socket.to(`tenant:${socket.data.tenantId}`).emit("chat:typing", {
-                threadId: payload.threadId,
-                userId: socket.data.userId,
-                name: socket.data.name,
-                isTyping: !!payload.isTyping,
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId,
+                roles: socket.data.roles || [],
+                allowAdminModeration: false,
             });
-            void pusher_service_1.PusherService.triggerTenantEvent(socket.data.tenantId, "chat:typing", {
-                threadId: payload.threadId,
-                userId: socket.data.userId,
-                name: socket.data.name,
-                isTyping: !!payload.isTyping,
-            }).catch(() => { });
+            if (!authCheck.authorized) {
+                socket.emit("chat:error", { code: "CHAT_UNAUTHORIZED", threadId, error: "Unauthorized typing event." });
+                return;
+            }
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId,
+                event: "chat:typing",
+                payload: {
+                    threadId,
+                    userId,
+                    name: socket.data.name,
+                    isTyping: Boolean(payload.isTyping),
+                },
+                participantUserIds: authCheck.participantUserIds,
+                excludeUserId: userId,
+            });
         });
-        // Handle real-time chat read receipt
         socket.on("chat:read", async (payload) => {
-            if (!socket.data.tenantId || !payload?.threadId)
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+            if (!tenantId || !userId || !threadId)
                 return;
-            const tId = socket.data.tenantId;
-            const uId = socket.data.userId;
             try {
-                await prisma_1.prisma.chatReadReceipt.upsert({
-                    where: { tenantId_threadId_userId: { tenantId: tId, threadId: payload.threadId, userId: uId } },
-                    create: { tenantId: tId, threadId: payload.threadId, userId: uId, lastReadAt: new Date() },
-                    update: { lastReadAt: new Date() },
-                });
-                ioInstance?.to(`tenant:${tId}`).emit("chat:read", {
-                    threadId: payload.threadId,
-                    userId: uId,
-                    readAt: new Date().toISOString(),
+                await chat_service_1.ChatService.markThreadRead({
+                    tenantId,
+                    userId,
+                    roles: socket.data.roles || [],
+                    threadId,
                 });
             }
             catch (err) {
-                console.warn("Socket chat:read error:", err.message);
+                socket.emit("chat:error", {
+                    code: err?.code || "CHAT_UNAUTHORIZED",
+                    threadId,
+                    error: err?.message || "Failed to update read receipt.",
+                });
             }
         });
-        // Handle real-time message delivery acknowledgment
         socket.on("chat:delivered", async (payload) => {
-            if (!socket.data.tenantId || !payload?.messageIds?.length)
+            const tenantId = socket.data.tenantId;
+            const userId = socket.data.userId;
+            const threadId = typeof payload?.threadId === "string" ? payload.threadId.trim() : "";
+            if (!tenantId || !userId || !threadId || !Array.isArray(payload?.messageIds) || payload.messageIds.length === 0) {
                 return;
-            const tId = socket.data.tenantId;
-            const uId = socket.data.userId;
-            ioInstance?.to(`tenant:${tId}`).emit("chat:delivered", {
-                messageIds: payload.messageIds,
-                threadId: payload.threadId,
-                userId: uId,
-                deliveredAt: new Date().toISOString(),
-            });
-            // Asynchronously persist delivery status in DB without blocking event loop
-            (prisma_1.rawPrisma || prisma_1.prisma).chatMessage.updateMany({
-                where: { id: { in: payload.messageIds }, tenantId: tId, senderId: { not: uId } },
-                data: { deliveryStatus: "delivered" },
-            }).catch(() => { });
+            }
+            try {
+                await chat_service_1.ChatService.acknowledgeDelivered({
+                    tenantId,
+                    userId,
+                    roles: socket.data.roles || [],
+                    threadId,
+                    messageIds: payload.messageIds,
+                });
+            }
+            catch (err) {
+                socket.emit("chat:error", {
+                    code: err?.code || "CHAT_UNAUTHORIZED",
+                    threadId,
+                    error: err?.message || "Failed to acknowledge delivery.",
+                });
+            }
         });
         // =========================================================================
         // WEBRTC CALL SIGNALING & LIFECYCLE (Audio, Video, Group Calls)
@@ -229,6 +524,7 @@ function initSocket(server, allowedOrigins) {
                     tenancyStrategy: "SHARED_SCHEMA",
                     db: prisma_1.rawPrisma,
                 }, async () => {
+                    const finalStatus = isTimeout ? "missed" : "cancelled";
                     if (callId) {
                         const existing = await prisma_1.prisma.callHistoryRecord.findFirst({
                             where: { tenantId, callSessionId: callId },
@@ -237,7 +533,7 @@ function initSocket(server, allowedOrigins) {
                             await prisma_1.prisma.callHistoryRecord.update({
                                 where: { id: existing.id },
                                 data: {
-                                    status: "missed",
+                                    status: finalStatus,
                                     endedAt: new Date(),
                                     notes: isTimeout
                                         ? "Call timed out after 60 seconds with no answer."
@@ -260,11 +556,12 @@ function initSocket(server, allowedOrigins) {
                             receiverAvatarUrl: session?.targetAvatar || null,
                             direction: "outgoing",
                             callType,
-                            status: "missed",
+                            status: finalStatus,
                             durationSeconds: 0,
                             callTime: new Date(),
                             startedAt: session?.startedAt || new Date(),
                             endedAt: new Date(),
+                            threadId,
                             notes: isTimeout
                                 ? "Call timed out after 60 seconds with no answer."
                                 : "Caller cancelled before answer.",
@@ -646,10 +943,13 @@ function initSocket(server, allowedOrigins) {
             const acceptPayload = {
                 callId,
                 acceptedBy: socket.data.userId,
+                acceptedByName: socket.data.name || "Colleague",
                 answeredAt: acceptResult?.call?.answeredAt || new Date(),
             };
             ioInstance?.to(`user:${session.callerId}`).emit("call:accepted", acceptPayload);
             ioInstance?.to(`user:${session.callerId}`).emit("call.accepted", acceptPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(session.tenantId, session.callerId, "call:accepted", acceptPayload).catch(() => { });
+            void pusher_service_1.PusherService.triggerUserEvent(session.tenantId, session.callerId, "call.accepted", acceptPayload).catch(() => { });
             // Multi-device / multi-tab suppression: silence ringing on other tabs of callee
             socket.to(`user:${session.targetUserId}`).emit("call.answered_elsewhere", {
                 callId,
@@ -717,10 +1017,13 @@ function initSocket(server, allowedOrigins) {
             const rejectPayload = {
                 callId,
                 rejectedBy: socket.data.userId,
+                rejectedByName: socket.data.name || "Colleague",
                 reason: payload?.reason || "declined",
             };
             ioInstance?.to(`user:${session.callerId}`).emit("call:rejected", rejectPayload);
             ioInstance?.to(`user:${session.callerId}`).emit("call.rejected", rejectPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, session.callerId, "call:rejected", rejectPayload).catch(() => { });
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, session.callerId, "call.rejected", rejectPayload).catch(() => { });
             // Dismiss Web Push notifications
             void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
                 tenantId,
@@ -812,12 +1115,18 @@ function initSocket(server, allowedOrigins) {
             const expectedPeerId = session.callerId === socket.data.userId
                 ? session.targetUserId
                 : session.callerId;
-            if (targetUserId !== expectedPeerId) {
+            let resolvedTargetId = targetUserId;
+            if (resolvedTargetId !== expectedPeerId) {
+                const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
+                if (resolved?.userId)
+                    resolvedTargetId = resolved.userId;
+            }
+            if (resolvedTargetId !== expectedPeerId) {
                 emitCallForbidden(socket);
                 return;
             }
-            // Legal transition: caller only, only while ringing, target must be receiver
-            if (session.callerId !== socket.data.userId || session.status !== "ringing" || targetUserId !== session.targetUserId) {
+            // Legal transition: caller while ringing, or connected call ended while client UI was still transitioning
+            if (session.callerId !== socket.data.userId || (session.status !== "ringing" && session.status !== "connected") || resolvedTargetId !== session.targetUserId) {
                 emitCallForbidden(socket);
                 return;
             }
@@ -829,9 +1138,16 @@ function initSocket(server, allowedOrigins) {
             const cancelPayload = {
                 callId,
                 cancelledBy: socket.data.userId,
+                cancelledByName: socket.data.name || "Colleague",
             };
-            ioInstance?.to(`user:${session.targetUserId}`).emit("call:cancelled", cancelPayload);
-            ioInstance?.to(`user:${session.targetUserId}`).emit("call.cancelled", cancelPayload);
+            for (const peerId of getActiveCallParticipantIds(session)) {
+                if (peerId !== socket.data.userId) {
+                    ioInstance?.to(`user:${peerId}`).emit("call:cancelled", cancelPayload);
+                    ioInstance?.to(`user:${peerId}`).emit("call.cancelled", cancelPayload);
+                    void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call:cancelled", cancelPayload).catch(() => { });
+                    void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call.cancelled", cancelPayload).catch(() => { });
+                }
+            }
             // Authoritative database cancellation transition
             void call_lifecycle_service_1.CallLifecycleService.cancelCallTransaction({
                 tenantId,
@@ -861,86 +1177,63 @@ function initSocket(server, allowedOrigins) {
         socket.on("call:timeout", () => {
             emitCallForbidden(socket);
         });
-        // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates)
-        socket.on("call:signal", (payload) => {
-            const targetUserId = payload?.targetUserId || payload?.toUserId;
-            const callId = payload?.callId;
-            if (!callId || !targetUserId || !payload?.signal || typeof payload.signal !== "object") {
-                emitCallForbidden(socket);
-                return;
-            }
-            const session = exports.activeCalls.get(callId);
-            if (!session || session.tenantId !== socket.data.tenantId) {
-                emitCallForbidden(socket);
-                return;
-            }
-            const isParticipant = session.callerId === socket.data.userId ||
-                session.targetUserId === socket.data.userId;
-            if (!isParticipant) {
-                emitCallForbidden(socket);
-                return;
-            }
-            const expectedPeerId = session.callerId === socket.data.userId
-                ? session.targetUserId
-                : session.callerId;
-            if (targetUserId !== expectedPeerId) {
-                emitCallForbidden(socket);
-                return;
-            }
-            if (session.status !== "ringing" && session.status !== "connected") {
-                emitCallForbidden(socket);
-                return;
-            }
-            ioInstance?.to(`user:${targetUserId}`).emit("call:signal", {
-                callId,
-                senderId: socket.data.userId,
-                fromUserId: socket.data.userId,
-                signal: payload.signal,
-            });
-        });
-        // 5.1 MEDIA STATE NOTIFICATION (Screen Sharing, Cam/Mic toggles)
-        socket.on("call:media-state", (payload) => {
-            const callId = payload?.callId;
-            const targetUserId = payload?.targetUserId || payload?.toUserId;
-            if (!callId) {
-                emitCallForbidden(socket);
-                return;
-            }
-            const session = exports.activeCalls.get(callId);
-            if (!session || session.tenantId !== socket.data.tenantId) {
-                emitCallForbidden(socket);
-                return;
-            }
-            const isParticipant = session.callerId === socket.data.userId ||
-                session.targetUserId === socket.data.userId;
-            if (!isParticipant) {
-                emitCallForbidden(socket);
-                return;
-            }
-            const expectedPeerId = session.callerId === socket.data.userId
-                ? session.targetUserId
-                : session.callerId;
-            if (targetUserId && targetUserId !== expectedPeerId) {
-                emitCallForbidden(socket);
-                return;
-            }
-            if (session.status !== "connected") {
-                emitCallForbidden(socket);
-                return;
-            }
-            ioInstance?.to(`user:${expectedPeerId}`).emit("call:media-state", {
-                callId,
-                type: payload?.type || "screen-share",
-                active: !!payload?.active,
-                fromUserId: socket.data.userId,
-            });
-        });
-        // 6. HANGUP / END CALL
-        socket.on("call:hangup", async (payload) => {
+        // 5. WEBRTC SIGNALING (SDP Offer / Answer & ICE Candidates — supports 1:1 & multi-peer mesh)
+        socket.on("call:signal", async (payload) => {
             const targetUserId = payload?.targetUserId || payload?.toUserId;
             const callId = payload?.callId;
             const tenantId = socket.data.tenantId;
-            if (!callId || !targetUserId || !tenantId) {
+            if (!callId || !targetUserId || !tenantId || !payload?.signal || typeof payload.signal !== "object") {
+                emitCallForbidden(socket);
+                return;
+            }
+            const session = exports.activeCalls.get(callId);
+            let authorized = false;
+            if (session && session.tenantId === tenantId && (session.status === "ringing" || session.status === "connected")) {
+                const participants = getActiveCallParticipantIds(session);
+                authorized = participants.includes(socket.data.userId) && participants.includes(targetUserId);
+            }
+            if (!authorized) {
+                try {
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    const dbCall = await db.call.findFirst({
+                        where: {
+                            tenantId,
+                            OR: [{ id: callId }, { roomKey: callId }],
+                            status: { in: ["RINGING", "ACTIVE"] },
+                        },
+                        include: { participants: true },
+                    });
+                    if (dbCall) {
+                        const validStates = new Set(["RINGING", "INVITED", "JOINED", "RECONNECTING"]);
+                        const hasSender = dbCall.participants.some((p) => p.userId === socket.data.userId && validStates.has(p.state));
+                        const hasTarget = dbCall.participants.some((p) => p.userId === targetUserId && validStates.has(p.state));
+                        authorized = hasSender && hasTarget;
+                    }
+                }
+                catch {
+                    authorized = false;
+                }
+            }
+            if (!authorized) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const signalPayload = {
+                callId,
+                senderId: socket.data.userId,
+                fromUserId: socket.data.userId,
+                senderName: socket.data.name || "Colleague",
+                signal: payload.signal,
+            };
+            ioInstance?.to(`user:${targetUserId}`).emit("call:signal", signalPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "call:signal", signalPayload).catch(() => { });
+        });
+        // 5.1 MEDIA STATE NOTIFICATION (Screen Sharing, Cam/Mic toggles — supports 1:1 & multi-peer mesh)
+        socket.on("call:media-state", (payload) => {
+            const callId = payload?.callId;
+            const targetUserId = payload?.targetUserId || payload?.toUserId;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId) {
                 emitCallForbidden(socket);
                 return;
             }
@@ -949,22 +1242,98 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            const isParticipant = session.callerId === socket.data.userId ||
-                session.targetUserId === socket.data.userId;
-            if (!isParticipant) {
+            const participants = getActiveCallParticipantIds(session);
+            if (!participants.includes(socket.data.userId)) {
                 emitCallForbidden(socket);
                 return;
             }
-            const expectedPeerId = session.callerId === socket.data.userId
-                ? session.targetUserId
-                : session.callerId;
-            if (targetUserId !== expectedPeerId) {
+            if (targetUserId && !participants.includes(targetUserId)) {
                 emitCallForbidden(socket);
                 return;
             }
-            // Legal lifecycle transition: caller or receiver only, only when call is connected
             if (session.status !== "connected") {
                 emitCallForbidden(socket);
+                return;
+            }
+            const mediaPayload = {
+                callId,
+                type: payload?.type || "screen-share",
+                active: !!payload?.active,
+                fromUserId: socket.data.userId,
+                fromUserName: socket.data.name || "Colleague",
+            };
+            const recipients = targetUserId
+                ? [targetUserId]
+                : participants.filter((id) => id !== socket.data.userId);
+            for (const peerId of recipients) {
+                ioInstance?.to(`user:${peerId}`).emit("call:media-state", mediaPayload);
+                void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call:media-state", mediaPayload).catch(() => { });
+            }
+        });
+        // 6. HANGUP / END CALL
+        socket.on("call:hangup", async (payload) => {
+            const targetUserId = payload?.targetUserId || payload?.toUserId;
+            const callId = payload?.callId;
+            const tenantId = socket.data.tenantId;
+            if (!callId || !tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const session = exports.activeCalls.get(callId);
+            if (!session || session.tenantId !== tenantId) {
+                emitCallForbidden(socket);
+                return;
+            }
+            const participants = getActiveCallParticipantIds(session);
+            if (!participants.includes(socket.data.userId)) {
+                emitCallForbidden(socket);
+                return;
+            }
+            if (targetUserId) {
+                let resolvedTargetId = targetUserId;
+                if (!participants.includes(resolvedTargetId)) {
+                    const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(targetUserId)).catch(() => null);
+                    if (resolved?.userId)
+                        resolvedTargetId = resolved.userId;
+                }
+                if (!participants.includes(resolvedTargetId)) {
+                    emitCallForbidden(socket);
+                    return;
+                }
+            }
+            // Legal lifecycle transition: caller or participant when connected or transitioning
+            if (session.status !== "connected" && session.status !== "ringing") {
+                emitCallForbidden(socket);
+                return;
+            }
+            const otherParticipants = participants.filter((id) => id !== socket.data.userId);
+            const actorName = socket.data.name || "Colleague";
+            // If 3+ participants are in the call and a non-host extra participant leaves while >=2 remain, keep call alive for remaining peers
+            if (session.extraParticipantIds &&
+                session.extraParticipantIds.has(socket.data.userId) &&
+                otherParticipants.length >= 2) {
+                session.extraParticipantIds.delete(socket.data.userId);
+                const leftPayload = {
+                    callId,
+                    userId: socket.data.userId,
+                    userName: actorName,
+                    timestamp: new Date().toISOString(),
+                };
+                for (const peerId of otherParticipants) {
+                    ioInstance?.to(`user:${peerId}`).emit("call:participant_left", leftPayload);
+                    void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call:participant_left", leftPayload).catch(() => { });
+                }
+                try {
+                    const db = prisma_1.rawPrisma || prisma_1.prisma;
+                    await db.callParticipant.updateMany({
+                        where: {
+                            userId: socket.data.userId,
+                            call: { tenantId, OR: [{ id: callId }, { roomKey: callId }] },
+                        },
+                        data: { state: "LEFT", leftAt: new Date(), leaveReason: "PARTICIPANT_LEFT" },
+                    });
+                }
+                catch { }
                 return;
             }
             if (session.timeoutTimer) {
@@ -1001,10 +1370,15 @@ function initSocket(server, allowedOrigins) {
             const endedPayload = {
                 callId,
                 endedBy: socket.data.userId,
+                endedByName: actorName,
                 durationSeconds,
             };
-            ioInstance?.to(`user:${expectedPeerId}`).emit("call:ended", endedPayload);
-            ioInstance?.to(`user:${expectedPeerId}`).emit("call.ended", endedPayload);
+            for (const peerId of otherParticipants) {
+                ioInstance?.to(`user:${peerId}`).emit("call:ended", endedPayload);
+                ioInstance?.to(`user:${peerId}`).emit("call.ended", endedPayload);
+                void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call:ended", endedPayload).catch(() => { });
+                void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call.ended", endedPayload).catch(() => { });
+            }
             // Persist completed call record
             try {
                 const callerId = session.callerId;
@@ -1088,66 +1462,91 @@ function initSocket(server, allowedOrigins) {
             catch (e) {
                 console.warn("[SOCKET_RECONNECT_WARN]", e?.message);
             }
-            const peerId = session.callerId === socket.data.userId ? session.targetUserId : session.callerId;
             const joinedPayload = {
                 callId,
                 userId: socket.data.userId,
                 reconnected: true,
             };
-            ioInstance?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
-            ioInstance?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+            for (const peerId of getActiveCallParticipantIds(session)) {
+                if (peerId !== socket.data.userId) {
+                    ioInstance?.to(`user:${peerId}`).emit("call.participant.joined", joinedPayload);
+                    ioInstance?.to(`user:${peerId}`).emit("call:participant:joined", joinedPayload);
+                }
+            }
             socket.emit("call.reconnected", { callId });
         };
         socket.on("call:reconnect", handleReconnect);
         socket.on("call.reconnect", handleReconnect);
-        // 6.2 IN-CALL COLLEAGUE INVITATION (Phase C2)
+        // 6.2 IN-CALL COLLEAGUE INVITATION (WebRTC P2P Mesh Direct Ringing)
         const handleInviteColleague = async (payload, acknowledge) => {
-            const { callId, targetUserId } = payload || {};
+            const { callId, targetUserId: rawTargetUserId } = payload || {};
             const tenantId = socket.data.tenantId;
             const userId = socket.data.userId;
-            if (!callId || !targetUserId || !tenantId) {
+            if (!callId || !rawTargetUserId || !tenantId) {
                 acknowledge?.({ success: false, error: "Invalid invite parameters", code: "CALL_FORBIDDEN" });
                 return;
             }
             try {
+                let targetUserId = rawTargetUserId;
+                const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(rawTargetUserId)).catch(() => null);
+                if (resolved?.userId)
+                    targetUserId = resolved.userId;
                 const result = await call_lifecycle_service_1.CallLifecycleService.addParticipantToActiveCall({
                     tenantId,
                     callId,
                     inviterId: userId,
                     targetUserId,
-                    maxParticipantsLimit: 5,
+                    maxParticipantsLimit: 6,
                 });
+                const session = exports.activeCalls.get(callId);
+                if (session) {
+                    if (!session.extraParticipantIds)
+                        session.extraParticipantIds = new Set();
+                    session.extraParticipantIds.add(targetUserId);
+                }
                 const inviterName = socket.data.name || "Colleague";
+                const resolvedCallType = result.callType === "video" ? "video" : "audio";
                 const incomingPayload = {
                     callId,
                     callerId: userId,
+                    fromUserId: userId,
                     callerName: inviterName,
                     callerAvatar: socket.data.avatar || null,
-                    callType: result.callType || "video",
+                    callerAvatarUrl: socket.data.avatar || null,
+                    callType: resolvedCallType,
+                    type: resolvedCallType,
                     isAdditionalParticipant: true,
+                    tenantId,
                     timestamp: new Date().toISOString(),
                 };
                 ioInstance?.to(`user:${targetUserId}`).emit("call:incoming", incomingPayload);
                 ioInstance?.to(`user:${targetUserId}`).emit("call.incoming", incomingPayload);
                 void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "call:incoming", incomingPayload).catch(() => { });
-                // Broadcast to call peers
+                void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                    tenantId,
+                    targetUserId,
+                    callId,
+                    callerId: userId,
+                    callerName: inviterName,
+                    callerAvatar: socket.data.avatar || null,
+                    callType: resolvedCallType,
+                }).catch(() => { });
+                // Broadcast to all existing call peers
                 const peerNotice = {
                     callId,
                     participant: result.participant,
                     invitedUser: result.invitedUser,
                 };
-                socket.emit("call:participant_invited", peerNotice);
-                const session = exports.activeCalls.get(callId);
                 if (session) {
-                    const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
-                    ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+                    for (const peerId of getActiveCallParticipantIds(session)) {
+                        if (peerId !== targetUserId) {
+                            ioInstance?.to(`user:${peerId}`).emit("call:participant_invited", peerNotice);
+                            void pusher_service_1.PusherService.triggerUserEvent(tenantId, peerId, "call:participant_invited", peerNotice).catch(() => { });
+                        }
+                    }
                 }
-                // Phase C3: Broadcast SFU upgrade for 3+ participant calls
-                const sfuRoom = meeting_sfu_service_1.MeetingSfuService.formatCallRoomName(tenantId, callId);
-                socket.emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
-                if (session) {
-                    const peerId = session.callerId === userId ? session.targetUserId : session.callerId;
-                    ioInstance?.to(`user:${peerId}`).emit("call:upgrade_to_sfu", { callId, room: sfuRoom });
+                else {
+                    socket.emit("call:participant_invited", peerNotice);
                 }
                 acknowledge?.({ success: true, data: result });
             }
@@ -1159,7 +1558,7 @@ function initSocket(server, allowedOrigins) {
         };
         socket.on("call:invite_colleague", handleInviteColleague);
         socket.on("call.invite_colleague", handleInviteColleague);
-        // 6.3 IN-CALL COLLEAGUE ACCEPTANCE (Phase C2)
+        // 6.3 IN-CALL COLLEAGUE ACCEPTANCE (WebRTC P2P Mesh Join)
         const handleAcceptInvitation = async (payload, acknowledge) => {
             const { callId, deviceId = "default" } = payload || {};
             const tenantId = socket.data.tenantId;
@@ -1175,19 +1574,41 @@ function initSocket(server, allowedOrigins) {
                     userId,
                     deviceId,
                 });
+                const session = exports.activeCalls.get(callId);
+                if (session) {
+                    if (!session.extraParticipantIds)
+                        session.extraParticipantIds = new Set();
+                    session.extraParticipantIds.add(userId);
+                }
                 const joinedPayload = {
                     callId,
                     userId,
                     user: result.user,
                     participant: result.participant,
+                    activeParticipants: result.activeParticipants || [],
                     timestamp: new Date().toISOString(),
                 };
-                const session = exports.activeCalls.get(callId);
+                const targetIds = new Set([userId]);
                 if (session) {
-                    ioInstance?.to(`user:${session.callerId}`).emit("call:participant_joined", joinedPayload);
-                    ioInstance?.to(`user:${session.targetUserId}`).emit("call:participant_joined", joinedPayload);
+                    for (const id of getActiveCallParticipantIds(session))
+                        targetIds.add(id);
                 }
-                socket.emit("call:participant_joined", joinedPayload);
+                if (Array.isArray(result.activeParticipants)) {
+                    for (const p of result.activeParticipants) {
+                        if (p?.userId)
+                            targetIds.add(p.userId);
+                    }
+                }
+                for (const pid of targetIds) {
+                    ioInstance?.to(`user:${pid}`).emit("call:participant_joined", joinedPayload);
+                    void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "call:participant_joined", joinedPayload).catch(() => { });
+                }
+                void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+                    tenantId,
+                    targetUserId: userId,
+                    callId,
+                    reason: "accepted",
+                }).catch(() => { });
                 acknowledge?.({ success: true, data: result });
             }
             catch (err) {
@@ -1299,8 +1720,18 @@ function initSocket(server, allowedOrigins) {
                         };
                         // Primary: Socket.IO
                         ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
-                        // Fallback: Pusher
+                        // Fallback: Pusher + OS Web Push
                         pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
+                        void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                            tenantId,
+                            targetUserId: m.userId,
+                            callId,
+                            callerId: socket.data.userId,
+                            callerName: `${socket.data.name || "Colleague"} (${group.name})`,
+                            callerAvatar: group.avatarUrl || socket.data.avatar,
+                            callType: callType || "audio",
+                            threadId: `group_${groupId}`,
+                        }).catch(() => { });
                     }
                 }
                 // Record system event in group conversation
@@ -1376,8 +1807,7 @@ function initSocket(server, allowedOrigins) {
             else {
                 participant.socketIds.add(socket.id);
             }
-            // Notify other participants in room
-            socket.to(`group_call_${callId}`).emit("group-call:user_joined", {
+            const joinedPayload = {
                 callId,
                 userId: socket.data.userId,
                 name: participant.name,
@@ -1385,7 +1815,14 @@ function initSocket(server, allowedOrigins) {
                 role: participant.role,
                 isMuted: participant.isMuted,
                 isCameraOff: participant.isCameraOff,
-            });
+            };
+            // Notify other participants in room (Socket.IO + Pusher)
+            socket.to(`group_call_${callId}`).emit("group-call:user_joined", joinedPayload);
+            for (const pid of session.participants.keys()) {
+                if (pid !== socket.data.userId) {
+                    void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "group-call:user_joined", joinedPayload).catch(() => { });
+                }
+            }
             // Synchronize full roster to joining user
             const roster = Array.from(session.participants.values()).map((p) => ({
                 userId: p.userId,
@@ -1422,17 +1859,24 @@ function initSocket(server, allowedOrigins) {
                     userId: { in: [socket.data.userId, payload.targetUserId] },
                 },
             });
-            const senderIsMember = members.some((m) => m.userId === socket.data.userId);
-            const targetIsMember = members.some((m) => m.userId === payload.targetUserId);
+            const senderIsMember = members.some((m) => m.userId === socket.data.userId) ||
+                session.invitedUserIds.has(socket.data.userId) ||
+                session.participants.has(socket.data.userId);
+            const targetIsMember = members.some((m) => m.userId === payload.targetUserId) ||
+                session.invitedUserIds.has(payload.targetUserId) ||
+                session.participants.has(payload.targetUserId);
             if (!senderIsMember || !targetIsMember) {
                 emitCallForbidden(socket);
                 return;
             }
-            ioInstance?.to(`user:${payload.targetUserId}`).emit("group-call:signal", {
+            const grpSignalPayload = {
                 callId: payload.callId,
                 senderId: socket.data.userId,
+                fromUserId: socket.data.userId,
                 signal: payload.signal,
-            });
+            };
+            ioInstance?.to(`user:${payload.targetUserId}`).emit("group-call:signal", grpSignalPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, payload.targetUserId, "group-call:signal", grpSignalPayload).catch(() => { });
         });
         socket.on("group-call:media-state", async (payload) => {
             const { callId } = payload;
@@ -1558,6 +2002,16 @@ function initSocket(server, allowedOrigins) {
                     };
                     ioInstance?.to(`user:${u.id}`).emit("group-call:incoming", invitePayload);
                     pusher_service_1.PusherService.triggerUserEvent(tenantId, u.id, "group-call:incoming", invitePayload).catch((e) => console.warn("Pusher invite fallback error:", e?.message || e));
+                    void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                        tenantId,
+                        targetUserId: u.id,
+                        callId,
+                        callerId: socket.data.userId,
+                        callerName: `${socket.data.name || "Colleague"} (${session.groupName || "Group Meeting"})`,
+                        callerAvatar: session.groupAvatarUrl || socket.data.avatar,
+                        callType: session.callType,
+                        threadId: `group_${session.groupId}`,
+                    }).catch(() => { });
                 }
             }
             socket.emit("group-call:invite_sent", {
@@ -1607,11 +2061,11 @@ function initSocket(server, allowedOrigins) {
                 emitCallForbidden(socket);
                 return;
             }
-            // Validate group membership
+            // Validate group membership or explicit meeting invitation
             const member = await (prisma_1.rawPrisma || prisma_1.prisma).chatGroupMember.findFirst({
                 where: { groupId: session.groupId, userId: socket.data.userId },
             });
-            if (!member) {
+            if (!member && !session.invitedUserIds.has(socket.data.userId) && !session.participants.has(socket.data.userId)) {
                 emitCallForbidden(socket);
                 return;
             }
@@ -1743,10 +2197,10 @@ function initSocket(server, allowedOrigins) {
         });
         socket.on("disconnect", () => {
             clearTimeout(expiryTimer);
+            clearInterval(presenceHeartbeat);
             const tId = socket.data.tenantId;
             const uId = socket.data.userId;
             if (tId && uId) {
-                // Step 1: Decrement user socket count first using existing presence map
                 let remainingSocketCount = 0;
                 if (tenantPresence.has(tId)) {
                     const tenantMap = tenantPresence.get(tId);
@@ -1754,11 +2208,13 @@ function initSocket(server, allowedOrigins) {
                     if (currentCount <= 1) {
                         tenantMap.delete(uId);
                         remainingSocketCount = 0;
+                        void syncDistributedPresence(tId, uId, 0);
                         ioInstance?.to(`tenant:${tId}`).emit("presence:update", { userId: uId, status: "offline" });
                     }
                     else {
                         remainingSocketCount = currentCount - 1;
                         tenantMap.set(uId, remainingSocketCount);
+                        void syncDistributedPresence(tId, uId, remainingSocketCount);
                     }
                 }
                 // Also check if any other socket exists in the user room
@@ -1870,16 +2326,114 @@ function initSocket(server, allowedOrigins) {
 function getIO() {
     return ioInstance;
 }
+const restPresenceMap = new Map();
+const REST_PRESENCE_TTL_MS = 75_000;
 function getOnlineUsersForTenant(tenantId) {
+    const localSet = new Set();
+    const nowMs = Date.now();
     const users = tenantPresence.get(tenantId);
-    if (!users)
-        return [];
-    const online = [];
-    for (const [userId, count] of users.entries()) {
-        if (count > 0)
-            online.push(userId);
+    if (users) {
+        for (const [userId, count] of users.entries()) {
+            if (count > 0)
+                localSet.add(userId);
+        }
     }
-    return online;
+    const restUsers = restPresenceMap.get(tenantId);
+    if (restUsers) {
+        for (const [userId, expiresAt] of restUsers.entries()) {
+            if (expiresAt > nowMs) {
+                localSet.add(userId);
+            }
+            else {
+                restUsers.delete(userId);
+            }
+        }
+    }
+    const cached = distributedPresenceCache.get(tenantId);
+    if (cached && cached.expiresAt > nowMs) {
+        for (const uid of cached.userIds)
+            localSet.add(uid);
+    }
+    return Array.from(localSet);
+}
+async function recordRestUserPresence(tenantId, userId, status = "online") {
+    if (!tenantId || tenantId === "default" || !userId)
+        return;
+    let tenantMap = restPresenceMap.get(tenantId);
+    if (!tenantMap) {
+        tenantMap = new Map();
+        restPresenceMap.set(tenantId, tenantMap);
+    }
+    if (status === "online") {
+        tenantMap.set(userId, Date.now() + REST_PRESENCE_TTL_MS);
+    }
+    else {
+        tenantMap.delete(userId);
+    }
+    distributedPresenceCache.delete(tenantId);
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        if (!db.chatUserPresence?.upsert)
+            return;
+        const now = new Date();
+        await db.chatUserPresence.upsert({
+            where: {
+                tenantId_userId: {
+                    tenantId,
+                    userId,
+                },
+            },
+            create: {
+                tenantId,
+                userId,
+                status,
+                activeConnections: status === "online" ? 1 : 0,
+                instanceId: SOCKET_INSTANCE_ID,
+                lastSeenAt: now,
+            },
+            update: {
+                status,
+                ...(status === "offline" ? { activeConnections: 0 } : {}),
+                instanceId: SOCKET_INSTANCE_ID,
+                lastSeenAt: now,
+            },
+        });
+        distributedPresenceCache.delete(tenantId);
+    }
+    catch {
+        // Non-fatal presence update; restPresenceMap already tracks in-process state
+    }
+}
+async function getOnlineUsersForTenantAsync(tenantId) {
+    const onlineSet = new Set(getOnlineUsersForTenant(tenantId));
+    const cached = distributedPresenceCache.get(tenantId);
+    if (cached && cached.expiresAt > Date.now()) {
+        for (const uid of cached.userIds)
+            onlineSet.add(uid);
+        return Array.from(onlineSet);
+    }
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        if (db.chatUserPresence?.findMany) {
+            const freshCutoff = new Date(Date.now() - 60 * 1000);
+            const rows = await db.chatUserPresence.findMany({
+                where: {
+                    tenantId,
+                    status: "online",
+                    lastSeenAt: { gte: freshCutoff },
+                },
+                select: { userId: true },
+            });
+            const dbIds = rows.map((r) => String(r.userId));
+            distributedPresenceCache.set(tenantId, { userIds: dbIds, expiresAt: Date.now() + 3000 });
+            for (const uid of dbIds)
+                onlineSet.add(uid);
+        }
+    }
+    catch {
+        // Fallback to local map
+    }
+    return Array.from(onlineSet);
 }
 function broadcastToTenant(tenantId, event, payload) {
     if (!ioInstance)

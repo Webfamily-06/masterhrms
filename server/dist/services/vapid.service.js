@@ -35,25 +35,61 @@ class VapidService {
         };
     }
     /**
+     * Normalizes a Base64URL key copied from dashboards/.env files (strips quotes, whitespace, padding).
+     */
+    static sanitizeKey(raw) {
+        return (raw || "")
+            .trim()
+            .replace(/^['"]+|['"]+$/g, "")
+            .replace(/\\n/g, "")
+            .replace(/\s+/g, "")
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "");
+    }
+    /**
      * Resolves or initializes VAPID keys from environment or deterministic seed.
+     * The public key is always derived from the private key so a mismatched / malformed
+     * VAPID_PUBLIC_KEY can never produce "Invalid JWK EC key" signing failures.
      */
     static getVapidKeys() {
         if (this.cachedKeys) {
             return this.cachedKeys;
         }
-        let pub = process.env.VAPID_PUBLIC_KEY?.trim() || "";
-        let priv = process.env.VAPID_PRIVATE_KEY?.trim() || "";
-        const subject = process.env.VAPID_SUBJECT?.trim() || "mailto:support@masterhrms.com";
-        if (!pub || !priv) {
+        let pub = this.sanitizeKey(process.env.VAPID_PUBLIC_KEY);
+        let priv = this.sanitizeKey(process.env.VAPID_PRIVATE_KEY);
+        const subject = (process.env.VAPID_SUBJECT || "").trim().replace(/^['"]+|['"]+$/g, "") || "mailto:support@masterhrms.com";
+        let privBytes = null;
+        if (priv) {
+            const decoded = fromBase64Url(priv);
+            if (decoded.length === 32) {
+                privBytes = decoded;
+            }
+            else if (decoded.length > 32) {
+                // Some generators export the private scalar with a leading 0x00 byte or as DER; keep the last 32 bytes.
+                privBytes = decoded.subarray(decoded.length - 32);
+            }
+            else {
+                console.warn("[VapidService] VAPID_PRIVATE_KEY is not a 32-byte P-256 scalar; using deterministic fallback key.");
+            }
+        }
+        if (!privBytes) {
             // Deterministic fallback keypair derived from JWT_SECRET for test & local environments
             const seedSource = process.env.JWT_SECRET || "master-hrms-vapid-fallback-seed-2026";
-            const seedHash = crypto_1.default.createHash("sha256").update(`VAPID_SEED_${seedSource}`).digest();
+            privBytes = crypto_1.default.createHash("sha256").update(`VAPID_SEED_${seedSource}`).digest();
+        }
+        try {
             const ecdh = crypto_1.default.createECDH("prime256v1");
-            ecdh.setPrivateKey(seedHash);
-            if (!pub)
-                pub = toBase64Url(ecdh.getPublicKey());
-            if (!priv)
-                priv = toBase64Url(seedHash);
+            ecdh.setPrivateKey(privBytes);
+            const derivedPub = toBase64Url(ecdh.getPublicKey());
+            if (pub && pub !== derivedPub) {
+                console.warn("[VapidService] VAPID_PUBLIC_KEY does not match VAPID_PRIVATE_KEY; using the public key derived from the private key. Browsers will re-subscribe automatically.");
+            }
+            pub = derivedPub;
+            priv = toBase64Url(privBytes);
+        }
+        catch (err) {
+            console.warn("[VapidService] Failed to derive VAPID public key:", err?.message);
         }
         this.cachedKeys = {
             publicKey: pub,
@@ -113,9 +149,13 @@ class VapidService {
         const sharedSecret = localEcdh.computeSecret(userPublicKey);
         // 3. Generate 16-byte random salt
         const salt = crypto_1.default.randomBytes(16);
-        // 4. Derive pseudo-random key (PRK) using HKDF with user auth secret as salt
-        // auth_info = "WebPush: info" || 0x00
-        const authInfo = Buffer.from("WebPush: info\0", "utf8");
+        // 4. Derive pseudo-random key (PRK / IKM) using HKDF with user auth secret as salt
+        // Per RFC 8291 Section 3.3: key_info = "WebPush: info" || 0x00 || ua_public || as_public
+        const authInfo = Buffer.concat([
+            Buffer.from("WebPush: info\0", "utf8"),
+            userPublicKey,
+            localPublicKey,
+        ]);
         const prk = crypto_1.default.hkdfSync("sha256", sharedSecret, userAuthSecret, authInfo, 32);
         // 5. Derive CEK (16 bytes) and nonce (12 bytes)
         // cek_info = "Content-Encoding: aes128gcm" || 0x00
@@ -159,20 +199,27 @@ class VapidService {
             const endpointUrl = new URL(subscription.endpoint);
             const audience = endpointUrl.origin;
             const keys = this.getVapidKeys();
-            const vapidJwt = this.createVapidJwt(audience, keys, 86400);
+            // RFC 8292 & Apple Web Push (APNs) require exp <= 12-24h (86400s fails with clock skew on iOS APNs; 43200s = 12h is universal)
+            const vapidJwt = this.createVapidJwt(audience, keys, 43200);
             const payloadString = typeof payload === "string" ? payload : JSON.stringify(payload);
             const encryptedBody = this.encryptPayload(payloadString, subscription.keys);
-            const ttl = options?.ttl !== undefined ? options.ttl : 45;
+            const ttl = options?.ttl !== undefined ? Math.max(15, options.ttl) : 45;
             const urgency = options?.urgency || "high";
             const headers = {
                 "Content-Type": "application/octet-stream",
                 "Content-Encoding": "aes128gcm",
+                "Content-Length": String(encryptedBody.length),
                 "TTL": String(ttl),
                 "Urgency": urgency,
                 "Authorization": `vapid t=${vapidJwt}, k=${keys.publicKey}`,
             };
             if (options?.topic) {
-                headers["Topic"] = options.topic;
+                // RFC 8030 Section 5.4: Topic MUST be <= 32 chars from URL-safe base64 alphabet [A-Za-z0-9\-_]
+                const cleanTopic = options.topic.replace(/[^A-Za-z0-9\-_]/g, "-");
+                headers["Topic"] =
+                    cleanTopic.length <= 32
+                        ? cleanTopic
+                        : `${cleanTopic.slice(0, 14)}_${crypto_1.default.createHash("sha256").update(options.topic).digest("base64url").slice(0, 16)}`;
             }
             const res = await fetch(subscription.endpoint, {
                 method: "POST",

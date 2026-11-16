@@ -998,12 +998,12 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "id": "hr-settings",
     "portal": "hr",
     "module": "settings",
-    "label": "Settings",
+    "label": "HR Settings",
     "route": "/hr/settings",
     "icon": "Settings",
     "order": 440,
     "section": "Communication & Content",
-    "permission": "settings.manage"
+    "roles": ["hr_admin", "hr", "hr_manager", "admin", "tenant_admin", "super_admin"]
   },
   {
     "id": "me-dashboard",
@@ -1650,6 +1650,16 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "section": "My Account"
   },
   {
+    "id": "me-settings",
+    "portal": "me",
+    "module": "settings",
+    "label": "My Settings",
+    "route": "/me/settings",
+    "icon": "Settings",
+    "order": 505,
+    "section": "My Account"
+  },
+  {
     "id": "me-helpdesk",
     "portal": "me",
     "module": "helpdesk",
@@ -1696,6 +1706,15 @@ export const NAVIGATION_REGISTRY: NavigationItem[] = [
     "route": "/super/subscriptions",
     "icon": "CreditCard",
     "order": 30
+  },
+  {
+    "id": "sa-settings",
+    "portal": "sa",
+    "module": "settings",
+    "label": "Platform Settings",
+    "route": "/super/settings",
+    "icon": "Settings",
+    "order": 40
   },
   {
     "id": "client-dashboard",

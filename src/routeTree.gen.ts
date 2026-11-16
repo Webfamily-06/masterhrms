@@ -223,6 +223,7 @@ import { Route as AuthenticatedMeHelpdeskRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMeMediaRouteImport } from './routes/_authenticated/me/media'
 import { Route as AuthenticatedMeNotificationsRouteImport } from './routes/_authenticated/me/notifications'
 import { Route as AuthenticatedMeProfileRouteImport } from './routes/_authenticated/me/profile'
+import { Route as AuthenticatedMeSettingsRouteImport } from './routes/_authenticated/me/settings'
 import { Route as AuthenticatedMeTeamRouteImport } from './routes/_authenticated/me/team'
 import { Route as AuthenticatedMeTodoRouteImport } from './routes/_authenticated/me/todo'
 import { Route as AuthenticatedSuperIndexRouteImport } from './routes/_authenticated/super/index'
@@ -1689,6 +1690,11 @@ const AuthenticatedMeIndexRoute = AuthenticatedMeIndexRouteImport.update({
 const AuthenticatedMeAccountRoute = AuthenticatedMeAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => AuthenticatedMeRoute,
+} as any)
+const AuthenticatedMeSettingsRoute = AuthenticatedMeSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedMeRoute,
 } as any)
 const AuthenticatedMeApprovalsRoute =
@@ -3900,6 +3906,8 @@ export interface FileRoutesByFullPath {
   '/hr/settings': typeof AuthenticatedHrSettingsRoute
   '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
+  '/me/settings': typeof AuthenticatedMeSettingsRoute
+  '/me/settings': typeof AuthenticatedMeSettingsRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/awards': typeof AuthenticatedMeAwardsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -4983,6 +4991,7 @@ export interface FileRoutesById {
   '/_authenticated/hr/settings': typeof AuthenticatedHrSettingsRoute
   '/_authenticated/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/_authenticated/me/account': typeof AuthenticatedMeAccountRoute
+  '/_authenticated/me/settings': typeof AuthenticatedMeSettingsRoute
   '/_authenticated/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/_authenticated/me/awards': typeof AuthenticatedMeAwardsRoute
   '/_authenticated/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -5527,6 +5536,8 @@ export interface FileRouteTypes {
     | '/hr/settings'
     | '/hr/todo'
     | '/me/account'
+    | '/me/settings'
+    | '/me/settings'
     | '/me/approvals'
     | '/me/awards'
     | '/me/calendar'
@@ -6609,6 +6620,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/settings'
     | '/_authenticated/hr/todo'
     | '/_authenticated/me/account'
+    | '/_authenticated/me/settings'
     | '/_authenticated/me/approvals'
     | '/_authenticated/me/awards'
     | '/_authenticated/me/calendar'
@@ -8410,6 +8422,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/me/account'
       preLoaderRoute: typeof AuthenticatedMeAccountRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
+    '/_authenticated/me/settings': {
+      id: '/_authenticated/me/settings'
+      path: '/settings'
+      fullPath: '/me/settings'
+      preLoaderRoute: typeof AuthenticatedMeSettingsRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
     '/_authenticated/me/approvals': {
@@ -11906,6 +11925,7 @@ const AuthenticatedMeTodoRouteWithChildren =
 
 interface AuthenticatedMeRouteChildren {
   AuthenticatedMeAccountRoute: typeof AuthenticatedMeAccountRoute
+  AuthenticatedMeSettingsRoute: typeof AuthenticatedMeSettingsRoute
   AuthenticatedMeApprovalsRoute: typeof AuthenticatedMeApprovalsRoute
   AuthenticatedMeAwardsRoute: typeof AuthenticatedMeAwardsRoute
   AuthenticatedMeCalendarRoute: typeof AuthenticatedMeCalendarRoute
@@ -11984,6 +12004,7 @@ interface AuthenticatedMeRouteChildren {
 
 const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeAccountRoute: AuthenticatedMeAccountRoute,
+  AuthenticatedMeSettingsRoute: AuthenticatedMeSettingsRoute,
   AuthenticatedMeApprovalsRoute: AuthenticatedMeApprovalsRoute,
   AuthenticatedMeAwardsRoute: AuthenticatedMeAwardsRoute,
   AuthenticatedMeCalendarRoute: AuthenticatedMeCalendarRoute,

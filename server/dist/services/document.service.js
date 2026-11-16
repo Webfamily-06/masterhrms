@@ -289,6 +289,12 @@ class DocumentService {
             where.status = options.status;
         if (options.contractTypeId)
             where.contractTypeId = options.contractTypeId;
+        if (options.category && options.category !== "ALL")
+            where.category = options.category;
+        if (options.paymentWorkflow && options.paymentWorkflow !== "ALL")
+            where.paymentWorkflow = options.paymentWorkflow;
+        if (options.supplierId)
+            where.supplierId = options.supplierId;
         return this.getClient().employeeContract.findMany({
             where,
             include: {
@@ -298,9 +304,11 @@ class DocumentService {
                         firstName: true,
                         lastName: true,
                         employeeCode: true,
+                        employmentCategory: true,
                     },
                 },
                 contractType: true,
+                supplier: true,
             },
             orderBy: { startDate: 'desc' },
         });
@@ -315,9 +323,11 @@ class DocumentService {
                         firstName: true,
                         lastName: true,
                         employeeCode: true,
+                        employmentCategory: true,
                     },
                 },
                 contractType: true,
+                supplier: true,
             },
         });
         if (!c)
@@ -325,16 +335,28 @@ class DocumentService {
         return c;
     }
     async createContract(tenantId, data) {
-        return this.getClient().employeeContract.create({
+        const startDate = new Date(data.startDate);
+        const generatedNumber = data.contractNumber || `CNT-${startDate.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        const category = data.category || "direct_contract";
+        const paymentWorkflow = data.paymentWorkflow || (category === "vendor_outsourced" || category === "consultant_freelancer" ? "ACCOUNTS_PAYABLE" : "PAYROLL");
+        const created = await this.getClient().employeeContract.create({
             data: {
                 tenantId,
                 employeeId: data.employeeId,
-                contractTypeId: data.contractTypeId,
+                contractNumber: generatedNumber,
+                contractTypeId: data.contractTypeId || null,
+                category,
+                paymentWorkflow,
+                supplierId: data.supplierId || null,
                 title: data.title,
-                startDate: new Date(data.startDate),
+                startDate,
                 endDate: data.endDate ? new Date(data.endDate) : null,
                 salary: data.salary ? Number(data.salary) : null,
-                notes: data.notes,
+                hourlyRate: data.hourlyRate ? Number(data.hourlyRate) : null,
+                billingFrequency: data.billingFrequency || "monthly",
+                noticePeriodDays: data.noticePeriodDays ?? 30,
+                autoRenew: data.autoRenew ?? false,
+                notes: data.notes || null,
                 status: 'active',
             },
             include: {
@@ -344,11 +366,38 @@ class DocumentService {
                         firstName: true,
                         lastName: true,
                         employeeCode: true,
+                        employmentCategory: true,
                     },
                 },
                 contractType: true,
+                supplier: true,
             },
         });
+        // Auto-sync employee's category, supplier, and employmentType
+        try {
+            const empUpdate = {
+                employmentCategory: category,
+            };
+            if (data.supplierId)
+                empUpdate.supplierId = data.supplierId;
+            if (category === "intern") {
+                empUpdate.employmentType = "intern";
+            }
+            else if (category === "permanent") {
+                empUpdate.employmentType = "full_time";
+            }
+            else {
+                empUpdate.employmentType = "contract";
+            }
+            await this.getClient().employee.update({
+                where: { id: data.employeeId },
+                data: empUpdate,
+            });
+        }
+        catch (empSyncErr) {
+            console.warn("[documentService] Failed to sync employee attributes:", empSyncErr.message);
+        }
+        return created;
     }
     async updateContract(tenantId, id, data) {
         const c = await this.getClient().employeeContract.findFirst({ where: { id, tenantId } });
@@ -361,10 +410,43 @@ class DocumentService {
             updateData.endDate = data.endDate ? new Date(data.endDate) : null;
         if (data.salary !== undefined)
             updateData.salary = data.salary ? Number(data.salary) : null;
-        return this.getClient().employeeContract.update({
+        if (data.hourlyRate !== undefined)
+            updateData.hourlyRate = data.hourlyRate ? Number(data.hourlyRate) : null;
+        const updated = await this.getClient().employeeContract.update({
             where: { id },
             data: updateData,
+            include: {
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        employeeCode: true,
+                        employmentCategory: true,
+                    },
+                },
+                contractType: true,
+                supplier: true,
+            },
         });
+        // Auto-sync employee category/supplier if updated
+        if (data.category || data.supplierId !== undefined) {
+            try {
+                const empUpdate = {};
+                if (data.category)
+                    empUpdate.employmentCategory = data.category;
+                if (data.supplierId !== undefined)
+                    empUpdate.supplierId = data.supplierId || null;
+                await this.getClient().employee.update({
+                    where: { id: c.employeeId },
+                    data: empUpdate,
+                });
+            }
+            catch (err) {
+                console.warn("[documentService] Failed to sync employee on update:", err.message);
+            }
+        }
+        return updated;
     }
     async deleteContract(tenantId, id) {
         const c = await this.getClient().employeeContract.findFirst({ where: { id, tenantId } });

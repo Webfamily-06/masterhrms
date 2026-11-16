@@ -12,7 +12,11 @@ const prisma = rawPrisma || proxiedPrisma;
 
 export const settingsRouter = Router();
 
-function resolveScopeAndId(req: AuthRequest, requestedScope: string): {
+function resolveScopeAndId(
+  req: AuthRequest,
+  requestedScope: string,
+  isMutation = false
+): {
   scope: SettingScopeType;
   scopeId: string | null;
 } {
@@ -39,11 +43,38 @@ function resolveScopeAndId(req: AuthRequest, requestedScope: string): {
       err.status = 400;
       throw err;
     }
+
+    if (isMutation) {
+      const roles = (req.user?.roles || []).map((r: string) => r.toLowerCase());
+      const wsRole = req.user?.workspaceRole?.toLowerCase();
+      const permissions = req.user?.permissions || [];
+      const isTenantAdmin =
+        isSuper ||
+        roles.some((r: string) =>
+          ["admin", "tenant_admin", "hr_admin", "owner", "settings_admin"].includes(r)
+        ) ||
+        (wsRole ? ["owner", "admin", "hr_admin"].includes(wsRole) : false) ||
+        permissions.includes("settings.manage") ||
+        permissions.includes("*");
+
+      if (!isTenantAdmin) {
+        const err: any = new Error("Forbidden: Administrative privilege required to modify TENANT settings");
+        err.status = 403;
+        throw err;
+      }
+    }
+
     return { scope: "TENANT", scopeId: tenantId };
   }
 
   // USER scope
-  return { scope: "USER", scopeId: req.user?.userId || null };
+  const currentUserId = req.user?.userId;
+  if (!currentUserId) {
+    const err: any = new Error("Unauthorized: User identifier missing in session");
+    err.status = 401;
+    throw err;
+  }
+  return { scope: "USER", scopeId: currentUserId };
 }
 
 /**
@@ -69,7 +100,7 @@ settingsRouter.get("/:scope/:group", requireAuth, async (req: AuthRequest, res) 
  */
 settingsRouter.put("/:scope/:group", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
     const group = req.params.group;
 
     const context = {
@@ -217,6 +248,106 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
       });
     }
 
+    if (group === "pusher") {
+      const latencyMs = Date.now() - startTime;
+      if (scope !== "PLATFORM") {
+        return res.status(403).json({
+          success: false,
+          error: "Pusher settings can only be tested in PLATFORM scope",
+          latencyMs,
+        });
+      }
+      const pusherSettings = await SettingsService.getGroup("PLATFORM", null, "pusher", { decryptSecrets: true });
+      const values = pusherSettings?.values || {};
+      const appId = req.body?.["pusher.app_id"] || req.body?.appId || values["pusher.app_id"];
+      const key = req.body?.["pusher.key"] || req.body?.key || values["pusher.key"];
+      const rawBodySecret = req.body?.["pusher.secret"] || req.body?.secret;
+      const secret = rawBodySecret && !String(rawBodySecret).includes("••••") ? rawBodySecret : values["pusher.secret"];
+      const cluster = req.body?.["pusher.cluster"] || req.body?.cluster || values["pusher.cluster"] || "ap2";
+
+      if (!appId || !key || !secret) {
+        return res.status(400).json({
+          success: false,
+          error: "Pusher App ID, Key, and Secret must all be configured before testing",
+          latencyMs,
+        });
+      }
+
+      const PusherClass = (await import("pusher")).default;
+      const testClient = new PusherClass({
+        appId: String(appId),
+        key: String(key),
+        secret: String(secret),
+        cluster: String(cluster),
+        useTLS: true,
+      });
+      await testClient.trigger("system-test-channel", "test-connection", {
+        message: "Pusher connection verified via Settings Platform",
+        timestamp: new Date().toISOString(),
+      });
+
+      return res.json({
+        success: true,
+        message: `Pusher Channels verified on cluster [${cluster}]`,
+        provider: "pusher",
+        cluster,
+        latencyMs: Date.now() - startTime,
+      });
+    }
+
+    if (group === "firebase") {
+      const latencyMs = Date.now() - startTime;
+      if (scope !== "PLATFORM") {
+        return res.status(403).json({
+          success: false,
+          error: "Firebase settings can only be tested in PLATFORM scope",
+          latencyMs,
+        });
+      }
+      const fbSettings = await SettingsService.getGroup("PLATFORM", null, "firebase", { decryptSecrets: true });
+      const values = fbSettings?.values || {};
+      const apiKey = req.body?.["firebase.api_key"] || values["firebase.api_key"];
+      const projectId = req.body?.["firebase.project_id"] || values["firebase.project_id"];
+      const senderId = req.body?.["firebase.messaging_sender_id"] || values["firebase.messaging_sender_id"];
+      const appId = req.body?.["firebase.app_id"] || values["firebase.app_id"];
+      const serviceAccountRaw = req.body?.["firebase.service_account_json"] || values["firebase.service_account_json"];
+
+      if (!apiKey || !projectId || !senderId || !appId) {
+        return res.status(400).json({
+          success: false,
+          error: "Firebase API Key, Project ID, Messaging Sender ID, and App ID are required",
+          latencyMs,
+        });
+      }
+
+      if (serviceAccountRaw && typeof serviceAccountRaw === "string" && !serviceAccountRaw.includes("••••")) {
+        try {
+          const parsed = JSON.parse(serviceAccountRaw);
+          if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+            return res.status(400).json({
+              success: false,
+              error: "Firebase Service Account JSON must contain project_id, client_email, and private_key",
+              latencyMs,
+            });
+          }
+        } catch {
+          return res.status(400).json({
+            success: false,
+            error: "Firebase Service Account JSON is not valid JSON",
+            latencyMs,
+          });
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: `Firebase configuration verified for project [${projectId}]`,
+        provider: "firebase",
+        projectId,
+        latencyMs: Date.now() - startTime,
+      });
+    }
+
     return res.status(400).json({
       success: false,
       error: `Test connection not supported for settings group '${group}'`,
@@ -237,7 +368,7 @@ settingsRouter.post("/:scope/:group/test", requireAuth, async (req: AuthRequest,
  */
 settingsRouter.delete("/:scope/:group/:key", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
     const { group, key } = req.params;
 
     const context = {
@@ -259,7 +390,7 @@ settingsRouter.delete("/:scope/:group/:key", requireAuth, async (req: AuthReques
  */
 settingsRouter.post("/:scope/:group/reset", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+    const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
     const group = req.params.group;
 
     const context = {

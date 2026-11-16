@@ -406,6 +406,30 @@ export class CompanyProfileService {
       },
     });
 
+    // Synchronize core legal name, phone, and billing/registered address onto Tenant row
+    // so dashboards, subscription invoices, and workspace headers reflect updates immediately.
+    try {
+      const formattedAddr = formatAddress({
+        addressLine1: validated.billingAddress || validated.registeredAddress,
+        city: validated.billingCity || validated.registeredCity,
+        state: validated.billingState || validated.registeredState,
+        postalCode: validated.billingPostalCode || validated.registeredPostalCode,
+        country: validated.billingCountry || validated.registeredCountry,
+      });
+      await db.tenant.update({
+        where: { id: tenantId },
+        data: {
+          name: validated.legalName,
+          ...(validated.phone !== undefined ? { phone: validated.phone || null } : {}),
+          ...(formattedAddr ? { address: formattedAddr.slice(0, 500) } : {}),
+        },
+      });
+      const { RealtimeFactory } = await import("../factories/realtime.factory");
+      RealtimeFactory.broadcastSettingsUpdate("TENANT", tenantId, "company", ["company.profile"], Date.now());
+    } catch {
+      // Non-fatal sync
+    }
+
     // Write audit log
     try {
       await db.settingAudit.create({

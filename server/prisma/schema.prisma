@@ -7235,3 +7235,16 @@ model LeaveEncashmentCompOffEvent {
   @@index([tenantId, eventType, createdAt(sort: Desc)], map: "idx_leave_encash_event_type_time")
   @@map("leave_encashment_compoff_events")
 }
+
+model ChatMediaBlob {
+  mediaId   String   @id @map("media_id")
+  tenantId  String?  @map("tenant_id")
+  filePath  String   @map("file_path")
+  mimeType  String   @map("mime_type")
+  byteSize  Int      @map("byte_size")
+  content   Bytes
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([filePath], map: "idx_chat_media_blobs_file_path")
+  @@map("chat_media_blobs")
+}

@@ -985,6 +985,15 @@ export const HR_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     icon: "User",
     order: 180,
   },
+  {
+    id: "hr-settings",
+    portal: "hr",
+    heading: "5. Communication and Content",
+    label: "HR Settings",
+    path: ROUTES.hr.settings,
+    icon: "Settings",
+    order: 185,
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -1665,6 +1674,15 @@ export const EMPLOYEE_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     path: ROUTES.me.profile,
     icon: "User",
     order: 190,
+  },
+  {
+    id: "me-settings",
+    portal: "me",
+    heading: "6. My Account",
+    label: "My Settings",
+    path: ROUTES.me.settings,
+    icon: "Settings",
+    order: 195,
   },
   {
     id: "me-helpdesk",

@@ -542,6 +542,37 @@ export class MediaService {
   }
 
   /**
+   * Persists a raw relative upload buffer into `chat_media_blobs` so two-step local/serverless uploads survive `/tmp` eviction.
+   */
+  static async persistRelativeMediaBlob(
+    relativeFilePath: string,
+    buffer: Buffer,
+    mimeType: string = "application/octet-stream",
+    tenantId?: string | null,
+    mediaId?: string
+  ): Promise<void> {
+    const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+    if (!cleanRel || !buffer || buffer.length === 0 || buffer.length > 30 * 1024 * 1024) return;
+    const blobKey =
+      mediaId ||
+      `path:${crypto.createHash("sha256").update(cleanRel).digest("hex").slice(0, 28)}`;
+    try {
+      await ensureMediaBlobsTable();
+      await prisma.$executeRaw`
+        INSERT INTO "chat_media_blobs" ("media_id", "tenant_id", "file_path", "mime_type", "byte_size", "content")
+        VALUES (${blobKey}, ${tenantId || null}, ${cleanRel}, ${mimeType || "application/octet-stream"}, ${buffer.length}, ${buffer})
+        ON CONFLICT ("media_id") DO UPDATE
+        SET "content" = EXCLUDED."content",
+            "byte_size" = EXCLUDED."byte_size",
+            "mime_type" = EXCLUDED."mime_type",
+            "file_path" = EXCLUDED."file_path"
+      `;
+    } catch (err: any) {
+      console.warn("⚠️ [MediaService] persistRelativeMediaBlob warning:", err?.message);
+    }
+  }
+
+  /**
    * Resolves a public/protected `/uploads/*` file from PostgreSQL `chat_media_blobs` when local `/tmp/uploads` is empty.
    */
   static async fetchMediaBlobByRelativePath(

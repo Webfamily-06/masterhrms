@@ -8,7 +8,7 @@ import {
   VerifyUploadResult,
   buildStorageKey,
 } from "./storage-provider.interface";
-import { getUploadsRoot } from "../media/media.service";
+import { getUploadsRoot, MediaService } from "../media/media.service";
 
 import {
   getFileSigningSecret,
@@ -71,19 +71,30 @@ export class LocalStorageProvider implements IStorageProvider {
   }
 
   /**
-   * Verifies that the file exists on the local filesystem.
+   * Verifies that the file exists on the local filesystem (or durable PostgreSQL blob store in serverless).
    */
-  async verifyUpload(storageKey: string, expectedSize?: number): Promise<VerifyUploadResult> {
+  async verifyUpload(storageKey: string, _expectedSize?: number): Promise<VerifyUploadResult> {
     const filePath = this.resolvePhysicalPath(storageKey);
-    if (!fs.existsSync(filePath)) {
-      return { exists: false, sizeBytes: 0 };
+    if (fs.existsSync(filePath)) {
+      const stat = fs.statSync(filePath);
+      return {
+        exists: true,
+        sizeBytes: stat.size,
+      };
     }
 
-    const stat = fs.statSync(filePath);
-    return {
-      exists: true,
-      sizeBytes: stat.size,
-    };
+    const cleanKey = storageKey.replace(/^[/\\]+/, "");
+    const blob =
+      (await MediaService.fetchMediaBlobByRelativePath(`files/${cleanKey}`)) ||
+      (await MediaService.fetchMediaBlobByRelativePath(cleanKey));
+    if (blob) {
+      return {
+        exists: true,
+        sizeBytes: blob.buffer.length,
+      };
+    }
+
+    return { exists: false, sizeBytes: 0 };
   }
 
   /**
@@ -144,15 +155,17 @@ export class LocalStorageProvider implements IStorageProvider {
   }
 
   /**
-   * Saves a buffer directly to local disk.
+   * Saves a buffer directly to local disk and mirrors to durable PostgreSQL blob storage.
    */
-  async uploadBuffer(storageKey: string, buffer: Buffer, _mimeType: string): Promise<boolean> {
+  async uploadBuffer(storageKey: string, buffer: Buffer, mimeType: string): Promise<boolean> {
     const filePath = this.resolvePhysicalPath(storageKey);
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
     fs.writeFileSync(filePath, buffer);
+    const cleanKey = storageKey.replace(/^[/\\]+/, "");
+    await MediaService.persistRelativeMediaBlob(`files/${cleanKey}`, buffer, mimeType);
     return true;
   }
 

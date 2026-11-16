@@ -86,6 +86,8 @@ export function useTenantBranding() {
                 primaryColor: isWhiteLabeled ? (hostRes.primaryColor || DEFAULT_BRANDING.primaryColor) : DEFAULT_BRANDING.primaryColor,
                 footerText: isWhiteLabeled ? (hostRes.footerText || hostRes.brand?.footerText || DEFAULT_BRANDING.footerText) : DEFAULT_BRANDING.footerText,
                 timezone: hostRes.timezone || "Asia/Kolkata",
+                currency: hostRes.currency || DEFAULT_BRANDING.currency,
+                currencySymbol: hostRes.currencySymbol || DEFAULT_BRANDING.currencySymbol,
                 baseDomain: hostRes.baseDomain,
                 workspaceUrl: hostRes.workspaceUrl,
                 isWhiteLabeled,
@@ -202,7 +204,10 @@ export function useTenantBranding() {
     }
 
     if (branding.primaryColor) {
-      applyThemeVariables(branding.primaryColor);
+      applyThemeVariables(branding.primaryColor, {
+        respectPersonalOverride: true,
+        isWorkspaceColor: true,
+      });
     }
   }, [branding]);
 

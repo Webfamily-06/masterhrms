@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { TenancyStrategy, WorkspaceStatus } from "../context/tenant-context";
+import type { TenancyStrategy, WorkspaceStatus } from "../context/tenant-context";
 import { createTenantIsolationExtension } from "../extensions/tenant-isolation.extension";
 
 export interface TenantRegistrationConfig {
@@ -33,9 +33,11 @@ export class TenantConnectionManager {
       }
       console.warn("⚠️ [TenantConnectionManager] DATABASE_URL is missing from environment variables.");
     }
-    const rawShared = new PrismaClient({
-      datasources: { db: { url: baseDbUrl || "postgresql://missing_db_url@localhost:5432/postgres" } },
-    });
+    const rawShared: PrismaClient =
+      (global as any).__rawPrisma ||
+      ((global as any).__rawPrisma = new PrismaClient(
+        baseDbUrl ? { datasources: { db: { url: baseDbUrl } } } : undefined
+      ));
     this.sharedClient = createTenantIsolationExtension(rawShared) as any;
 
     // Start background idle pool cleanup sweep (runs every minute, unrefed)

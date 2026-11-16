@@ -1085,6 +1085,322 @@ exports.SETTINGS_REGISTRY = {
         applyStrategy: "INSTANT",
         realtimeTopic: "settings.updated",
     },
+    // ─── User Personal Preferences ───────────────────────────────────
+    "user.theme_mode": {
+        key: "user.theme_mode",
+        group: "user",
+        label: "Theme Mode",
+        help: "Personal display mode preference (light, dark, or system default).",
+        type: "string",
+        default: "system",
+        scopes: ["USER"],
+        validation: (val) => {
+            if (!["light", "dark", "system"].includes(val)) {
+                return { valid: false, error: "Theme mode must be 'light', 'dark', or 'system'" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.locale": {
+        key: "user.locale",
+        group: "user",
+        label: "Display Language",
+        help: "Preferred language and regional formatting.",
+        type: "string",
+        default: "en-US",
+        scopes: ["USER"],
+        applyStrategy: "NEXT_REQUEST",
+        realtimeTopic: "settings.updated",
+    },
+    "user.timezone": {
+        key: "user.timezone",
+        group: "user",
+        label: "Personal Timezone",
+        help: "Timezone override for display in attendance, calendar, and activity logs.",
+        type: "string",
+        default: "UTC",
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.date_format": {
+        key: "user.date_format",
+        group: "user",
+        label: "Preferred Date Format",
+        help: "Format used to display dates across the personal dashboard and timesheets.",
+        type: "string",
+        default: "YYYY-MM-DD",
+        scopes: ["USER"],
+        validation: (val) => {
+            if (!["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "DD-MMM-YYYY"].includes(val)) {
+                return { valid: false, error: "Invalid date format specification" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.time_format": {
+        key: "user.time_format",
+        group: "user",
+        label: "Preferred Time Format",
+        help: "12-hour or 24-hour clock display preference.",
+        type: "string",
+        default: "HH:mm",
+        scopes: ["USER"],
+        validation: (val) => {
+            if (!["HH:mm", "hh:mm A"].includes(val)) {
+                return { valid: false, error: "Time format must be 'HH:mm' (24h) or 'hh:mm A' (12h)" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.notifications_email": {
+        key: "user.notifications_email",
+        group: "user",
+        label: "Email Notifications",
+        help: "Receive email notifications for approvals, tasks, and company announcements.",
+        type: "boolean",
+        default: true,
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.notifications_inapp": {
+        key: "user.notifications_inapp",
+        group: "user",
+        label: "In-App Notifications",
+        help: "Show popups and badges for active alerts in the header dock.",
+        type: "boolean",
+        default: true,
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.notifications_push": {
+        key: "user.notifications_push",
+        group: "user",
+        label: "Browser & Mobile Push Notifications",
+        help: "Allow browser and mobile web push notifications.",
+        type: "boolean",
+        default: false,
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.quiet_hours_enabled": {
+        key: "user.quiet_hours_enabled",
+        group: "user",
+        label: "Enable Quiet Hours",
+        help: "Suppress all non-urgent sound and push notifications during specified hours.",
+        type: "boolean",
+        default: false,
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.quiet_hours_start": {
+        key: "user.quiet_hours_start",
+        group: "user",
+        label: "Quiet Hours Start Time",
+        help: "Time when silent notifications take effect (e.g. 22:00).",
+        type: "string",
+        default: "22:00",
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.quiet_hours_end": {
+        key: "user.quiet_hours_end",
+        group: "user",
+        label: "Quiet Hours End Time",
+        help: "Time when notifications resume normal sound and delivery (e.g. 07:00).",
+        type: "string",
+        default: "07:00",
+        scopes: ["USER"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "user.calendar_first_day": {
+        key: "user.calendar_first_day",
+        group: "user",
+        label: "Calendar First Day of Week",
+        help: "Choose whether the personal calendar week starts on Sunday (0) or Monday (1).",
+        type: "number",
+        default: 1,
+        scopes: ["USER"],
+        validation: (val) => {
+            const num = Number(val);
+            if (num !== 0 && num !== 1) {
+                return { valid: false, error: "Calendar first day must be 0 (Sunday) or 1 (Monday)" };
+            }
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Platform & Tenant Appearance ────────────────────────────────
+    "appearance.theme_mode": {
+        key: "appearance.theme_mode",
+        group: "appearance",
+        label: "Default Workspace Theme",
+        help: "Default theme applied to newly onboarded workspace members.",
+        type: "string",
+        default: "system",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "appearance.sidebar_layout": {
+        key: "appearance.sidebar_layout",
+        group: "appearance",
+        label: "Sidebar Navigation Layout",
+        help: "Default layout style for sidebar navigation (vertical or compact).",
+        type: "string",
+        default: "vertical",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "appearance.density": {
+        key: "appearance.density",
+        group: "appearance",
+        label: "Display Density",
+        help: "Controls table and list item padding (compact, comfortable, relaxed).",
+        type: "string",
+        default: "comfortable",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Platform SEO & Metadata ─────────────────────────────────────
+    "seo.meta_title": {
+        key: "seo.meta_title",
+        group: "seo",
+        label: "Meta Title",
+        help: "Primary title tag rendered in public page headers and search engine crawlers.",
+        type: "string",
+        default: "Master HRMS — Enterprise Human Resource Platform",
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            if (typeof val !== "string" || val.trim().length === 0)
+                return { valid: false, error: "SEO title is required" };
+            return { valid: true };
+        },
+        applyStrategy: "NEXT_REQUEST",
+        realtimeTopic: "settings.updated",
+    },
+    "seo.meta_description": {
+        key: "seo.meta_description",
+        group: "seo",
+        label: "Meta Description",
+        help: "Public summary snippet displayed in search engine results and social previews.",
+        type: "string",
+        default: "Next-generation Enterprise HRMS, Payroll, Attendance, and Performance Platform.",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+        realtimeTopic: "settings.updated",
+    },
+    "seo.canonical_url": {
+        key: "seo.canonical_url",
+        group: "seo",
+        label: "Canonical URL",
+        help: "Official canonical URL prefix used for open graph metadata.",
+        type: "string",
+        default: "https://masterhrms.com",
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+        realtimeTopic: "settings.updated",
+    },
+    "seo.robots_index": {
+        key: "seo.robots_index",
+        group: "seo",
+        label: "Search Engine Indexing",
+        help: "When enabled, robots.txt and meta tags permit indexation of public landing and registration pages.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM"],
+        applyStrategy: "NEXT_REQUEST",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── Invoicing & Billing Defaults ────────────────────────────────
+    "invoicing.recurring_default_interval": {
+        key: "invoicing.recurring_default_interval",
+        group: "invoicing",
+        label: "Default Billing Cycle Interval",
+        help: "Default periodicity for automated recurring invoice cycles (MONTHLY, QUARTERLY, ANNUALLY).",
+        type: "string",
+        default: "MONTHLY",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "invoicing.auto_post": {
+        key: "invoicing.auto_post",
+        group: "invoicing",
+        label: "Automated Ledger Posting",
+        help: "Automatically post generated recurring invoices to the accounting ledger.",
+        type: "boolean",
+        default: true,
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "invoicing.default_terms": {
+        key: "invoicing.default_terms",
+        group: "invoicing",
+        label: "Standard Payment Terms",
+        help: "Default terms and conditions printed on corporate invoices.",
+        type: "string",
+        default: "Net 30 days. Payment is due within 30 days from invoice generation date.",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    // ─── AI Governance & Provider ────────────────────────────────────
+    "ai.provider": {
+        key: "ai.provider",
+        group: "ai",
+        label: "AI Model Provider",
+        help: "Provider used for smart assistant and automated leave/attendance insights.",
+        type: "string",
+        default: "openai",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "ai.model": {
+        key: "ai.model",
+        group: "ai",
+        label: "AI Model Identifier",
+        help: "Model identifier (e.g., gpt-4o, claude-3-5-sonnet, gemini-1.5-pro).",
+        type: "string",
+        default: "gpt-4o",
+        scopes: ["PLATFORM", "TENANT"],
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
+    "ai.quota_per_tenant": {
+        key: "ai.quota_per_tenant",
+        group: "ai",
+        label: "Tenant Monthly Token Quota",
+        help: "Maximum AI token allocation per tenant per billing month.",
+        type: "number",
+        default: 100000,
+        scopes: ["PLATFORM"],
+        validation: (val) => {
+            const num = Number(val);
+            if (isNaN(num) || num < 0)
+                return { valid: false, error: "Quota must be a non-negative number" };
+            return { valid: true };
+        },
+        applyStrategy: "INSTANT",
+        realtimeTopic: "settings.updated",
+    },
 };
 function getSettingDefinition(key) {
     return exports.SETTINGS_REGISTRY[key];
@@ -1101,8 +1417,8 @@ function validateSettingValue(key, value, scope) {
     if (scope && !def.scopes.includes(scope)) {
         return { valid: false, error: `Setting '${key}' cannot be configured in '${scope}' scope` };
     }
-    // In TENANT scope, setting value to null or empty string resets the override to platform default
-    if (scope === "TENANT" && (value === null || value === undefined || value === "")) {
+    // In TENANT or USER scope, setting value to null or empty string resets the override to fallback
+    if ((scope === "TENANT" || scope === "USER") && (value === null || value === undefined || value === "")) {
         return { valid: true };
     }
     // If the setting default is null and value is null, it's valid

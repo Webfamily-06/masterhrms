@@ -282,6 +282,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
       userId,
       tenantId: tenantId ?? null,
       roles,
+      workspaceRole: resolvedAssignment?.role?.name || (decoded as any).workspaceRole,
       permissions: userPermissions,
       isImpersonating,
       profile: account.profile

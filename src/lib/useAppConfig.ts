@@ -8,6 +8,8 @@ export interface AppConfig {
   appName: string;
   supportEmail: string;
   primaryColor: string;
+  workspacePrimaryColor?: string;
+  userPrimaryColor?: string | null;
   logoLightUrl: string;
   logoDarkUrl: string;
   faviconUrl: string;
@@ -17,6 +19,8 @@ export interface AppConfig {
     logoDarkUrl: string;
     faviconUrl: string;
     primaryColor: string;
+    workspacePrimaryColor?: string;
+    userPrimaryColor?: string | null;
     appName: string;
     footerText: string;
     supportEmail: string;
@@ -25,8 +29,32 @@ export interface AppConfig {
     defaultCurrency: string;
     currencySymbol: string;
     timezone: string;
+    workspaceTimezone?: string;
     dateFormat: string;
     timeFormat: string;
+  };
+  userPreferences?: {
+    userId: string;
+    primaryColor: string | null;
+    themeMode?: string;
+    timezone?: string | null;
+    locale?: string;
+  } | null;
+  pusher?: {
+    enabled: boolean;
+    key: string;
+    cluster: string;
+  };
+  firebase?: {
+    enabled: boolean;
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+    measurementId?: string;
+    vapidKey?: string;
   };
   maintenance?: {
     active: boolean;
@@ -44,6 +72,8 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   appName: "Master HRMS",
   supportEmail: "support@masterhrms.com",
   primaryColor: "#2563EB",
+  workspacePrimaryColor: "#2563EB",
+  userPrimaryColor: null,
   logoLightUrl: "/logo.webp",
   logoDarkUrl: "/white-logo.webp",
   faviconUrl: "/favicon.webp",
@@ -52,6 +82,7 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     defaultCurrency: "INR",
     currencySymbol: "₹",
     timezone: "Asia/Kolkata",
+    workspaceTimezone: "Asia/Kolkata",
     dateFormat: "DD/MM/YYYY",
     timeFormat: "12",
   },
@@ -67,21 +98,112 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
   timestamp: new Date().toISOString(),
 };
 
-export function applyThemeVariables(primaryHex: string) {
+export function getCurrentJwtUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const token = localStorage.getItem("hrms_auth_token");
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(base64);
+    const payload = JSON.parse(json);
+    return typeof payload?.userId === "string" ? payload.userId : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getActivePersonalPrimaryColor(userId?: string | null): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const uid = userId !== undefined ? userId : getCurrentJwtUserId();
+    if (!uid) return null;
+    const val = localStorage.getItem(`hrms_user_primary_color_${uid}`);
+    if (val && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(val.trim())) {
+      return val.trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function setPersonalPrimaryColor(
+  userId: string | null | undefined,
+  hexOrNull: string | null,
+  fallbackWorkspaceHex?: string
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const uid = userId || getCurrentJwtUserId();
+    if (uid) {
+      if (hexOrNull && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hexOrNull.trim())) {
+        localStorage.setItem(`hrms_user_primary_color_${uid}`, hexOrNull.trim());
+      } else {
+        localStorage.removeItem(`hrms_user_primary_color_${uid}`);
+      }
+    }
+    const targetHex =
+      (hexOrNull && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hexOrNull.trim()) ? hexOrNull.trim() : null) ||
+      fallbackWorkspaceHex ||
+      localStorage.getItem("master_hrms_workspace_primary_color") ||
+      "#2563EB";
+    applyThemeVariables(targetHex);
+  } catch (e) {
+    console.error("Failed to set personal primary color:", e);
+  }
+}
+
+function computeContrastingForeground(hex: string): string {
+  try {
+    let clean = hex.trim().replace(/^#/, "");
+    if (clean.length === 3) {
+      clean = clean
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    }
+    if (clean.length !== 6) return "#ffffff";
+    const r = parseInt(clean.slice(0, 2), 16) / 255;
+    const g = parseInt(clean.slice(2, 4), 16) / 255;
+    const b = parseInt(clean.slice(4, 6), 16) / 255;
+    const toLinear = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    const luminance = 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    return luminance > 0.62 ? "#0f172a" : "#ffffff";
+  } catch {
+    return "#ffffff";
+  }
+}
+
+export function applyThemeVariables(
+  primaryHex: string,
+  options?: { respectPersonalOverride?: boolean; isWorkspaceColor?: boolean }
+) {
   if (typeof document === "undefined" || !primaryHex) return;
   try {
-    document.documentElement.style.setProperty("--primary", primaryHex);
-    document.documentElement.style.setProperty("--ring", primaryHex);
-    document.documentElement.style.setProperty("--sidebar-primary", primaryHex);
-    document.documentElement.style.setProperty("--sidebar-menu-active-item", primaryHex);
-    document.documentElement.style.setProperty("--sidebar-submenu-active-item", primaryHex);
+    if (options?.isWorkspaceColor) {
+      localStorage.setItem("master_hrms_workspace_primary_color", primaryHex);
+    }
+    const personalOverride = options?.respectPersonalOverride ? getActivePersonalPrimaryColor() : null;
+    const effectiveHex = personalOverride || primaryHex;
+    const foregroundHex = computeContrastingForeground(effectiveHex);
+
+    document.documentElement.style.setProperty("--primary", effectiveHex);
+    document.documentElement.style.setProperty("--primary-foreground", foregroundHex);
+    document.documentElement.style.setProperty("--ring", effectiveHex);
+    document.documentElement.style.setProperty("--sidebar-primary", effectiveHex);
+    document.documentElement.style.setProperty("--sidebar-primary-foreground", foregroundHex);
+    document.documentElement.style.setProperty("--sidebar-ring", effectiveHex);
+    document.documentElement.style.setProperty("--sidebar-menu-active-item", effectiveHex);
+    document.documentElement.style.setProperty("--sidebar-submenu-active-item", effectiveHex);
     document.documentElement.style.setProperty(
       "--sidebar-menu-active-bg",
-      `color-mix(in srgb, ${primaryHex} 12%, transparent)`
+      `color-mix(in srgb, ${effectiveHex} 12%, transparent)`
     );
     // Also store as --primary-hex for raw hex access in JS
-    document.documentElement.style.setProperty("--primary-hex", primaryHex);
-    localStorage.setItem("master_hrms_primary_color", primaryHex);
+    document.documentElement.style.setProperty("--primary-hex", effectiveHex);
+    localStorage.setItem("master_hrms_primary_color", effectiveHex);
   } catch (e) {
     console.error("Failed to apply theme variables:", e);
   }
@@ -157,9 +279,18 @@ export function useAppConfig() {
     // Avoid applying default fallback config while the real server config is loading
     if (isLoading || !config) return;
 
-    // 1. Dynamic Primary Accent Color
-    if (config.primaryColor) {
-      applyThemeVariables(config.primaryColor);
+    // 1. Dynamic Primary Accent Color (Employee USER override -> Workspace -> Platform)
+    const wsColor = config.workspacePrimaryColor || config.branding?.workspacePrimaryColor || config.primaryColor;
+    if (wsColor) {
+      try {
+        localStorage.setItem("master_hrms_workspace_primary_color", wsColor);
+      } catch {}
+    }
+
+    if (config.userPreferences?.userId) {
+      setPersonalPrimaryColor(config.userPreferences.userId, config.userPrimaryColor || null, wsColor);
+    } else if (config.primaryColor) {
+      applyThemeVariables(config.primaryColor, { respectPersonalOverride: Boolean(authToken) });
     }
 
     // 2. Dynamic Favicon Link
@@ -189,20 +320,53 @@ export function useAppConfig() {
       document.title = config.appName;
     }
 
-    // 5. Dynamic currency & formatting synchronization
+    // 5. Dynamic currency & timezone synchronization across entire workspace
     if (config.locale?.defaultCurrency || config.locale?.currencySymbol) {
       updateGlobalCurrencySettings({
         defaultCurrency: config.locale.defaultCurrency,
         currencySymbol: config.locale.currencySymbol,
       });
     }
-  }, [config, isLoading]);
+    if (config.locale?.timezone) {
+      try {
+        localStorage.setItem("master_hrms_timezone", config.locale.timezone);
+        if (config.locale.workspaceTimezone) {
+          localStorage.setItem("master_hrms_workspace_timezone", config.locale.workspaceTimezone);
+        }
+        (window as any).__MASTERHRMS_TIMEZONE__ = config.locale.timezone;
+        (window as any).__MASTERHRMS_WORKSPACE_TIMEZONE__ =
+          config.locale.workspaceTimezone || config.locale.timezone;
+      } catch {}
+    }
+
+    // 6. Hydrate runtime Firebase & Pusher client configurations
+    if (config.firebase && typeof window !== "undefined") {
+      (window as any).__MASTERHRMS_FIREBASE__ = config.firebase;
+    }
+    if (config.pusher && typeof window !== "undefined") {
+      (window as any).__MASTERHRMS_PUSHER__ = config.pusher;
+    }
+  }, [config, isLoading, authToken]);
 
   // Listen to cross-window or local custom event (same tab)
   useEffect(() => {
     const handleSettingsUpdated = (e: any) => {
       const data = e.detail;
       if (!data) return;
+
+      // Per-employee USER isolation: only apply if event belongs to current logged-in user
+      if (data.scope === "USER") {
+        const currentUid = getCurrentJwtUserId();
+        if (data.userId && currentUid && data.userId !== currentUid) {
+          return;
+        }
+        if (data?.keys?.includes("user.primary_color")) {
+          const nextUserColor = data?.values?.["user.primary_color"] || null;
+          setPersonalPrimaryColor(currentUid, nextUserColor, config.workspacePrimaryColor || config.primaryColor);
+        }
+        queryClient.invalidateQueries({ queryKey: ["app-config"] });
+        return;
+      }
 
       // Tenant isolation: Never overwrite CMS or Platform context
       if (data.scope === "TENANT") {
@@ -215,14 +379,19 @@ export function useAppConfig() {
       }
 
       if (data?.keys?.includes("branding.primary_color") && data?.values?.["branding.primary_color"]) {
-        applyThemeVariables(data.values["branding.primary_color"]);
+        applyThemeVariables(data.values["branding.primary_color"], {
+          respectPersonalOverride: true,
+          isWorkspaceColor: true,
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["app-config"] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-branding"] });
+      queryClient.invalidateQueries({ queryKey: ["tenant-dashboard-metrics"] });
     };
 
     window.addEventListener("settings-updated", handleSettingsUpdated);
     return () => window.removeEventListener("settings-updated", handleSettingsUpdated);
-  }, [config.context, config.scope, config.tenantId, queryClient]);
+  }, [config.context, config.scope, config.tenantId, config.workspacePrimaryColor, config.primaryColor, queryClient]);
 
   // BroadcastChannel for cross-tab realtime branding propagation with scope isolation
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getActiveCurrencySettings } from "@/lib/currency";
 
 export type RazorpayPaymentResponse = {
   razorpay_payment_id: string;
@@ -7,7 +8,8 @@ export type RazorpayPaymentResponse = {
 };
 
 export type RazorpayOptions = {
-  amount: number; // Amount in system currency (e.g. ₹499)
+  amount: number; // Amount in active workspace currency
+  currency?: string;
   name: string; // Product / Addon / Plan Name
   description: string;
   userName?: string;
@@ -33,6 +35,7 @@ function loadRazorpayScript(): Promise<boolean> {
 
 export async function openRazorpayCheckout({
   amount,
+  currency,
   name,
   description,
   userName = "Valued Customer",
@@ -46,32 +49,52 @@ export async function openRazorpayCheckout({
     throw new Error("Razorpay SDK failed to load. Check your internet connection.");
   }
 
-  // Get Key ID from user parameter or tenant config
+  // Get Key ID and currency from user parameter or tenant config
   let razorpayKey = keyId;
+  let gatewayCurrency = currency;
 
-  if (!razorpayKey && tenantId) {
+  if ((!razorpayKey || !gatewayCurrency) && tenantId) {
     try {
-      const data = await api.get(`/cms/pages/system-razorpay-gateway-${tenantId}`);
-      if (data?.content && data.content?.config?.keyId) {
-        razorpayKey = data.content.config.keyId;
+      const data = await api.get(`/payments/razorpay/config`);
+      if (data?.config) {
+        if (!razorpayKey && data.config.keyId) razorpayKey = data.config.keyId;
+        if (!gatewayCurrency && data.config.currency) gatewayCurrency = data.config.currency;
       }
     } catch {
-      // Fallback
+      try {
+        const data = await api.get(`/cms/pages/system-razorpay-gateway-${tenantId}`);
+        if (data?.content && data.content?.config?.keyId) {
+          if (!razorpayKey) razorpayKey = data.content.config.keyId;
+          if (!gatewayCurrency && data.content.config.currency) gatewayCurrency = data.content.config.currency;
+        }
+      } catch {
+        // Fallback
+      }
     }
   }
+
+  const resolvedCurrency = (
+    gatewayCurrency ||
+    getActiveCurrencySettings().defaultCurrency ||
+    "INR"
+  ).toUpperCase();
 
   // Fallback test key ID if not configured
   if (!razorpayKey) {
     razorpayKey = "rzp_test_MasterHRMS2026";
   }
 
+  const themeColor =
+    (typeof window !== "undefined" && localStorage.getItem("master_hrms_primary_color")) ||
+    "#6366f1";
+
   return new Promise((resolve, reject) => {
     let isHandled = false;
 
     const options = {
       key: razorpayKey,
-      amount: Math.round(amount * 100), // Convert to paise
-      currency: "INR",
+      amount: Math.round(amount * 100), // Convert to smallest currency unit
+      currency: resolvedCurrency,
       name: "Master HRMS",
       description: `${name} — ${description}`,
       order_id: orderId || undefined,
@@ -80,7 +103,7 @@ export async function openRazorpayCheckout({
         email: userEmail,
       },
       theme: {
-        color: "#6366f1",
+        color: themeColor,
       },
       handler: function (response: any) {
         isHandled = true;

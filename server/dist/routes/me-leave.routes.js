@@ -6,32 +6,151 @@ const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const leave_service_1 = require("../services/leave.service");
+const leave_encashment_compoff_service_1 = require("../services/leave-encashment-compoff.service");
 exports.meLeaveRouter = (0, express_1.Router)();
 exports.meLeaveRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+function sendMeLeaveError(res, err, defaultStatus = 500) {
+    if (err instanceof leave_service_1.LeaveHttpError) {
+        return res.status(err.status).json({
+            error: err.message,
+            ...(err.code ? { code: err.code } : {}),
+            ...(err.details ? { details: err.details } : {}),
+        });
+    }
+    if (err?.code === "PERIOD_LOCKED") {
+        return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+    }
+    return res.status(defaultStatus).json({ error: err?.message || "Leave operation failed" });
+}
 async function getSelfEmployee(req) {
     const tenantId = req.tenantId;
     const employee = await prisma_1.rawPrisma.employee.findFirst({
         where: { tenantId, userId: req.user.userId },
         include: { branch: true, department: true },
     });
-    if (!employee)
-        throw new Error("Employee profile not found for user");
+    if (!employee) {
+        throw new leave_service_1.LeaveHttpError("No employee profile is linked to this user account.", 403, "EMPLOYEE_PROFILE_REQUIRED");
+    }
     return employee;
 }
+// GET /api/v1/me/leave/catalog (Active leave types + resolved policy rules + live balances + eligibility)
+exports.meLeaveRouter.get("/catalog", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const employee = await getSelfEmployee(req);
+        const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
+        const catalog = await leave_service_1.LeaveService.getEligibleEmployeeLeaveCatalog(tenantId, employee.id, year);
+        return res.json(catalog);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// GET /api/v1/me/leave/types (Active leave types array for ESS forms)
+exports.meLeaveRouter.get("/types", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const employee = await getSelfEmployee(req);
+        const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
+        const catalog = await leave_service_1.LeaveService.getEligibleEmployeeLeaveCatalog(tenantId, employee.id, year);
+        return res.json(catalog.leaveTypes);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
 // GET /api/v1/me/leave/applications
 exports.meLeaveRouter.get("/applications", async (req, res) => {
     try {
         const tenantId = req.tenantId;
         const employee = await getSelfEmployee(req);
+        const { status, leaveTypeId, year } = req.query;
+        const where = { tenantId, employeeId: employee.id };
+        if (status && status !== "all") {
+            where.status = String(status);
+        }
+        if (leaveTypeId && leaveTypeId !== "all") {
+            where.leaveTypeId = String(leaveTypeId);
+        }
+        if (year) {
+            const y = parseInt(String(year), 10);
+            if (!Number.isNaN(y)) {
+                where.startDate = { lte: new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999)) };
+                where.endDate = { gte: new Date(Date.UTC(y, 0, 1, 0, 0, 0)) };
+            }
+        }
         const applications = await prisma_1.rawPrisma.leaveRequest.findMany({
-            where: { tenantId, employeeId: employee.id },
+            where,
             include: { leaveType: true },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }],
         });
-        return res.json(applications);
+        const approverIds = Array.from(new Set(applications.map((a) => a.approverId).filter((x) => Boolean(x))));
+        const approverUsers = approverIds.length > 0
+            ? await prisma_1.rawPrisma.user.findMany({
+                where: { id: { in: approverIds } },
+                select: { id: true, email: true, profile: { select: { fullName: true } } },
+            })
+            : [];
+        const approverMap = new Map(approverUsers.map((u) => [u.id, u.profile?.fullName || u.email || "Reviewer"]));
+        const enriched = applications.map((a) => ({
+            ...a,
+            days: Number(a.days),
+            approverName: a.approverId
+                ? approverMap.get(a.approverId) ||
+                    (a.approverId === "SYSTEM_POLICY_AUTO_APPROVAL" ? "Auto-Approved by Policy" : "HR / Manager")
+                : null,
+        }));
+        return res.json(enriched);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// GET /api/v1/me/leave/applications/:id
+exports.meLeaveRouter.get("/applications/:id", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const employee = await getSelfEmployee(req);
+        const { id } = req.params;
+        const application = await prisma_1.rawPrisma.leaveRequest.findFirst({
+            where: { id, tenantId },
+            include: { leaveType: true },
+        });
+        if (!application) {
+            return res.status(404).json({ error: "Leave application not found." });
+        }
+        if (application.employeeId !== employee.id) {
+            return res.status(403).json({ error: "Forbidden: You can only view your own leave requests." });
+        }
+        const [approverUser, ledgerTransactions] = await Promise.all([
+            application.approverId
+                ? prisma_1.rawPrisma.user.findUnique({
+                    where: { id: application.approverId },
+                    select: { id: true, email: true, profile: { select: { fullName: true } } },
+                })
+                : Promise.resolve(null),
+            prisma_1.rawPrisma.leaveLedgerEntry.findMany({
+                where: { tenantId, referenceId: id },
+                orderBy: { createdAt: "asc" },
+            }),
+        ]);
+        return res.json({
+            ...application,
+            days: Number(application.days),
+            approverName: approverUser
+                ? approverUser.profile?.fullName || approverUser.email
+                : application.approverId === "SYSTEM_POLICY_AUTO_APPROVAL"
+                    ? "Auto-Approved by Policy"
+                    : null,
+            ledgerTransactions: ledgerTransactions.map((t) => ({
+                ...t,
+                days: Number(t.days),
+                balance: Number(t.balance),
+            })),
+        });
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
     }
 });
 // POST /api/v1/me/leave/applications/dry-run (Validation & day breakdown)
@@ -39,9 +158,9 @@ exports.meLeaveRouter.post("/applications/dry-run", async (req, res) => {
     try {
         const tenantId = req.tenantId;
         const employee = await getSelfEmployee(req);
-        const { leaveTypeId, startDate, endDate, halfDay, reason } = req.body;
+        const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, excludeRequestId } = req.body;
         if (!leaveTypeId || !startDate || !endDate) {
-            return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
+            return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required." });
         }
         const preview = await leave_service_1.LeaveService.validateDryRun({
             tenantId,
@@ -49,13 +168,16 @@ exports.meLeaveRouter.post("/applications/dry-run", async (req, res) => {
             leaveTypeId,
             startDate,
             endDate,
-            halfDay,
+            halfDay: Boolean(halfDay),
+            halfDaySession,
             reason,
+            excludeRequestId,
+            bypassNoticePeriod: false,
         });
         return res.json(preview);
     }
     catch (err) {
-        return res.status(400).json({ error: err.message });
+        return sendMeLeaveError(res, err, 400);
     }
 });
 // POST /api/v1/me/leave/applications (Submit leave request)
@@ -63,21 +185,38 @@ exports.meLeaveRouter.post("/applications", async (req, res) => {
     try {
         const tenantId = req.tenantId;
         const employee = await getSelfEmployee(req);
-        const { leaveTypeId, startDate, endDate, halfDay, reason } = req.body;
-        if (!leaveTypeId || !startDate || !endDate || !reason) {
-            return res.status(400).json({ error: "leaveTypeId, startDate, endDate, and reason are required" });
+        const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, attachmentUrl } = req.body;
+        if (!leaveTypeId || !startDate || !endDate || !reason || !String(reason).trim()) {
+            return res
+                .status(400)
+                .json({ error: "leaveTypeId, startDate, endDate, and reason are required." });
         }
         const application = await leave_service_1.LeaveService.submitApplication(tenantId, employee.id, {
             leaveTypeId,
             startDate,
             endDate,
-            halfDay,
-            reason,
-        });
+            halfDay: Boolean(halfDay),
+            halfDaySession,
+            reason: String(reason).trim(),
+            attachmentUrl: attachmentUrl || undefined,
+        }, req.user.userId, { bypassNoticePeriod: false });
         return res.status(201).json(application);
     }
     catch (err) {
-        return res.status(400).json({ error: err.message });
+        return sendMeLeaveError(res, err, 400);
+    }
+});
+// PUT /api/v1/me/leave/applications/:id (Edit own pending leave request)
+exports.meLeaveRouter.put("/applications/:id", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const employee = await getSelfEmployee(req);
+        const { id } = req.params;
+        const updated = await leave_service_1.LeaveService.updatePendingApplication(tenantId, id, req.body, req.user.userId, { callerEmployeeId: employee.id, isElevatedHR: false });
+        return res.json(updated);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 400);
     }
 });
 // POST /api/v1/me/leave/applications/:id/cancel
@@ -88,59 +227,114 @@ exports.meLeaveRouter.post("/applications/:id/cancel", async (req, res) => {
         const { id } = req.params;
         const { reason } = req.body;
         const reqItem = await prisma_1.rawPrisma.leaveRequest.findUnique({ where: { id } });
-        if (!reqItem || reqItem.employeeId !== employee.id || reqItem.tenantId !== tenantId) {
-            return res.status(403).json({ error: "Forbidden: Cannot cancel another employee's request" });
+        if (!reqItem || reqItem.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Leave request not found." });
         }
-        const result = await leave_service_1.LeaveService.cancelApplication(tenantId, id, req.user.userId, reason);
+        if (reqItem.employeeId !== employee.id) {
+            return res.status(403).json({ error: "Forbidden: Cannot cancel another employee's request." });
+        }
+        if (reqItem.status === "approved") {
+            const todayUtc = new Date();
+            todayUtc.setUTCHours(0, 0, 0, 0);
+            const startUtc = new Date(reqItem.startDate);
+            startUtc.setUTCHours(0, 0, 0, 0);
+            if (startUtc < todayUtc) {
+                return res.status(400).json({
+                    error: "Approved leave that has already started cannot be self-cancelled. Please ask HR or your reporting manager to reverse it.",
+                    code: "PAST_APPROVED_LEAVE_REQUIRES_HR_REVERSAL",
+                });
+            }
+        }
+        const result = await leave_service_1.LeaveService.cancelApplication(tenantId, id, req.user.userId, reason || "Cancelled by employee");
         return res.json(result);
     }
     catch (err) {
-        if (err.code === "PERIOD_LOCKED")
-            return res.status(423).json({ error: err.message });
-        return res.status(500).json({ error: err.message });
+        return sendMeLeaveError(res, err, 400);
     }
 });
-// GET /api/v1/me/leave/balance (Authoritative ledger balances)
+// GET /api/v1/me/leave/balance (Authoritative ledger balances + full ledger history in 1 pass)
 exports.meLeaveRouter.get("/balance", async (req, res) => {
     try {
         const tenantId = req.tenantId;
         const employee = await getSelfEmployee(req);
-        const leaveTypes = await prisma_1.rawPrisma.leaveType.findMany({ where: { tenantId } });
-        const balances = await Promise.all(leaveTypes.map(async (lt) => {
-            const bal = await leave_service_1.LeaveService.getEmployeeBalance(tenantId, employee.id, lt.id);
-            const entries = await prisma_1.rawPrisma.leaveLedgerEntry.findMany({
-                where: { tenantId, employeeId: employee.id, leaveTypeId: lt.id },
-                orderBy: { effectiveAt: "desc" },
-            });
-            return {
-                leaveTypeId: lt.id,
-                leaveTypeName: lt.name,
-                quota: lt.daysPerYear,
-                isPaid: lt.isPaid,
-                available: bal,
-                ledger: entries,
-            };
+        const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
+        const [detailedBalances, ledgerEntries] = await Promise.all([
+            leave_service_1.LeaveService.getEmployeeDetailedBalances(tenantId, employee.id, year, {
+                includeInactiveWithHistory: true,
+            }),
+            leave_service_1.LeaveService.getEmployeeLedger(tenantId, employee.id, year),
+        ]);
+        const ledgerByType = new Map();
+        for (const entry of ledgerEntries) {
+            const list = ledgerByType.get(entry.leaveTypeId) || [];
+            list.push(entry);
+            ledgerByType.set(entry.leaveTypeId, list);
+        }
+        const balances = detailedBalances.map((b) => ({
+            ...b,
+            quota: b.total,
+            entitlement: b.total,
+            year,
+            ledger: ledgerByType.get(b.leaveTypeId) || [],
         }));
         return res.json(balances);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return sendMeLeaveError(res, err, 500);
     }
 });
-// GET /api/v1/me/leave/policies
+// GET /api/v1/me/leave/policies (Applicable active policies + per-type resolved policy rules)
 exports.meLeaveRouter.get("/policies", async (req, res) => {
     try {
         const tenantId = req.tenantId;
-        const policy = await prisma_1.rawPrisma.leavePolicy.findFirst({
-            where: { tenantId, isDefault: true },
+        const employee = await getSelfEmployee(req);
+        const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
+        const [catalog, rawPolicies] = await Promise.all([
+            leave_service_1.LeaveService.getEligibleEmployeeLeaveCatalog(tenantId, employee.id, year),
+            prisma_1.rawPrisma.leavePolicy.findMany({
+                where: { tenantId, status: "active" },
+                include: { leaveType: true },
+                orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+            }),
+        ]);
+        const refDate = new Date();
+        refDate.setUTCHours(0, 0, 0, 0);
+        const applicablePolicies = rawPolicies
+            .filter((p) => {
+            if (p.branchId && p.branchId !== employee.branchId)
+                return false;
+            if (p.departmentId && p.departmentId !== employee.departmentId)
+                return false;
+            if (p.effectiveFrom) {
+                const ef = new Date(p.effectiveFrom);
+                ef.setUTCHours(0, 0, 0, 0);
+                if (refDate < ef)
+                    return false;
+            }
+            if (p.effectiveTo) {
+                const et = new Date(p.effectiveTo);
+                et.setUTCHours(23, 59, 59, 999);
+                if (refDate > et)
+                    return false;
+            }
+            return true;
+        })
+            .map((p) => leave_service_1.LeaveService.enrichPolicy(p));
+        const defaultPolicy = applicablePolicies.find((p) => p.isDefault) || applicablePolicies[0] || null;
+        return res.json({
+            ...(defaultPolicy || {}),
+            defaultPolicy,
+            policies: applicablePolicies,
+            leaveTypePolicies: catalog.leaveTypes,
+            employee: catalog.employee,
+            year,
         });
-        return res.json(policy || { name: "Standard Leave Policy", noticeDays: 2, maxConsecutiveDays: 14, sandwichRule: false });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return sendMeLeaveError(res, err, 500);
     }
 });
-// GET /api/v1/me/leave/team-calendar (Peer absence grid with privacy filter)
+// GET /api/v1/me/leave/team-calendar (Peer & team absence grid with privacy filter)
 exports.meLeaveRouter.get("/team-calendar", async (req, res) => {
     try {
         const tenantId = req.tenantId;
@@ -150,36 +344,553 @@ exports.meLeaveRouter.get("/team-calendar", async (req, res) => {
         const year = parseInt(String(req.query.year || now.getUTCFullYear()), 10);
         const start = new Date(Date.UTC(year, month - 1, 1));
         const end = new Date(Date.UTC(year, month, 0, 23, 59, 59));
-        // Team calendar: find colleagues in the same department
-        const teamLeaves = await prisma_1.rawPrisma.leaveRequest.findMany({
-            where: {
-                tenantId,
-                status: "approved",
-                startDate: { lte: end },
-                endDate: { gte: start },
-                employee: { departmentId: employee.departmentId },
-            },
-            select: {
-                id: true,
-                startDate: true,
-                endDate: true,
-                days: true,
-                employee: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        department: { select: { name: true } },
+        const peerOrConditions = [{ id: employee.id }, { managerId: employee.id }];
+        if (employee.departmentId) {
+            peerOrConditions.push({ departmentId: employee.departmentId });
+        }
+        if (employee.managerId) {
+            peerOrConditions.push({ id: employee.managerId });
+        }
+        const [teamLeaves, holidays] = await Promise.all([
+            prisma_1.rawPrisma.leaveRequest.findMany({
+                where: {
+                    tenantId,
+                    status: "approved",
+                    startDate: { lte: end },
+                    endDate: { gte: start },
+                    employee: { OR: peerOrConditions },
+                },
+                select: {
+                    id: true,
+                    startDate: true,
+                    endDate: true,
+                    days: true,
+                    halfDay: true,
+                    halfDaySession: true,
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            department: { select: { name: true } },
+                        },
+                    },
+                    leaveType: {
+                        select: { name: true, color: true },
                     },
                 },
-                leaveType: {
-                    select: { name: true, color: true },
+                orderBy: { startDate: "asc" },
+            }),
+            prisma_1.rawPrisma.holiday.findMany({
+                where: {
+                    tenantId,
+                    status: "active",
+                    date: { gte: start, lte: end },
                 },
-            },
-        });
-        return res.json(teamLeaves);
+                select: { id: true, name: true, date: true, type: true },
+                orderBy: { date: "asc" },
+            }),
+        ]);
+        if (String(req.query.includeMeta) === "true") {
+            return res.json({
+                month,
+                year,
+                leaves: teamLeaves.map((l) => ({ ...l, days: Number(l.days) })),
+                holidays,
+            });
+        }
+        return res.json(teamLeaves.map((l) => ({ ...l, days: Number(l.days) })));
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// =========================================================================
+// ESS LEAVE ENCASHMENT & COMP-OFF (STRICT SELF-ONLY + DIRECT-REPORT MANAGER QUEUE)
+// =========================================================================
+async function resolveMeProfile(req) {
+    const tenantId = req.tenantId;
+    const profile = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.resolveCallerProfile(tenantId, {
+        userId: req.user.userId,
+        email: req.user?.email || null,
+        roles: req.user?.roles || [],
+        permissions: req.user?.permissions || [],
+    });
+    if (!profile.employeeId) {
+        throw new leave_service_1.LeaveHttpError("No employee profile is linked to this user account.", 403, "EMPLOYEE_PROFILE_REQUIRED");
+    }
+    return profile;
+}
+// GET /api/v1/me/leave/encashment-compoff/overview (Self summary, eligibility, Comp-Off balance & expiring alerts)
+exports.meLeaveRouter.get("/encashment-compoff/overview", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const employeeId = profile.employeeId;
+        const [summary, encashmentEligibility, compOffBalance, activeEncashCfgs, activeCompOffCfgs] = await Promise.all([
+            leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.getSummaryAggregates(tenantId, profile, { selfOnly: true }),
+            leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.getEncashmentEligibilityForEmployee(tenantId, employeeId),
+            leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.getCompOffBalanceAndExpiringLots(tenantId, employeeId, 14),
+            prisma_1.rawPrisma.leaveEncashmentConfig.findMany({
+                where: { tenantId, status: "active", enabled: true },
+                select: { allowEssSubmission: true },
+            }),
+            prisma_1.rawPrisma.compOffConfig.findMany({
+                where: { tenantId, status: "active", enabled: true },
+                select: { allowEssSubmission: true },
+            }),
+        ]);
+        const encashmentAllowed = activeEncashCfgs.length === 0 || activeEncashCfgs.some((c) => c.allowEssSubmission);
+        const compOffAllowed = activeCompOffCfgs.length === 0 || activeCompOffCfgs.some((c) => c.allowEssSubmission);
+        return res.json({
+            currency: summary.currency || "INR",
+            employee: profile.employee,
+            directReportsCount: profile.directReportIds.length,
+            viewerAccess: {
+                isReportingManager: profile.isReportingManager,
+                directReportsCount: profile.directReportIds.length,
+                isHrAdmin: profile.isHrAdmin,
+                isHrManager: profile.isHrManager,
+            },
+            essPolicy: {
+                encashmentAllowed,
+                compOffAllowed,
+            },
+            counts: {
+                pendingRequests: Number(summary.pendingEncashmentRequests || 0) +
+                    Number(summary.pendingCompOffRequests || 0),
+                paidEncashments: Number(summary.paidEncashmentRequests || 0),
+            },
+            summary,
+            encashment: encashmentEligibility,
+            encashmentEligibility,
+            compOff: {
+                ...compOffBalance,
+                lots: compOffBalance.activeLots,
+            },
+            compOffBalance,
+        });
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+async function handleListMyEncashmentCompOff(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const result = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.listRequestsAndHistory(tenantId, profile, {
+            selfOnly: true,
+            tab: req.query.tab || "HISTORY",
+            type: req.query.type ? String(req.query.type) : undefined,
+            status: req.query.status ? String(req.query.status) : undefined,
+            leaveTypeId: req.query.leaveTypeId ? String(req.query.leaveTypeId) : undefined,
+            startDate: req.query.startDate ? String(req.query.startDate) : undefined,
+            endDate: req.query.endDate ? String(req.query.endDate) : undefined,
+            search: req.query.search ? String(req.query.search) : undefined,
+            page: req.query.page ? Number(req.query.page) : 1,
+            limit: req.query.limit ? Number(req.query.limit) : 20,
+            sortBy: req.query.sortBy ? String(req.query.sortBy) : "createdAt",
+            sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
+        });
+        return res.json(result);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+// GET /api/v1/me/leave/encashment-compoff & /encashment-compoff/requests (Strictly own requests)
+exports.meLeaveRouter.get("/encashment-compoff", handleListMyEncashmentCompOff);
+exports.meLeaveRouter.get("/encashment-compoff/requests", handleListMyEncashmentCompOff);
+async function handleGetMyEncashmentCompOffDetail(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const detail = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.getTransactionDetail(tenantId, req.params.id, profile, { selfOnly: true });
+        return res.json(detail);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+// GET /api/v1/me/leave/encashment-compoff/requests/:id (Strictly own transaction detail)
+exports.meLeaveRouter.get("/encashment-compoff/requests/:id", handleGetMyEncashmentCompOffDetail);
+async function handleSelfEncashmentPreview(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const preview = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.calculateEncashmentPreview(tenantId, {
+            employeeId: profile.employeeId,
+            leaveTypeId: String(req.body?.leaveTypeId || ""),
+            requestedDays: Number(req.body?.requestedDays ?? req.body?.days ?? 0),
+            effectiveDate: req.body?.effectiveDate ? String(req.body.effectiveDate) : undefined,
+            excludeEncashmentId: req.body?.excludeEncashmentId,
+            isSelfService: true,
+        });
+        return res.json(preview);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+exports.meLeaveRouter.post("/encashment-compoff/encashments/preview", handleSelfEncashmentPreview);
+exports.meLeaveRouter.post("/encashment/preview", handleSelfEncashmentPreview);
+async function handleCreateSelfEncashment(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        if (req.body?.employeeId && req.body.employeeId !== profile.employeeId) {
+            return res.status(403).json({
+                error: "Forbidden: Employees can only submit encashment requests for their own record.",
+                code: "SELF_ONLY_VIOLATION",
+            });
+        }
+        const created = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.createEncashmentRequest(tenantId, profile, {
+            employeeId: profile.employeeId,
+            leaveTypeId: req.body?.leaveTypeId,
+            days: Number(req.body?.days ?? req.body?.requestedDays ?? 0),
+            reason: req.body?.reason,
+            effectiveDate: req.body?.effectiveDate,
+            attachmentUrl: req.body?.attachmentUrl,
+            submitAsDraft: Boolean(req.body?.submitAsDraft),
+            idempotencyKey: req.body?.idempotencyKey || req.headers["idempotency-key"],
+        }, { selfOnly: true });
+        return res.status(201).json(created);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+exports.meLeaveRouter.post("/encashment-compoff/encashments", handleCreateSelfEncashment);
+exports.meLeaveRouter.post("/encashment", handleCreateSelfEncashment);
+// PATCH /api/v1/me/leave/encashment-compoff/encashments/:id (Edit own draft/pending/clarification encashment)
+exports.meLeaveRouter.patch("/encashment-compoff/encashments/:id", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.updateEncashmentRequest(tenantId, req.params.id, profile, {
+            leaveTypeId: req.body?.leaveTypeId,
+            days: req.body?.days !== undefined
+                ? Number(req.body.days)
+                : req.body?.requestedDays !== undefined
+                    ? Number(req.body.requestedDays)
+                    : undefined,
+            reason: req.body?.reason,
+            effectiveDate: req.body?.effectiveDate,
+            attachmentUrl: req.body?.attachmentUrl,
+            submitNow: req.body?.submitNow,
+        }, { selfOnly: true });
+        return res.json(updated);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// POST /api/v1/me/leave/encashment-compoff/encashments/:id/cancel (Cancel own eligible encashment)
+exports.meLeaveRouter.post("/encashment-compoff/encashments/:id/cancel", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const cancelled = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.cancelEncashmentRequest(tenantId, req.params.id, profile, req.body?.reason || req.body?.comments, { selfOnly: true });
+        return res.json(cancelled);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// GET /api/v1/me/leave/encashment-compoff/encashments/:id/payroll-status (Self payroll tracking)
+exports.meLeaveRouter.get("/encashment-compoff/encashments/:id/payroll-status", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const status = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.getEncashmentPayrollStatus(tenantId, req.params.id, profile, { selfOnly: true });
+        return res.json(status);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+async function handleSelfCompOffVerify(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const workedOnDate = String(req.body?.workedOnDate || req.body?.workDate || "").trim();
+        if (!workedOnDate) {
+            return res.status(400).json({ error: "workedOnDate is required." });
+        }
+        const verification = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.verifyAndPreviewCompOff(tenantId, {
+            employeeId: profile.employeeId,
+            workedOnDate,
+            workType: req.body?.workType,
+            attendanceId: req.body?.attendanceId || null,
+            overtimeRequestId: req.body?.overtimeRequestId || null,
+            actualHoursWorked: req.body?.actualHoursWorked !== undefined ? Number(req.body.actualHoursWorked) : undefined,
+            requestedDays: req.body?.requestedDays !== undefined
+                ? Number(req.body.requestedDays)
+                : req.body?.days !== undefined
+                    ? Number(req.body.days)
+                    : undefined,
+            excludeRequestId: req.body?.excludeRequestId,
+        });
+        return res.json(verification);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+exports.meLeaveRouter.post("/encashment-compoff/comp-offs/preview", handleSelfCompOffVerify);
+exports.meLeaveRouter.post("/comp-off/verify", handleSelfCompOffVerify);
+async function handleCreateSelfCompOff(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        if (req.body?.employeeId && req.body.employeeId !== profile.employeeId) {
+            return res.status(403).json({
+                error: "Forbidden: Employees can only submit Comp-Off requests for their own record.",
+                code: "SELF_ONLY_VIOLATION",
+            });
+        }
+        const created = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.createCompOffRequest(tenantId, profile, {
+            employeeId: profile.employeeId,
+            workedOnDate: req.body?.workedOnDate || req.body?.workDate,
+            workType: req.body?.workType,
+            attendanceId: req.body?.attendanceId,
+            overtimeRequestId: req.body?.overtimeRequestId,
+            actualHoursWorked: req.body?.actualHoursWorked !== undefined ? Number(req.body.actualHoursWorked) : undefined,
+            requestedDays: req.body?.requestedDays !== undefined
+                ? Number(req.body.requestedDays)
+                : req.body?.days !== undefined
+                    ? Number(req.body.days)
+                    : undefined,
+            reason: req.body?.reason,
+            attachmentUrl: req.body?.attachmentUrl,
+            submitAsDraft: Boolean(req.body?.submitAsDraft),
+            idempotencyKey: req.body?.idempotencyKey || req.headers["idempotency-key"],
+        }, { selfOnly: true });
+        return res.status(201).json(created);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+exports.meLeaveRouter.post("/encashment-compoff/comp-offs", handleCreateSelfCompOff);
+exports.meLeaveRouter.post("/comp-off", handleCreateSelfCompOff);
+// PATCH /api/v1/me/leave/encashment-compoff/comp-offs/:id (Edit own draft/pending Comp-Off request)
+exports.meLeaveRouter.patch("/encashment-compoff/comp-offs/:id", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.updateCompOffRequest(tenantId, req.params.id, profile, {
+            workedOnDate: req.body?.workedOnDate || req.body?.workDate,
+            workType: req.body?.workType,
+            attendanceId: req.body?.attendanceId,
+            overtimeRequestId: req.body?.overtimeRequestId,
+            actualHoursWorked: req.body?.actualHoursWorked !== undefined
+                ? Number(req.body.actualHoursWorked)
+                : undefined,
+            requestedDays: req.body?.requestedDays !== undefined
+                ? Number(req.body.requestedDays)
+                : req.body?.days !== undefined
+                    ? Number(req.body.days)
+                    : undefined,
+            reason: req.body?.reason,
+            attachmentUrl: req.body?.attachmentUrl,
+            submitNow: req.body?.submitNow,
+        }, { selfOnly: true });
+        return res.json(updated);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// POST /api/v1/me/leave/encashment-compoff/comp-offs/:id/cancel (Cancel own pending Comp-Off)
+exports.meLeaveRouter.post("/encashment-compoff/comp-offs/:id/cancel", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const cancelled = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.cancelCompOffRequest(tenantId, req.params.id, profile, req.body?.reason || req.body?.comments, { selfOnly: true });
+        return res.json(cancelled);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// Unified ESS Detail, Edit & Cancel routes (/api/v1/me/leave/encashment-compoff/:id)
+exports.meLeaveRouter.get("/encashment-compoff/:id", handleGetMyEncashmentCompOffDetail);
+async function handleUnifiedSelfUpdate(req, res) {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const existing = await prisma_1.rawPrisma.leaveEncashmentRequest.findFirst({
+            where: { id: req.params.id, tenantId, employeeId: profile.employeeId },
+            select: { id: true, type: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Request not found." });
+        }
+        if (existing.type === "COMP_OFF") {
+            const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.updateCompOffRequest(tenantId, req.params.id, profile, {
+                workedOnDate: req.body?.workedOnDate || req.body?.workDate,
+                workType: req.body?.workType,
+                attendanceId: req.body?.attendanceId,
+                overtimeRequestId: req.body?.overtimeRequestId,
+                actualHoursWorked: req.body?.actualHoursWorked !== undefined
+                    ? Number(req.body.actualHoursWorked)
+                    : undefined,
+                requestedDays: req.body?.requestedDays !== undefined
+                    ? Number(req.body.requestedDays)
+                    : req.body?.days !== undefined
+                        ? Number(req.body.days)
+                        : undefined,
+                reason: req.body?.reason,
+                attachmentUrl: req.body?.attachmentUrl,
+                submitNow: req.body?.submitNow,
+            }, { selfOnly: true });
+            return res.json(updated);
+        }
+        const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.updateEncashmentRequest(tenantId, req.params.id, profile, {
+            leaveTypeId: req.body?.leaveTypeId,
+            days: req.body?.days !== undefined
+                ? Number(req.body.days)
+                : req.body?.requestedDays !== undefined
+                    ? Number(req.body.requestedDays)
+                    : undefined,
+            reason: req.body?.reason,
+            effectiveDate: req.body?.effectiveDate,
+            attachmentUrl: req.body?.attachmentUrl,
+            submitNow: req.body?.submitNow,
+        }, { selfOnly: true });
+        return res.json(updated);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+}
+exports.meLeaveRouter.put("/encashment-compoff/:id", handleUnifiedSelfUpdate);
+exports.meLeaveRouter.patch("/encashment-compoff/:id", handleUnifiedSelfUpdate);
+exports.meLeaveRouter.post("/encashment-compoff/:id/cancel", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const existing = await prisma_1.rawPrisma.leaveEncashmentRequest.findFirst({
+            where: { id: req.params.id, tenantId, employeeId: profile.employeeId },
+            select: { id: true, type: true },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Request not found." });
+        }
+        if (existing.type === "COMP_OFF") {
+            const cancelled = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.cancelCompOffRequest(tenantId, req.params.id, profile, req.body?.reason || req.body?.comments, { selfOnly: true });
+            return res.json(cancelled);
+        }
+        const cancelled = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.cancelEncashmentRequest(tenantId, req.params.id, profile, req.body?.reason || req.body?.comments, { selfOnly: true });
+        return res.json(cancelled);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// GET /api/v1/me/leave/team-encashment-compoff (Reporting Manager direct-report requests queue)
+exports.meLeaveRouter.get("/team-encashment-compoff", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        if (profile.directReportIds.length === 0 && !profile.isHrAdmin && !profile.isHrManager) {
+            return res.json({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 1 } });
+        }
+        const where = {
+            tenantId,
+            ...(profile.isHrAdmin || profile.isHrManager
+                ? {}
+                : { employeeId: { in: profile.directReportIds } }),
+            ...(req.query.type && req.query.type !== "all" ? { type: String(req.query.type) } : {}),
+            ...(req.query.status && req.query.status !== "all"
+                ? { status: String(req.query.status) }
+                : {}),
+        };
+        const page = Math.max(1, Number(req.query.page || 1));
+        const limit = Math.min(100, Math.max(1, Number(req.query.limit || 20)));
+        const [rows, total] = await Promise.all([
+            prisma_1.rawPrisma.leaveEncashmentRequest.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            employeeCode: true,
+                            position: true,
+                            department: { select: { name: true } },
+                        },
+                    },
+                    leaveType: { select: { id: true, name: true, code: true, color: true } },
+                },
+                orderBy: { createdAt: "desc" },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            prisma_1.rawPrisma.leaveEncashmentRequest.count({ where }),
+        ]);
+        // Redact employee salary basis/amounts for Reporting Managers who are not HR/Payroll
+        const canSeeSalary = profile.isHrAdmin || profile.isHrManager || profile.isPayrollRole;
+        return res.json({
+            data: rows.map((r) => ({
+                ...r,
+                days: Number(r.days),
+                approvedDays: r.approvedDays !== null ? Number(r.approvedDays) : null,
+                actualHoursWorked: r.actualWorkedHours !== null ? Number(r.actualWorkedHours) : null,
+                actualWorkedHours: r.actualWorkedHours !== null ? Number(r.actualWorkedHours) : null,
+                eligibleSalaryBasis: canSeeSalary && r.salaryBasisAmount !== null ? Number(r.salaryBasisAmount) : null,
+                salaryBasisAmount: canSeeSalary && r.salaryBasisAmount !== null ? Number(r.salaryBasisAmount) : null,
+                unitDailyRate: canSeeSalary && r.dailyRate !== null ? Number(r.dailyRate) : null,
+                dailyRate: canSeeSalary && r.dailyRate !== null ? Number(r.dailyRate) : null,
+                totalAmount: canSeeSalary && r.netPayableAmount !== null ? Number(r.netPayableAmount) : null,
+                netPayableAmount: canSeeSalary && r.netPayableAmount !== null ? Number(r.netPayableAmount) : null,
+                grossAmount: canSeeSalary && r.grossAmount !== null ? Number(r.grossAmount) : null,
+                calculationSnapshot: canSeeSalary ? r.calculationSnapshot : null,
+            })),
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / limit)),
+            },
+        });
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
+    }
+});
+// POST /api/v1/me/leave/team-encashment-compoff/:id/decide (Reporting Manager approve/reject direct-report request)
+exports.meLeaveRouter.post("/team-encashment-compoff/:id/decide", async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const profile = await resolveMeProfile(req);
+        const rec = await prisma_1.rawPrisma.leaveEncashmentRequest.findFirst({
+            where: { id: req.params.id, tenantId },
+            select: { id: true, type: true },
+        });
+        if (!rec) {
+            return res.status(404).json({ error: "Request not found." });
+        }
+        const action = req.body?.action === "reject" ? "reject" : "approve";
+        if (rec.type === "COMP_OFF") {
+            const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.decideCompOffRequest(tenantId, req.params.id, profile, {
+                action,
+                comments: req.body?.comments || req.body?.reason,
+                approvedDays: req.body?.approvedDays !== undefined ? Number(req.body.approvedDays) : undefined,
+            });
+            return res.json(updated);
+        }
+        const updated = await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.decideEncashmentRequest(tenantId, req.params.id, profile, {
+            action: req.body?.action === "request_clarification" ? "request_clarification" : action,
+            comments: req.body?.comments || req.body?.reason,
+            approvedDays: req.body?.approvedDays !== undefined ? Number(req.body.approvedDays) : undefined,
+        });
+        return res.json(updated);
+    }
+    catch (err) {
+        return sendMeLeaveError(res, err, 500);
     }
 });

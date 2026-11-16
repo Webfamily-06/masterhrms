@@ -29,8 +29,14 @@ export function MeAttendanceOverviewPage() {
     queryKey: ["me-attendance-overview"],
     queryFn: async () => {
       try {
-        const res: any = await api.get("/api/v1/attendance/records");
-        return Array.isArray(res?.data) ? res.data : [];
+        const res: any = await api.get("/api/v1/me/attendance/records");
+        return Array.isArray(res?.records)
+          ? res.records
+          : Array.isArray(res?.data)
+            ? res.data
+            : Array.isArray(res)
+              ? res
+              : [];
       } catch {
         return [];
       }

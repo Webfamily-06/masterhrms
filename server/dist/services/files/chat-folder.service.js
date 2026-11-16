@@ -86,12 +86,12 @@ class ChatFolderService {
                 where: { id: groupId, tenantId },
                 select: { name: true },
             });
-            subCategoryName = group?.name ? group.name.replace(/[\\/:*?"<>|]/g, "_") : "General Channel";
+            subCategoryName = (group?.name ? group.name.replace(/[\\/:*?"<>|]/g, "_") : "General Channel").slice(0, 40).trim() || "General Channel";
         }
         else if (threadId && threadId.startsWith("direct_")) {
             subCategoryName = "Direct Conversations";
-            const parts = threadId.slice(7).split("_");
-            if (parts.length >= 2) {
+            const parts = threadId.slice(7).split("_").filter(Boolean);
+            if (parts.length === 2) {
                 aclUsers = parts;
             }
         }

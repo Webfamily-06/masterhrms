@@ -14,6 +14,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
 import { WorkspaceHostRequest } from "../middleware/workspace-host.middleware";
 import { SettingsService } from "../services/settings/settings.service";
+import { resolveBranding } from "../services/branding/branding-resolver.service";
 
 export const workspaceRoutingRouter = Router();
 
@@ -114,20 +115,22 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
       }
 
       const tenant = req.resolvedTenant;
-      const brandingGroup = await SettingsService.getGroup("TENANT", tenant.id, "branding");
+      const resolved = await resolveBranding({ scope: "TENANT", tenantId: tenant.id });
 
       return res.json({
         resolved: true,
         id: tenant.id,
         tenantId: tenant.id,
-        name: brandingGroup.values["branding.app_name"] || tenant.name,
+        name: resolved.appName || tenant.name,
         slug: tenant.slug,
-        logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
-        logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
-        faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
-        primaryColor: brandingGroup.values["branding.primary_color"] || null,
-        footerText: brandingGroup.values["branding.footer_text"] || null,
-        timezone: tenant.timezone || "Asia/Kolkata",
+        logoUrl: resolved.logoLightUrl || tenant.logoUrl || null,
+        logoDark: resolved.logoDarkUrl || tenant.logoUrl || null,
+        faviconUrl: resolved.faviconUrl || null,
+        primaryColor: resolved.primaryColor || null,
+        footerText: resolved.footerText || null,
+        timezone: resolved.locale.timezone || tenant.timezone || "Asia/Kolkata",
+        currency: resolved.locale.defaultCurrency || "INR",
+        currencySymbol: resolved.locale.currencySymbol || "₹",
         status: tenant.status,
         baseDomain: hostContext.baseDomain,
         workspaceUrl: getWorkspaceUrl(tenant.slug),
@@ -145,7 +148,7 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
       }
 
       const tenant = req.resolvedTenant;
-      const brandingGroup = await SettingsService.getGroup("TENANT", tenant.id, "branding");
+      const resolved = await resolveBranding({ scope: "TENANT", tenantId: tenant.id });
 
       return res.json({
         resolved: true,
@@ -153,13 +156,16 @@ workspaceRoutingRouter.get("/public/workspace", async (req: WorkspaceHostRequest
         customDomain: hostContext.domain,
         id: tenant.id,
         tenantId: tenant.id,
-        name: brandingGroup.values["branding.app_name"] || tenant.name,
+        name: resolved.appName || tenant.name,
         slug: tenant.slug,
-        logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
-        logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
-        faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
-        primaryColor: brandingGroup.values["branding.primary_color"] || null,
-        timezone: tenant.timezone || "Asia/Kolkata",
+        logoUrl: resolved.logoLightUrl || tenant.logoUrl || null,
+        logoDark: resolved.logoDarkUrl || tenant.logoUrl || null,
+        faviconUrl: resolved.faviconUrl || null,
+        primaryColor: resolved.primaryColor || null,
+        footerText: resolved.footerText || null,
+        timezone: resolved.locale.timezone || tenant.timezone || "Asia/Kolkata",
+        currency: resolved.locale.defaultCurrency || "INR",
+        currencySymbol: resolved.locale.currencySymbol || "₹",
         status: tenant.status,
         baseDomain: hostContext.baseDomain,
         workspaceUrl: getCustomDomainUrl(hostContext.domain),

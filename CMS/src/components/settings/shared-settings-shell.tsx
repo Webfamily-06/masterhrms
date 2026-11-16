@@ -25,6 +25,7 @@ import { ProviderCard } from "@/components/settings/provider-card";
 import { LivePreviewDock } from "@/components/settings/live-preview-dock";
 import { UnsavedChangesBar } from "@/components/settings/unsaved-changes-bar";
 import { MediaImageUploader } from "@/components/settings/media-image-uploader";
+import { CompanyProfileSettings } from "@/components/settings/company-profile-settings";
 import {
   Sliders,
   Palette,
@@ -45,6 +46,8 @@ import {
   Smartphone,
   Globe,
   Radio,
+  Building2,
+  Key,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +158,18 @@ export function SharedSettingsShell({
     enabled: scope === "PLATFORM",
   });
 
+  const { data: pusherData } = useQuery({
+    queryKey: ["settings", scope, tenantId, "pusher"],
+    queryFn: () => (scope === "PLATFORM" ? api.get(`${queryUrlPrefix}/pusher`).then((r: any) => r.values || {}).catch(() => ({})) : Promise.resolve({})),
+    enabled: scope === "PLATFORM",
+  });
+
+  const { data: firebaseData } = useQuery({
+    queryKey: ["settings", scope, tenantId, "firebase"],
+    queryFn: () => (scope === "PLATFORM" ? api.get(`${queryUrlPrefix}/firebase`).then((r: any) => r.values || {}).catch(() => ({})) : Promise.resolve({})),
+    enabled: scope === "PLATFORM",
+  });
+
   // Consolidated persisted state
   const persistedSettings = useMemo(() => {
     return {
@@ -165,8 +180,10 @@ export function SharedSettingsShell({
       ...(securityData || {}),
       ...(paymentsData || {}),
       ...(systemData || {}),
+      ...(pusherData || {}),
+      ...(firebaseData || {}),
     };
-  }, [generalData, emailData, oauthData, storageData, securityData, paymentsData, systemData]);
+  }, [generalData, emailData, oauthData, storageData, securityData, paymentsData, systemData, pusherData, firebaseData]);
 
   // Form State
   const [form, setForm] = useState<Record<string, any>>({});
@@ -268,6 +285,10 @@ export function SharedSettingsShell({
       toast.success("Settings saved and activated successfully");
       qc.invalidateQueries({ queryKey: ["settings", scope] });
       qc.invalidateQueries({ queryKey: ["app-config"] });
+      qc.invalidateQueries({ queryKey: ["tenant-branding"] });
+      qc.invalidateQueries({ queryKey: ["public-workspace"] });
+      qc.invalidateQueries({ queryKey: ["tenant-dashboard-overview"] });
+      qc.invalidateQueries({ queryKey: ["company-profile"] });
     },
     onError: (err: any) => {
       const msg = err.response?.data?.error || err.message || "Failed to save settings";
@@ -329,6 +350,20 @@ export function SharedSettingsShell({
             id: "branding",
             label: "Branding Assets",
             description: "Light/dark logos, favicon and color palette",
+          },
+        ],
+      },
+      {
+        id: "company",
+        label: "Company & Billing Profile",
+        description: "Legal entity, GSTIN & billing address for subscription invoices",
+        icon: Building2,
+        hidden: scope !== "TENANT",
+        items: [
+          {
+            id: "company",
+            label: "Company & Tax Profile",
+            description: "Legal name, registered/billing address & GSTIN",
           },
         ],
       },
@@ -511,7 +546,17 @@ export function SharedSettingsShell({
                     <Label className="text-xs font-semibold">Currency Code</Label>
                     <Select
                       value={form["locale.default_currency"] || "INR"}
-                      onValueChange={(val) => updateFormField("locale.default_currency", val)}
+                      onValueChange={(val) => {
+                        const symMap: Record<string, string> = {
+                          INR: "₹",
+                          USD: "$",
+                          EUR: "€",
+                          GBP: "£",
+                          AED: "د.إ",
+                        };
+                        updateFormField("locale.default_currency", val);
+                        if (symMap[val]) updateFormField("locale.currency_symbol", symMap[val]);
+                      }}
                     >
                       <SelectTrigger className="h-9 text-xs">
                         <SelectValue placeholder="Select currency" />
@@ -610,6 +655,9 @@ export function SharedSettingsShell({
               </CardContent>
             </Card>
           )}
+
+          {/* ─── 2B. COMPANY & BILLING PROFILE (TENANT ONLY) ──────────── */}
+          {activeTab === "company" && scope === "TENANT" && <CompanyProfileSettings />}
 
           {/* ─── 3. COMMUNICATION (SMTP & SMS) ───────────────────────── */}
           {activeTab === "communication" && (
@@ -1085,35 +1133,159 @@ export function SharedSettingsShell({
 
           {/* ─── 8. INTEGRATIONS ─────────────────────────────────────── */}
           {activeTab === "integrations" && (
-            <Card className="border border-border/80 shadow-xs">
-              <CardHeader className="border-b border-border/40 pb-3">
-                <CardTitle className="text-base font-semibold">Integration Hub</CardTitle>
-                <CardDescription className="text-xs">
-                  Biometric attendance clocks, Webhooks, and automated connectors.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-foreground">Biometric Clock Sync</span>
-                    <p className="text-[11px] text-muted-foreground">ZKTeco and eSSL device attendance synchronization</p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                    READY
-                  </Badge>
-                </div>
+            <div className="space-y-4">
+              {scope === "PLATFORM" && (
+                <>
+                  <ProviderCard
+                    id="pusher-provider"
+                    title="Pusher WebSockets Realtime"
+                    description="Cloud WebSocket broadcasting with encrypted DB secret vault & runtime .env sync"
+                    icon={<Radio className="size-4" />}
+                    enabled={form["pusher.enabled"] ?? false}
+                    onToggleEnabled={(c) => updateFormField("pusher.enabled", c)}
+                    scope="PLATFORM"
+                    group="pusher"
+                  >
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Pusher App ID</Label>
+                        <Input
+                          value={form["pusher.app_id"] || ""}
+                          onChange={(e) => updateFormField("pusher.app_id", e.target.value)}
+                          placeholder="e.g. 1789012"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Pusher Cluster</Label>
+                        <Input
+                          value={form["pusher.cluster"] || "ap2"}
+                          onChange={(e) => updateFormField("pusher.cluster", e.target.value)}
+                          placeholder="ap2"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Pusher Public Key</Label>
+                        <Input
+                          value={form["pusher.key"] || ""}
+                          onChange={(e) => updateFormField("pusher.key", e.target.value)}
+                          placeholder="Public key"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <SecretField
+                        id="pusher_secret"
+                        label="Pusher App Secret"
+                        hasSavedSecret={isSecretSet("pusher.secret")}
+                        value={getSecretValue("pusher.secret")}
+                        onChange={(val) => updateFormField("pusher.secret", val)}
+                      />
+                    </div>
+                  </ProviderCard>
 
-                <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-semibold text-foreground">Outbox Webhook Dispatcher</span>
-                    <p className="text-[11px] text-muted-foreground">Transactional HMAC-signed events to custom endpoints</p>
+                  <ProviderCard
+                    id="firebase-provider"
+                    title="Firebase Push & FCM"
+                    description="Web Push VAPID, Firebase client config & encrypted Admin Service Account JSON"
+                    icon={<Key className="size-4" />}
+                    enabled={form["firebase.enabled"] ?? false}
+                    onToggleEnabled={(c) => updateFormField("firebase.enabled", c)}
+                    scope="PLATFORM"
+                    group="firebase"
+                  >
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Project ID</Label>
+                        <Input
+                          value={form["firebase.project_id"] || ""}
+                          onChange={(e) => updateFormField("firebase.project_id", e.target.value)}
+                          placeholder="masterhrms-prod"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Web API Key</Label>
+                        <Input
+                          value={form["firebase.api_key"] || ""}
+                          onChange={(e) => updateFormField("firebase.api_key", e.target.value)}
+                          placeholder="AIzaSy..."
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">Messaging Sender ID</Label>
+                        <Input
+                          value={form["firebase.messaging_sender_id"] || ""}
+                          onChange={(e) => updateFormField("firebase.messaging_sender_id", e.target.value)}
+                          placeholder="123456789012"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold">App ID</Label>
+                        <Input
+                          value={form["firebase.app_id"] || ""}
+                          onChange={(e) => updateFormField("firebase.app_id", e.target.value)}
+                          placeholder="1:123456:web:abc"
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5 pt-2">
+                      <Label className="text-xs font-semibold">Web Push VAPID Key</Label>
+                      <Input
+                        value={form["firebase.vapid_key"] || ""}
+                        onChange={(e) => updateFormField("firebase.vapid_key", e.target.value)}
+                        placeholder="BEl62iUYgUivxIkv..."
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="pt-2">
+                      <SecretField
+                        id="firebase_service_account_json"
+                        label="Service Account JSON (Encrypted)"
+                        hasSavedSecret={isSecretSet("firebase.service_account_json")}
+                        value={getSecretValue("firebase.service_account_json")}
+                        onChange={(val) => updateFormField("firebase.service_account_json", val)}
+                      />
+                    </div>
+                  </ProviderCard>
+                </>
+              )}
+
+              <Card className="border border-border/80 shadow-xs">
+                <CardHeader className="border-b border-border/40 pb-3">
+                  <CardTitle className="text-base font-semibold">Integration Hub</CardTitle>
+                  <CardDescription className="text-xs">
+                    Biometric attendance clocks, Webhooks, and automated connectors.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-4 space-y-4">
+                  <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-foreground">Biometric Clock Sync</span>
+                      <p className="text-[11px] text-muted-foreground">ZKTeco and eSSL device attendance synchronization</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                      READY
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="text-[10px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
-                    ACTIVE
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-semibold text-foreground">Outbox Webhook Dispatcher</span>
+                      <p className="text-[11px] text-muted-foreground">Transactional HMAC-signed events to custom endpoints</p>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] font-mono bg-blue-500/10 text-blue-600 border-blue-500/20">
+                      ACTIVE
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* ─── 9. SYSTEM OPERATIONS (PLATFORM ONLY) ────────────────── */}

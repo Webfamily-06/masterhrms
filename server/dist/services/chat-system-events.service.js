@@ -2,12 +2,12 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.recordSystemEvent = recordSystemEvent;
 const prisma_1 = require("../prisma");
-const socket_1 = require("../socket");
-const pusher_service_1 = require("./pusher.service");
+const chat_service_1 = require("./chat.service");
 /**
  * Persists and broadcasts typed chat system events (group lifecycle, call history indications, etc.)
+ * strictly to authorized conversation participants — never to tenant-wide channels.
  */
-async function recordSystemEvent(tenantId, threadId, actorId, eventType, content, metadata = {}, tx) {
+async function recordSystemEvent(tenantId, threadId, actorId, eventType, content, metadata = {}, tx, explicitParticipantIds) {
     const db = tx || prisma_1.rawPrisma || prisma_1.prisma;
     let actorName = "System";
     let actorAvatar = null;
@@ -43,14 +43,35 @@ async function recordSystemEvent(tenantId, threadId, actorId, eventType, content
             deliveryStatus: "delivered",
         },
     });
-    try {
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:message", { threadId, message: eventMsg });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:system_event", { threadId, message: eventMsg, eventType });
-        pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message", { threadId, message: eventMsg }).catch(() => { });
-        pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:system_event", { threadId, message: eventMsg, eventType }).catch(() => { });
+    // Only emit after persistence; if inside an uncommitted transaction (`tx`), defer emit to next tick
+    const emitFn = async () => {
+        try {
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId,
+                event: "chat:message",
+                payload: { threadId, message: eventMsg },
+                participantUserIds: explicitParticipantIds,
+            });
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId,
+                event: "chat:system_event",
+                payload: { threadId, message: eventMsg, eventType },
+                participantUserIds: explicitParticipantIds,
+            });
+        }
+        catch (err) {
+            console.warn("Realtime system event broadcast failed:", err.message);
+        }
+    };
+    if (tx) {
+        setImmediate(() => {
+            void emitFn();
+        });
     }
-    catch (err) {
-        console.warn("Realtime system event broadcast failed:", err.message);
+    else {
+        await emitFn();
     }
     return eventMsg;
 }

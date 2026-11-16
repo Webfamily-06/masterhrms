@@ -1301,19 +1301,24 @@ dashboardRouter.get("/tenant", async (req: AuthRequest, res: Response) => {
   if (!tenantId) return;
 
   try {
+    const { resolveBranding } = await import("../services/branding/branding-resolver.service");
     const [
       tenant,
+      branding,
       userCount,
       employeeCount,
       subscription,
       activeAddonsCount,
+      rolesCount,
+      tenantMods,
     ] = await Promise.all([
       withRetry(() =>
         rawPrisma.tenant.findUnique({
           where: { id: tenantId },
-          select: { id: true, name: true, slug: true, createdAt: true },
+          select: { id: true, name: true, slug: true, timezone: true, currency: true, createdAt: true },
         })
       ).catch(() => null),
+      resolveBranding({ scope: "TENANT", tenantId }).catch(() => null),
       withRetry(() => rawPrisma.userRole.count({ where: { tenantId } })).catch(() => 0),
       withRetry(() => rawPrisma.employee.count({ where: { tenantId } })).catch(() => 0),
       withRetry(() =>
@@ -1327,22 +1332,44 @@ dashboardRouter.get("/tenant", async (req: AuthRequest, res: Response) => {
           where: { tenantId, status: "active" },
         })
       ).catch(() => 0),
+      withRetry(() => rawPrisma.workspaceRole.count({ where: { tenantId, isActive: true } })).catch(() => 0),
+      withRetry(() => rawPrisma.tenantModule.findMany({ where: { tenantId } })).catch(() => []),
     ]);
 
     const recentAudits = await withRetry(() =>
       rawPrisma.settingAudit.findMany({
         where: { scope: "TENANT", scopeId: tenantId },
         orderBy: { createdAt: "desc" },
-        take: 5,
+        take: 6,
         select: { id: true, key: true, changedBy: true, createdAt: true },
       })
     ).catch(() => []);
 
     const totalStorageGb = subscription?.storageLimitGb ? Number(subscription.storageLimitGb) : 10;
     const usedGb = 0;
+    const disabledModsCount = Array.isArray(tenantMods)
+      ? tenantMods.filter((m: any) => m.isEnabled === false).length
+      : 0;
+    const resolvedTenantName = branding?.appName || tenant?.name || "Enterprise Workspace";
+    const resolvedTimezone = branding?.locale?.timezone || tenant?.timezone || "Asia/Kolkata";
+    const resolvedCurrency = branding?.locale?.defaultCurrency || tenant?.currency || "INR";
+    const resolvedCurrencySymbol = branding?.locale?.currencySymbol || "₹";
 
     return res.json({
-      workspace: tenant,
+      workspace: tenant
+        ? {
+            ...tenant,
+            name: resolvedTenantName,
+            timezone: resolvedTimezone,
+            currency: resolvedCurrency,
+            currencySymbol: resolvedCurrencySymbol,
+          }
+        : null,
+      tenantName: resolvedTenantName,
+      timezone: resolvedTimezone,
+      currency: resolvedCurrency,
+      currencySymbol: resolvedCurrencySymbol,
+      primaryColor: branding?.primaryColor || "#2563EB",
       planName: subscription?.planType || "Starter",
       subscriptionStatus: subscription?.status || "active",
       planType: subscription?.planType || "Starter",
@@ -1352,6 +1379,8 @@ dashboardRouter.get("/tenant", async (req: AuthRequest, res: Response) => {
       totalEmployees: employeeCount,
       maxEmployees: subscription?.employeeLimit ? Number(subscription.employeeLimit) : 50,
       activeAddonsCount,
+      rolesCount,
+      disabledModulesCount: disabledModsCount,
       storageUsage: {
         usedGB: usedGb,
         totalGB: totalStorageGb,
@@ -1361,8 +1390,11 @@ dashboardRouter.get("/tenant", async (req: AuthRequest, res: Response) => {
       systemHealth: "100.0%",
       recentAudits: recentAudits.map((a) => ({
         id: a.id,
+        key: a.key,
         action: `Updated ${a.key} configuration`,
+        changedBy: a.changedBy || "Tenant Admin",
         user: a.changedBy || "Tenant Admin",
+        createdAt: a.createdAt,
         timestamp: a.createdAt,
       })),
     });

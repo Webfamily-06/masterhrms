@@ -13,6 +13,7 @@ const ledger_posting_service_1 = require("./ledger-posting.service");
 const tenant_context_1 = require("../context/tenant-context");
 const contract_billing_service_1 = require("./contract-billing.service");
 const contract_invoice_service_1 = require("./contract-invoice.service");
+const leave_encashment_compoff_service_1 = require("./leave-encashment-compoff.service");
 const db = prisma_1.rawPrisma || prisma_1.prisma;
 // In-memory locking removed in AUD-CONC-002 in favor of PostgreSQL atomic conditional updates (claim-check)
 class PayrollOrchestratorService {
@@ -125,6 +126,9 @@ class PayrollOrchestratorService {
         const employees = await db.employee.findMany({
             where: {
                 tenantId,
+                employmentCategory: {
+                    notIn: ["vendor_outsourced", "consultant_freelancer"],
+                },
                 OR: [
                     { status: "active" },
                     {
@@ -305,6 +309,41 @@ class PayrollOrchestratorService {
         for (const loan of activeLoans) {
             loanByEmp.set(loan.employeeId, loan);
         }
+        // Fetch approved expense claims for payroll addition (Stage 9: Reimbursements)
+        const approvedClaims = await db.expenseClaim.findMany({
+            where: {
+                tenantId,
+                status: "finance_approved",
+                reimbursementMethod: "payroll_addition",
+                payrollRunId: null,
+            },
+        });
+        const claimsByEmp = new Map();
+        for (const claim of approvedClaims) {
+            const list = claimsByEmp.get(claim.employeeId) || [];
+            list.push(claim);
+            claimsByEmp.set(claim.employeeId, list);
+        }
+        // Stage 9B: Scheduled Leave Encashment Earnings for this payroll period
+        const scheduledEncashments = await db.leaveEncashmentRequest.findMany({
+            where: {
+                tenantId,
+                type: "ENCASHMENT",
+                payrollPeriodMonth: run.periodMonth,
+                payrollPeriodYear: run.periodYear,
+                status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+            },
+            include: {
+                payrollComponent: true,
+                leaveType: true,
+            },
+        });
+        const encashmentsByEmp = new Map();
+        for (const enc of scheduledEncashments) {
+            const list = encashmentsByEmp.get(enc.employeeId) || [];
+            list.push(enc);
+            encashmentsByEmp.set(enc.employeeId, list);
+        }
         let batchTotalGross = new decimal_js_1.default(0);
         let batchTotalNet = new decimal_js_1.default(0);
         let batchTotalDeductions = new decimal_js_1.default(0);
@@ -339,6 +378,9 @@ class PayrollOrchestratorService {
             const hourlyRate = basicForOt / 26 / 8;
             const overtimeAmount = approvedOtHours > 0 ? hourlyRate * 2 * approvedOtHours : 0;
             // Stage 8: Statutory Deductions & Proration
+            // Stage 9: Reimbursements
+            const empClaims = claimsByEmp.get(emp.id) || [];
+            const reimbursementAmount = empClaims.reduce((sum, c) => sum + Number(c.amount || 0), 0);
             const breakdown = (0, payroll_engine_service_1.computeEmployeePayrollBreakdown)({
                 id: emp.id,
                 employeeCode: emp.employeeCode,
@@ -363,6 +405,7 @@ class PayrollOrchestratorService {
                 periodYear: run.periodYear,
                 structureComponents: customComponents && customComponents.length > 0 ? customComponents : undefined,
                 overtimeAmount,
+                reimbursements: reimbursementAmount,
             });
             // Stage 10: Loan Deduction
             const activeLoan = loanByEmp.get(emp.id);
@@ -372,9 +415,21 @@ class PayrollOrchestratorService {
                 const balance = Number(activeLoan.outstandingBalance || 0);
                 loanDeduction = Math.min(emi, balance);
             }
-            // Add loan deduction to total deductions and recompute net pay
+            // Add loan deduction & scheduled leave encashment earnings and recompute net pay
+            const empEncashments = encashmentsByEmp.get(emp.id) || [];
+            const leaveEncashmentAmount = empEncashments.reduce((sum, r) => sum.plus(new decimal_js_1.default(r.netPayableAmount ?? r.grossAmount ?? 0)), new decimal_js_1.default(0));
+            const encashmentItems = empEncashments.map((r) => ({
+                requestId: r.id,
+                requestCode: r.requestCode,
+                leaveTypeName: r.leaveType?.name || "Leave Encashment",
+                componentCode: r.payrollComponent?.code || "LEAVE_ENCASH",
+                componentName: r.payrollComponent?.name || "Leave Encashment",
+                days: Number(r.approvedDays ?? r.days),
+                amount: Number(r.netPayableAmount ?? r.grossAmount ?? 0),
+                payrollRef: r.payrollRef,
+            }));
             const finalDeductions = new decimal_js_1.default(breakdown.deductions.totalDeductions).plus(loanDeduction);
-            const finalGross = new decimal_js_1.default(breakdown.earnings.totalGross);
+            const finalGross = new decimal_js_1.default(breakdown.earnings.totalGross).plus(leaveEncashmentAmount);
             const finalNet = decimal_js_1.default.max(0, finalGross.minus(finalDeductions));
             batchTotalGross = batchTotalGross.plus(finalGross);
             batchTotalNet = batchTotalNet.plus(finalNet);
@@ -385,6 +440,11 @@ class PayrollOrchestratorService {
                 lopDays,
                 approvedOtHours,
                 loanDeduction,
+                reimbursementAmount,
+                empClaims,
+                empEncashments,
+                leaveEncashmentAmount: leaveEncashmentAmount.toNumber(),
+                encashmentItems,
                 breakdown,
                 gross: finalGross,
                 net: finalNet,
@@ -415,6 +475,11 @@ class PayrollOrchestratorService {
                         breakdown: {
                             ...item.breakdown,
                             loanRecovery: item.loanDeduction,
+                            reimbursements: item.reimbursementAmount,
+                            claimIds: item.empClaims.map((c) => c.id),
+                            leaveEncashmentAmount: item.leaveEncashmentAmount,
+                            encashmentRequestIds: item.empEncashments.map((e) => e.id),
+                            encashmentItems: item.encashmentItems,
                             attendance: {
                                 monthDays,
                                 payableDays: item.payableDays,
@@ -442,10 +507,30 @@ class PayrollOrchestratorService {
                             payslipId: payslip.id,
                             ...item.breakdown,
                             loanRecovery: item.loanDeduction,
+                            reimbursements: item.reimbursementAmount,
+                            claimIds: item.empClaims.map((c) => c.id),
+                            leaveEncashmentAmount: item.leaveEncashmentAmount,
+                            encashmentRequestIds: item.empEncashments.map((e) => e.id),
+                            encashmentItems: item.encashmentItems,
                             prorationFactor: item.emp.prorationFactor,
                         },
                     },
                 });
+                if (item.empEncashments.length > 0) {
+                    await tx.leaveEncashmentRequest.updateMany({
+                        where: {
+                            tenantId,
+                            id: { in: item.empEncashments.map((e) => e.id) },
+                            status: { in: ["PAYROLL_PENDING", "PAYROLL_PROCESSING"] },
+                        },
+                        data: {
+                            status: "PAYROLL_PROCESSING",
+                            payrollStatus: "PAYROLL_PROCESSING",
+                            payrollRunId: runId,
+                            payslipId: payslip.id,
+                        },
+                    });
+                }
             }
             // Update PayrollRun totals and state
             await tx.payrollRun.update({
@@ -1054,7 +1139,8 @@ class PayrollOrchestratorService {
                                 },
                             });
                             if (!existingInstallment) {
-                                const newBalance = Math.max(0, Number(loan.outstandingBalance) - loanRecovery);
+                                const actualRecovery = Math.min(loanRecovery, Number(loan.outstandingBalance));
+                                const newBalance = Math.max(0, Number(loan.outstandingBalance) - actualRecovery);
                                 await tx.employeeLoan.update({
                                     where: { id: loan.id },
                                     data: {
@@ -1062,26 +1148,68 @@ class PayrollOrchestratorService {
                                         status: newBalance === 0 ? "completed" : "active",
                                     },
                                 });
-                                // Create installment record linked to payrollRunId
-                                const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
-                                await tx.loanInstallment.create({
-                                    data: {
+                                // Check if a scheduled installment already exists for this period
+                                const pendingInstallment = await tx.loanInstallment.findFirst({
+                                    where: {
                                         loanId: loan.id,
-                                        tenantId,
-                                        installmentNumber: count + 1,
                                         periodMonth: run.periodMonth,
                                         periodYear: run.periodYear,
-                                        emiAmount: loanRecovery,
-                                        principalComponent: loanRecovery,
-                                        interestComponent: 0,
-                                        status: "paid",
-                                        payrollRunId: runId,
-                                        deductedAt: new Date(),
+                                        status: { in: ["pending", "unpaid"] },
                                     },
                                 });
+                                if (pendingInstallment) {
+                                    await tx.loanInstallment.update({
+                                        where: { id: pendingInstallment.id },
+                                        data: {
+                                            status: "paid",
+                                            payrollRunId: runId,
+                                            deductedAt: new Date(),
+                                            emiAmount: actualRecovery,
+                                            principalComponent: actualRecovery,
+                                        },
+                                    });
+                                }
+                                else {
+                                    // Create installment record linked to payrollRunId
+                                    const count = await tx.loanInstallment.count({ where: { loanId: loan.id } });
+                                    await tx.loanInstallment.create({
+                                        data: {
+                                            loanId: loan.id,
+                                            tenantId,
+                                            installmentNumber: count + 1,
+                                            periodMonth: run.periodMonth,
+                                            periodYear: run.periodYear,
+                                            emiAmount: actualRecovery,
+                                            principalComponent: actualRecovery,
+                                            interestComponent: 0,
+                                            status: "paid",
+                                            payrollRunId: runId,
+                                            deductedAt: new Date(),
+                                        },
+                                    });
+                                }
                             }
                         }
                     }
+                }
+                // Mark authorized expense claims as reimbursed (Stage 9: Reimbursements)
+                const allClaimIds = [];
+                for (const slip of run.payslips) {
+                    const breakdown = slip.breakdown;
+                    if (Array.isArray(breakdown?.claimIds) && breakdown.claimIds.length > 0) {
+                        allClaimIds.push(...breakdown.claimIds);
+                    }
+                }
+                if (allClaimIds.length > 0) {
+                    await tx.expenseClaim.updateMany({
+                        where: { id: { in: allClaimIds } },
+                        data: {
+                            status: "reimbursed",
+                            payrollRunId: runId,
+                            payrollMonth: `${run.periodYear}-${String(run.periodMonth).padStart(2, "0")}`,
+                            reimbursedAt: new Date(),
+                        },
+                    });
                 }
                 // Update cycle to OUTPUTS_GENERATED
                 const completedRun = await tx.payrollRun.update({
@@ -1120,6 +1248,12 @@ class PayrollOrchestratorService {
                         closedBy: actor.email,
                     },
                 },
+            });
+            // Reconcile & mark scheduled Leave Encashment items as PAID strictly after verified cycle completion
+            await leave_encashment_compoff_service_1.LeaveEncashmentCompOffService.reconcileAndMarkPayrollPaid(tenantId, {
+                payrollRunId: runId,
+                actorUserId: actor.id,
+                actorEmail: actor.email,
             });
             return {
                 run: closedRun,

@@ -12,7 +12,7 @@ const oauth_factory_1 = require("../services/factories/oauth.factory");
 const prisma_1 = require("../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 exports.settingsRouter = (0, express_1.Router)();
-function resolveScopeAndId(req, requestedScope) {
+function resolveScopeAndId(req, requestedScope, isMutation = false) {
     const normScope = requestedScope.toUpperCase();
     if (!["PLATFORM", "TENANT", "USER"].includes(normScope)) {
         throw new Error(`Invalid scope '${requestedScope}'. Allowed: PLATFORM, TENANT, USER`);
@@ -33,10 +33,27 @@ function resolveScopeAndId(req, requestedScope) {
             err.status = 400;
             throw err;
         }
+        if (isMutation) {
+            const roles = (req.user?.roles || []).map((r) => r.toLowerCase());
+            const isTenantAdmin = isSuper ||
+                roles.some((r) => ["admin", "tenant_admin", "hr_admin", "owner", "settings_admin"].includes(r)) ||
+                Boolean(req.user?.isOwner);
+            if (!isTenantAdmin) {
+                const err = new Error("Forbidden: Administrative privilege required to modify TENANT settings");
+                err.status = 403;
+                throw err;
+            }
+        }
         return { scope: "TENANT", scopeId: tenantId };
     }
     // USER scope
-    return { scope: "USER", scopeId: req.user?.userId || null };
+    const currentUserId = req.user?.userId;
+    if (!currentUserId) {
+        const err = new Error("Unauthorized: User identifier missing in session");
+        err.status = 401;
+        throw err;
+    }
+    return { scope: "USER", scopeId: currentUserId };
 }
 /**
  * GET /api/v1/settings/:scope/:group
@@ -60,7 +77,7 @@ exports.settingsRouter.get("/:scope/:group", auth_1.requireAuth, async (req, res
  */
 exports.settingsRouter.put("/:scope/:group", auth_1.requireAuth, async (req, res) => {
     try {
-        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
         const group = req.params.group;
         const context = {
             userId: req.user?.userId,
@@ -217,7 +234,7 @@ exports.settingsRouter.post("/:scope/:group/test", auth_1.requireAuth, async (re
  */
 exports.settingsRouter.delete("/:scope/:group/:key", auth_1.requireAuth, async (req, res) => {
     try {
-        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
         const { group, key } = req.params;
         const context = {
             userId: req.user?.userId,
@@ -237,7 +254,7 @@ exports.settingsRouter.delete("/:scope/:group/:key", auth_1.requireAuth, async (
  */
 exports.settingsRouter.post("/:scope/:group/reset", auth_1.requireAuth, async (req, res) => {
     try {
-        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope);
+        const { scope, scopeId } = resolveScopeAndId(req, req.params.scope, true);
         const group = req.params.group;
         const context = {
             userId: req.user?.userId,

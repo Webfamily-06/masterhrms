@@ -321,12 +321,12 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     key: "email.provider_type",
     group: "email",
     label: "Email Delivery Provider",
-    help: "Transport provider used for transactional and notification emails (smtp, resend, sendgrid, ses).",
+    help: "Transport provider used for transactional and notification emails (smtp, custom, gmail, hostinger, cpanel, resend, sendgrid, ses).",
     type: "string",
     default: "smtp",
     scopes: ["PLATFORM", "TENANT"],
     validation: (val) => {
-      const allowed = ["smtp", "resend", "sendgrid", "ses"];
+      const allowed = ["smtp", "custom", "gmail", "cpanel", "hostinger", "resend", "sendgrid", "ses", "mailgun", "postmark"];
       if (typeof val !== "string" || !allowed.includes(val.toLowerCase())) {
         return { valid: false, error: `Provider must be one of: ${allowed.join(", ")}` };
       }
@@ -1117,6 +1117,512 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     applyStrategy: "INSTANT",
     realtimeTopic: "settings.updated",
   },
+
+  // ─── User Personal Preferences ───────────────────────────────────
+  "user.theme_mode": {
+    key: "user.theme_mode",
+    group: "user",
+    label: "Theme Mode",
+    help: "Personal display mode preference (light, dark, or system default).",
+    type: "string",
+    default: "system",
+    scopes: ["USER"],
+    validation: (val) => {
+      if (!["light", "dark", "system"].includes(val)) {
+        return { valid: false, error: "Theme mode must be 'light', 'dark', or 'system'" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.locale": {
+    key: "user.locale",
+    group: "user",
+    label: "Display Language",
+    help: "Preferred language and regional formatting.",
+    type: "string",
+    default: "en-US",
+    scopes: ["USER"],
+    applyStrategy: "NEXT_REQUEST",
+    realtimeTopic: "settings.updated",
+  },
+  "user.primary_color": {
+    key: "user.primary_color",
+    group: "user",
+    label: "Personal Theme Accent Color",
+    help: "Individual employee theme accent color applied to buttons, active highlights, focus rings, and badges for this user only.",
+    type: "color",
+    default: null,
+    scopes: ["USER"],
+    validation: (val) => {
+      if (val === null || val === "") return { valid: true };
+      if (typeof val !== "string" || !/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(val.trim())) {
+        return { valid: false, error: "Personal accent color must be a valid hex color (e.g. #0D9488)" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.timezone": {
+    key: "user.timezone",
+    group: "user",
+    label: "Personal Timezone",
+    help: "Optional personal timezone override. Leave blank to automatically sync with the Tenant Workspace Timezone.",
+    type: "string",
+    default: "",
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.date_format": {
+    key: "user.date_format",
+    group: "user",
+    label: "Preferred Date Format",
+    help: "Format used to display dates across the personal dashboard and timesheets.",
+    type: "string",
+    default: "YYYY-MM-DD",
+    scopes: ["USER"],
+    validation: (val) => {
+      if (!["YYYY-MM-DD", "DD/MM/YYYY", "MM/DD/YYYY", "DD-MMM-YYYY"].includes(val)) {
+        return { valid: false, error: "Invalid date format specification" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.time_format": {
+    key: "user.time_format",
+    group: "user",
+    label: "Preferred Time Format",
+    help: "12-hour or 24-hour clock display preference.",
+    type: "string",
+    default: "HH:mm",
+    scopes: ["USER"],
+    validation: (val) => {
+      if (!["HH:mm", "hh:mm A"].includes(val)) {
+        return { valid: false, error: "Time format must be 'HH:mm' (24h) or 'hh:mm A' (12h)" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.notifications_email": {
+    key: "user.notifications_email",
+    group: "user",
+    label: "Email Notifications",
+    help: "Receive email notifications for approvals, tasks, and company announcements.",
+    type: "boolean",
+    default: true,
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.notifications_inapp": {
+    key: "user.notifications_inapp",
+    group: "user",
+    label: "In-App Notifications",
+    help: "Show popups and badges for active alerts in the header dock.",
+    type: "boolean",
+    default: true,
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.notifications_push": {
+    key: "user.notifications_push",
+    group: "user",
+    label: "Browser & Mobile Push Notifications",
+    help: "Allow browser and mobile web push notifications.",
+    type: "boolean",
+    default: false,
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.quiet_hours_enabled": {
+    key: "user.quiet_hours_enabled",
+    group: "user",
+    label: "Enable Quiet Hours",
+    help: "Suppress all non-urgent sound and push notifications during specified hours.",
+    type: "boolean",
+    default: false,
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.quiet_hours_start": {
+    key: "user.quiet_hours_start",
+    group: "user",
+    label: "Quiet Hours Start Time",
+    help: "Time when silent notifications take effect (e.g. 22:00).",
+    type: "string",
+    default: "22:00",
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.quiet_hours_end": {
+    key: "user.quiet_hours_end",
+    group: "user",
+    label: "Quiet Hours End Time",
+    help: "Time when notifications resume normal sound and delivery (e.g. 07:00).",
+    type: "string",
+    default: "07:00",
+    scopes: ["USER"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "user.calendar_first_day": {
+    key: "user.calendar_first_day",
+    group: "user",
+    label: "Calendar First Day of Week",
+    help: "Choose whether the personal calendar week starts on Sunday (0) or Monday (1).",
+    type: "number",
+    default: 1,
+    scopes: ["USER"],
+    validation: (val) => {
+      const num = Number(val);
+      if (num !== 0 && num !== 1) {
+        return { valid: false, error: "Calendar first day must be 0 (Sunday) or 1 (Monday)" };
+      }
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── Platform & Tenant Appearance ────────────────────────────────
+  "appearance.theme_mode": {
+    key: "appearance.theme_mode",
+    group: "appearance",
+    label: "Default Workspace Theme",
+    help: "Default theme applied to newly onboarded workspace members.",
+    type: "string",
+    default: "system",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "appearance.sidebar_layout": {
+    key: "appearance.sidebar_layout",
+    group: "appearance",
+    label: "Sidebar Navigation Layout",
+    help: "Default layout style for sidebar navigation (vertical or compact).",
+    type: "string",
+    default: "vertical",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "appearance.density": {
+    key: "appearance.density",
+    group: "appearance",
+    label: "Display Density",
+    help: "Controls table and list item padding (compact, comfortable, relaxed).",
+    type: "string",
+    default: "comfortable",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── Platform SEO & Metadata ─────────────────────────────────────
+  "seo.meta_title": {
+    key: "seo.meta_title",
+    group: "seo",
+    label: "Meta Title",
+    help: "Primary title tag rendered in public page headers and search engine crawlers.",
+    type: "string",
+    default: "Master HRMS — Enterprise Human Resource Platform",
+    scopes: ["PLATFORM"],
+    validation: (val) => {
+      if (typeof val !== "string" || val.trim().length === 0) return { valid: false, error: "SEO title is required" };
+      return { valid: true };
+    },
+    applyStrategy: "NEXT_REQUEST",
+    realtimeTopic: "settings.updated",
+  },
+  "seo.meta_description": {
+    key: "seo.meta_description",
+    group: "seo",
+    label: "Meta Description",
+    help: "Public summary snippet displayed in search engine results and social previews.",
+    type: "string",
+    default: "Next-generation Enterprise HRMS, Payroll, Attendance, and Performance Platform.",
+    scopes: ["PLATFORM"],
+    applyStrategy: "NEXT_REQUEST",
+    realtimeTopic: "settings.updated",
+  },
+  "seo.canonical_url": {
+    key: "seo.canonical_url",
+    group: "seo",
+    label: "Canonical URL",
+    help: "Official canonical URL prefix used for open graph metadata.",
+    type: "string",
+    default: "https://masterhrms.com",
+    scopes: ["PLATFORM"],
+    applyStrategy: "NEXT_REQUEST",
+    realtimeTopic: "settings.updated",
+  },
+  "seo.robots_index": {
+    key: "seo.robots_index",
+    group: "seo",
+    label: "Search Engine Indexing",
+    help: "When enabled, robots.txt and meta tags permit indexation of public landing and registration pages.",
+    type: "boolean",
+    default: true,
+    scopes: ["PLATFORM"],
+    applyStrategy: "NEXT_REQUEST",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── Invoicing & Billing Defaults ────────────────────────────────
+  "invoicing.recurring_default_interval": {
+    key: "invoicing.recurring_default_interval",
+    group: "invoicing",
+    label: "Default Billing Cycle Interval",
+    help: "Default periodicity for automated recurring invoice cycles (MONTHLY, QUARTERLY, ANNUALLY).",
+    type: "string",
+    default: "MONTHLY",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "invoicing.auto_post": {
+    key: "invoicing.auto_post",
+    group: "invoicing",
+    label: "Automated Ledger Posting",
+    help: "Automatically post generated recurring invoices to the accounting ledger.",
+    type: "boolean",
+    default: true,
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "invoicing.default_terms": {
+    key: "invoicing.default_terms",
+    group: "invoicing",
+    label: "Standard Payment Terms",
+    help: "Default terms and conditions printed on corporate invoices.",
+    type: "string",
+    default: "Net 30 days. Payment is due within 30 days from invoice generation date.",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── AI Governance & Provider ────────────────────────────────────
+  "ai.provider": {
+    key: "ai.provider",
+    group: "ai",
+    label: "AI Model Provider",
+    help: "Provider used for smart assistant and automated leave/attendance insights.",
+    type: "string",
+    default: "openai",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "ai.model": {
+    key: "ai.model",
+    group: "ai",
+    label: "AI Model Identifier",
+    help: "Model identifier (e.g., gpt-4o, claude-3-5-sonnet, gemini-1.5-pro).",
+    type: "string",
+    default: "gpt-4o",
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "ai.quota_per_tenant": {
+    key: "ai.quota_per_tenant",
+    group: "ai",
+    label: "Tenant Monthly Token Quota",
+    help: "Maximum AI token allocation per tenant per billing month.",
+    type: "number",
+    default: 100000,
+    scopes: ["PLATFORM"],
+    validation: (val) => {
+      const num = Number(val);
+      if (isNaN(num) || num < 0) return { valid: false, error: "Quota must be a non-negative number" };
+      return { valid: true };
+    },
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── Pusher WebSockets (Realtime Channels) ───────────────────────
+  "pusher.enabled": {
+    key: "pusher.enabled",
+    group: "pusher",
+    label: "Enable Pusher Channels",
+    help: "Enable Pusher WebSockets for distributed realtime signaling, chat, and call events.",
+    type: "boolean",
+    default: false,
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "pusher.app_id": {
+    key: "pusher.app_id",
+    group: "pusher",
+    label: "Pusher App ID",
+    help: "Numeric Application ID from your Pusher Channels dashboard.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "pusher.key": {
+    key: "pusher.key",
+    group: "pusher",
+    label: "Pusher App Key",
+    help: "Public client key used by browser clients to connect to Pusher.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "pusher.secret": {
+    key: "pusher.secret",
+    group: "pusher",
+    label: "Pusher App Secret",
+    help: "Server-side signing secret encrypted at rest with AES-256-GCM.",
+    type: "secret",
+    default: null,
+    isSecret: true,
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+  },
+  "pusher.cluster": {
+    key: "pusher.cluster",
+    group: "pusher",
+    label: "Pusher Cluster",
+    help: "Pusher regional cluster code (e.g. ap2, mt1, eu, us2).",
+    type: "string",
+    default: "ap2",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+
+  // ─── Firebase Cloud Messaging & Client SDK ───────────────────────
+  "firebase.enabled": {
+    key: "firebase.enabled",
+    group: "firebase",
+    label: "Enable Firebase Cloud Messaging",
+    help: "Enable Firebase SDK & FCM push notifications across web and mobile clients.",
+    type: "boolean",
+    default: false,
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.api_key": {
+    key: "firebase.api_key",
+    group: "firebase",
+    label: "Firebase Web API Key",
+    help: "Public Firebase Web API Key from Project Settings.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.auth_domain": {
+    key: "firebase.auth_domain",
+    group: "firebase",
+    label: "Firebase Auth Domain",
+    help: "Firebase Auth Domain (e.g. your-project.firebaseapp.com).",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.project_id": {
+    key: "firebase.project_id",
+    group: "firebase",
+    label: "Firebase Project ID",
+    help: "Unique Google Cloud / Firebase Project ID.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.storage_bucket": {
+    key: "firebase.storage_bucket",
+    group: "firebase",
+    label: "Firebase Storage Bucket",
+    help: "Firebase Cloud Storage bucket (e.g. your-project.appspot.com).",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.messaging_sender_id": {
+    key: "firebase.messaging_sender_id",
+    group: "firebase",
+    label: "FCM Messaging Sender ID",
+    help: "Numeric Cloud Messaging Sender ID.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.app_id": {
+    key: "firebase.app_id",
+    group: "firebase",
+    label: "Firebase App ID",
+    help: "Firebase Web App ID (e.g. 1:1234567890:web:abcdef).",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.measurement_id": {
+    key: "firebase.measurement_id",
+    group: "firebase",
+    label: "Google Analytics Measurement ID",
+    help: "Optional Measurement ID (e.g. G-XXXXXXXXXX).",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.vapid_key": {
+    key: "firebase.vapid_key",
+    group: "firebase",
+    label: "FCM Web Push VAPID Public Key",
+    help: "Web Push certificate key pair (public key) from Firebase Cloud Messaging.",
+    type: "string",
+    default: "",
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+    realtimeTopic: "settings.updated",
+  },
+  "firebase.service_account_json": {
+    key: "firebase.service_account_json",
+    group: "firebase",
+    label: "Firebase Admin Service Account JSON",
+    help: "Server-side Firebase Admin SDK Service Account JSON encrypted at rest with AES-256-GCM.",
+    type: "secret",
+    default: null,
+    isSecret: true,
+    scopes: ["PLATFORM"],
+    applyStrategy: "INSTANT",
+  },
 };
 
 export function getSettingDefinition(key: string): SettingDefinition | undefined {
@@ -1136,8 +1642,8 @@ export function validateSettingValue(key: string, value: any, scope?: SettingSco
   if (scope && !def.scopes.includes(scope)) {
     return { valid: false, error: `Setting '${key}' cannot be configured in '${scope}' scope` };
   }
-  // In TENANT scope, setting value to null or empty string resets the override to platform default
-  if (scope === "TENANT" && (value === null || value === undefined || value === "")) {
+  // In TENANT or USER scope, setting value to null or empty string resets the override to fallback
+  if ((scope === "TENANT" || scope === "USER") && (value === null || value === undefined || value === "")) {
     return { valid: true };
   }
   // If the setting default is null and value is null, it's valid

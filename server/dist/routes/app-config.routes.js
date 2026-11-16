@@ -65,11 +65,14 @@ exports.appConfigRouter.get("/app-config", async (req, res) => {
             tenantId: resolvedTenantId,
             isTenantHost: isTenantHost || Boolean(resolvedTenantId),
         });
-        // Resolve branding from SettingsService using the resolved scope and tenantId
-        const resolved = await (0, branding_resolver_service_1.resolveBranding)({
-            scope: resolution.scope,
-            tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
-        });
+        // Resolve branding and maintenance status concurrently
+        const [resolved, maintConfig] = await Promise.all([
+            (0, branding_resolver_service_1.resolveBranding)({
+                scope: resolution.scope,
+                tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
+            }),
+            (0, maintenance_1.getPlatformMaintenanceConfig)(),
+        ]);
         const branding = {
             logoLight: resolved.logoLightUrl,
             logoLightUrl: resolved.logoLightUrl,
@@ -82,7 +85,6 @@ exports.appConfigRouter.get("/app-config", async (req, res) => {
             footerText: resolved.footerText,
             supportEmail: resolved.supportEmail,
         };
-        const maintConfig = await (0, maintenance_1.getPlatformMaintenanceConfig)();
         const maintEvaluation = (0, maintenance_1.evaluateMaintenanceStatus)(maintConfig);
         const config = {
             scope: resolution.scope,

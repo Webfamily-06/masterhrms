@@ -35,6 +35,7 @@ const hr_documents_routes_1 = require("./hr-documents.routes");
 const me_documents_routes_1 = require("./me-documents.routes");
 const hr_collaboration_routes_1 = require("./hr-collaboration.routes");
 const me_collaboration_routes_1 = require("./me-collaboration.routes");
+const hr_profile_changes_routes_1 = require("./hr-profile-changes.routes");
 exports.platformFoundationRouter = (0, express_1.Router)();
 exports.platformFoundationRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 // =========================================================================
@@ -42,6 +43,8 @@ exports.platformFoundationRouter.use(auth_1.requireAuth, tenant_context_middlewa
 // =========================================================================
 exports.platformFoundationRouter.use("/hr/organization", organization_routes_1.organizationRouter);
 exports.platformFoundationRouter.use("/hr/employees", hr_employees_routes_1.hrEmployeesRouter);
+exports.platformFoundationRouter.use("/hr/requests/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
+exports.platformFoundationRouter.use("/hr/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
 // =========================================================================
 // P3. ATTENDANCE & LEAVE BUSINESS LAYER
 // =========================================================================

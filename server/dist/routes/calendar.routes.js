@@ -682,6 +682,105 @@ exports.calendarRouter.get("/events", async (req, res) => {
                 console.warn("Failed to project todos in /api/calendar/events:", todoErr);
             }
         }
+        // Project Approved Leaves into Calendar (HR & Employee Calendar Integration)
+        if (!category || category === "all" || category === "leave") {
+            try {
+                const isHR = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin", "admin"].includes(r));
+                let currentEmp = null;
+                if (!isHR) {
+                    currentEmp = await prisma_1.prisma.employee.findFirst({
+                        where: { tenantId, userId },
+                        select: { id: true, departmentId: true, managerId: true },
+                    });
+                }
+                const leaveWhere = {
+                    tenantId,
+                    status: "approved",
+                };
+                if (windowStart && windowEnd) {
+                    leaveWhere.startDate = { lte: windowEnd };
+                    leaveWhere.endDate = { gte: windowStart };
+                }
+                if (!isHR) {
+                    if (currentEmp) {
+                        leaveWhere.OR = [
+                            { employeeId: currentEmp.id },
+                            ...(currentEmp.departmentId ? [{ employee: { departmentId: currentEmp.departmentId } }] : []),
+                        ];
+                    }
+                    else {
+                        leaveWhere.employee = { userId };
+                    }
+                }
+                const leaves = await prisma_1.prisma.leaveRequest.findMany({
+                    where: leaveWhere,
+                    include: {
+                        employee: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                employeeCode: true,
+                                userId: true,
+                                department: { select: { name: true } },
+                            },
+                        },
+                        leaveType: true,
+                    },
+                    take: 300,
+                });
+                for (const l of leaves) {
+                    const empName = `${l.employee.firstName} ${l.employee.lastName}`.trim();
+                    const leaveTypeName = l.leaveType?.name || "Leave";
+                    const isOwn = currentEmp ? l.employeeId === currentEmp.id : l.employee.userId === userId;
+                    const lStart = new Date(l.startDate);
+                    const lEnd = new Date(l.endDate);
+                    lEnd.setUTCHours(23, 59, 59, 999);
+                    formatted.push({
+                        id: `leave-${l.id}`,
+                        tenantId: l.tenantId,
+                        userId: l.employee.userId || userId,
+                        title: isHR ? `${empName} - ${leaveTypeName}` : (isOwn ? `My Leave: ${leaveTypeName}` : `${empName} (On Leave)`),
+                        description: isHR || isOwn ? (l.reason || `Approved ${leaveTypeName}`) : `On leave (${leaveTypeName})`,
+                        startDate: lStart.toISOString(),
+                        endDate: lEnd.toISOString(),
+                        allDay: true,
+                        category: "leave",
+                        color: l.leaveType?.color || "#f59e0b",
+                        location: "",
+                        meetingLink: null,
+                        status: "confirmed",
+                        visibility: "team",
+                        timezone: "Asia/Kolkata",
+                        recurrenceRule: null,
+                        recurringSeriesId: null,
+                        originalStartTime: null,
+                        roomId: null,
+                        room: null,
+                        cancelledAt: null,
+                        cancelledById: null,
+                        createdAt: l.createdAt.toISOString(),
+                        updatedAt: l.updatedAt.toISOString(),
+                        shares: [],
+                        reminders: [],
+                        isShared: !isOwn,
+                        userPermission: isOwn ? "owner" : "view",
+                        userRsvp: "accepted",
+                        organizerName: empName,
+                        sourceDomain: "leave",
+                        sourceId: l.id,
+                        linkTo: isHR ? `/hr/leave/applications` : `/me/leave/applications`,
+                        employeeName: empName,
+                        leaveTypeName,
+                        isPaid: l.leaveType?.isPaid ?? true,
+                        days: Number(l.days),
+                    });
+                }
+            }
+            catch (leaveErr) {
+                console.warn("Failed to project leaves in /api/calendar/events:", leaveErr);
+            }
+        }
         return res.json({ success: true, data: formatted });
     }
     catch (error) {

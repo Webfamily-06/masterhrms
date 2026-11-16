@@ -246,7 +246,16 @@ workspaceRouter.post("/subscription/cancel", async (req: AuthRequest, res: Respo
 // Helper: Ensure user has Workspace Admin or Super Admin authority
 async function checkIsWorkspaceAdmin(req: AuthRequest, tenantId: string): Promise<boolean> {
   if (req.user?.roles?.includes("super_admin")) return true;
-  if (req.user?.roles?.includes("admin") || req.user?.roles?.includes("workspace_admin")) return true;
+  if (
+    req.user?.roles?.some((r) =>
+      ["admin", "tenant_admin", "workspace_admin", "owner"].includes(r)
+    )
+  ) {
+    return true;
+  }
+  if (req.user?.workspaceRole === "owner" || req.user?.workspaceRole === "admin") {
+    return true;
+  }
 
   const assignment = await prisma.userRoleAssignment.findUnique({
     where: {
@@ -258,7 +267,10 @@ async function checkIsWorkspaceAdmin(req: AuthRequest, tenantId: string): Promis
     include: { role: true },
   });
 
-  return assignment?.role?.name === "Workspace Admin" && assignment?.role?.isActive === true;
+  return (
+    Boolean(assignment?.role?.isActive) &&
+    ["Workspace Admin", "Tenant Admin", "Administrator", "Owner"].includes(assignment?.role?.name || "")
+  );
 }
 
 // Middleware guard for Workspace Admin endpoints
@@ -673,6 +685,13 @@ workspaceRouter.put("/modules", requireWorkspaceAdminGuard, async (req: AuthRequ
         isEnabled,
       },
     });
+
+    // Invalidate auth/permission cache & broadcast workspace module toggle to all active dashboards
+    invalidateAuthCache(undefined, tenantId);
+    try {
+      const { RealtimeFactory } = await import("../services/factories/realtime.factory");
+      RealtimeFactory.broadcastSettingsUpdate("TENANT", tenantId, "modules", [moduleKey], Date.now());
+    } catch {}
 
     return res.json({
       message: "Module " + moduleKey + " " + (isEnabled ? "enabled" : "disabled") + " for workspace",

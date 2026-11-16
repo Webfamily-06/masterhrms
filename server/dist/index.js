@@ -118,6 +118,7 @@ const woocommerce_routes_1 = require("./routes/woocommerce.routes");
 const shopify_routes_1 = require("./routes/shopify.routes");
 const alerts_routes_1 = require("./routes/alerts.routes");
 const webhook_retry_worker_1 = require("./modules/outbound-webhooks/webhook-retry.worker");
+const attendance_automation_service_1 = require("./services/attendance-automation.service");
 const projects_routes_1 = require("./routes/projects.routes");
 const suppliers_routes_1 = require("./routes/suppliers.routes");
 const purchases_routes_1 = require("./routes/purchases.routes");
@@ -153,6 +154,7 @@ const public_files_routes_1 = require("./routes/public-files.routes");
 const webdav_routes_1 = require("./routes/webdav.routes");
 const app_config_routes_1 = require("./routes/app-config.routes");
 const employee_self_service_routes_1 = require("./routes/employee-self-service.routes");
+const hr_profile_changes_routes_1 = require("./routes/hr-profile-changes.routes");
 const company_profile_routes_1 = require("./routes/company-profile.routes");
 const settings_service_1 = require("./services/settings/settings.service");
 const media_service_1 = require("./services/media/media.service");
@@ -180,12 +182,15 @@ const biometric_sync_1 = require("./cron/biometric-sync");
 const biometric_reconcile_cron_1 = require("./cron/biometric-reconcile.cron");
 const subscription_reminder_cron_1 = require("./cron/subscription-reminder.cron");
 const calendar_reminder_scheduler_1 = require("./services/calendar-reminder.scheduler");
+const background_tasks_1 = require("./lib/background-tasks");
 const app = (0, express_1.default)();
 exports.app = app;
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
 // Enable reverse-proxy header trust (X-Forwarded-For, X-Forwarded-Proto) for Nginx / Cloudflare
 app.set("trust proxy", 1);
+// Serverless-safe realtime delivery: hold the response until tracked Pusher / Web Push work completes
+app.use(background_tasks_1.backgroundTaskMiddleware);
 app.use(security_hardening_middleware_1.securityHeadersMiddleware);
 // CORS setup
 const defaultAllowedOrigins = process.env.NODE_ENV === "production"
@@ -280,8 +285,57 @@ app.use(["/uploads", "/api/uploads"], uploads_security_middleware_1.uploadsSecur
     maxAge: "7d",
     etag: true,
     lastModified: true,
-    fallthrough: false,
-}));
+    fallthrough: true,
+}), async (req, res) => {
+    try {
+        const relPath = decodeURIComponent(req.path || "").replace(/^[/\\]+/, "");
+        if (!relPath || relPath.includes("..")) {
+            return res.status(404).json({ error: "File not found" });
+        }
+        const blob = await media_service_1.MediaService.fetchMediaBlobByRelativePath(relPath);
+        if (!blob) {
+            return res.status(404).json({ error: "File not found" });
+        }
+        // Cache warm copy on local `/tmp/uploads` atomically in background for subsequent requests
+        void (async () => {
+            try {
+                const abs = path_1.default.resolve(uploadsDir, relPath);
+                if (abs.startsWith(path_1.default.resolve(uploadsDir))) {
+                    const dir = path_1.default.dirname(abs);
+                    if (!fs_1.default.existsSync(dir))
+                        fs_1.default.mkdirSync(dir, { recursive: true });
+                    const tmpPath = `${abs}.tmp.${process.pid}.${Date.now()}`;
+                    await fs_1.default.promises.writeFile(tmpPath, blob.buffer);
+                    await fs_1.default.promises.rename(tmpPath, abs);
+                }
+            }
+            catch { }
+        })();
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        res.setHeader("Content-Type", blob.mimeType || "application/octet-stream");
+        const total = blob.buffer.length;
+        const range = req.headers.range;
+        if (range && range.startsWith("bytes=")) {
+            const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+            const start = Math.max(0, parseInt(startStr, 10) || 0);
+            const end = endStr ? Math.min(total - 1, parseInt(endStr, 10)) : total - 1;
+            if (start <= end && start < total) {
+                res.status(206);
+                res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+                res.setHeader("Content-Length", String(end - start + 1));
+                return res.end(blob.buffer.subarray(start, end + 1));
+            }
+        }
+        res.setHeader("Content-Length", String(total));
+        return res.end(blob.buffer);
+    }
+    catch {
+        return res.status(404).json({ error: "File not found" });
+    }
+});
 app.use((0, compression_1.default)()); // Gzip all responses — 60-80% smaller payloads
 // ── 1. Core Platform Health Probes (Bypass all host, auth, & subscription middlewares) ──
 app.get(["/api/health/live", "/health/live", "/live"], (_req, res) => {
@@ -424,6 +478,11 @@ app.use("/api", app_config_routes_1.appConfigRouter);
 // Employee Self-Service (ESS) Routes (/api/v1/me & /api/me)
 app.use("/api/v1/me", employee_self_service_routes_1.employeeSelfServiceRouter);
 app.use("/api/me", employee_self_service_routes_1.employeeSelfServiceRouter);
+// HR Profile Change Requests Queue (/api/v1/hr/requests/profile-changes & aliases)
+app.use("/api/v1/hr/requests/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
+app.use("/api/hr/requests/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
+app.use("/api/v1/hr/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
+app.use("/api/hr/profile-changes", hr_profile_changes_routes_1.hrProfileChangesRouter);
 // Company Profile & GST (Phase 2 Wave 2.1)
 app.use("/api/v1/company-profile", company_profile_routes_1.companyProfileRouter);
 app.use("/api/company-profile", company_profile_routes_1.companyProfileRouter);
@@ -438,7 +497,7 @@ app.use("/api", workspace_routing_routes_1.workspaceRoutingRouter);
 app.use("/api/workspace", workspace_routes_1.workspaceRouter);
 app.use("/api/cms", cms_routes_1.cmsRouter);
 app.use("/api/dashboard", dashboard_routes_1.dashboardRouter); // Aggregation endpoint — replaces N individual calls
-app.use("/api/employees", employees_routes_1.employeesRouter);
+app.use(["/api/employees", "/api/v1/employees", "/api/hr/employees", "/api/v1/hr/employees"], employees_routes_1.employeesRouter);
 app.use("/api/attendance", attendance_routes_1.attendanceRouter);
 app.use("/api/leave", leave_routes_1.leaveRouter);
 app.use("/api/leaves", leave_routes_1.leaveRouter);
@@ -632,6 +691,29 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
     }
     scheduleDailySubscriptionReminders();
     calendar_reminder_scheduler_1.CalendarReminderScheduler.start();
+    // Schedule daily idempotent Comp-Off credit expiry & pre-expiry notification sweep (01:30 UTC daily)
+    function scheduleDailyCompOffExpirySweep() {
+        const now = new Date();
+        const nextRun = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 30, 0, 0));
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily Comp-Off credit expiry sweep...");
+                const result = await attendance_automation_service_1.AttendanceAutomationService.runGlobalCompOffExpirySweep();
+                console.log("✅ [CRON] Comp-Off expiry sweep finished:", result);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Comp-Off expiry sweep failed:", err?.message);
+            }
+            scheduleDailyCompOffExpirySweep();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily Comp-Off Expiry Sweep scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:30 UTC)`);
+    }
+    scheduleDailyCompOffExpirySweep();
     server.listen(Number(PORT), HOST, async () => {
         console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);
         console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);

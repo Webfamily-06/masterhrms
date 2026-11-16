@@ -19,9 +19,8 @@ class TenantConnectionManager {
             }
             console.warn("⚠️ [TenantConnectionManager] DATABASE_URL is missing from environment variables.");
         }
-        const rawShared = new client_1.PrismaClient({
-            datasources: { db: { url: baseDbUrl || "postgresql://missing_db_url@localhost:5432/postgres" } },
-        });
+        const rawShared = global.__rawPrisma ||
+            (global.__rawPrisma = new client_1.PrismaClient(baseDbUrl ? { datasources: { db: { url: baseDbUrl } } } : undefined));
         this.sharedClient = (0, tenant_isolation_extension_1.createTenantIsolationExtension)(rawShared);
         // Start background idle pool cleanup sweep (runs every minute, unrefed)
         const timer = setInterval(() => {

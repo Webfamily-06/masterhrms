@@ -10,13 +10,14 @@ const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const employee_context_middleware_1 = require("../middleware/employee-context.middleware");
 const prisma_1 = require("../prisma");
-const audit_service_1 = require("../services/audit.service");
-const outbox_service_1 = require("../services/outbox.service");
 const attendance_service_1 = require("../services/attendance.service");
 const pagination_1 = require("../lib/pagination");
 const socket_1 = require("../socket");
 const award_nomination_service_1 = require("../services/award-nomination.service");
 const award_certificate_service_1 = require("../services/award-certificate.service");
+const employee_change_request_service_1 = require("../services/employee-change-request.service");
+const reporting_manager_change_service_1 = require("../services/reporting-manager-change.service");
+const leave_service_1 = require("../services/leave.service");
 exports.employeeSelfServiceRouter = (0, express_1.Router)();
 // Apply auth, workspace tenant context, and employee resolution to all /api/v1/me/* endpoints
 exports.employeeSelfServiceRouter.use(auth_1.requireAuth);
@@ -134,89 +135,152 @@ exports.employeeSelfServiceRouter.put("/profile", async (req, res) => {
 });
 /**
  * POST /api/v1/me/profile/change-requests
- * Submits sensitive fields (bank, pan, legal name, aadhaar) for HR review & approval
+ * Submits sensitive fields (bank, pan, legal name, aadhaar, address, emergency contact)
+ * Supports compound payloads, drafts, attachments, and server-side allowlists.
  */
 exports.employeeSelfServiceRouter.post("/profile/change-requests", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
     const tenantId = req.user.tenantId;
-    const { fieldCategory, fieldKey, newValue, proofMediaId } = req.body;
-    if (!fieldCategory || !fieldKey || newValue === undefined) {
-        return res.status(400).json({ error: "fieldCategory, fieldKey, and newValue are required" });
-    }
-    const allowedCategories = ["bank", "personal", "statutory", "address"];
-    if (!allowedCategories.includes(fieldCategory)) {
-        return res.status(400).json({ error: "Invalid field category" });
+    const userId = req.user.userId;
+    const { fieldCategory, category, fieldKey, changes, newValue, proofMediaId, reason, isDraft } = req.body;
+    const targetCategory = category || fieldCategory;
+    if (!targetCategory) {
+        return res.status(400).json({ error: "category or fieldCategory is required" });
     }
     try {
-        // Current employee record to snapshot old value
-        const emp = await db.employee.findUnique({
-            where: { id: employeeId },
-        });
-        if (!emp)
-            return res.status(404).json({ error: "Employee record not found" });
-        const oldValue = emp[fieldKey] !== undefined ? emp[fieldKey] : null;
-        const changeRequest = await db.employeeChangeRequest.create({
-            data: {
-                tenantId,
-                employeeId,
-                fieldCategory,
-                fieldKey,
-                oldValueJson: JSON.stringify(oldValue),
-                newValueJson: JSON.stringify(newValue),
-                proofMediaId: proofMediaId || null,
-                status: "PENDING",
-            },
-        });
-        // Queue outbox event and audit log (masked)
-        await outbox_service_1.OutboxService.createOutboxEvent({
+        const result = await employee_change_request_service_1.EmployeeChangeRequestService.createRequest({
             tenantId,
-            eventType: "profile.change_requested",
-            entityType: "EmployeeChangeRequest",
-            entityId: changeRequest.id,
-            actorId: req.user.userId,
-            payload: {
-                employeeId,
-                fieldCategory,
-                fieldKey,
-            },
-        });
-        await audit_service_1.AuditService.logMutation({
-            tenantId,
-            actorId: req.user.userId,
-            action: "PROFILE_CHANGE_REQUEST_SUBMIT",
-            entityType: "EmployeeChangeRequest",
-            entityId: changeRequest.id,
-            newState: { fieldCategory, fieldKey, status: "PENDING" },
+            employeeId,
+            userId,
+            fieldCategory: targetCategory,
+            fieldKey,
+            changes,
+            newValue,
+            proofMediaId,
+            reason,
+            isDraft: Boolean(isDraft),
         });
         return res.status(201).json({
             success: true,
-            message: "Change request submitted successfully and is pending HR verification.",
-            data: changeRequest,
+            message: isDraft
+                ? "Change request saved as draft."
+                : "Change request submitted successfully and is pending review.",
+            data: result,
         });
     }
     catch (err) {
-        console.error("[POST /me/profile/change-requests] Error:", err);
-        return res.status(500).json({ error: "Failed to submit change request" });
+        console.error("[POST /me/profile/change-requests] Error:", err?.message || err);
+        return res.status(400).json({ error: err?.message || "Failed to submit change request" });
     }
 });
 /**
  * GET /api/v1/me/profile/change-requests
- * Returns all past and pending change requests submitted by this employee
+ * Returns all past and pending change requests submitted by this employee with status/category filters.
  */
 exports.employeeSelfServiceRouter.get("/profile/change-requests", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    const { status, category, page, limit } = req.query;
     try {
-        const list = await db.employeeChangeRequest.findMany({
-            where: { employeeId },
-            orderBy: { createdAt: "desc" },
+        const result = await employee_change_request_service_1.EmployeeChangeRequestService.listEmployeeRequests(tenantId, employeeId, {
+            status: typeof status === "string" ? status : undefined,
+            category: typeof category === "string" ? category : undefined,
+            page: page ? Number(page) : undefined,
+            limit: limit ? Number(limit) : undefined,
         });
-        return res.json({ success: true, data: list });
+        return res.json({
+            success: true,
+            data: result.items,
+            pagination: {
+                total: result.total,
+                page: result.page,
+                pageSize: result.pageSize,
+                totalPages: Math.ceil(result.total / result.pageSize),
+            },
+        });
     }
     catch (err) {
-        console.error("[GET /me/profile/change-requests] Error:", err);
-        return res.status(500).json({ error: "Failed to fetch change requests" });
+        console.error("[GET /me/profile/change-requests] Error:", err?.message || err);
+        return res.status(500).json({ error: err?.message || "Failed to fetch change requests" });
+    }
+});
+/**
+ * GET /api/v1/me/profile/change-requests/:id
+ * Returns single request details with diff and proof file preview.
+ */
+exports.employeeSelfServiceRouter.get("/profile/change-requests/:id", async (req, res) => {
+    const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    const { id } = req.params;
+    try {
+        const details = await employee_change_request_service_1.EmployeeChangeRequestService.getRequestDetails(tenantId, id, {
+            employeeId,
+            isHrAdmin: req.user.roles?.includes("hr_admin") || req.user.roles?.includes("super_admin"),
+            canViewSensitive: false,
+        });
+        return res.json({ success: true, data: details });
+    }
+    catch (err) {
+        console.error("[GET /me/profile/change-requests/:id] Error:", err?.message || err);
+        return res.status(404).json({ error: err?.message || "Change request not found" });
+    }
+});
+/**
+ * PUT /api/v1/me/profile/change-requests/:id
+ * Updates an existing DRAFT or responds to a CORRECTION_REQUESTED request.
+ */
+exports.employeeSelfServiceRouter.put("/profile/change-requests/:id", async (req, res) => {
+    const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const { changes, newValue, proofMediaId, reason, submitNow } = req.body;
+    try {
+        const updated = await employee_change_request_service_1.EmployeeChangeRequestService.updateDraftOrCorrection({
+            tenantId,
+            employeeId,
+            userId,
+            requestId: id,
+            changes,
+            newValue,
+            proofMediaId,
+            reason,
+            submitNow: Boolean(submitNow),
+        });
+        return res.json({
+            success: true,
+            message: submitNow
+                ? "Change request resubmitted for approval."
+                : "Change request updated successfully.",
+            data: updated,
+        });
+    }
+    catch (err) {
+        console.error("[PUT /me/profile/change-requests/:id] Error:", err?.message || err);
+        return res.status(400).json({ error: err?.message || "Failed to update change request" });
+    }
+});
+/**
+ * DELETE /api/v1/me/profile/change-requests/:id
+ * Cancels a DRAFT, PENDING, or CORRECTION_REQUESTED request.
+ */
+exports.employeeSelfServiceRouter.delete("/profile/change-requests/:id", async (req, res) => {
+    const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    const userId = req.user.userId;
+    const { id } = req.params;
+    const { reason } = req.body || {};
+    try {
+        const cancelled = await employee_change_request_service_1.EmployeeChangeRequestService.cancelRequest(tenantId, employeeId, userId, id, reason);
+        return res.json({
+            success: true,
+            message: "Change request cancelled successfully.",
+            data: cancelled,
+        });
+    }
+    catch (err) {
+        console.error("[DELETE /me/profile/change-requests/:id] Error:", err?.message || err);
+        return res.status(400).json({ error: err?.message || "Failed to cancel change request" });
     }
 });
 /**
@@ -228,8 +292,8 @@ exports.employeeSelfServiceRouter.get("/dashboard", async (req, res) => {
     const employeeId = req.employee.id;
     const tenantId = req.user.tenantId;
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const now = new Date();
+        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
         // 1. Attendance today
         const attendanceToday = await db.attendance.findFirst({
             where: {
@@ -239,20 +303,30 @@ exports.employeeSelfServiceRouter.get("/dashboard", async (req, res) => {
             },
             orderBy: { createdAt: "desc" },
         });
-        // 2. Active announcements
+        // 2. Active announcements (scoped to employee eligibility)
         const announcements = await db.announcement.findMany({
             where: {
                 tenantId,
+                status: "published",
+                publishDate: { lte: new Date() },
+                OR: [
+                    { targetType: "all_company" },
+                    ...(req.employee?.departmentId ? [{ targetType: "department", targetDepartmentId: req.employee.departmentId }] : []),
+                    ...(req.employee?.branchId ? [{ targetType: "branch", targetBranchId: req.employee.branchId }] : []),
+                ],
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
             take: 5,
-            select: {
-                id: true,
-                title: true,
-                content: true,
-                category: true,
-                isPinned: true,
-                createdAt: true,
+            include: {
+                categoryModel: true,
+                acknowledgements: {
+                    where: { employeeId },
+                    select: { id: true, acknowledgedAt: true },
+                },
+                views: {
+                    where: { employeeId },
+                    select: { id: true, viewCount: true },
+                },
             },
         });
         // 3. Counts: Awards this year, active Warnings, Complaints filed by caller
@@ -338,8 +412,7 @@ exports.employeeSelfServiceRouter.post("/attendance/check-in", async (req, res) 
     const employeeId = req.employee.id;
     const tenantId = req.user.tenantId;
     const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     try {
         const existing = await db.attendance.findFirst({
             where: {
@@ -398,8 +471,7 @@ exports.employeeSelfServiceRouter.post("/attendance/check-out", async (req, res)
     const employeeId = req.employee.id;
     const tenantId = req.user.tenantId;
     const now = new Date();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     try {
         const existing = await db.attendance.findFirst({
             where: {
@@ -471,8 +543,8 @@ exports.employeeSelfServiceRouter.post("/regularizations", async (req, res) => {
         return res.status(400).json({ error: "attendanceDate and reason are required" });
     }
     try {
-        const targetDate = new Date(attendanceDate);
-        targetDate.setHours(0, 0, 0, 0);
+        const d = new Date(attendanceDate);
+        const targetDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
         const record = await db.attendanceRegularization.create({
             data: {
                 tenantId,
@@ -528,113 +600,69 @@ exports.employeeSelfServiceRouter.post("/regularizations/:id/withdraw", async (r
 });
 /**
  * POST /api/v1/me/leaves/validate
- * Dry-run leave balance and policy validation
+ * Dry-run leave balance and policy validation via authoritative LeaveService
  */
 exports.employeeSelfServiceRouter.post("/leaves/validate", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
-    const tenantId = req.user.tenantId;
-    const { leaveTypeId, startDate, endDate } = req.body;
+    const tenantId = req.tenantId || req.user.tenantId;
+    const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, excludeRequestId } = req.body;
     if (!leaveTypeId || !startDate || !endDate) {
         return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
     }
     try {
-        const validLeaveType = await db.leaveType.findFirst({
-            where: { id: leaveTypeId, tenantId },
+        const preview = await leave_service_1.LeaveService.validateDryRun({
+            tenantId,
+            employeeId,
+            leaveTypeId,
+            startDate,
+            endDate,
+            halfDay: Boolean(halfDay),
+            halfDaySession,
+            reason,
+            excludeRequestId,
+            bypassNoticePeriod: false,
         });
-        if (!validLeaveType) {
-            return res.status(404).json({
-                valid: false,
-                blockingIssues: ["Leave type not found in this workspace."],
-            });
-        }
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (end < start) {
-            return res.status(400).json({
-                valid: false,
-                blockingIssues: ["End date cannot be prior to start date."],
-            });
-        }
-        const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-        // Check for overlapping leaves
-        const overlap = await db.leaveRequest.findFirst({
-            where: {
-                tenantId,
-                employeeId,
-                status: { in: ["pending", "approved"] },
-                OR: [
-                    { startDate: { lte: end }, endDate: { gte: start } },
-                ],
-            },
-        });
-        const blockingIssues = [];
-        if (overlap) {
-            blockingIssues.push("You already have an active leave request overlapping these dates.");
-        }
         return res.json({
             success: true,
-            valid: blockingIssues.length === 0,
-            calculatedDays: diffDays,
-            sandwichDaysAdded: 0,
-            blockingIssues,
+            ...preview,
+            valid: preview.isValid,
+            calculatedDays: preview.totalDays,
+            sandwichDaysAdded: preview.sandwichDaysCount,
+            blockingIssues: preview.warnings,
         });
     }
     catch (err) {
-        console.error("[POST /me/leaves/validate] Error:", err);
-        return res.status(500).json({ error: "Failed to validate leave application" });
+        if (err instanceof leave_service_1.LeaveHttpError) {
+            return res.status(err.status).json({
+                valid: false,
+                error: err.message,
+                blockingIssues: [err.message],
+            });
+        }
+        return res.status(400).json({
+            valid: false,
+            error: err.message || "Failed to validate leave application",
+            blockingIssues: [err.message || "Failed to validate leave application"],
+        });
     }
 });
 /**
  * GET /api/v1/me/leave-balance
- * Returns detailed leave entitlements and balances
+ * Returns detailed leave entitlements and live ledger-derived balances
  */
 exports.employeeSelfServiceRouter.get("/leave-balance", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId || req.user.tenantId;
+    const year = req.query.year ? parseInt(String(req.query.year), 10) : new Date().getUTCFullYear();
     try {
-        const leaveTypes = await db.leaveType.findMany({
-            where: { tenantId },
-            select: {
-                id: true,
-                name: true,
-                daysPerYear: true,
-                color: true,
-            },
-        });
-        const usedLeaves = await db.leaveRequest.findMany({
-            where: {
-                tenantId,
-                employeeId,
-                status: { in: ["pending", "approved"] },
-            },
-            select: {
-                leaveTypeId: true,
-                days: true,
-                status: true,
-            },
-        });
-        const balances = leaveTypes.map((type) => {
-            const typeUsed = usedLeaves.filter((l) => l.leaveTypeId === type.id);
-            const approvedDays = typeUsed
-                .filter((l) => l.status === "approved")
-                .reduce((sum, l) => sum + Number(l.days || 0), 0);
-            const pendingDays = typeUsed
-                .filter((l) => l.status === "pending")
-                .reduce((sum, l) => sum + Number(l.days || 0), 0);
-            const totalAccrued = type.daysPerYear || 12;
-            const available = Math.max(0, totalAccrued - approvedDays - pendingDays);
-            return {
-                leaveTypeId: type.id,
-                leaveTypeName: type.name,
-                color: type.color || "#FF6B00",
-                totalAccrued,
-                approvedDays,
-                pendingDays,
-                availableDays: available,
-            };
-        });
+        const detailed = await leave_service_1.LeaveService.getEmployeeDetailedBalances(tenantId, employeeId, year);
+        const balances = detailed.map((b) => ({
+            ...b,
+            totalAccrued: b.total,
+            approvedDays: b.used,
+            pendingDays: b.pending,
+            availableDays: b.available,
+        }));
         return res.json({ success: true, data: balances });
     }
     catch (err) {
@@ -649,18 +677,21 @@ exports.employeeSelfServiceRouter.get("/leave-balance", async (req, res) => {
 exports.employeeSelfServiceRouter.get("/leaves", async (req, res) => {
     const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
-    const tenantId = req.user.tenantId;
+    const tenantId = req.tenantId || req.user.tenantId;
     try {
         const leaves = await db.leaveRequest.findMany({
             where: { tenantId, employeeId },
             include: {
                 leaveType: {
-                    select: { id: true, name: true, color: true, daysPerYear: true },
+                    select: { id: true, name: true, color: true, daysPerYear: true, isPaid: true },
                 },
             },
             orderBy: { createdAt: "desc" },
         });
-        return res.json({ success: true, data: leaves });
+        return res.json({
+            success: true,
+            data: leaves.map((l) => ({ ...l, days: Number(l.days) })),
+        });
     }
     catch (err) {
         console.error("[GET /me/leaves] Error:", err);
@@ -669,46 +700,32 @@ exports.employeeSelfServiceRouter.get("/leaves", async (req, res) => {
 });
 /**
  * POST /api/v1/me/leaves
- * Submits authoritative leave application for current employee
+ * Submits authoritative leave application for current employee via LeaveService
  */
 exports.employeeSelfServiceRouter.post("/leaves", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
-    const tenantId = req.user.tenantId;
-    const { leaveTypeId, startDate, endDate, days, reason } = req.body;
+    const tenantId = req.tenantId || req.user.tenantId;
+    const { leaveTypeId, startDate, endDate, halfDay, halfDaySession, reason, attachmentUrl } = req.body;
     if (!leaveTypeId || !startDate || !endDate) {
         return res.status(400).json({ error: "leaveTypeId, startDate, and endDate are required" });
     }
     try {
-        const validLeaveType = await db.leaveType.findFirst({
-            where: { id: leaveTypeId, tenantId },
-        });
-        if (!validLeaveType) {
-            return res.status(404).json({ error: "Leave type not found in this workspace" });
-        }
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const calcDays = Number(days) || Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const leave = await db.leaveRequest.create({
-            data: {
-                tenantId,
-                employeeId,
-                leaveTypeId,
-                startDate: start,
-                endDate: end,
-                days: calcDays,
-                reason: reason || null,
-                status: "pending",
-            },
-            include: {
-                leaveType: { select: { id: true, name: true, color: true } },
-            },
-        });
+        const leave = await leave_service_1.LeaveService.submitApplication(tenantId, employeeId, {
+            leaveTypeId,
+            startDate,
+            endDate,
+            halfDay: Boolean(halfDay),
+            halfDaySession,
+            reason: String(reason || "Employee Self-Service Leave Request").trim(),
+            attachmentUrl: attachmentUrl || undefined,
+        }, req.user.userId, { bypassNoticePeriod: false });
         return res.status(201).json({ success: true, data: leave });
     }
     catch (err) {
-        console.error("[POST /me/leaves] Error:", err);
-        return res.status(500).json({ error: "Failed to apply for leave" });
+        if (err instanceof leave_service_1.LeaveHttpError) {
+            return res.status(err.status).json({ error: err.message, code: err.code, details: err.details });
+        }
+        return res.status(400).json({ error: err.message || "Failed to apply for leave" });
     }
 });
 // ==========================================
@@ -1569,133 +1586,137 @@ exports.employeeSelfServiceRouter.post("/team/regularizations/:id/action", async
 });
 /**
  * POST /api/v1/me/team/leaves/:id/action
- * Approves or rejects a team member's leave request
+ * Approves or rejects a team member's leave request via authoritative LeaveService
  */
 exports.employeeSelfServiceRouter.post("/team/leaves/:id/action", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
-    const employeeId = req.employee.id;
+    const tenantId = req.tenantId || req.user.tenantId;
     const { id } = req.params;
     const { action, comments } = req.body;
     if (!["approve", "reject"].includes(action)) {
         return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
     }
     try {
-        const leave = await db.leaveRequest.findUnique({
-            where: { id },
-            include: { employee: true },
-        });
-        if (!leave) {
-            return res.status(404).json({ error: "Leave request not found" });
-        }
-        if (leave.employee.managerId !== employeeId && !req.user.roles?.includes("hr_admin") && !req.user.roles?.includes("super_admin")) {
-            return res.status(403).json({ error: "You are not authorized to approve this request." });
-        }
-        const newStatus = action === "approve" ? "approved" : "rejected";
-        const updated = await db.leaveRequest.update({
-            where: { id },
-            data: {
-                status: newStatus,
-                approverId: employeeId,
-                approvedAt: new Date(),
-                reason: comments ? `${leave.reason}\n[Manager Note: ${comments}]` : leave.reason,
-            },
-        });
+        const updated = await leave_service_1.LeaveService.decideApplication(tenantId, id, action, req.user.userId, comments, req.user.roles);
         return res.json({
             success: true,
-            message: `Leave request ${newStatus} successfully.`,
+            message: `Leave request ${updated.status} successfully.`,
             data: updated,
         });
     }
     catch (err) {
+        if (err instanceof leave_service_1.LeaveHttpError) {
+            return res.status(err.status).json({ error: err.message, code: err.code });
+        }
+        if (err?.code === "PERIOD_LOCKED") {
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+        }
         console.error("[POST /me/team/leaves/:id/action] Error:", err);
-        return res.status(500).json({ error: "Failed to process leave decision" });
+        return res.status(500).json({ error: err.message || "Failed to process leave decision" });
     }
 });
 /**
  * POST /api/v1/me/team/profile-changes/:id/action
- * Approves or rejects a team member's sensitive profile change request
+ * Approves, rejects, or requests correction on a team member's profile change request
  */
 exports.employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req, res) => {
-    const db = prisma_1.rawPrisma || prisma_1.prisma;
     const employeeId = req.employee.id;
+    const tenantId = req.user.tenantId;
+    const userId = req.user.userId;
     const { id } = req.params;
-    const { action, reviewerNotes } = req.body;
-    if (!["approve", "reject"].includes(action)) {
-        return res.status(400).json({ error: "Action must be 'approve' or 'reject'" });
+    const { action, reviewerNotes, comments } = req.body;
+    if (!["approve", "reject", "request_correction"].includes(action)) {
+        return res.status(400).json({ error: "Action must be 'approve', 'reject', or 'request_correction'" });
     }
     try {
-        const changeReq = await db.employeeChangeRequest.findUnique({
-            where: { id },
-            include: { employee: true },
+        const isHrAdmin = Boolean(req.user.roles?.includes("hr_admin") ||
+            req.user.roles?.includes("super_admin") ||
+            req.user.permissions?.includes("hrm.employees.edit"));
+        const result = await employee_change_request_service_1.EmployeeChangeRequestService.processReviewDecision({
+            tenantId,
+            reviewerUserId: userId,
+            reviewerEmployeeId: employeeId,
+            isHrAdmin,
+            requestId: id,
+            action,
+            reviewComments: reviewerNotes || comments,
+            canViewSensitive: false,
         });
-        if (!changeReq) {
-            return res.status(404).json({ error: "Change request not found" });
-        }
-        if (changeReq.employee?.managerId !== employeeId && !req.user.roles?.includes("hr_admin") && !req.user.roles?.includes("super_admin")) {
-            return res.status(403).json({ error: "You are not authorized to review this change request." });
-        }
-        const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
-        const updated = await db.employeeChangeRequest.update({
-            where: { id },
-            data: {
-                status: newStatus,
-                reviewedBy: employeeId,
-                reviewedAt: new Date(),
-                reviewComments: reviewerNotes || undefined,
-            },
-        });
-        // If approved, update the employee record dynamically
-        if (newStatus === "APPROVED") {
-            const allowedFields = [
-                "pan", "aadhaar", "uan", "esiNumber", "pfNumber", "bankName", "bankAccount", "bankIfsc", "bankBranch",
-                "addressLine1", "addressLine2", "city", "district", "state", "postalCode", "permanentAddress", "presentAddress"
-            ];
-            if (allowedFields.includes(changeReq.fieldKey)) {
-                let parsedVal = changeReq.newValueJson;
-                try {
-                    const parsed = JSON.parse(changeReq.newValueJson);
-                    if (typeof parsed === "string")
-                        parsedVal = parsed;
-                }
-                catch { }
-                await db.employee.update({
-                    where: { id: changeReq.employeeId },
-                    data: {
-                        [changeReq.fieldKey]: parsedVal,
-                    },
-                });
-            }
-        }
-        // Queue outbox event and audit log
-        await outbox_service_1.OutboxService.createOutboxEvent({
-            tenantId: changeReq.tenantId,
-            eventType: newStatus === "APPROVED" ? "profile.change_approved" : "profile.change_rejected",
-            entityType: "EmployeeChangeRequest",
-            entityId: updated.id,
-            actorId: req.user.userId,
-            payload: {
-                employeeId: changeReq.employeeId,
-                fieldKey: changeReq.fieldKey,
-                status: newStatus,
-            },
-        });
-        await audit_service_1.AuditService.logMutation({
-            tenantId: changeReq.tenantId,
-            actorId: req.user.userId,
-            action: `PROFILE_CHANGE_REQUEST_${newStatus}`,
-            entityType: "EmployeeChangeRequest",
-            entityId: updated.id,
-            newState: { status: newStatus, reviewedBy: employeeId },
-        });
-        return res.json({
-            success: true,
-            message: `Change request ${newStatus.toLowerCase()} successfully.`,
-            data: updated,
-        });
+        return res.json(result);
     }
     catch (err) {
-        console.error("[POST /me/team/profile-changes/:id/action] Error:", err);
-        return res.status(500).json({ error: "Failed to process change request decision" });
+        console.error("[POST /me/team/profile-changes/:id/action] Error:", err?.message || err);
+        return res.status(400).json({ error: err?.message || "Failed to process change request decision" });
+    }
+});
+// =========================================================================
+// ESS & TEAM: REPORTING MANAGER CHANGES (PHASE 3.4)
+// =========================================================================
+exports.employeeSelfServiceRouter.post("/organization/manager-change-request", async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const actorUserId = req.user.userId;
+        const { employeeId, newManagerId, effectiveDate, reason, attachmentId } = req.body;
+        const targetEmployeeId = employeeId || req.employee.id;
+        const result = await reporting_manager_change_service_1.ReportingManagerChangeService.createRequest({
+            tenantId,
+            actorUserId,
+            employeeId: targetEmployeeId,
+            newManagerId: newManagerId || null,
+            effectiveDate,
+            reason,
+            attachmentId,
+            submitNow: true,
+        });
+        return res.status(201).json({ success: true, ...result });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+exports.employeeSelfServiceRouter.get("/organization/manager-changes", async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const employeeId = req.employee.id;
+        const result = await reporting_manager_change_service_1.ReportingManagerChangeService.getRequests(tenantId, {
+            ...req.query,
+            employeeId,
+        });
+        return res.json({ success: true, ...result });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+exports.employeeSelfServiceRouter.get("/team/manager-changes", async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const managerId = req.employee.id;
+        const result = await reporting_manager_change_service_1.ReportingManagerChangeService.getRequests(tenantId, {
+            ...req.query,
+            managerId,
+        });
+        return res.json({ success: true, ...result });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+exports.employeeSelfServiceRouter.post("/team/manager-changes/:id/action", async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const actorUserId = req.user.userId;
+        const { action, comments } = req.body;
+        const result = await reporting_manager_change_service_1.ReportingManagerChangeService.reviewRequest({
+            tenantId,
+            actorUserId,
+            requestId: req.params.id,
+            action,
+            comments,
+        });
+        return res.json({ success: true, ...result });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
     }
 });
 // =========================================================================
@@ -1813,19 +1834,70 @@ exports.employeeSelfServiceRouter.get("/organization/announcements", async (req,
     const tenantId = req.user.tenantId;
     const employeeId = req.employee.id;
     const departmentId = req.employee.departmentId;
+    const branchId = req.employee.branchId;
+    const { tab = "all", category, search } = req.query;
     try {
+        const now = new Date();
+        const where = {
+            tenantId,
+            OR: [
+                { targetType: "all_company" },
+                ...(departmentId ? [{ targetType: "department", targetDepartmentId: departmentId }] : []),
+                ...(branchId ? [{ targetType: "branch", targetBranchId: branchId }] : []),
+            ],
+        };
+        if (tab === "high_priority") {
+            where.status = "published";
+            where.publishDate = { lte: now };
+            where.priority = { in: ["urgent", "high"] };
+        }
+        else if (tab === "featured") {
+            where.status = "published";
+            where.publishDate = { lte: now };
+            where.isPinned = true;
+        }
+        else if (tab === "upcoming") {
+            where.OR = [
+                { status: "scheduled" },
+                { publishDate: { gt: now } },
+            ];
+        }
+        else {
+            // "all" - standard active published feed
+            where.status = "published";
+            where.publishDate = { lte: now };
+        }
+        if (category && category !== "all") {
+            where.OR = [
+                { category: String(category) },
+                { categoryId: String(category) },
+            ];
+        }
+        if (search) {
+            const q = String(search);
+            where.AND = [
+                {
+                    OR: [
+                        { title: { contains: q, mode: "insensitive" } },
+                        { summary: { contains: q, mode: "insensitive" } },
+                        { content: { contains: q, mode: "insensitive" } },
+                    ],
+                },
+            ];
+        }
         const announcements = await db.announcement.findMany({
-            where: {
-                tenantId,
-                OR: [
-                    { targetType: "all_company" },
-                    ...(departmentId ? [{ targetType: "department", targetDepartmentId: departmentId }] : []),
-                ],
-            },
+            where,
             include: {
+                categoryModel: true,
+                targetDepartment: true,
+                targetBranch: true,
                 acknowledgements: {
                     where: { employeeId },
-                    select: { id: true, acknowledgedAt: true },
+                    select: { id: true, acknowledgedAt: true, comments: true },
+                },
+                views: {
+                    where: { employeeId },
+                    select: { id: true, viewedAt: true, viewCount: true },
                 },
             },
             orderBy: [{ isPinned: "desc" }, { publishDate: "desc" }],
@@ -1834,6 +1906,10 @@ exports.employeeSelfServiceRouter.get("/organization/announcements", async (req,
             ...a,
             hasAcknowledged: a.acknowledgements.length > 0,
             acknowledgedAt: a.acknowledgements[0]?.acknowledgedAt || null,
+            ackComments: a.acknowledgements[0]?.comments || null,
+            hasViewed: a.views.length > 0,
+            myViewCount: a.views[0]?.viewCount || 0,
+            myLastViewedAt: a.views[0]?.viewedAt || null,
         }));
         return res.json({
             success: true,
@@ -1843,6 +1919,44 @@ exports.employeeSelfServiceRouter.get("/organization/announcements", async (req,
     catch (err) {
         console.error("[GET /me/organization/announcements] Error:", err);
         return res.status(500).json({ error: "Failed to fetch announcements" });
+    }
+});
+// =========================================================================
+// P2 ESS: RECORD VIEW (POST /api/v1/me/organization/announcements/:id/view)
+// =========================================================================
+exports.employeeSelfServiceRouter.post("/organization/announcements/:id/view", async (req, res) => {
+    const db = prisma_1.rawPrisma || prisma_1.prisma;
+    const tenantId = req.user.tenantId;
+    const employeeId = req.employee.id;
+    const announcementId = req.params.id;
+    try {
+        await db.announcementView.upsert({
+            where: {
+                announcementId_employeeId: {
+                    announcementId,
+                    employeeId,
+                },
+            },
+            create: {
+                tenantId,
+                announcementId,
+                employeeId,
+                viewCount: 1,
+            },
+            update: {
+                viewCount: { increment: 1 },
+                lastViewedAt: new Date(),
+            },
+        });
+        await db.announcement.update({
+            where: { id: announcementId },
+            data: { viewCount: { increment: 1 } },
+        });
+        return res.json({ success: true, message: "Announcement view recorded" });
+    }
+    catch (err) {
+        console.error("[POST /me/organization/announcements/:id/view] Error:", err);
+        return res.status(500).json({ error: "Failed to record view" });
     }
 });
 // =========================================================================
@@ -1870,7 +1984,7 @@ exports.employeeSelfServiceRouter.post("/organization/announcements/:id/acknowle
                 tenantId,
                 announcementId,
                 employeeId,
-                comments: req.body?.comments || null,
+                comments: req.body?.comments || "Acknowledged and agreed.",
             },
         });
         return res.status(201).json({ success: true, message: "Policy acknowledged", data: ack });

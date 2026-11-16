@@ -8,6 +8,7 @@ const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../prisma");
 // In-memory cache & fallback directory for instant lookup and hermetic offline testing
 const inMemorySubscriptions = new Map();
+const lastDbSyncByUser = new Map();
 function getEndpointHash(endpoint) {
     return crypto_1.default.createHash("sha256").update(endpoint).digest("hex").slice(0, 32);
 }
@@ -77,12 +78,13 @@ class PushSubscriptionStore {
     }
     /**
      * Retrieves all currently active and non-revoked subscriptions for a user, verifying tenant isolation.
+     * Always reconciles with PostgreSQL on serverless warm instances (2s cache) so newly added mobile devices are never missed.
      */
     static async getActiveSubscriptions(tenantId, userId) {
-        // 1. Check in-memory store first
-        let userSubs = inMemorySubscriptions.get(userId);
-        // 2. Fall back to database query if cache is empty
-        if (!userSubs || userSubs.length === 0) {
+        const now = Date.now();
+        const lastSync = lastDbSyncByUser.get(userId) || 0;
+        let userSubs = inMemorySubscriptions.get(userId) || [];
+        if (userSubs.length === 0 || now - lastSync > 2000) {
             try {
                 const db = prisma_1.rawPrisma || prisma_1.prisma;
                 const rows = await db.setting.findMany({
@@ -92,23 +94,29 @@ class PushSubscriptionStore {
                         group: "web_push",
                     },
                 });
-                const loaded = [];
+                const byEndpoint = new Map();
+                for (const existing of userSubs) {
+                    if (existing.status === "active" && !existing.revokedAt) {
+                        byEndpoint.set(existing.endpoint, existing);
+                    }
+                }
                 for (const row of rows) {
                     if (row.valueJson && typeof row.valueJson === "object") {
                         const item = row.valueJson;
-                        if (item.tenantId === tenantId && item.status === "active") {
-                            loaded.push(item);
+                        if (item.endpoint && item.status === "active" && !item.revokedAt) {
+                            byEndpoint.set(item.endpoint, item);
                         }
                     }
                 }
-                userSubs = loaded;
-                inMemorySubscriptions.set(userId, loaded);
+                userSubs = Array.from(byEndpoint.values());
+                inMemorySubscriptions.set(userId, userSubs);
+                lastDbSyncByUser.set(userId, now);
             }
-            catch (err) {
+            catch {
                 userSubs = inMemorySubscriptions.get(userId) || [];
             }
         }
-        // 3. Strict tenant matching & status filter: only 'active' devices eligible for push
+        // Strict tenant matching & status filter: only 'active' devices eligible for push
         return (userSubs || []).filter((s) => s.tenantId === tenantId && s.status === "active" && !s.revokedAt);
     }
     /**

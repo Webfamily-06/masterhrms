@@ -7,9 +7,11 @@ exports.profileMemoryCache = exports.RESTRICTED_EXTENSIONS = exports.chatRouter 
 exports.invalidateChatProfileCache = invalidateChatProfileCache;
 exports.cleanPersonName = cleanPersonName;
 exports.formatNaturalList = formatNaturalList;
-const recentClientTempIds = new Map();
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../prisma");
 const tenant_context_1 = require("../context/tenant-context");
 const auth_1 = require("../middleware/auth");
@@ -17,26 +19,19 @@ const tenant_context_middleware_1 = require("../middleware/tenant-context.middle
 const socket_1 = require("../socket");
 const pusher_service_1 = require("../services/pusher.service");
 const url_preview_service_1 = require("../services/url-preview.service");
-const notification_service_1 = require("../services/notification.service");
 const media_service_1 = require("../services/media/media.service");
 const chat_system_events_service_1 = require("../services/chat-system-events.service");
 const chat_folder_service_1 = require("../services/files/chat-folder.service");
-const meeting_sfu_service_1 = require("../services/meeting-sfu.service");
+const webrtc_ice_service_1 = require("../services/webrtc-ice.service");
+const incoming_call_push_service_1 = require("../services/incoming-call-push.service");
+const call_lifecycle_service_1 = require("../services/call-lifecycle.service");
+const chat_service_1 = require("../services/chat.service");
 exports.chatRouter = (0, express_1.Router)();
-exports.chatRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
-const chatUpload = (0, multer_1.default)({
-    storage: multer_1.default.memoryStorage(),
-    limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB limit
-});
-// Prohibited File Extensions (Executables, Embedded Scripts, Env, Code Files)
-exports.RESTRICTED_EXTENSIONS = new Set([
-    "exe", "bat", "cmd", "sh", "bin", "msi", "apk", "com", "vbs", "ps1", "scr", "pif", "app", "dmg", "pkg", "deb", "rpm",
-    "env", "json", "js", "mjs", "cjs", "jsx", "ts", "tsx", "php", "py", "pyc", "rb", "go", "java", "class", "jar",
-    "c", "cpp", "h", "hpp", "cs", "sql", "bash", "zsh", "lua", "pl", "asp", "aspx", "jsp", "wasm", "yaml", "yml",
-    "pem", "key", "crt", "cer", "pfx", "p12"
-]);
+// Preserved exported symbols for auth.routes.ts & test consumers
+exports.RESTRICTED_EXTENSIONS = chat_service_1.CHAT_RESTRICTED_EXTENSIONS;
 exports.profileMemoryCache = new Map();
 function invalidateChatProfileCache(userId, tenantId) {
+    chat_service_1.ChatService.invalidateProfileCache(userId, tenantId);
     if (!userId && !tenantId) {
         exports.profileMemoryCache.clear();
         return;
@@ -49,12 +44,7 @@ function invalidateChatProfileCache(userId, tenantId) {
     }
 }
 function cleanPersonName(name) {
-    if (!name)
-        return "User";
-    return name
-        .replace(/\s*\([^)]*(admin|administrator|manager|employee|owner|leader|supervisor|tester|user|staff|hr)[^)]*\)/gi, "")
-        .replace(/\s+/g, " ")
-        .trim();
+    return (0, chat_service_1.cleanChatPersonName)(name);
 }
 function formatNaturalList(names) {
     const cleaned = names.map(cleanPersonName).filter(Boolean);
@@ -66,100 +56,124 @@ function formatNaturalList(names) {
         return `${cleaned[0]} and ${cleaned[1]}`;
     return `${cleaned.slice(0, -1).join(", ")}, and ${cleaned[cleaned.length - 1]}`;
 }
-function validateFileSecurity(attachments) {
-    if (!attachments || !Array.isArray(attachments))
-        return { isAllowed: true };
-    for (const att of attachments) {
-        const fileName = String(att.name || att.fileName || "").toLowerCase().trim();
-        if (fileName === ".env" || fileName.startsWith(".env.") || fileName.endsWith(".env")) {
-            return { isAllowed: false, blockedFile: fileName, reason: "Environment configuration files (.env) are restricted for security." };
-        }
-        const lastDot = fileName.lastIndexOf(".");
-        if (lastDot !== -1) {
-            const ext = fileName.slice(lastDot + 1);
-            if (exports.RESTRICTED_EXTENSIONS.has(ext)) {
-                return { isAllowed: false, blockedFile: fileName, reason: `Files with extension .${ext} are restricted for security (no executables, code, or config files).` };
-            }
-        }
+const chatUpload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
+    limits: {
+        fileSize: chat_service_1.MAX_CHAT_FILE_SIZE_BYTES,
+        files: chat_service_1.MAX_CHAT_ATTACHMENTS_PER_MESSAGE,
+    },
+});
+function handleChatError(res, err, fallbackMessage = "Internal chat error") {
+    if (err instanceof chat_service_1.ChatDomainError) {
+        return res.status(err.status).json({ error: err.message, code: err.code });
     }
-    return { isAllowed: true };
+    if (err?.status && typeof err.status === "number") {
+        return res.status(err.status).json({ error: err.message || fallbackMessage, code: err.code });
+    }
+    return res.status(500).json({ error: err?.message || fallbackMessage });
 }
-// Helper to determine if threadId is authorized for current user
-async function checkThreadAuthorization(threadId, tenantId, currentUserId, roles) {
-    const isAdmin = roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) || false;
-    // 1. Direct conversations
-    if (threadId.startsWith("direct_")) {
-        const parts = threadId.slice("direct_".length).split("_");
-        if (parts.length === 1 || parts.includes(currentUserId) || isAdmin) {
-            return { authorized: true };
+function formatMessageSnippet(msg) {
+    if (!msg)
+        return "";
+    if (msg.isDeletedForEveryone || msg.is_deleted_for_everyone)
+        return "This message was deleted";
+    if (msg.content && String(msg.content).trim())
+        return String(msg.content);
+    if (msg.poll)
+        return `Poll: ${msg.poll.question || "Vote"}`;
+    if (msg.voiceNote || msg.voice_note)
+        return "Voice message";
+    if (msg.attachments)
+        return "Attachment";
+    return "";
+}
+/**
+ * Batch helper: fetches latest message and unread count across arbitrarily many threads in 2 indexed SQL queries (zero N+1).
+ */
+async function fetchThreadSummariesBatch(tenantId, currentUserId, threadIds) {
+    const lastMessageMap = new Map();
+    const unreadCountMap = new Map();
+    if (!threadIds || threadIds.length === 0) {
+        return { lastMessageMap, unreadCountMap };
+    }
+    const db = prisma_1.rawPrisma || prisma_1.prisma;
+    if (typeof db.$queryRawUnsafe === "function") {
+        const [latestRows, unreadRows] = await Promise.all([
+            db.$queryRawUnsafe(`SELECT DISTINCT ON (thread_id)
+           thread_id, sender_id, sender_name, content, attachments, voice_note, poll, is_deleted_for_everyone, created_at
+         FROM chat_messages
+         WHERE tenant_id = $1
+           AND thread_id = ANY($2::text[])
+           AND NOT (COALESCE(deleted_for_user_ids, '[]'::jsonb) @> to_jsonb($3::text))
+         ORDER BY thread_id, created_at DESC`, tenantId, threadIds, currentUserId),
+            db.$queryRawUnsafe(`SELECT m.thread_id, COUNT(*)::int AS unread_count
+         FROM chat_messages m
+         LEFT JOIN chat_read_receipts r
+           ON r.tenant_id = m.tenant_id
+          AND r.thread_id = m.thread_id
+          AND r.user_id = $2
+         WHERE m.tenant_id = $1
+           AND m.thread_id = ANY($3::text[])
+           AND m.sender_id <> $2
+           AND m.created_at > COALESCE(r.last_read_at, to_timestamp(0))
+           AND NOT (COALESCE(m.deleted_for_user_ids, '[]'::jsonb) @> to_jsonb($2::text))
+         GROUP BY m.thread_id`, tenantId, currentUserId, threadIds),
+        ]);
+        for (const row of Array.isArray(latestRows) ? latestRows : []) {
+            lastMessageMap.set(row.thread_id, {
+                content: formatMessageSnippet(row),
+                senderName: row.sender_name || "",
+                senderId: row.sender_id || "",
+                createdAt: new Date(row.created_at),
+            });
         }
-        const userEmps = await prisma_1.prisma.employee.findMany({
+        for (const row of Array.isArray(unreadRows) ? unreadRows : []) {
+            unreadCountMap.set(row.thread_id, Number(row.unread_count) || 0);
+        }
+        return { lastMessageMap, unreadCountMap };
+    }
+    // Fallback for mocked unit test environments without $queryRawUnsafe
+    for (const tid of threadIds) {
+        const lastMsg = await prisma_1.prisma.chatMessage.findFirst({
+            where: { tenantId, threadId: tid },
+            orderBy: { createdAt: "desc" },
+        });
+        if (lastMsg) {
+            lastMessageMap.set(tid, {
+                content: formatMessageSnippet(lastMsg),
+                senderName: lastMsg.senderName,
+                senderId: lastMsg.senderId,
+                createdAt: lastMsg.createdAt,
+            });
+        }
+        const receipt = await prisma_1.prisma.chatReadReceipt.findUnique({
+            where: { tenantId_threadId_userId: { tenantId, threadId: tid, userId: currentUserId } },
+        });
+        const unread = await prisma_1.prisma.chatMessage.count({
             where: {
                 tenantId,
-                OR: [{ userId: currentUserId }, { id: currentUserId }],
+                threadId: tid,
+                senderId: { not: currentUserId },
+                createdAt: { gt: receipt?.lastReadAt || new Date(0) },
             },
-            select: { id: true, userId: true },
         });
-        const validCurrentUserIds = new Set([currentUserId]);
-        for (const ue of userEmps) {
-            if (ue.id)
-                validCurrentUserIds.add(ue.id);
-            if (ue.userId)
-                validCurrentUserIds.add(ue.userId);
-        }
-        const isParticipant = parts.length === 1 || parts.some((p) => validCurrentUserIds.has(p));
-        if (!isParticipant && !isAdmin) {
-            return {
-                authorized: false,
-                reason: "Access denied: You are not an authorized participant in this private direct conversation.",
-            };
-        }
-        return { authorized: true };
+        unreadCountMap.set(tid, unread);
     }
-    // 2. Group conversations
-    if (threadId.startsWith("group_")) {
-        const groupId = threadId.slice("group_".length);
-        const membership = await prisma_1.prisma.chatGroupMember.findFirst({
-            where: { tenantId, groupId, userId: currentUserId },
-        });
-        if (!membership && !isAdmin) {
-            return {
-                authorized: false,
-                reason: "Access denied: You are not an active member of this chat group.",
-                groupId,
-            };
-        }
-        return { authorized: true, groupId };
-    }
-    // 3. Fallback or general thread
-    return { authorized: true };
+    return { lastMessageMap, unreadCountMap };
 }
-// GET /api/chat/file-policy - Get active file restriction rules
-exports.chatRouter.get("/file-policy", auth_1.requireAuth, async (_req, res) => {
-    return res.json({
-        prohibitedExtensions: Array.from(exports.RESTRICTED_EXTENSIONS),
-        allowedCategories: ["Images (png, jpg, jpeg, gif, webp)", "Documents (pdf, docx, xlsx, pptx, txt, csv)"],
-    });
-});
-// GET /api/chat/presence - Get currently active online user IDs in tenant
-exports.chatRouter.get("/presence", auth_1.requireAuth, async (req, res) => {
-    const tenantId = req.user?.tenantId || "default";
-    const onlineUserIds = (0, socket_1.getOnlineUsersForTenant)(tenantId);
-    return res.json({ onlineUserIds });
-});
-// GET /api/chat/participant/:id - Fetch authoritative participant profile with real Employee data
-exports.chatRouter.get("/participant/:id", auth_1.requireAuth, async (req, res) => {
-    try {
-        const tenantId = req.user?.tenantId || "default";
-        const { id } = req.params;
-        if (!id || typeof id !== "string") {
-            return res.status(400).json({ error: "Participant ID is required" });
-        }
-        // 1. First, search for matching Employee in this tenant
-        const emp = await prisma_1.prisma.employee.findFirst({
+/**
+ * Batch helper: resolves Employee + Profile metadata for a set of userIds in 2 queries (zero N+1).
+ */
+async function resolveParticipantsBatch(tenantId, userIds) {
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    if (uniqueIds.length === 0) {
+        return { empByKey: new Map(), profByUserId: new Map() };
+    }
+    const [employees, profiles] = await Promise.all([
+        prisma_1.prisma.employee.findMany({
             where: {
                 tenantId,
-                OR: [{ id }, { userId: id }],
+                OR: [{ userId: { in: uniqueIds } }, { id: { in: uniqueIds } }],
             },
             select: {
                 id: true,
@@ -170,50 +184,312 @@ exports.chatRouter.get("/participant/:id", auth_1.requireAuth, async (req, res) 
                 email: true,
                 phone: true,
                 position: true,
-                employmentType: true,
-                joinedAt: true,
                 department: { select: { id: true, name: true } },
+                branch: { select: { id: true, name: true } },
                 designation: { select: { id: true, name: true } },
-                user: {
-                    select: {
-                        profile: {
-                            select: {
-                                id: true,
-                                fullName: true,
-                                avatarUrl: true,
+            },
+        }),
+        prisma_1.prisma.profile.findMany({
+            where: { tenantId, userId: { in: uniqueIds } },
+            select: {
+                id: true,
+                userId: true,
+                fullName: true,
+                avatarUrl: true,
+                phone: true,
+                user: { select: { email: true } },
+            },
+        }),
+    ]);
+    const empByKey = new Map();
+    for (const emp of employees) {
+        empByKey.set(emp.id, emp);
+        if (emp.userId)
+            empByKey.set(emp.userId, emp);
+    }
+    const profByUserId = new Map();
+    for (const prof of profiles) {
+        profByUserId.set(prof.userId, prof);
+    }
+    return { empByKey, profByUserId };
+}
+// ============================================================================
+// SIGNED & ACL-PROTECTED PRIVATE ATTACHMENT DOWNLOAD (Registered pre-global auth
+// so HMAC-signed <img>/<audio>/<a> URLs AND Bearer-authenticated requests both work
+// while strictly enforcing live DB thread membership & FileAcl!)
+// ============================================================================
+exports.chatRouter.get("/attachments/:mediaId/download", async (req, res) => {
+    try {
+        const { mediaId } = req.params;
+        const sig = typeof req.query.sig === "string" ? req.query.sig : "";
+        const uid = typeof req.query.uid === "string" ? req.query.uid : "";
+        const tid = typeof req.query.tid === "string" ? req.query.tid : "";
+        const exp = Number(req.query.exp || 0);
+        const inline = req.query.inline === "1" || req.query.inline === "true";
+        let verifiedTenantId = "";
+        let verifiedUserId = "";
+        let verifiedRoles = [];
+        // Path A: Cryptographic HMAC-SHA256 signed URL with expiration check
+        if (sig && uid && tid && exp) {
+            if (Math.floor(Date.now() / 1000) > exp) {
+                return res.status(403).json({
+                    error: "Signed attachment URL has expired. Refresh the conversation to obtain a fresh link.",
+                    code: "SIGNED_URL_EXPIRED",
+                });
+            }
+            const sigValid = chat_service_1.ChatService.verifyAttachmentSignature({
+                mediaId,
+                tenantId: tid,
+                userId: uid,
+                exp,
+                sig,
+            });
+            if (!sigValid) {
+                return res.status(403).json({
+                    error: "Invalid attachment signature.",
+                    code: "INVALID_ATTACHMENT_SIGNATURE",
+                });
+            }
+            verifiedTenantId = tid;
+            verifiedUserId = uid;
+        }
+        else {
+            // Path B: Standard authenticated session (Bearer header or auth cookie)
+            let authFailed = false;
+            await new Promise((resolve) => {
+                (0, auth_1.requireAuth)(req, res, () => resolve());
+                if (res.headersSent) {
+                    authFailed = true;
+                    resolve();
+                }
+            });
+            if (authFailed || !req.user?.userId || !req.user?.tenantId) {
+                if (!res.headersSent) {
+                    return res.status(401).json({ error: "Authentication required to access private attachments." });
+                }
+                return;
+            }
+            verifiedTenantId = req.user.tenantId;
+            verifiedUserId = req.user.userId;
+            verifiedRoles = req.user.roles || [];
+        }
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const mediaFile = await db.mediaFile.findFirst({
+            where: { id: mediaId, deletedAt: null },
+        });
+        if (!mediaFile || (mediaFile.tenantId && mediaFile.tenantId !== verifiedTenantId)) {
+            return res.status(404).json({ error: "Attachment not found." });
+        }
+        // Enforce live DB membership / FileAcl check (even for signed URLs, revoked group members or deleted messages lose access immediately!)
+        const allowed = await chat_service_1.ChatService.authorizeChatMediaAccess({
+            mediaFile,
+            tenantId: verifiedTenantId,
+            userId: verifiedUserId,
+            roles: verifiedRoles,
+        });
+        if (!allowed) {
+            return res.status(403).json({
+                error: "Access denied: You are not authorized to access this private attachment.",
+                code: "ATTACHMENT_ACCESS_DENIED",
+            });
+        }
+        const uploadsRoot = path_1.default.resolve((0, media_service_1.getUploadsRoot)());
+        const relPath = String(mediaFile.filePath || "").replace(/^[/\\]+/, "");
+        const absPath = path_1.default.resolve(uploadsRoot, relPath);
+        if (!absPath.startsWith(uploadsRoot)) {
+            return res.status(403).json({ error: "Invalid attachment storage path." });
+        }
+        let cloudBuffer = null;
+        if (!fs_1.default.existsSync(absPath)) {
+            cloudBuffer = await media_service_1.MediaService.fetchCloudMediaBuffer(mediaFile.tenantId, relPath, mediaFile.id);
+            if (cloudBuffer) {
+                const bufCopy = cloudBuffer;
+                void (async () => {
+                    try {
+                        const dir = path_1.default.dirname(absPath);
+                        if (!fs_1.default.existsSync(dir))
+                            fs_1.default.mkdirSync(dir, { recursive: true });
+                        const tmpPath = `${absPath}.tmp.${process.pid}.${Date.now()}`;
+                        await fs_1.default.promises.writeFile(tmpPath, bufCopy);
+                        await fs_1.default.promises.rename(tmpPath, absPath);
+                    }
+                    catch { }
+                })();
+            }
+            else {
+                return res.status(404).json({ error: "Attachment file is missing from storage." });
+            }
+        }
+        const safeMime = String(mediaFile.mimeType || "application/octet-stream").toLowerCase();
+        const isSafeInline = inline &&
+            (safeMime.startsWith("image/") ||
+                safeMime.startsWith("audio/") ||
+                safeMime.startsWith("video/") ||
+                safeMime === "application/pdf") &&
+            !safeMime.includes("svg") &&
+            !safeMime.includes("html") &&
+            !safeMime.includes("xml");
+        const safeName = String(mediaFile.fileName || "attachment").replace(/["\r\n]/g, "_");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        res.setHeader("Accept-Ranges", "bytes");
+        res.setHeader("Content-Security-Policy", "default-src 'none'; media-src 'self' blob: data:; img-src 'self' blob: data:; style-src 'unsafe-inline'");
+        res.setHeader("Cache-Control", "private, max-age=300, must-revalidate");
+        res.setHeader("Content-Type", isSafeInline ? safeMime : "application/octet-stream");
+        res.setHeader("Content-Disposition", `${isSafeInline ? "inline" : "attachment"}; filename="${encodeURIComponent(safeName)}"`);
+        if (!cloudBuffer && fs_1.default.existsSync(absPath)) {
+            return res.sendFile(absPath);
+        }
+        const buf = cloudBuffer;
+        const total = buf.length;
+        const range = req.headers.range;
+        if (range && range.startsWith("bytes=")) {
+            const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+            const start = Math.max(0, parseInt(startStr, 10) || 0);
+            const end = endStr ? Math.min(total - 1, parseInt(endStr, 10)) : total - 1;
+            if (start <= end && start < total) {
+                res.status(206);
+                res.setHeader("Content-Range", `bytes ${start}-${end}/${total}`);
+                res.setHeader("Content-Length", String(end - start + 1));
+                return res.end(buf.subarray(start, end + 1));
+            }
+        }
+        res.setHeader("Content-Length", String(total));
+        return res.end(buf);
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to serve attachment");
+    }
+});
+// Require authenticated workspace context for all remaining routes
+exports.chatRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+// GET /api/chat/file-policy - Active file restriction & quota rules
+exports.chatRouter.get("/file-policy", async (_req, res) => {
+    return res.json({
+        prohibitedExtensions: Array.from(chat_service_1.CHAT_RESTRICTED_EXTENSIONS),
+        maxFileSizeBytes: chat_service_1.MAX_CHAT_FILE_SIZE_BYTES,
+        maxAttachmentsPerMessage: chat_service_1.MAX_CHAT_ATTACHMENTS_PER_MESSAGE,
+        allowedCategories: [
+            "Images (png, jpg, jpeg, gif, webp)",
+            "Documents (pdf, docx, xlsx, pptx, txt, csv)",
+            "Audio & Video (mp3, wav, ogg, m4a, mp4, webm)",
+        ],
+    });
+});
+// GET /api/chat/presence - Distributed + serverless REST heartbeat + local online user IDs in tenant
+exports.chatRouter.get("/presence", async (req, res) => {
+    const tenantId = req.user?.tenantId || "default";
+    const currentUserId = req.user?.userId || "";
+    const passive = req.query.passive === "1" || req.query.passive === "true";
+    if (currentUserId && !passive) {
+        await (0, socket_1.recordRestUserPresence)(tenantId, currentUserId, "online");
+    }
+    const onlineUserIds = await (0, socket_1.getOnlineUsersForTenantAsync)(tenantId);
+    return res.json({ onlineUserIds });
+});
+// POST /api/chat/presence - Explicit online/offline heartbeat (page visibility / unload safe)
+exports.chatRouter.post("/presence", async (req, res) => {
+    const tenantId = req.user?.tenantId || "default";
+    const currentUserId = req.user?.userId || "";
+    const desiredStatus = req.body?.status === "offline" ? "offline" : "online";
+    if (currentUserId) {
+        await (0, socket_1.recordRestUserPresence)(tenantId, currentUserId, desiredStatus);
+        void pusher_service_1.PusherService.triggerTenantEvent(tenantId, "presence:update", {
+            userId: currentUserId,
+            status: desiredStatus,
+            timestamp: new Date().toISOString(),
+        }).catch(() => { });
+    }
+    const onlineUserIds = await (0, socket_1.getOnlineUsersForTenantAsync)(tenantId);
+    return res.json({ ok: true, status: desiredStatus, onlineUserIds });
+});
+// GET /api/chat/participant/:id - Authoritative participant profile with full HRMS metadata
+exports.chatRouter.get("/participant/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        if (currentUserId) {
+            void (0, socket_1.recordRestUserPresence)(tenantId, currentUserId, "online");
+        }
+        const { id } = req.params;
+        if (!id || typeof id !== "string") {
+            return res.status(400).json({ error: "Participant ID is required" });
+        }
+        const [emp, prof, onlineList] = await Promise.all([
+            prisma_1.prisma.employee.findFirst({
+                where: {
+                    tenantId,
+                    OR: [{ id }, { userId: id }],
+                },
+                select: {
+                    id: true,
+                    userId: true,
+                    employeeCode: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phone: true,
+                    position: true,
+                    employmentType: true,
+                    joinedAt: true,
+                    department: { select: { id: true, name: true } },
+                    branch: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                    manager: {
+                        select: {
+                            id: true,
+                            userId: true,
+                            employeeCode: true,
+                            firstName: true,
+                            lastName: true,
+                            position: true,
+                        },
+                    },
+                    user: {
+                        select: {
+                            profile: {
+                                select: { id: true, fullName: true, avatarUrl: true },
                             },
                         },
                     },
                 },
-            },
-        });
-        // 2. Search for matching Profile/User in this tenant
-        const prof = await prisma_1.prisma.profile.findFirst({
-            where: {
-                tenantId,
-                OR: [{ userId: id }, { id }],
-            },
-            include: {
-                user: {
-                    select: { id: true, email: true },
+            }),
+            prisma_1.prisma.profile.findFirst({
+                where: {
+                    tenantId,
+                    OR: [{ userId: id }, { id }],
                 },
-            },
-        });
+                include: {
+                    user: { select: { id: true, email: true } },
+                },
+            }),
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+        ]);
         if (!emp && !prof) {
             return res.status(404).json({ error: "Participant not found in this tenant workspace." });
         }
-        const onlineSet = new Set((0, socket_1.getOnlineUsersForTenant)(tenantId));
+        const onlineSet = new Set(onlineList);
         const canonicalUserId = emp?.userId || prof?.userId || id;
         const isOnline = onlineSet.has(canonicalUserId) || onlineSet.has(id);
         const fullName = emp
             ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || prof?.fullName || emp.email
             : prof?.fullName || prof?.user?.email || "Colleague";
-        const designation = emp?.position || emp?.designation?.name || "Team Member";
+        const designation = emp?.designation?.name || emp?.position || "Team Member";
         const department = emp?.department?.name || null;
+        const branch = emp?.branch?.name || null;
         const email = emp?.email || prof?.user?.email || "";
         const phone = emp?.phone || prof?.phone || null;
         const avatarUrl = prof?.avatarUrl || emp?.user?.profile?.avatarUrl || null;
         const employeeCode = emp?.employeeCode || null;
+        const reportingManager = emp?.manager
+            ? {
+                id: emp.manager.id,
+                userId: emp.manager.userId,
+                employeeCode: emp.manager.employeeCode,
+                name: `${emp.manager.firstName || ""} ${emp.manager.lastName || ""}`.trim(),
+                designation: emp.manager.position || "Manager",
+            }
+            : null;
         return res.json({
             id: canonicalUserId,
             userId: canonicalUserId,
@@ -223,8 +499,13 @@ exports.chatRouter.get("/participant/:id", auth_1.requireAuth, async (req, res) 
             email,
             phone,
             department,
+            departmentId: emp?.department?.id || null,
+            branch,
+            branchId: emp?.branch?.id || null,
             designation,
+            reportingManager,
             avatarUrl,
+            isOnline,
             status: isOnline ? "online" : "offline",
             statusText: isOnline ? "Online" : "Offline",
             employmentType: emp?.employmentType || null,
@@ -233,67 +514,96 @@ exports.chatRouter.get("/participant/:id", auth_1.requireAuth, async (req, res) 
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/contacts - Get authorized tenant users and employees
-exports.chatRouter.get("/contacts", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/contacts - Batch-optimized HRMS directory with search, filters & server pagination (zero N+1, no 200 cap)
+exports.chatRouter.get("/contacts", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const search = String(req.query.search || "").trim().toLowerCase();
-        // Fetch active employees with department in this tenant
-        const employees = await prisma_1.prisma.employee.findMany({
-            where: {
-                tenantId,
-                status: "active",
-            },
-            select: {
-                id: true,
-                userId: true,
-                employeeCode: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-                position: true,
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-            },
-            take: 200,
-        });
-        // Also fetch user profiles in this tenant (to exclude super_admin platform accounts)
-        const userProfiles = await prisma_1.prisma.profile.findMany({
-            where: { tenantId },
-            include: {
-                user: {
+        if (currentUserId) {
+            void (0, socket_1.recordRestUserPresence)(tenantId, currentUserId, "online");
+        }
+        const search = String(req.query.search || req.query.q || "").trim().toLowerCase();
+        const departmentIdFilter = String(req.query.departmentId || "").trim();
+        const branchIdFilter = String(req.query.branchId || "").trim();
+        const paginatedMode = req.query.paginated === "true" || req.query.paginated === "1";
+        const hasExplicitPaging = req.query.page !== undefined || req.query.limit !== undefined;
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = hasExplicitPaging
+            ? Math.min(500, Math.max(1, parseInt(String(req.query.limit || "100"), 10) || 100))
+            : 1000;
+        const empWhere = {
+            tenantId,
+            status: "active",
+            ...(departmentIdFilter ? { departmentId: departmentIdFilter } : {}),
+            ...(branchIdFilter ? { branchId: branchIdFilter } : {}),
+        };
+        const [employees, userProfiles, onlineList] = await Promise.all([
+            prisma_1.prisma.employee.findMany({
+                where: empWhere,
+                select: {
+                    id: true,
+                    userId: true,
+                    employeeCode: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phone: true,
+                    position: true,
+                    managerId: true,
+                    department: { select: { id: true, name: true } },
+                    branch: { select: { id: true, name: true } },
+                    designation: { select: { id: true, name: true } },
+                    manager: { select: { id: true, userId: true, firstName: true, lastName: true } },
+                },
+                orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+            }),
+            !departmentIdFilter && !branchIdFilter
+                ? prisma_1.prisma.profile.findMany({
+                    where: { tenantId },
                     select: {
                         id: true,
-                        email: true,
-                        roles: { select: { role: true } },
+                        userId: true,
+                        tenantId: true,
+                        fullName: true,
+                        phone: true,
+                        avatarUrl: true,
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                                roles: { select: { role: true } },
+                            },
+                        },
                     },
-                },
-            },
-            take: 200,
-        });
-        const onlineSet = new Set((0, socket_1.getOnlineUsersForTenant)(tenantId));
-        // Map profiles into lookup
+                })
+                : Promise.resolve([]),
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+        ]);
+        const onlineSet = new Set(onlineList);
         const profileByUser = new Map();
         for (const p of userProfiles) {
-            // Exclude platform super_admin accounts without tenant membership
-            const isPlatformSuperOnly = p.user.roles.some((r) => r.role === "super_admin") && !p.tenantId;
+            const isPlatformSuperOnly = p.user?.roles?.some((r) => r.role === "super_admin") && !p.tenantId;
             if (!isPlatformSuperOnly) {
                 profileByUser.set(p.userId, p);
             }
         }
-        // Build contacts list
         const contactMap = new Map();
         for (const emp of employees) {
             const uId = emp.userId || emp.id;
-            if (uId === currentUserId)
-                continue; // Skip self
+            if (uId === currentUserId || emp.id === currentUserId)
+                continue;
             const prof = emp.userId ? profileByUser.get(emp.userId) : null;
             const name = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || prof?.fullName || emp.email;
+            const designation = emp.designation?.name || emp.position || "Team Member";
+            const department = emp.department?.name || null;
+            const branch = emp.branch?.name || null;
+            const isOnline = onlineSet.has(uId) || Boolean(emp.userId && onlineSet.has(emp.userId));
+            const managerName = emp.manager
+                ? `${emp.manager.firstName || ""} ${emp.manager.lastName || ""}`.trim()
+                : null;
             contactMap.set(uId, {
                 id: uId,
                 userId: emp.userId || null,
@@ -302,127 +612,217 @@ exports.chatRouter.get("/contacts", auth_1.requireAuth, async (req, res) => {
                 name,
                 email: emp.email,
                 phone: emp.phone || prof?.phone || null,
-                title: emp.position || emp.designation?.name || "Team Member",
-                designation: emp.position || emp.designation?.name || "Team Member",
-                department: emp.department?.name || null,
+                title: designation,
+                designation,
+                department,
+                departmentId: emp.department?.id || null,
+                branch,
+                branchId: emp.branch?.id || null,
+                managerId: emp.managerId || null,
+                managerName,
                 avatarUrl: prof?.avatarUrl || null,
-                status: onlineSet.has(uId) || (emp.userId && onlineSet.has(emp.userId)) ? "online" : "offline",
-                statusText: onlineSet.has(uId) ? "Online" : "Offline",
+                status: isOnline ? "online" : "offline",
+                statusText: isOnline ? "Online" : "Offline",
             });
         }
-        // Include any profiles not mapped to employee record
         for (const [uId, prof] of profileByUser.entries()) {
             if (uId === currentUserId)
                 continue;
             if (!contactMap.has(uId)) {
+                const isOnline = onlineSet.has(uId);
                 contactMap.set(uId, {
                     id: uId,
                     userId: uId,
                     employeeId: null,
-                    name: prof.fullName || prof.user.email,
-                    email: prof.user.email,
+                    employeeCode: null,
+                    name: prof.fullName || prof.user?.email || "User",
+                    email: prof.user?.email || "",
                     phone: prof.phone || "",
-                    title: "User",
-                    department: "",
+                    title: "Workspace Member",
+                    designation: "Workspace Member",
+                    department: null,
+                    departmentId: null,
+                    branch: null,
+                    branchId: null,
+                    managerId: null,
+                    managerName: null,
                     avatarUrl: prof.avatarUrl || null,
-                    status: onlineSet.has(uId) ? "online" : "offline",
-                    statusText: onlineSet.has(uId) ? "Online" : "Offline",
+                    status: isOnline ? "online" : "offline",
+                    statusText: isOnline ? "Online" : "Offline",
                 });
             }
         }
         let contacts = Array.from(contactMap.values());
-        // Filter by search query if provided
         if (search) {
-            contacts = contacts.filter((c) => c.name.toLowerCase().includes(search) ||
-                c.email.toLowerCase().includes(search) ||
-                c.title.toLowerCase().includes(search) ||
-                c.department.toLowerCase().includes(search));
+            contacts = contacts.filter((c) => {
+                return (String(c.name || "").toLowerCase().includes(search) ||
+                    String(c.employeeCode || "").toLowerCase().includes(search) ||
+                    String(c.email || "").toLowerCase().includes(search) ||
+                    String(c.designation || "").toLowerCase().includes(search) ||
+                    String(c.department || "").toLowerCase().includes(search) ||
+                    String(c.branch || "").toLowerCase().includes(search));
+            });
         }
-        // Attach latest message snippet and unread count for each contact
-        const enrichedContacts = await Promise.all(contacts.map(async (c) => {
-            const threadId = `direct_${[currentUserId, c.id].sort().join("_")}`;
-            const lastMsg = await prisma_1.prisma.chatMessage.findFirst({
-                where: { tenantId, threadId },
-                orderBy: { createdAt: "desc" },
-                select: { content: true, createdAt: true, senderId: true },
-            });
-            const receipt = await prisma_1.prisma.chatReadReceipt.findUnique({
-                where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-                select: { lastReadAt: true },
-            });
-            const lastReadAt = receipt?.lastReadAt || new Date(0);
-            const unreadCount = await prisma_1.prisma.chatMessage.count({
-                where: {
-                    tenantId,
-                    threadId,
-                    senderId: { not: currentUserId },
-                    createdAt: { gt: lastReadAt },
-                },
-            });
+        const total = contacts.length;
+        const threadIds = contacts.map((c) => chat_service_1.ChatService.canonicalizeDirectThreadId(currentUserId, c.id));
+        const { lastMessageMap, unreadCountMap } = await fetchThreadSummariesBatch(tenantId, currentUserId, threadIds);
+        const enrichedAll = contacts.map((c) => {
+            const threadId = chat_service_1.ChatService.canonicalizeDirectThreadId(currentUserId, c.id);
+            const lastMsg = lastMessageMap.get(threadId);
+            const unreadCount = unreadCountMap.get(threadId) || 0;
             return {
                 ...c,
                 threadId,
                 lastMessage: lastMsg?.content || "",
-                time: lastMsg?.createdAt ? new Date(lastMsg.createdAt).toISOString() : null,
+                time: lastMsg?.createdAt ? lastMsg.createdAt.toISOString() : null,
                 unread: unreadCount,
             };
-        }));
-        enrichedContacts.sort((a, b) => {
+        });
+        enrichedAll.sort((a, b) => {
             if (a.time && b.time)
                 return new Date(b.time).getTime() - new Date(a.time).getTime();
             if (a.time)
                 return -1;
             if (b.time)
                 return 1;
-            return a.name.localeCompare(b.name);
+            return String(a.name).localeCompare(String(b.name));
         });
-        return res.json(enrichedContacts);
+        const startIdx = (pageNum - 1) * limitNum;
+        const pagedContacts = enrichedAll.slice(startIdx, startIdx + limitNum);
+        const totalPages = Math.max(1, Math.ceil(total / limitNum));
+        res.setHeader("X-Total-Count", String(total));
+        res.setHeader("X-Page", String(pageNum));
+        res.setHeader("X-Limit", String(limitNum));
+        res.setHeader("X-Total-Pages", String(totalPages));
+        if (paginatedMode) {
+            return res.json({
+                contacts: pagedContacts,
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages,
+            });
+        }
+        return res.json(pagedContacts);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/conversations - Get all active direct and group conversations
-exports.chatRouter.get("/conversations", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/conversations - Batch-optimized active direct & group conversations (zero N+1)
+exports.chatRouter.get("/conversations", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const onlineSet = new Set((0, socket_1.getOnlineUsersForTenant)(tenantId));
-        // Query pinned conversations for current user
-        const userPins = await prisma_1.prisma.chatConversationPin.findMany({
-            where: { tenantId, userId: currentUserId },
-        });
-        const pinnedSet = new Set(userPins.map((p) => p.threadId));
-        // 1. Fetch user's groups in this tenant
-        const groupMemberships = await prisma_1.prisma.chatGroupMember.findMany({
-            where: { tenantId, userId: currentUserId },
-            include: {
-                group: {
-                    include: {
-                        members: true,
+        if (currentUserId) {
+            void (0, socket_1.recordRestUserPresence)(tenantId, currentUserId, "online");
+        }
+        const filter = String(req.query.filter || "all").toLowerCase(); // all | unread | archived | muted | groups | direct
+        const includeArchived = req.query.includeArchived === "true" || req.query.includeArchived === "1" || filter === "archived";
+        const paginatedMode = req.query.paginated === "true" || req.query.paginated === "1";
+        const hasExplicitPaging = req.query.page !== undefined || req.query.limit !== undefined;
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = hasExplicitPaging
+            ? Math.min(500, Math.max(1, parseInt(String(req.query.limit || "100"), 10) || 100))
+            : 500;
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const [onlineList, userPins, userPrefs, groupMemberships, callerEmp] = await Promise.all([
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+            prisma_1.prisma.chatConversationPin.findMany({
+                where: { tenantId, userId: currentUserId },
+            }),
+            db.chatConversationPreference
+                ? db.chatConversationPreference.findMany({
+                    where: { tenantId, userId: currentUserId },
+                })
+                : Promise.resolve([]),
+            prisma_1.prisma.chatGroupMember.findMany({
+                where: { tenantId, userId: currentUserId },
+                include: {
+                    group: {
+                        include: { members: { select: { userId: true, role: true, isMuted: true, mutedUntil: true } } },
                     },
                 },
-            },
-        });
-        const groupConversations = await Promise.all(groupMemberships.map(async (m) => {
-            const g = m.group;
-            const threadId = `group_${g.id}`;
-            const lastMsg = await prisma_1.prisma.chatMessage.findFirst({
-                where: { tenantId, threadId },
-                orderBy: { createdAt: "desc" },
-            });
-            const receipt = await prisma_1.prisma.chatReadReceipt.findUnique({
-                where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-            });
-            const lastReadAt = receipt?.lastReadAt || new Date(0);
-            const unreadCount = await prisma_1.prisma.chatMessage.count({
+            }),
+            prisma_1.prisma.employee.findFirst({
+                where: { tenantId, userId: currentUserId },
+                select: { id: true },
+            }),
+        ]);
+        const onlineSet = new Set(onlineList);
+        const pinnedSet = new Set(userPins.map((p) => p.threadId));
+        const prefByThread = new Map(userPrefs.map((p) => [p.threadId, p]));
+        // Discover all distinct direct threads involving currentUserId (or caller's employeeId) without a 200-message cap
+        const directThreadSet = new Set();
+        if (typeof db.$queryRawUnsafe === "function") {
+            const patterns = [`direct_${currentUserId}_%`, `direct_%_${currentUserId}`];
+            if (callerEmp?.id && callerEmp.id !== currentUserId) {
+                patterns.push(`direct_${callerEmp.id}_%`, `direct_%_${callerEmp.id}`);
+            }
+            const directRows = await db.$queryRawUnsafe(`SELECT DISTINCT thread_id
+         FROM chat_messages
+         WHERE tenant_id = $1
+           AND thread_id LIKE 'direct_%'
+           AND (thread_id LIKE ANY($2::text[]))`, tenantId, patterns);
+            for (const r of Array.isArray(directRows) ? directRows : []) {
+                if (r?.thread_id)
+                    directThreadSet.add(r.thread_id);
+            }
+        }
+        else {
+            const fallbackMsgs = await prisma_1.prisma.chatMessage.findMany({
                 where: {
                     tenantId,
-                    threadId,
-                    senderId: { not: currentUserId },
-                    createdAt: { gt: lastReadAt },
+                    threadId: { startsWith: "direct_" },
+                    OR: [{ threadId: { contains: `_${currentUserId}` } }, { threadId: { contains: `${currentUserId}_` } }],
                 },
+                select: { threadId: true },
+                orderBy: { createdAt: "desc" },
+                take: 500,
             });
+            fallbackMsgs.forEach((m) => directThreadSet.add(m.threadId));
+        }
+        // Also include direct threads with saved pins or preferences
+        for (const p of userPins) {
+            if (p.threadId.startsWith("direct_"))
+                directThreadSet.add(p.threadId);
+        }
+        for (const pref of userPrefs) {
+            if (pref.threadId.startsWith("direct_"))
+                directThreadSet.add(pref.threadId);
+        }
+        // Parse & validate direct threads (strictly 2 tokens)
+        const callerIdentities = new Set([currentUserId]);
+        if (callerEmp?.id)
+            callerIdentities.add(callerEmp.id);
+        const validDirectEntries = [];
+        for (const tid of directThreadSet) {
+            const parts = tid.slice("direct_".length).split("_").filter(Boolean);
+            if (parts.length !== 2)
+                continue;
+            if (!callerIdentities.has(parts[0]) && !callerIdentities.has(parts[1]))
+                continue;
+            const otherToken = callerIdentities.has(parts[0]) ? parts[1] : parts[0];
+            validDirectEntries.push({ threadId: tid, otherToken });
+        }
+        const groupThreadIds = groupMemberships.map((m) => `group_${m.group.id}`);
+        const allThreadIds = [...groupThreadIds, ...validDirectEntries.map((d) => d.threadId)];
+        const [{ lastMessageMap, unreadCountMap }, { empByKey, profByUserId }] = await Promise.all([
+            fetchThreadSummariesBatch(tenantId, currentUserId, allThreadIds),
+            resolveParticipantsBatch(tenantId, validDirectEntries.map((d) => d.otherToken)),
+        ]);
+        const nowMs = Date.now();
+        const groupConversations = groupMemberships.map((m) => {
+            const g = m.group;
+            const threadId = `group_${g.id}`;
+            const lastMsg = lastMessageMap.get(threadId);
+            const pref = prefByThread.get(threadId);
+            const rawUnread = unreadCountMap.get(threadId) || 0;
+            const markedUnread = Boolean(pref?.markedUnreadAt);
+            const unreadCount = markedUnread ? Math.max(1, rawUnread) : rawUnread;
+            const isMuted = Boolean(m.isMuted && (!m.mutedUntil || new Date(m.mutedUntil).getTime() > nowMs)) ||
+                Boolean(pref?.isMuted && (!pref?.mutedUntil || new Date(pref.mutedUntil).getTime() > nowMs));
+            const isArchived = Boolean(pref?.isArchived || g.isArchived);
             return {
                 id: g.id,
                 groupId: g.id,
@@ -431,46 +831,155 @@ exports.chatRouter.get("/conversations", auth_1.requireAuth, async (req, res) =>
                 name: g.name,
                 description: g.description,
                 avatarUrl: g.avatarUrl || null,
+                category: g.category || "custom",
+                sourceEntityId: g.sourceEntityId || null,
+                isAnnouncementOnly: Boolean(g.isAnnouncementOnly),
+                groupIsArchived: Boolean(g.isArchived),
+                maxMembers: g.maxMembers || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS,
                 memberCount: g.members.length,
                 members: g.members.map((mem) => mem.userId),
+                myRole: g.ownerId === currentUserId ? "owner" : m.role || "member",
                 createdById: g.createdById,
                 ownerId: g.ownerId || g.createdById,
                 lastMessage: lastMsg?.content || "",
+                lastMessageSender: lastMsg?.senderName || "",
                 lastMessageTime: lastMsg?.createdAt || g.createdAt,
                 unreadCount,
+                markedUnread,
                 isPinned: pinnedSet.has(threadId),
-                isMuted: m.isMuted,
+                isMuted,
+                mutedUntil: pref?.mutedUntil || m.mutedUntil || null,
+                isArchived,
+                notificationLevel: pref?.notificationLevel || "all",
             };
-        }));
-        // 2. Fetch distinct direct threads involving currentUserId
-        const directMessages = await prisma_1.prisma.chatMessage.findMany({
-            where: {
-                tenantId,
-                threadId: { startsWith: "direct_" },
-                OR: [
-                    { threadId: { contains: `_${currentUserId}` } },
-                    { threadId: { contains: `${currentUserId}_` } },
-                ],
-            },
-            orderBy: { createdAt: "desc" },
-            take: 200,
         });
-        const directThreadsMap = new Map();
-        for (const msg of directMessages) {
-            if (!directThreadsMap.has(msg.threadId)) {
-                directThreadsMap.set(msg.threadId, msg);
-            }
+        const directConversations = [];
+        const seenCanonicalDirectPeers = new Set();
+        for (const { threadId, otherToken } of validDirectEntries) {
+            const emp = empByKey.get(otherToken);
+            const canonicalOtherUserId = emp?.userId || otherToken;
+            const prof = profByUserId.get(canonicalOtherUserId) || profByUserId.get(otherToken);
+            // Skip orphaned/cross-tenant tokens that do not exist in this workspace
+            if (!emp && !prof)
+                continue;
+            const dedupeKey = `${threadId}`;
+            if (seenCanonicalDirectPeers.has(dedupeKey))
+                continue;
+            seenCanonicalDirectPeers.add(dedupeKey);
+            const name = emp
+                ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || prof?.fullName || emp.email
+                : prof?.fullName || prof?.user?.email || "User";
+            const email = emp?.email || prof?.user?.email || "";
+            const title = emp?.designation?.name || emp?.position || "Team Member";
+            const avatarUrl = prof?.avatarUrl || null;
+            const isOnline = onlineSet.has(canonicalOtherUserId) || onlineSet.has(otherToken);
+            const lastMsg = lastMessageMap.get(threadId);
+            const pref = prefByThread.get(threadId);
+            const rawUnread = unreadCountMap.get(threadId) || 0;
+            const markedUnread = Boolean(pref?.markedUnreadAt);
+            const unreadCount = markedUnread ? Math.max(1, rawUnread) : rawUnread;
+            const isMuted = Boolean(pref?.isMuted && (!pref?.mutedUntil || new Date(pref.mutedUntil).getTime() > nowMs));
+            const isArchived = Boolean(pref?.isArchived);
+            directConversations.push({
+                id: canonicalOtherUserId,
+                userId: canonicalOtherUserId,
+                employeeId: emp?.id || null,
+                employeeCode: emp?.employeeCode || null,
+                threadId,
+                type: "direct",
+                name,
+                email,
+                phone: emp?.phone || prof?.phone || null,
+                department: emp?.department?.name || null,
+                branch: emp?.branch?.name || null,
+                title,
+                designation: title,
+                avatarUrl,
+                status: isOnline ? "online" : "offline",
+                statusText: isOnline ? "Online" : "Offline",
+                lastMessage: lastMsg?.content || "",
+                lastMessageTime: lastMsg?.createdAt || pref?.updatedAt || new Date(0),
+                unreadCount,
+                markedUnread,
+                isPinned: pinnedSet.has(threadId),
+                isMuted,
+                mutedUntil: pref?.mutedUntil || null,
+                isArchived,
+                notificationLevel: pref?.notificationLevel || "all",
+            });
         }
-        const directConversations = await Promise.all(Array.from(directThreadsMap.entries()).map(async ([threadId, lastMsg]) => {
-            const parts = threadId.slice("direct_".length).split("_");
-            const otherUserId = parts.find((p) => p !== currentUserId) || currentUserId;
-            // Fetch other user profile or employee details
-            let name = "User";
-            let email = "";
-            let avatarUrl = null;
-            let title = "Employee";
-            const emp = await prisma_1.prisma.employee.findFirst({
-                where: { tenantId, OR: [{ userId: otherUserId }, { id: otherUserId }] },
+        let allConversations = [...groupConversations, ...directConversations];
+        if (!includeArchived) {
+            allConversations = allConversations.filter((c) => !c.isArchived);
+        }
+        if (filter === "archived") {
+            allConversations = allConversations.filter((c) => c.isArchived);
+        }
+        else if (filter === "unread") {
+            allConversations = allConversations.filter((c) => c.unreadCount > 0 || c.markedUnread);
+        }
+        else if (filter === "muted") {
+            allConversations = allConversations.filter((c) => c.isMuted);
+        }
+        else if (filter === "groups") {
+            allConversations = allConversations.filter((c) => c.type === "group");
+        }
+        else if (filter === "direct") {
+            allConversations = allConversations.filter((c) => c.type === "direct");
+        }
+        allConversations.sort((a, b) => {
+            if (a.isPinned && !b.isPinned)
+                return -1;
+            if (!a.isPinned && b.isPinned)
+                return 1;
+            return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
+        });
+        const total = allConversations.length;
+        const startIdx = (pageNum - 1) * limitNum;
+        const pagedConversations = allConversations.slice(startIdx, startIdx + limitNum);
+        const totalPages = Math.max(1, Math.ceil(total / limitNum));
+        res.setHeader("X-Total-Count", String(total));
+        res.setHeader("X-Page", String(pageNum));
+        res.setHeader("X-Total-Pages", String(totalPages));
+        if (paginatedMode) {
+            return res.json({
+                conversations: pagedConversations,
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages,
+            });
+        }
+        return res.json(pagedConversations);
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// POST /api/chat/conversations/direct - Start or open a canonical 1:1 direct conversation
+exports.chatRouter.post("/conversations/direct", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const rawTarget = req.body.targetUserId || req.body.participantId || req.body.userId || req.body.contactId;
+        if (!rawTarget || typeof rawTarget !== "string") {
+            return res.status(400).json({ error: "targetUserId or participantId is required" });
+        }
+        const resolvedTarget = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, rawTarget);
+        if (!resolvedTarget) {
+            return res.status(404).json({
+                error: "Target contact not found in this tenant workspace.",
+                code: "CROSS_TENANT_FORBIDDEN",
+            });
+        }
+        const targetUserId = resolvedTarget.userId;
+        const [targetUser, targetEmp, onlineList] = await Promise.all([
+            prisma_1.prisma.user.findFirst({
+                where: { id: targetUserId, profile: { tenantId } },
+                include: { profile: true },
+            }),
+            prisma_1.prisma.employee.findFirst({
+                where: { tenantId, OR: [{ userId: targetUserId }, { id: rawTarget }] },
                 select: {
                     id: true,
                     userId: true,
@@ -481,113 +990,17 @@ exports.chatRouter.get("/conversations", auth_1.requireAuth, async (req, res) =>
                     phone: true,
                     position: true,
                     department: { select: { id: true, name: true } },
+                    branch: { select: { id: true, name: true } },
                     designation: { select: { id: true, name: true } },
                 },
-            });
-            if (emp) {
-                name = `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email;
-                email = emp.email;
-                title = emp.position || emp.designation?.name || "Team Member";
-            }
-            const prof = await prisma_1.prisma.profile.findFirst({
-                where: { tenantId, userId: otherUserId },
-            });
-            if (prof) {
-                if (!emp)
-                    name = prof.fullName || name;
-                avatarUrl = prof.avatarUrl;
-            }
-            const receipt = await prisma_1.prisma.chatReadReceipt.findUnique({
-                where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-            });
-            const lastReadAt = receipt?.lastReadAt || new Date(0);
-            const unreadCount = await prisma_1.prisma.chatMessage.count({
-                where: {
-                    tenantId,
-                    threadId,
-                    senderId: { not: currentUserId },
-                    createdAt: { gt: lastReadAt },
-                },
-            });
-            return {
-                id: otherUserId,
-                userId: emp?.userId || prof?.userId || otherUserId,
-                employeeId: emp?.id || null,
-                employeeCode: emp?.employeeCode || null,
-                threadId,
-                type: "direct",
-                name,
-                email,
-                phone: emp?.phone || prof?.phone || null,
-                department: emp?.department?.name || null,
-                title,
-                designation: title,
-                avatarUrl,
-                status: onlineSet.has(otherUserId) ? "online" : "offline",
-                statusText: onlineSet.has(otherUserId) ? "Online" : "Offline",
-                lastMessage: lastMsg.content,
-                lastMessageTime: lastMsg.createdAt,
-                unreadCount,
-                isPinned: pinnedSet.has(threadId),
-            };
-        }));
-        const allConversations = [...groupConversations, ...directConversations].sort((a, b) => {
-            if (a.isPinned && !b.isPinned)
-                return -1;
-            if (!a.isPinned && b.isPinned)
-                return 1;
-            return new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime();
-        });
-        return res.json(allConversations);
-    }
-    catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-// POST /api/chat/conversations/direct - Start or open a direct conversation
-exports.chatRouter.post("/conversations/direct", auth_1.requireAuth, async (req, res) => {
-    try {
-        const tenantId = req.user?.tenantId || "default";
-        const currentUserId = req.user?.userId || "";
-        const targetUserId = req.body.targetUserId || req.body.participantId || req.body.userId || req.body.contactId;
-        if (!targetUserId || typeof targetUserId !== "string") {
-            return res.status(400).json({ error: "targetUserId or participantId is required" });
-        }
-        // Verify target belongs to the same tenant
-        const targetUser = await prisma_1.prisma.user.findFirst({
-            where: {
-                id: targetUserId,
-                profile: { tenantId },
-            },
-            include: { profile: true },
-        });
-        const targetEmp = await prisma_1.prisma.employee.findFirst({
-            where: {
-                tenantId,
-                OR: [{ userId: targetUserId }, { id: targetUserId }],
-            },
-            select: {
-                id: true,
-                userId: true,
-                employeeCode: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-                phone: true,
-                position: true,
-                department: { select: { id: true, name: true } },
-                designation: { select: { id: true, name: true } },
-            },
-        });
-        if (!targetUser && !targetEmp) {
-            return res.status(404).json({ error: "Target contact not found in this tenant workspace." });
-        }
-        // Canonical deterministic threadId: prevents duplicate threads
-        const threadId = `direct_${[currentUserId, targetUserId].sort().join("_")}`;
+            }),
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+        ]);
+        const threadId = chat_service_1.ChatService.canonicalizeDirectThreadId(currentUserId, targetUserId);
         const contactName = targetEmp
             ? `${targetEmp.firstName || ""} ${targetEmp.lastName || ""}`.trim() || targetEmp.email
             : targetUser?.profile?.fullName || targetUser?.email || "User";
-        const designation = targetEmp?.position || targetEmp?.designation?.name || "Team Member";
+        const designation = targetEmp?.designation?.name || targetEmp?.position || "Team Member";
         return res.json({
             threadId,
             targetUserId,
@@ -598,83 +1011,277 @@ exports.chatRouter.post("/conversations/direct", auth_1.requireAuth, async (req,
             email: targetEmp?.email || targetUser?.email,
             phone: targetEmp?.phone || targetUser?.profile?.phone || null,
             department: targetEmp?.department?.name || null,
+            branch: targetEmp?.branch?.name || null,
             designation,
             employeeCode: targetEmp?.employeeCode || null,
-            status: (0, socket_1.getOnlineUsersForTenant)(tenantId).includes(targetUserId) ? "online" : "offline",
+            status: onlineList.includes(targetUserId) ? "online" : "offline",
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/groups - Get all groups for current user
-exports.chatRouter.get("/groups", auth_1.requireAuth, async (req, res) => {
+// ============================================================================
+// CONVERSATION PREFERENCES (Pin, Mute, Archive, Mark Unread, Notification Level)
+// ============================================================================
+// GET /api/chat/conversations/preferences - All conversation preferences for caller
+exports.chatRouter.get("/conversations/preferences", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const search = String(req.query.search || "").trim().toLowerCase();
-        // Query pinned conversations for current user
-        const userPins = await prisma_1.prisma.chatConversationPin.findMany({
-            where: { tenantId, userId: currentUserId },
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const prefs = db.chatConversationPreference
+            ? await db.chatConversationPreference.findMany({
+                where: { tenantId, userId: currentUserId },
+            })
+            : [];
+        return res.json({ preferences: prefs });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// PATCH & POST /api/chat/conversations/:threadId/preferences - Update Mute / Archive / Unread / Notification settings
+const handleUpdateConversationPreferences = async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { threadId } = req.params;
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
         });
-        const pinnedSet = new Set(userPins.map((p) => p.threadId));
-        const groups = await prisma_1.prisma.chatGroup.findMany({
+        if (!authCheck.authorized) {
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Unauthorized conversation.",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
+            });
+        }
+        const { isMuted, durationHours, mutedUntil, isArchived, markedUnread, notificationLevel } = req.body || {};
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const existing = await db.chatConversationPreference.findUnique({
             where: {
-                tenantId,
-                members: {
-                    some: { userId: currentUserId },
+                tenantId_userId_threadId: {
+                    tenantId,
+                    userId: currentUserId,
+                    threadId,
                 },
-                ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
             },
-            include: {
-                members: true,
-            },
-            orderBy: { updatedAt: "desc" },
         });
-        const enrichedGroups = await Promise.all(groups.map(async (g) => {
-            const threadId = `group_${g.id}`;
-            const lastMsg = await prisma_1.prisma.chatMessage.findFirst({
-                where: { tenantId, threadId },
-                orderBy: { createdAt: "desc" },
-                select: { content: true, createdAt: true, senderName: true },
+        const updateData = {};
+        if (typeof isMuted === "boolean") {
+            updateData.isMuted = isMuted;
+            if (isMuted) {
+                updateData.mutedUntil = mutedUntil
+                    ? new Date(mutedUntil)
+                    : durationHours
+                        ? new Date(Date.now() + Number(durationHours) * 3600 * 1000)
+                        : null;
+            }
+            else {
+                updateData.mutedUntil = null;
+            }
+        }
+        if (typeof isArchived === "boolean") {
+            updateData.isArchived = isArchived;
+            updateData.archivedAt = isArchived ? new Date() : null;
+        }
+        if (typeof markedUnread === "boolean") {
+            updateData.markedUnreadAt = markedUnread ? new Date() : null;
+        }
+        if (typeof notificationLevel === "string" && ["all", "mentions", "none"].includes(notificationLevel)) {
+            updateData.notificationLevel = notificationLevel;
+        }
+        const saved = await db.chatConversationPreference.upsert({
+            where: {
+                tenantId_userId_threadId: {
+                    tenantId,
+                    userId: currentUserId,
+                    threadId,
+                },
+            },
+            create: {
+                tenantId,
+                userId: currentUserId,
+                threadId,
+                isMuted: updateData.isMuted ?? false,
+                mutedUntil: updateData.mutedUntil ?? null,
+                isArchived: updateData.isArchived ?? false,
+                archivedAt: updateData.archivedAt ?? null,
+                markedUnreadAt: updateData.markedUnreadAt ?? null,
+                notificationLevel: updateData.notificationLevel ?? "all",
+            },
+            update: updateData,
+        });
+        // Keep ChatGroupMember mute columns synchronized for group threads
+        if (authCheck.threadType === "group" && authCheck.membership?.id && typeof isMuted === "boolean") {
+            await prisma_1.prisma.chatGroupMember
+                .update({
+                where: { id: authCheck.membership.id },
+                data: {
+                    isMuted: saved.isMuted,
+                    mutedUntil: saved.mutedUntil,
+                },
+            })
+                .catch(() => { });
+        }
+        // If explicitly marked read via preferences, synchronize read receipt
+        if (markedUnread === false && existing?.markedUnreadAt) {
+            await chat_service_1.ChatService.markThreadRead({
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                threadId,
+            }).catch(() => { });
+        }
+        (0, socket_1.broadcastToUser)(currentUserId, "chat:preference_updated", {
+            threadId,
+            preference: saved,
+        });
+        return res.json({
+            success: true,
+            threadId,
+            preference: saved,
+            isMuted: saved.isMuted,
+            mutedUntil: saved.mutedUntil,
+            isArchived: saved.isArchived,
+            markedUnread: Boolean(saved.markedUnreadAt),
+            notificationLevel: saved.notificationLevel,
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+};
+exports.chatRouter.patch("/conversations/:threadId/preferences", handleUpdateConversationPreferences);
+exports.chatRouter.post("/conversations/:threadId/preferences", handleUpdateConversationPreferences);
+// POST /api/chat/conversations/:threadId/pin - Toggle pin for current user (with strict thread authorization)
+exports.chatRouter.post("/conversations/:threadId/pin", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { threadId } = req.params;
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
+        if (!authCheck.authorized) {
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Access denied: Cannot pin an unauthorized conversation.",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
             });
-            const receipt = await prisma_1.prisma.chatReadReceipt.findUnique({
-                where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
+        }
+        const existing = await prisma_1.prisma.chatConversationPin.findUnique({
+            where: {
+                tenantId_userId_threadId: {
+                    tenantId,
+                    userId: currentUserId,
+                    threadId,
+                },
+            },
+        });
+        if (existing) {
+            await prisma_1.prisma.chatConversationPin.delete({ where: { id: existing.id } });
+            (0, socket_1.broadcastToUser)(currentUserId, "chat:conversation_pinned", { threadId, isPinned: false });
+            return res.json({ isPinned: false, message: "Conversation unpinned." });
+        }
+        else {
+            await prisma_1.prisma.chatConversationPin.create({
+                data: { tenantId, userId: currentUserId, threadId },
             });
-            const lastReadAt = receipt?.lastReadAt || new Date(0);
-            const unreadCount = await prisma_1.prisma.chatMessage.count({
+            (0, socket_1.broadcastToUser)(currentUserId, "chat:conversation_pinned", { threadId, isPinned: true });
+            return res.json({ isPinned: true, message: "Conversation pinned." });
+        }
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// GET /api/chat/conversations/pinned - Get all pinned conversation thread IDs for current user
+exports.chatRouter.get("/conversations/pinned", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const pins = await prisma_1.prisma.chatConversationPin.findMany({
+            where: { tenantId, userId: currentUserId },
+            orderBy: { pinnedAt: "desc" },
+        });
+        return res.json(pins.map((p) => p.threadId));
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// ============================================================================
+// GROUP CHAT & HRMS DYNAMIC GROUP HELPERS (Section 4 & Section 9)
+// ============================================================================
+// GET /api/chat/groups - Batch-optimized groups for current user (zero N+1)
+exports.chatRouter.get("/groups", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const search = String(req.query.search || "").trim();
+        const includeArchived = req.query.includeArchived === "true" || req.query.includeArchived === "1";
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const [userPins, userPrefs, groups] = await Promise.all([
+            prisma_1.prisma.chatConversationPin.findMany({
+                where: { tenantId, userId: currentUserId },
+            }),
+            db.chatConversationPreference
+                ? db.chatConversationPreference.findMany({
+                    where: { tenantId, userId: currentUserId, threadId: { startsWith: "group_" } },
+                })
+                : Promise.resolve([]),
+            prisma_1.prisma.chatGroup.findMany({
                 where: {
                     tenantId,
-                    threadId,
-                    senderId: { not: currentUserId },
-                    createdAt: { gt: lastReadAt },
+                    members: { some: { userId: currentUserId } },
+                    ...(includeArchived ? {} : { isArchived: false }),
+                    ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
                 },
-            });
+                include: { members: true },
+                orderBy: { updatedAt: "desc" },
+            }),
+        ]);
+        const pinnedSet = new Set(userPins.map((p) => p.threadId));
+        const prefByThread = new Map(userPrefs.map((p) => [p.threadId, p]));
+        const allMemberUserIds = Array.from(new Set(groups.flatMap((g) => g.members.map((m) => m.userId))));
+        const groupThreadIds = groups.map((g) => `group_${g.id}`);
+        const [{ empByKey, profByUserId }, { lastMessageMap, unreadCountMap }] = await Promise.all([
+            resolveParticipantsBatch(tenantId, allMemberUserIds),
+            fetchThreadSummariesBatch(tenantId, currentUserId, groupThreadIds),
+        ]);
+        const enrichedGroups = groups.map((g) => {
+            const threadId = `group_${g.id}`;
+            const lastMsg = lastMessageMap.get(threadId);
+            const unreadCount = unreadCountMap.get(threadId) || 0;
             const userMembership = g.members.find((m) => m.userId === currentUserId);
-            const richMembers = await Promise.all(g.members.map(async (mem) => {
-                const prof = await prisma_1.prisma.profile.findFirst({
-                    where: { tenantId, userId: mem.userId },
-                    select: { fullName: true, avatarUrl: true },
-                });
-                const emp = await prisma_1.prisma.employee.findFirst({
-                    where: { tenantId, OR: [{ userId: mem.userId }, { id: mem.userId }] },
-                    select: { id: true, firstName: true, lastName: true, email: true, position: true, department: { select: { name: true } } },
-                });
+            const pref = prefByThread.get(threadId);
+            const richMembers = g.members.map((mem) => {
+                const emp = empByKey.get(mem.userId);
+                const prof = profByUserId.get(mem.userId);
                 const displayName = emp
                     ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email
                     : prof?.fullName || "Member";
                 return {
                     id: mem.id,
                     userId: mem.userId,
-                    role: mem.role || "member",
+                    role: g.ownerId === mem.userId ? "owner" : mem.role || "member",
                     isMuted: mem.isMuted,
                     name: displayName,
-                    email: emp?.email,
+                    email: emp?.email || prof?.user?.email || "",
                     avatarUrl: prof?.avatarUrl || null,
                     department: emp?.department?.name || null,
-                    designation: emp?.position || "Team Member",
+                    branch: emp?.branch?.name || null,
+                    designation: emp?.designation?.name || emp?.position || "Team Member",
                 };
-            }));
+            });
             return {
                 id: g.id,
                 groupId: g.id,
@@ -682,8 +1289,15 @@ exports.chatRouter.get("/groups", auth_1.requireAuth, async (req, res) => {
                 name: g.name,
                 description: g.description,
                 avatarUrl: g.avatarUrl,
+                category: g.category || "custom",
+                sourceEntityId: g.sourceEntityId || null,
+                isAnnouncementOnly: Boolean(g.isAnnouncementOnly),
+                isArchived: Boolean(g.isArchived),
+                maxMembers: g.maxMembers || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS,
+                hasActiveInvite: Boolean(g.inviteToken && g.inviteExpiresAt && new Date(g.inviteExpiresAt).getTime() > Date.now()),
                 memberCount: g.members.length,
                 members: richMembers,
+                myRole: g.ownerId === currentUserId ? "owner" : userMembership?.role || "member",
                 createdById: g.createdById,
                 ownerId: g.ownerId || g.createdById,
                 lastMessage: lastMsg?.content || "",
@@ -692,9 +1306,10 @@ exports.chatRouter.get("/groups", auth_1.requireAuth, async (req, res) => {
                 unread: unreadCount,
                 unreadCount,
                 isPinned: pinnedSet.has(threadId),
-                isMuted: userMembership?.isMuted || false,
+                isMuted: Boolean(userMembership?.isMuted || pref?.isMuted),
+                isConversationArchived: Boolean(pref?.isArchived),
             };
-        }));
+        });
         enrichedGroups.sort((a, b) => {
             if (a.isPinned && !b.isPinned)
                 return -1;
@@ -705,20 +1320,74 @@ exports.chatRouter.get("/groups", auth_1.requireAuth, async (req, res) => {
         return res.json(enrichedGroups);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/groups - Create a new group
-exports.chatRouter.post("/groups", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/groups - Create a new group with strict tenant-member validation & member-only emission (Section 2.5)
+exports.chatRouter.post("/groups", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const { name, description, avatarUrl, memberIds = [] } = req.body;
+        const { name, description, avatarUrl, memberIds = [], category = "custom", isAnnouncementOnly = false, maxMembers = chat_service_1.DEFAULT_MAX_GROUP_MEMBERS, } = req.body;
+        if (!chat_service_1.ChatService.hasChatPermission(req.user, "chat.create_group")) {
+            return res.status(403).json({ error: "You do not have permission to create chat groups." });
+        }
+        const wantAnnouncement = Boolean(isAnnouncementOnly || category === "announcement");
+        if (wantAnnouncement && !chat_service_1.ChatService.hasChatPermission(req.user, "chat.announcements")) {
+            return res.status(403).json({
+                error: "Only HR or workspace administrators can create official announcement channels.",
+                code: "ANNOUNCEMENT_ADMIN_REQUIRED",
+            });
+        }
         if (!name || typeof name !== "string" || !name.trim()) {
             return res.status(400).json({ error: "Group name is required." });
         }
-        // Verify all memberIds belong to this tenant
-        const uniqueMembers = Array.from(new Set([currentUserId, ...(Array.isArray(memberIds) ? memberIds : [])]));
+        if (name.trim().length > 150) {
+            return res.status(400).json({ error: "Group name cannot exceed 150 characters." });
+        }
+        const submittedIds = Array.isArray(memberIds)
+            ? memberIds.map((id) => String(id || "").trim()).filter(Boolean)
+            : [];
+        // Resolve & validate EVERY submitted user belongs to this tenant (reject cross-tenant or invalid IDs!)
+        const resolvedMemberUserIds = new Set([currentUserId]);
+        const invalidIds = [];
+        for (const candidateId of submittedIds) {
+            if (candidateId === currentUserId)
+                continue;
+            const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, candidateId);
+            if (!resolved) {
+                invalidIds.push(candidateId);
+            }
+            else {
+                resolvedMemberUserIds.add(resolved.userId);
+            }
+        }
+        if (invalidIds.length > 0) {
+            return res.status(403).json({
+                error: `Cannot add users outside your workspace or invalid user IDs: ${invalidIds.slice(0, 5).join(", ")}`,
+                code: "CROSS_TENANT_MEMBER_REJECTED",
+                invalidIds,
+            });
+        }
+        const cappedMaxMembers = Math.min(500, Math.max(2, Number(maxMembers) || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS));
+        const uniqueMembers = Array.from(resolvedMemberUserIds);
+        if (uniqueMembers.length > cappedMaxMembers) {
+            return res.status(400).json({
+                error: `Group cannot exceed ${cappedMaxMembers} members.`,
+                code: "GROUP_MEMBER_LIMIT_EXCEEDED",
+            });
+        }
+        const allowedCategories = new Set([
+            "custom",
+            "department",
+            "branch",
+            "project",
+            "leadership",
+            "hr",
+            "management",
+            "announcement",
+        ]);
+        const safeCategory = allowedCategories.has(String(category)) ? String(category) : "custom";
         const group = await prisma_1.prisma.$transaction(async (tx) => {
             const created = await tx.chatGroup.create({
                 data: {
@@ -728,105 +1397,550 @@ exports.chatRouter.post("/groups", auth_1.requireAuth, async (req, res) => {
                     avatarUrl: avatarUrl?.trim() || null,
                     createdById: currentUserId,
                     ownerId: currentUserId,
+                    category: safeCategory,
+                    isAnnouncementOnly: wantAnnouncement,
+                    maxMembers: cappedMaxMembers,
                 },
             });
-            // Add members: creator is "owner", others are "member"
-            const memberData = uniqueMembers.map((userId) => ({
-                tenantId,
-                groupId: created.id,
-                userId,
-                role: userId === currentUserId ? "owner" : "member",
-            }));
             await tx.chatGroupMember.createMany({
-                data: memberData,
+                data: uniqueMembers.map((uid) => ({
+                    tenantId,
+                    groupId: created.id,
+                    userId: uid,
+                    role: uid === currentUserId ? "owner" : "member",
+                })),
                 skipDuplicates: true,
             });
-            // System event for group creation
             const creatorProfile = await tx.profile.findFirst({
                 where: { userId: currentUserId, tenantId },
                 select: { fullName: true },
             });
-            const creatorName = creatorProfile?.fullName || req.user?.email?.split("@")[0] || "User";
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${created.id}`, currentUserId, "group_created", `${creatorName} created the group "${name.trim()}"`, { groupName: name.trim() }, tx);
+            const creatorName = cleanPersonName(creatorProfile?.fullName || req.user?.email?.split("@")[0] || "User");
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${created.id}`, currentUserId, "group_created", `${creatorName} created the group "${name.trim()}"`, { groupName: name.trim(), category: safeCategory }, tx);
             return created;
         });
         const fullGroup = await prisma_1.prisma.chatGroup.findUnique({
             where: { id: group.id },
             include: { members: true },
         });
-        // Broadcast to tenant
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_created", { group: fullGroup });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_created", { group: fullGroup }).catch(() => { });
+        // Emit group_created STRICTLY to the group's authorized members (never tenant-wide!)
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${group.id}`,
+            event: "chat:group_created",
+            payload: { group: fullGroup },
+            participantUserIds: uniqueMembers,
+        });
         return res.status(201).json(fullGroup);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/groups/:id - Get group details & members
-exports.chatRouter.get("/groups/:id", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/hrms/group-templates - Discover Department, Branch, Project & Role cohorts for dynamic group creation
+exports.chatRouter.get("/hrms/group-templates", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const [departments, branches, projects, activeEmployees, existingDynamicGroups] = await Promise.all([
+            prisma_1.prisma.department.findMany({
+                where: { tenantId, status: "active" },
+                select: { id: true, name: true, description: true },
+                orderBy: { name: "asc" },
+            }),
+            prisma_1.prisma.branch.findMany({
+                where: { tenantId },
+                select: { id: true, name: true },
+                orderBy: { name: "asc" },
+            }),
+            prisma_1.prisma.project.findMany({
+                where: { tenantId, status: { not: "cancelled" } },
+                select: { id: true, name: true, status: true },
+                orderBy: { updatedAt: "desc" },
+                take: 100,
+            }),
+            prisma_1.prisma.employee.findMany({
+                where: { tenantId, status: "active", userId: { not: null } },
+                select: {
+                    id: true,
+                    userId: true,
+                    departmentId: true,
+                    branchId: true,
+                    managerId: true,
+                    position: true,
+                    department: { select: { name: true } },
+                    subordinates: { select: { id: true }, take: 1 },
+                },
+            }),
+            prisma_1.prisma.chatGroup.findMany({
+                where: { tenantId, category: { not: "custom" }, isArchived: false },
+                select: { id: true, name: true, category: true, sourceEntityId: true },
+            }),
+        ]);
+        const groupLookup = new Map();
+        for (const g of existingDynamicGroups) {
+            groupLookup.set(`${g.category}:${g.sourceEntityId || g.category}`, g);
+        }
+        const deptCounts = new Map();
+        const branchCounts = new Map();
+        let leadershipCount = 0;
+        let managementCount = 0;
+        let hrCount = 0;
+        for (const emp of activeEmployees) {
+            if (emp.departmentId)
+                deptCounts.set(emp.departmentId, (deptCounts.get(emp.departmentId) || 0) + 1);
+            if (emp.branchId)
+                branchCounts.set(emp.branchId, (branchCounts.get(emp.branchId) || 0) + 1);
+            const pos = String(emp.position || "").toLowerCase();
+            const deptName = String(emp.department?.name || "").toLowerCase();
+            if (!emp.managerId || /(chief|ceo|cto|cfo|coo|vp|vice president|director|head|founder)/i.test(pos)) {
+                leadershipCount++;
+            }
+            if ((emp.subordinates && emp.subordinates.length > 0) || /(manager|lead|supervisor|director|head)/i.test(pos)) {
+                managementCount++;
+            }
+            if (deptName.includes("hr") || deptName.includes("human resource") || deptName.includes("people") || /\bhr\b/i.test(pos)) {
+                hrCount++;
+            }
+        }
+        const deptItems = departments.map((d) => ({
+            id: d.id,
+            sourceEntityId: d.id,
+            templateType: "department",
+            category: "department",
+            name: d.name,
+            description: d.description,
+            memberCount: deptCounts.get(d.id) || 0,
+            existingGroup: groupLookup.get(`department:${d.id}`) || null,
+        }));
+        const branchItems = branches.map((b) => ({
+            id: b.id,
+            sourceEntityId: b.id,
+            templateType: "branch",
+            category: "branch",
+            name: b.name,
+            memberCount: branchCounts.get(b.id) || 0,
+            existingGroup: groupLookup.get(`branch:${b.id}`) || null,
+        }));
+        const projectItems = projects.map((p) => ({
+            id: p.id,
+            sourceEntityId: p.id,
+            templateType: "project",
+            category: "project",
+            name: p.name,
+            status: p.status,
+            existingGroup: groupLookup.get(`project:${p.id}`) || null,
+        }));
+        const cohortItems = [
+            {
+                type: "leadership",
+                templateType: "leadership",
+                category: "leadership",
+                sourceEntityId: "cohort_leadership",
+                name: "Executive & Leadership Team",
+                memberCount: leadershipCount,
+                existingGroup: groupLookup.get("leadership:cohort_leadership") || null,
+            },
+            {
+                type: "management",
+                templateType: "management",
+                category: "management",
+                sourceEntityId: "cohort_management",
+                name: "People Managers & Leads",
+                memberCount: managementCount,
+                existingGroup: groupLookup.get("management:cohort_management") || null,
+            },
+            {
+                type: "hr",
+                templateType: "hr",
+                category: "hr",
+                sourceEntityId: "cohort_hr",
+                name: "HR & People Operations",
+                memberCount: hrCount,
+                existingGroup: groupLookup.get("hr:cohort_hr") || null,
+            },
+        ];
+        return res.json({
+            departments: deptItems,
+            branches: branchItems,
+            projects: projectItems,
+            cohorts: cohortItems,
+            special: cohortItems,
+            templates: [...deptItems, ...branchItems, ...projectItems, ...cohortItems],
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// POST /api/chat/hrms/groups/from-org - Idempotently create or sync an HRMS organization group without duplicates
+exports.chatRouter.post("/hrms/groups/from-org", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { templateType, sourceEntityId, name: customName, description: customDesc, syncMembers = true, isAnnouncementOnly = false, } = req.body;
+        if (!chat_service_1.ChatService.hasChatPermission(req.user, "chat.create_group")) {
+            return res.status(403).json({ error: "You do not have permission to create organization groups." });
+        }
+        const validTypes = ["department", "branch", "project", "leadership", "hr", "management"];
+        if (!templateType || !validTypes.includes(templateType)) {
+            return res.status(400).json({ error: `templateType must be one of: ${validTypes.join(", ")}` });
+        }
+        let resolvedName = typeof customName === "string" && customName.trim() ? customName.trim() : "";
+        let resolvedDesc = typeof customDesc === "string" && customDesc.trim() ? customDesc.trim() : "";
+        let effectiveSourceId = typeof sourceEntityId === "string" && sourceEntityId.trim() ? sourceEntityId.trim() : `cohort_${templateType}`;
+        const memberUserIdSet = new Set([currentUserId]);
+        if (templateType === "department") {
+            if (!sourceEntityId)
+                return res.status(400).json({ error: "sourceEntityId (departmentId) is required." });
+            const dept = await prisma_1.prisma.department.findFirst({ where: { id: sourceEntityId, tenantId } });
+            if (!dept)
+                return res.status(404).json({ error: "Department not found in your workspace." });
+            effectiveSourceId = dept.id;
+            resolvedName = resolvedName || `${dept.name} Department`;
+            resolvedDesc = resolvedDesc || dept.description || `Official ${dept.name} department channel`;
+            const emps = await prisma_1.prisma.employee.findMany({
+                where: { tenantId, departmentId: dept.id, status: "active", userId: { not: null } },
+                select: { userId: true },
+            });
+            emps.forEach((e) => e.userId && memberUserIdSet.add(e.userId));
+        }
+        else if (templateType === "branch") {
+            if (!sourceEntityId)
+                return res.status(400).json({ error: "sourceEntityId (branchId) is required." });
+            const branch = await prisma_1.prisma.branch.findFirst({ where: { id: sourceEntityId, tenantId } });
+            if (!branch)
+                return res.status(404).json({ error: "Branch not found in your workspace." });
+            effectiveSourceId = branch.id;
+            resolvedName = resolvedName || `${branch.name} Branch`;
+            resolvedDesc = resolvedDesc || `Branch collaboration group for ${branch.name}`;
+            const emps = await prisma_1.prisma.employee.findMany({
+                where: { tenantId, branchId: branch.id, status: "active", userId: { not: null } },
+                select: { userId: true },
+            });
+            emps.forEach((e) => e.userId && memberUserIdSet.add(e.userId));
+        }
+        else if (templateType === "project") {
+            if (!sourceEntityId)
+                return res.status(400).json({ error: "sourceEntityId (projectId) is required." });
+            const project = await prisma_1.prisma.project.findFirst({ where: { id: sourceEntityId, tenantId } });
+            if (!project)
+                return res.status(404).json({ error: "Project not found in your workspace." });
+            effectiveSourceId = project.id;
+            resolvedName = resolvedName || `Project: ${project.name}`;
+            resolvedDesc = resolvedDesc || project.description || `Project team workspace for ${project.name}`;
+            const [tasks, timesheets] = await Promise.all([
+                prisma_1.prisma.projectTask.findMany({
+                    where: { tenantId, projectId: project.id, assignedTo: { not: null } },
+                    select: { assignedTo: true },
+                }),
+                prisma_1.prisma.timesheet.findMany({
+                    where: { tenantId, projectId: project.id },
+                    select: { employeeId: true },
+                    take: 200,
+                }),
+            ]);
+            const candidateTokens = new Set();
+            tasks.forEach((t) => t.assignedTo && candidateTokens.add(t.assignedTo));
+            timesheets.forEach((ts) => ts.employeeId && candidateTokens.add(ts.employeeId));
+            if (candidateTokens.size > 0) {
+                const emps = await prisma_1.prisma.employee.findMany({
+                    where: {
+                        tenantId,
+                        status: "active",
+                        userId: { not: null },
+                        OR: [
+                            { id: { in: Array.from(candidateTokens) } },
+                            { userId: { in: Array.from(candidateTokens) } },
+                            { email: { in: Array.from(candidateTokens) } },
+                        ],
+                    },
+                    select: { userId: true },
+                });
+                emps.forEach((e) => e.userId && memberUserIdSet.add(e.userId));
+            }
+        }
+        else {
+            const emps = await prisma_1.prisma.employee.findMany({
+                where: { tenantId, status: "active", userId: { not: null } },
+                select: {
+                    userId: true,
+                    managerId: true,
+                    position: true,
+                    department: { select: { name: true } },
+                    subordinates: { select: { id: true }, take: 1 },
+                },
+            });
+            if (templateType === "leadership") {
+                resolvedName = resolvedName || "Executive & Leadership Team";
+                resolvedDesc = resolvedDesc || "Organization leadership & department heads";
+                for (const emp of emps) {
+                    const pos = String(emp.position || "");
+                    if ((!emp.managerId || /(chief|ceo|cto|cfo|coo|vp|vice president|director|head|founder)/i.test(pos)) && emp.userId) {
+                        memberUserIdSet.add(emp.userId);
+                    }
+                }
+            }
+            else if (templateType === "management") {
+                resolvedName = resolvedName || "People Managers & Leads";
+                resolvedDesc = resolvedDesc || "Reporting managers and team leads across departments";
+                for (const emp of emps) {
+                    const pos = String(emp.position || "");
+                    if (((emp.subordinates && emp.subordinates.length > 0) || /(manager|lead|supervisor|director|head)/i.test(pos)) && emp.userId) {
+                        memberUserIdSet.add(emp.userId);
+                    }
+                }
+            }
+            else if (templateType === "hr") {
+                resolvedName = resolvedName || "HR & People Operations";
+                resolvedDesc = resolvedDesc || "Human Resources & People Operations team";
+                for (const emp of emps) {
+                    const deptName = String(emp.department?.name || "").toLowerCase();
+                    const pos = String(emp.position || "");
+                    if ((deptName.includes("hr") || deptName.includes("human resource") || deptName.includes("people") || /\bhr\b/i.test(pos)) && emp.userId) {
+                        memberUserIdSet.add(emp.userId);
+                    }
+                }
+            }
+        }
+        const cappedMembers = Array.from(memberUserIdSet).slice(0, chat_service_1.DEFAULT_MAX_GROUP_MEMBERS);
+        // Check if dynamic group already exists for (tenantId, category, sourceEntityId) -> prevent duplicate creation!
+        const existingGroup = await prisma_1.prisma.chatGroup.findFirst({
+            where: {
+                tenantId,
+                category: templateType,
+                sourceEntityId: effectiveSourceId,
+                isArchived: false,
+            },
+            include: { members: true },
+        });
+        if (existingGroup) {
+            let syncedAddedCount = 0;
+            if (syncMembers) {
+                const existingSet = new Set(existingGroup.members.map((m) => m.userId));
+                const toAdd = cappedMembers
+                    .filter((uid) => !existingSet.has(uid))
+                    .slice(0, Math.max(0, (existingGroup.maxMembers || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS) - existingGroup.members.length));
+                if (toAdd.length > 0) {
+                    await prisma_1.prisma.chatGroupMember.createMany({
+                        data: toAdd.map((uid) => ({
+                            tenantId,
+                            groupId: existingGroup.id,
+                            userId: uid,
+                            role: "member",
+                        })),
+                        skipDuplicates: true,
+                    });
+                    syncedAddedCount = toAdd.length;
+                }
+            }
+            const refreshed = await prisma_1.prisma.chatGroup.findUnique({
+                where: { id: existingGroup.id },
+                include: { members: true },
+            });
+            if (syncedAddedCount > 0 && refreshed) {
+                await chat_service_1.ChatService.emitToAuthorizedThread({
+                    tenantId,
+                    threadId: `group_${existingGroup.id}`,
+                    event: "chat:group_updated",
+                    payload: { groupId: existingGroup.id, group: refreshed },
+                    participantUserIds: refreshed.members.map((m) => m.userId),
+                });
+            }
+            return res.status(200).json({
+                created: false,
+                syncedAddedCount,
+                group: refreshed,
+            });
+        }
+        const createdGroup = await prisma_1.prisma.$transaction(async (tx) => {
+            const g = await tx.chatGroup.create({
+                data: {
+                    tenantId,
+                    name: resolvedName.slice(0, 150),
+                    description: resolvedDesc.slice(0, 500) || null,
+                    createdById: currentUserId,
+                    ownerId: currentUserId,
+                    category: templateType,
+                    sourceEntityId: effectiveSourceId,
+                    isAnnouncementOnly: Boolean(isAnnouncementOnly),
+                    maxMembers: chat_service_1.DEFAULT_MAX_GROUP_MEMBERS,
+                },
+            });
+            await tx.chatGroupMember.createMany({
+                data: cappedMembers.map((uid) => ({
+                    tenantId,
+                    groupId: g.id,
+                    userId: uid,
+                    role: uid === currentUserId ? "owner" : "member",
+                })),
+                skipDuplicates: true,
+            });
+            const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${g.id}`, currentUserId, "group_created", `${senderName} created the ${templateType} group "${g.name}"`, { category: templateType, sourceEntityId: effectiveSourceId }, tx);
+            return g;
+        });
+        const fullGroup = await prisma_1.prisma.chatGroup.findUnique({
+            where: { id: createdGroup.id },
+            include: { members: true },
+        });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${createdGroup.id}`,
+            event: "chat:group_created",
+            payload: { group: fullGroup },
+            participantUserIds: cappedMembers,
+        });
+        return res.status(201).json({
+            created: true,
+            syncedAddedCount: cappedMembers.length,
+            group: fullGroup,
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// GET /api/chat/groups/:id - Get group details & batch-resolved members
+exports.chatRouter.get("/groups/:id", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { id } = req.params;
         const group = await prisma_1.prisma.chatGroup.findFirst({
             where: { id, tenantId },
-            include: {
-                members: true,
-            },
+            include: { members: true },
         });
         if (!group) {
             return res.status(404).json({ error: "Group not found." });
         }
         const isMember = group.members.some((m) => m.userId === currentUserId);
-        const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
-        if (!isMember && !isAdmin) {
+        if (!isMember) {
             return res.status(403).json({
                 error: "Access denied: You are not a member of this group.",
                 code: "CHAT_GROUP_MEMBER_REQUIRED",
             });
         }
-        const richMembers = await Promise.all(group.members.map(async (mem) => {
-            const prof = await prisma_1.prisma.profile.findFirst({
-                where: { tenantId, userId: mem.userId },
-                select: { fullName: true, avatarUrl: true },
-            });
-            const emp = await prisma_1.prisma.employee.findFirst({
-                where: { tenantId, OR: [{ userId: mem.userId }, { id: mem.userId }] },
-                select: { id: true, firstName: true, lastName: true, email: true, position: true, department: { select: { name: true } } },
-            });
+        const [onlineList, { empByKey, profByUserId }] = await Promise.all([
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+            resolveParticipantsBatch(tenantId, group.members.map((m) => m.userId)),
+        ]);
+        const onlineSet = new Set(onlineList);
+        const richMembers = group.members.map((mem) => {
+            const emp = empByKey.get(mem.userId);
+            const prof = profByUserId.get(mem.userId);
             const displayName = emp
                 ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email
                 : prof?.fullName || "Member";
             return {
                 id: mem.id,
                 userId: mem.userId,
-                role: mem.role || "member",
+                role: group.ownerId === mem.userId ? "owner" : mem.role || "member",
                 isMuted: mem.isMuted,
+                joinedAt: mem.joinedAt,
                 name: displayName,
-                email: emp?.email,
+                email: emp?.email || prof?.user?.email || "",
                 avatarUrl: prof?.avatarUrl || null,
                 department: emp?.department?.name || null,
-                designation: emp?.position || "Team Member",
+                branch: emp?.branch?.name || null,
+                designation: emp?.designation?.name || emp?.position || "Team Member",
+                status: onlineSet.has(mem.userId) ? "online" : "offline",
             };
-        }));
+        });
+        const isRequesterAdmin = richMembers.some((m) => m.userId === currentUserId && ["owner", "admin"].includes(m.role));
         return res.json({
             ...group,
             ownerId: group.ownerId || group.createdById,
+            // Only expose inviteToken to group owners/admins
+            inviteToken: isRequesterAdmin ? group.inviteToken : undefined,
+            inviteExpiresAt: isRequesterAdmin ? group.inviteExpiresAt : undefined,
             members: richMembers,
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// PATCH /api/chat/groups/:id - Update group profile (name, description, avatarUrl)
-exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/groups/:id/members - Server-side paginated group member list (Section 10)
+exports.chatRouter.get("/groups/:id/members", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { id } = req.params;
-        const { name, description, avatarUrl } = req.body;
+        const search = String(req.query.search || "").trim().toLowerCase();
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId: `group_${id}`,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
+        if (!authCheck.authorized || !authCheck.group) {
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Access denied.",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
+            });
+        }
+        const members = authCheck.group.members || [];
+        const allMembersFull = await prisma_1.prisma.chatGroupMember.findMany({
+            where: { tenantId, groupId: id },
+            orderBy: { joinedAt: "asc" },
+        });
+        const [onlineList, { empByKey, profByUserId }] = await Promise.all([
+            (0, socket_1.getOnlineUsersForTenantAsync)(tenantId),
+            resolveParticipantsBatch(tenantId, allMembersFull.map((m) => m.userId)),
+        ]);
+        const onlineSet = new Set(onlineList);
+        let rich = allMembersFull.map((mem) => {
+            const emp = empByKey.get(mem.userId);
+            const prof = profByUserId.get(mem.userId);
+            const name = emp
+                ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim() || emp.email
+                : prof?.fullName || "Member";
+            return {
+                id: mem.id,
+                userId: mem.userId,
+                role: authCheck.group.ownerId === mem.userId ? "owner" : mem.role || "member",
+                joinedAt: mem.joinedAt,
+                name,
+                email: emp?.email || prof?.user?.email || "",
+                employeeCode: emp?.employeeCode || null,
+                avatarUrl: prof?.avatarUrl || null,
+                department: emp?.department?.name || null,
+                branch: emp?.branch?.name || null,
+                designation: emp?.designation?.name || emp?.position || "Team Member",
+                status: onlineSet.has(mem.userId) ? "online" : "offline",
+            };
+        });
+        if (search) {
+            rich = rich.filter((m) => m.name.toLowerCase().includes(search) ||
+                m.email.toLowerCase().includes(search) ||
+                String(m.department || "").toLowerCase().includes(search) ||
+                String(m.designation || "").toLowerCase().includes(search));
+        }
+        const total = rich.length;
+        const paged = rich.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+        return res.json({
+            members: paged,
+            total,
+            totalGroupMembers: members.length,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.max(1, Math.ceil(total / limitNum)),
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// PATCH /api/chat/groups/:id - Update group profile & settings
+exports.chatRouter.patch("/groups/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { id } = req.params;
+        const { name, description, avatarUrl, isAnnouncementOnly, maxMembers } = req.body;
         const group = await prisma_1.prisma.chatGroup.findFirst({
             where: { id, tenantId },
             include: { members: true },
@@ -840,57 +1954,184 @@ exports.chatRouter.patch("/groups/:id", auth_1.requireAuth, async (req, res) => 
         const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         if (!isGroupAdmin && !isTenantAdmin) {
             return res.status(403).json({
-                error: "Access denied: Only group administrators or owners can edit group profile.",
+                error: "Access denied: Only group administrators or owners can edit group settings.",
                 code: "CHAT_GROUP_ADMIN_REQUIRED",
             });
         }
         const updatedData = {};
         if (typeof name === "string" && name.trim())
-            updatedData.name = name.trim();
+            updatedData.name = name.trim().slice(0, 150);
         if (typeof description === "string")
-            updatedData.description = description.trim() || null;
+            updatedData.description = description.trim().slice(0, 500) || null;
         if (avatarUrl !== undefined) {
             updatedData.avatarUrl = typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null;
+        }
+        if (typeof isAnnouncementOnly === "boolean") {
+            updatedData.isAnnouncementOnly = isAnnouncementOnly;
+        }
+        if (maxMembers !== undefined) {
+            updatedData.maxMembers = Math.min(500, Math.max(group.members.length, Number(maxMembers) || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS));
         }
         const updated = await prisma_1.prisma.chatGroup.update({
             where: { id },
             data: updatedData,
             include: { members: true },
         });
-        // Record system event
-        const prof = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true },
-        });
-        const actorName = prof?.fullName || "Admin";
+        const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
         const changes = [];
         if (updatedData.name && updatedData.name !== group.name) {
             changes.push(`changed group name to "${updatedData.name}"`);
         }
         if (updatedData.avatarUrl !== undefined && updatedData.avatarUrl !== group.avatarUrl) {
-            changes.push(updatedData.avatarUrl ? `updated group photo` : `removed group photo`);
+            changes.push(updatedData.avatarUrl ? "updated group photo" : "removed group photo");
         }
         if (updatedData.description !== undefined && updatedData.description !== group.description) {
-            changes.push(`updated group description`);
+            changes.push("updated group description");
         }
-        const changeDesc = changes.length > 0 ? changes.join(" and ") : "updated the group profile";
-        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_profile_updated", `${cleanPersonName(actorName)} ${changeDesc}`, { updatedFields: Object.keys(updatedData) });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, group: updated });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, group: updated }).catch(() => { });
+        if (updatedData.isAnnouncementOnly !== undefined && updatedData.isAnnouncementOnly !== group.isAnnouncementOnly) {
+            changes.push(updatedData.isAnnouncementOnly ? "enabled announcement-only mode" : "disabled announcement-only mode");
+        }
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_profile_updated", `${senderName} ${changes.length > 0 ? changes.join(" and ") : "updated group settings"}`, { updatedFields: Object.keys(updatedData) });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, group: updated },
+            participantUserIds: updated.members.map((m) => m.userId),
+        });
         return res.json(updated);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/groups/:id/members - Add members to group
-exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/groups/:id/archive - Archive or unarchive group (owner or HR/workspace admin)
+exports.chatRouter.post("/groups/:id/archive", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { id } = req.params;
+        const { isArchived } = req.body || {};
+        const group = await prisma_1.prisma.chatGroup.findFirst({
+            where: { id, tenantId },
+            include: { members: true },
+        });
+        if (!group) {
+            return res.status(404).json({ error: "Group not found." });
+        }
+        const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isOwner && !isTenantAdmin) {
+            return res.status(403).json({
+                error: "Only the group owner or workspace administrator can archive or unarchive this group.",
+                code: "CHAT_OWNER_REQUIRED",
+            });
+        }
+        const nextArchived = typeof isArchived === "boolean" ? isArchived : !group.isArchived;
+        const updated = await prisma_1.prisma.chatGroup.update({
+            where: { id },
+            data: { isArchived: nextArchived },
+            include: { members: true },
+        });
+        const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, nextArchived ? "group_archived" : "group_unarchived", `${senderName} ${nextArchived ? "archived" : "unarchived"} the group`, { isArchived: nextArchived });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, isArchived: nextArchived, group: updated },
+            participantUserIds: updated.members.map((m) => m.userId),
+        });
+        return res.json({
+            success: true,
+            isArchived: nextArchived,
+            group: updated,
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// DELETE /api/chat/groups/:id - Soft-archive by default (preserves organizational message records per Section 4), or delete empty custom group
+exports.chatRouter.delete("/groups/:id", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { id } = req.params;
+        const group = await prisma_1.prisma.chatGroup.findFirst({
+            where: { id, tenantId },
+            include: { members: true },
+        });
+        if (!group) {
+            return res.status(404).json({ error: "Group not found." });
+        }
+        const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isOwner && !isTenantAdmin) {
+            return res.status(403).json({
+                error: "Only the group owner or workspace administrator can delete or archive this group.",
+                code: "CHAT_OWNER_REQUIRED",
+            });
+        }
+        const memberIds = group.members.map((m) => m.userId);
+        const nonSystemMessageCount = await prisma_1.prisma.chatMessage.count({
+            where: { tenantId, threadId: `group_${id}`, isSystemEvent: false },
+        });
+        // Preserve historical organizational records if messages exist -> archive & revoke invite token
+        if (nonSystemMessageCount > 0) {
+            const archived = await prisma_1.prisma.chatGroup.update({
+                where: { id },
+                data: {
+                    isArchived: true,
+                    inviteToken: null,
+                    inviteExpiresAt: null,
+                },
+            });
+            const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "group_archived", `${senderName} closed and archived the group (message history preserved)`, { archivedBy: currentUserId });
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId: `group_${id}`,
+                event: "chat:group_updated",
+                payload: { groupId: id, isArchived: true, group: archived },
+                participantUserIds: memberIds,
+            });
+            return res.json({
+                success: true,
+                mode: "archived",
+                message: "Group has been archived and closed while preserving organizational chat history.",
+            });
+        }
+        // Empty group with zero user messages can be cleanly deleted
+        await prisma_1.prisma.$transaction([
+            prisma_1.prisma.chatMessage.deleteMany({ where: { tenantId, threadId: `group_${id}`, isSystemEvent: true } }),
+            prisma_1.prisma.chatGroupMember.deleteMany({ where: { tenantId, groupId: id } }),
+            prisma_1.prisma.chatGroup.delete({ where: { id } }),
+        ]);
+        for (const uid of memberIds) {
+            chat_service_1.ChatService.evictUserFromThreadRoom(tenantId, `group_${id}`, uid);
+            (0, socket_1.broadcastToUser)(uid, "chat:group_deleted", { groupId: id, threadId: `group_${id}` });
+        }
+        return res.json({
+            success: true,
+            mode: "deleted",
+            message: "Empty group deleted.",
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// POST /api/chat/groups/:id/members - Add members to group with strict cross-tenant rejection & maxMembers enforcement
+exports.chatRouter.post("/groups/:id/members", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { id } = req.params;
         const { memberIds = [], userId } = req.body;
-        const rawIds = Array.isArray(memberIds) && memberIds.length > 0 ? memberIds : userId ? [userId] : [];
+        const rawIds = (Array.isArray(memberIds) && memberIds.length > 0 ? memberIds : userId ? [userId] : [])
+            .map((v) => String(v || "").trim())
+            .filter(Boolean);
         if (rawIds.length === 0) {
             return res.status(400).json({ error: "memberIds array or userId is required." });
         }
@@ -900,6 +2141,9 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
         });
         if (!group) {
             return res.status(404).json({ error: "Group not found." });
+        }
+        if (group.isArchived) {
+            return res.status(400).json({ error: "Cannot add members to an archived group.", code: "GROUP_ARCHIVED" });
         }
         const requesterMember = group.members.find((m) => m.userId === currentUserId);
         const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
@@ -911,18 +2155,33 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
                 code: "CHAT_GROUP_ADMIN_REQUIRED",
             });
         }
-        // Validate that submitted users belong to this tenant (prevent cross-tenant additions)
-        const validTenantProfiles = await prisma_1.prisma.profile.findMany({
-            where: { userId: { in: rawIds }, tenantId },
-            select: { userId: true, fullName: true },
-        });
-        const validTenantUserIds = new Set(validTenantProfiles.map((p) => p.userId));
-        const tenantApprovedIds = rawIds.filter((uid) => validTenantUserIds.has(uid));
-        if (tenantApprovedIds.length === 0) {
-            return res.status(400).json({ error: "No eligible organization members found in the submission." });
+        const approvedIds = [];
+        const rejectedIds = [];
+        for (const candidate of rawIds) {
+            const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, candidate);
+            if (!resolved) {
+                rejectedIds.push(candidate);
+            }
+            else {
+                approvedIds.push(resolved.userId);
+            }
         }
-        const uniqueApprovedIds = Array.from(new Set(tenantApprovedIds));
+        if (rejectedIds.length > 0) {
+            return res.status(403).json({
+                error: "Access denied: One or more submitted users do not belong to your workspace.",
+                code: "CROSS_TENANT_MEMBER_REJECTED",
+                rejectedIds,
+            });
+        }
+        const uniqueApprovedIds = Array.from(new Set(approvedIds));
         const newMembers = uniqueApprovedIds.filter((uid) => !group.members.some((m) => m.userId === uid));
+        const maxCap = group.maxMembers || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS;
+        if (group.members.length + newMembers.length > maxCap) {
+            return res.status(400).json({
+                error: `Adding ${newMembers.length} member(s) would exceed the group limit of ${maxCap} members.`,
+                code: "GROUP_MEMBER_LIMIT_EXCEEDED",
+            });
+        }
         if (newMembers.length > 0) {
             await prisma_1.prisma.chatGroupMember.createMany({
                 data: newMembers.map((uid) => ({
@@ -933,25 +2192,29 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
                 })),
                 skipDuplicates: true,
             });
-            // System event for added members
-            const actorProf = await prisma_1.prisma.profile.findFirst({
-                where: { userId: currentUserId, tenantId },
-                select: { fullName: true },
-            });
-            const actorName = actorProf?.fullName || "Admin";
-            const addedProfiles = await prisma_1.prisma.profile.findMany({
-                where: { userId: { in: newMembers }, tenantId },
-                select: { fullName: true },
-            });
+            const [{ senderName: actorName }, addedProfiles] = await Promise.all([
+                chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId }),
+                prisma_1.prisma.profile.findMany({
+                    where: { userId: { in: newMembers }, tenantId },
+                    select: { fullName: true },
+                }),
+            ]);
             const addedNames = formatNaturalList(addedProfiles.map((p) => p.fullName)) || `${newMembers.length} member(s)`;
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "member_added", `${cleanPersonName(actorName)} added ${addedNames}`, { addedMemberIds: newMembers, addedNames });
-            (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, addedMemberIds: newMembers });
-            await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, addedMemberIds: newMembers }).catch(() => { });
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "member_added", `${actorName} added ${addedNames}`, { addedMemberIds: newMembers, addedNames });
         }
         const updated = await prisma_1.prisma.chatGroup.findUnique({
             where: { id },
             include: { members: true },
         });
+        if (newMembers.length > 0 && updated) {
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId: `group_${id}`,
+                event: "chat:group_updated",
+                payload: { groupId: id, addedMemberIds: newMembers, group: updated },
+                participantUserIds: updated.members.map((m) => m.userId),
+            });
+        }
         return res.json({
             ...(updated || {}),
             success: true,
@@ -961,11 +2224,11 @@ exports.chatRouter.post("/groups/:id/members", auth_1.requireAuth, async (req, r
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// DELETE /api/chat/groups/:id/members/:userId - Remove member from group
-exports.chatRouter.delete("/groups/:id/members/:userId", auth_1.requireAuth, async (req, res) => {
+// DELETE /api/chat/groups/:id/members/:userId - Remove member & immediately revoke room access
+exports.chatRouter.delete("/groups/:id/members/:userId", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -992,8 +2255,13 @@ exports.chatRouter.delete("/groups/:id/members/:userId", auth_1.requireAuth, asy
                 code: "CHAT_GROUP_ADMIN_REQUIRED",
             });
         }
-        // Last-admin safety check
         const isTargetOwner = group.ownerId === userId || targetMember.role === "owner";
+        if (!isSelf && isTargetOwner && !isTenantAdmin) {
+            return res.status(403).json({
+                error: "Access denied: Group admins cannot remove the group owner.",
+                code: "CHAT_OWNER_PROTECTED",
+            });
+        }
         const otherAdmins = group.members.filter((m) => m.userId !== userId && (m.role === "admin" || m.role === "owner" || group.ownerId === m.userId));
         if (isTargetOwner && group.members.length > 1 && otherAdmins.length === 0) {
             return res.status(400).json({
@@ -1002,36 +2270,33 @@ exports.chatRouter.delete("/groups/:id/members/:userId", auth_1.requireAuth, asy
             });
         }
         await prisma_1.prisma.chatGroupMember.deleteMany({
-            where: {
-                groupId: id,
-                userId,
-                tenantId,
-            },
+            where: { groupId: id, userId, tenantId },
         });
-        // Record system event
-        const actorProf = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true },
-        });
-        const actorName = actorProf?.fullName || "User";
-        const targetProf = await prisma_1.prisma.profile.findFirst({
-            where: { userId, tenantId },
-            select: { fullName: true },
-        });
-        const targetName = targetProf?.fullName || "Member";
-        const eventContent = isSelf ? `${cleanPersonName(actorName)} left the group` : `${cleanPersonName(actorName)} removed ${cleanPersonName(targetName)}`;
+        // Immediately revoke Socket.IO room access & notify removed user's active sessions!
+        chat_service_1.ChatService.evictUserFromThreadRoom(tenantId, `group_${id}`, userId);
+        const [{ senderName: actorName }, { senderName: targetName }] = await Promise.all([
+            chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId }),
+            chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId }),
+        ]);
+        const eventContent = isSelf ? `${actorName} left the group` : `${actorName} removed ${targetName}`;
         const eventType = isSelf ? "member_left" : "member_removed";
+        const remainingMemberIds = group.members.filter((m) => m.userId !== userId).map((m) => m.userId);
         await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, eventType, eventContent, { affectedUserId: userId, affectedUserName: targetName });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, removedMemberId: userId });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, removedMemberId: userId }).catch(() => { });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, removedMemberId: userId },
+            participantUserIds: remainingMemberIds,
+        });
         return res.json({ success: true, message: isSelf ? "You have left the group." : "Member removed from group." });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
 // PATCH /api/chat/groups/:id/members/:userId/role - Manage Member/Moderator/Admin roles
-exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.patch("/groups/:id/members/:userId/role", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -1056,31 +2321,25 @@ exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth,
         const isRequesterOwner = group.ownerId === currentUserId || requesterMember?.role === "owner";
         const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
         const isRequesterAdmin = requesterMember?.role === "admin";
-        // Non-admin cannot change roles
         if (!isRequesterOwner && !isRequesterAdmin && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only group owners or admins can change member roles.",
                 code: "CHAT_ROLE_FORBIDDEN",
             });
         }
-        // Only owner can assign owner or modify other admins
         if (role === "owner" && !isRequesterOwner && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Only the current owner can assign owner role (use Transfer Ownership).",
                 code: "CHAT_OWNER_REQUIRED",
             });
         }
-        // Admin cannot demote owner
-        if (targetMember.role === "owner" && !isRequesterOwner && !isTenantAdmin) {
+        if ((targetMember.role === "owner" || group.ownerId === userId) && !isRequesterOwner && !isTenantAdmin) {
             return res.status(403).json({
                 error: "Access denied: Cannot change the role of the group owner.",
                 code: "CHAT_OWNER_PROTECTED",
             });
         }
-        // Last-admin safety
-        if ((targetMember.role === "owner" || targetMember.role === "admin") &&
-            role !== "owner" &&
-            role !== "admin") {
+        if ((targetMember.role === "owner" || targetMember.role === "admin") && role !== "owner" && role !== "admin") {
             const otherAdmins = group.members.filter((m) => m.userId !== userId && (m.role === "admin" || m.role === "owner" || group.ownerId === m.userId));
             if (otherAdmins.length === 0) {
                 return res.status(400).json({
@@ -1093,19 +2352,10 @@ exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth,
             where: { id: targetMember.id },
             data: { role },
         });
-        // Record system event
-        const actorProf = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true },
-        });
-        const actorName = actorProf?.fullName || "Admin";
-        const targetProf = await prisma_1.prisma.profile.findFirst({
-            where: { userId, tenantId },
-            select: { fullName: true },
-        });
-        const targetName = targetProf?.fullName || "Member";
-        const cActor = cleanPersonName(actorName);
-        const cTarget = cleanPersonName(targetName);
+        const [{ senderName: cActor }, { senderName: cTarget }] = await Promise.all([
+            chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId }),
+            chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId }),
+        ]);
         let roleEventText = `${cActor} changed ${cTarget}'s role to ${role}`;
         if (role === "admin")
             roleEventText = `${cActor} made ${cTarget} a group admin`;
@@ -1113,17 +2363,22 @@ exports.chatRouter.patch("/groups/:id/members/:userId/role", auth_1.requireAuth,
             roleEventText = `${cActor} made ${cTarget} a group moderator`;
         else if (role === "member")
             roleEventText = `${cActor} removed ${cTarget}'s admin privileges`;
-        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "role_changed", roleEventText, { affectedUserId: userId, affectedUserName: targetName, newRole: role });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, userId, role });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, userId, role }).catch(() => { });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "role_changed", roleEventText, { affectedUserId: userId, affectedUserName: cTarget, newRole: role });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, userId, role },
+            participantUserIds: group.members.map((m) => m.userId),
+        });
         return res.json({ success: true, message: roleEventText, newRole: role });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
 // POST /api/chat/groups/:id/transfer-ownership - Transfer group ownership transactionally
-exports.chatRouter.post("/groups/:id/transfer-ownership", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.post("/groups/:id/transfer-ownership", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -1152,47 +2407,42 @@ exports.chatRouter.post("/groups/:id/transfer-ownership", auth_1.requireAuth, as
             return res.status(400).json({ error: "The designated new owner must be an active member of this group." });
         }
         await prisma_1.prisma.$transaction(async (tx) => {
-            // 1. Update group ownerId
             await tx.chatGroup.update({
                 where: { id },
                 data: { ownerId: newOwnerId },
             });
-            // 2. Set target member role to "owner"
             await tx.chatGroupMember.update({
                 where: { id: targetMember.id },
                 data: { role: "owner" },
             });
-            // 3. Set previous owner to "admin"
             const prevOwnerMember = group.members.find((m) => m.userId === currentUserId);
-            if (prevOwnerMember) {
+            if (prevOwnerMember && prevOwnerMember.id !== targetMember.id) {
                 await tx.chatGroupMember.update({
                     where: { id: prevOwnerMember.id },
                     data: { role: "admin" },
                 });
             }
-            // 4. Record system event
-            const actorProf = await tx.profile.findFirst({
-                where: { userId: currentUserId, tenantId },
-                select: { fullName: true },
-            });
-            const actorName = actorProf?.fullName || "Previous Owner";
-            const targetProf = await tx.profile.findFirst({
-                where: { userId: newOwnerId, tenantId },
-                select: { fullName: true },
-            });
-            const targetName = targetProf?.fullName || "New Owner";
-            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "ownership_transferred", `${cleanPersonName(actorName)} transferred group ownership to ${cleanPersonName(targetName)}`, { oldOwnerId: currentUserId, newOwnerId, oldOwnerName: actorName, newOwnerName: targetName }, tx);
+            const [{ senderName: actorName }, { senderName: targetName }] = await Promise.all([
+                chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId }),
+                chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: newOwnerId }),
+            ]);
+            await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "ownership_transferred", `${actorName} transferred group ownership to ${targetName}`, { oldOwnerId: currentUserId, newOwnerId, oldOwnerName: actorName, newOwnerName: targetName }, tx);
         });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, newOwnerId });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, newOwnerId }).catch(() => { });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, newOwnerId },
+            participantUserIds: group.members.map((m) => m.userId),
+        });
         return res.json({ success: true, message: "Ownership successfully transferred.", newOwnerId });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/groups/:id/leave - Leave group with last-admin safety check
-exports.chatRouter.post("/groups/:id/leave", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/groups/:id/leave - Leave group with last-admin safety & immediate room eviction
+exports.chatRouter.post("/groups/:id/leave", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -1208,7 +2458,6 @@ exports.chatRouter.post("/groups/:id/leave", auth_1.requireAuth, async (req, res
         if (!currentMember) {
             return res.status(400).json({ error: "You are not a member of this group." });
         }
-        // Last-admin safety check
         const isOwner = group.ownerId === currentUserId || currentMember.role === "owner";
         const otherAdmins = group.members.filter((m) => m.userId !== currentUserId && (m.role === "admin" || m.role === "owner" || group.ownerId === m.userId));
         if (isOwner && group.members.length > 1 && otherAdmins.length === 0) {
@@ -1220,22 +2469,26 @@ exports.chatRouter.post("/groups/:id/leave", auth_1.requireAuth, async (req, res
         await prisma_1.prisma.chatGroupMember.deleteMany({
             where: { groupId: id, userId: currentUserId, tenantId },
         });
-        const actorProf = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true },
-        });
-        const actorName = actorProf?.fullName || "A member";
+        // Immediately evict caller's sockets from the group room!
+        chat_service_1.ChatService.evictUserFromThreadRoom(tenantId, `group_${id}`, currentUserId);
+        const { senderName: actorName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+        const remainingMemberIds = group.members.filter((m) => m.userId !== currentUserId).map((m) => m.userId);
         await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "member_left", `${actorName} left the group.`, { leftUserId: currentUserId, leftUserName: actorName });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:group_updated", { groupId: id, removedMemberId: currentUserId });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:group_updated", { groupId: id, removedMemberId: currentUserId }).catch(() => { });
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${id}`,
+            event: "chat:group_updated",
+            payload: { groupId: id, removedMemberId: currentUserId },
+            participantUserIds: remainingMemberIds,
+        });
         return res.json({ success: true, message: "You have left the group." });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/groups/:id/mute - Toggle or set mute preference
-exports.chatRouter.post("/groups/:id/mute", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/groups/:id/mute - Toggle or set mute preference (synced with ChatConversationPreference)
+exports.chatRouter.post("/groups/:id/mute", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -1248,11 +2501,22 @@ exports.chatRouter.post("/groups/:id/mute", auth_1.requireAuth, async (req, res)
             return res.status(404).json({ error: "You are not a member of this group." });
         }
         const nextMuted = typeof isMuted === "boolean" ? isMuted : !membership.isMuted;
-        const mutedUntil = nextMuted && durationHours ? new Date(Date.now() + durationHours * 3600 * 1000) : null;
-        const updated = await prisma_1.prisma.chatGroupMember.update({
-            where: { id: membership.id },
-            data: { isMuted: nextMuted, mutedUntil },
-        });
+        const mutedUntil = nextMuted && durationHours ? new Date(Date.now() + Number(durationHours) * 3600 * 1000) : null;
+        const threadId = `group_${id}`;
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const [updated] = await Promise.all([
+            prisma_1.prisma.chatGroupMember.update({
+                where: { id: membership.id },
+                data: { isMuted: nextMuted, mutedUntil },
+            }),
+            db.chatConversationPreference
+                ?.upsert({
+                where: { tenantId_userId_threadId: { tenantId, userId: currentUserId, threadId } },
+                create: { tenantId, userId: currentUserId, threadId, isMuted: nextMuted, mutedUntil },
+                update: { isMuted: nextMuted, mutedUntil },
+            })
+                .catch(() => { }),
+        ]);
         return res.json({
             success: true,
             isMuted: updated.isMuted,
@@ -1261,25 +2525,58 @@ exports.chatRouter.post("/groups/:id/mute", auth_1.requireAuth, async (req, res)
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/groups/:id/invite-link - Generate secure invite token
-// Retired: Public invite links are disabled for HRMS security
-exports.chatRouter.all(["/groups/:id/invite-link", "/groups/:id/invite"], auth_1.requireAuth, async (_req, res) => {
-    return res.status(403).json({
-        error: "Public invite links are disabled for internal HRMS workspaces. Please use the internal member invitation dialog.",
-        code: "PUBLIC_INVITE_DISABLED",
-    });
+// POST /api/chat/groups/:id/invite-link - Generate expiring internal workspace-scoped invite token (Section 4)
+exports.chatRouter.post(["/groups/:id/invite-link", "/groups/:id/invite"], async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { id } = req.params;
+        const expiresInHours = Math.min(720, Math.max(1, Number(req.body?.expiresInHours) || 72));
+        const group = await prisma_1.prisma.chatGroup.findFirst({
+            where: { id, tenantId },
+            include: { members: true },
+        });
+        if (!group) {
+            return res.status(404).json({ error: "Group not found." });
+        }
+        if (group.isArchived) {
+            return res.status(400).json({ error: "Cannot generate invite links for an archived group." });
+        }
+        const requesterMember = group.members.find((m) => m.userId === currentUserId);
+        const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
+        const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isGroupAdmin && !isTenantAdmin) {
+            return res.status(403).json({
+                error: "Only group owners or administrators can generate invite links.",
+                code: "CHAT_GROUP_ADMIN_REQUIRED",
+            });
+        }
+        const inviteToken = crypto_1.default.randomBytes(24).toString("base64url");
+        const inviteExpiresAt = new Date(Date.now() + expiresInHours * 3600 * 1000);
+        await prisma_1.prisma.chatGroup.update({
+            where: { id },
+            data: { inviteToken, inviteExpiresAt },
+        });
+        const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "invite_link_created", `${senderName} generated an internal workspace invite link (expires in ${expiresInHours}h)`, { expiresInHours, inviteExpiresAt: inviteExpiresAt.toISOString() });
+        return res.json({
+            success: true,
+            groupId: id,
+            inviteToken,
+            inviteExpiresAt: inviteExpiresAt.toISOString(),
+            scope: "workspace_internal",
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
 });
-exports.chatRouter.all(["/groups/join-by-invite", "/groups/invite/:inviteCode", "/groups/invite*"], async (_req, res) => {
-    return res.status(403).json({
-        error: "Joining groups via public invite links is disabled. Please contact your workspace or group administrator to be added directly.",
-        code: "PUBLIC_INVITE_DISABLED",
-    });
-});
-// GET /api/chat/groups/:id/activity - Fetch group activity history (system events)
-exports.chatRouter.get("/groups/:id/activity", auth_1.requireAuth, async (req, res) => {
+// DELETE /api/chat/groups/:id/invite-link - Revoke active group invite link
+exports.chatRouter.delete(["/groups/:id/invite-link", "/groups/:id/invite"], async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -1291,10 +2588,112 @@ exports.chatRouter.get("/groups/:id/activity", auth_1.requireAuth, async (req, r
         if (!group) {
             return res.status(404).json({ error: "Group not found." });
         }
-        const isMember = group.members.some((m) => m.userId === currentUserId);
-        const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
-        if (!isMember && !isAdmin) {
-            return res.status(403).json({ error: "Access denied.", code: "CHAT_UNAUTHORIZED" });
+        const requesterMember = group.members.find((m) => m.userId === currentUserId);
+        const isOwner = group.ownerId === currentUserId || group.createdById === currentUserId;
+        const isGroupAdmin = requesterMember?.role === "admin" || requesterMember?.role === "owner" || isOwner;
+        const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin"].includes(r));
+        if (!isGroupAdmin && !isTenantAdmin) {
+            return res.status(403).json({ error: "Only group owners or administrators can revoke invite links." });
+        }
+        await prisma_1.prisma.chatGroup.update({
+            where: { id },
+            data: { inviteToken: null, inviteExpiresAt: null },
+        });
+        const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${id}`, currentUserId, "invite_link_revoked", `${senderName} revoked the group invite link`, {});
+        return res.json({ success: true, message: "Group invite link revoked." });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// POST /api/chat/groups/join-by-invite - Authenticated same-tenant join via expiring invite token (blocks external/cross-tenant users)
+exports.chatRouter.post(["/groups/join-by-invite", "/groups/invite/:inviteCode"], async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const token = String(req.params.inviteCode || req.body?.inviteToken || req.body?.token || "").trim();
+        if (!token) {
+            return res.status(400).json({ error: "Invite token is required." });
+        }
+        // Strict tenant isolation: token ONLY resolves within caller's own authenticated tenantId
+        const group = await prisma_1.prisma.chatGroup.findFirst({
+            where: { tenantId, inviteToken: token },
+            include: { members: true },
+        });
+        if (!group) {
+            return res.status(404).json({
+                error: "Invalid or unauthorized workspace invite link.",
+                code: "INVITE_INVALID_OR_CROSS_TENANT",
+            });
+        }
+        if (group.isArchived) {
+            return res.status(400).json({ error: "This group is archived and cannot accept new members.", code: "GROUP_ARCHIVED" });
+        }
+        if (!group.inviteExpiresAt || new Date(group.inviteExpiresAt).getTime() <= Date.now()) {
+            return res.status(410).json({
+                error: "This invite link has expired. Ask a group admin for a new link.",
+                code: "INVITE_EXPIRED",
+            });
+        }
+        const alreadyMember = group.members.some((m) => m.userId === currentUserId);
+        if (alreadyMember) {
+            return res.json({ success: true, alreadyMember: true, group });
+        }
+        const maxCap = group.maxMembers || chat_service_1.DEFAULT_MAX_GROUP_MEMBERS;
+        if (group.members.length >= maxCap) {
+            return res.status(400).json({
+                error: `This group has reached its maximum limit of ${maxCap} members.`,
+                code: "GROUP_MEMBER_LIMIT_EXCEEDED",
+            });
+        }
+        await prisma_1.prisma.chatGroupMember.create({
+            data: {
+                tenantId,
+                groupId: group.id,
+                userId: currentUserId,
+                role: "member",
+            },
+        });
+        const { senderName } = await chat_service_1.ChatService.resolveSenderIdentity({ tenantId, userId: currentUserId });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${group.id}`, currentUserId, "member_joined_via_invite", `${senderName} joined via workspace invite link`, { userId: currentUserId });
+        const updated = await prisma_1.prisma.chatGroup.findUnique({
+            where: { id: group.id },
+            include: { members: true },
+        });
+        if (updated) {
+            await chat_service_1.ChatService.emitToAuthorizedThread({
+                tenantId,
+                threadId: `group_${group.id}`,
+                event: "chat:group_updated",
+                payload: { groupId: group.id, addedMemberIds: [currentUserId], group: updated },
+                participantUserIds: updated.members.map((m) => m.userId),
+            });
+        }
+        return res.json({ success: true, alreadyMember: false, group: updated });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// GET /api/chat/groups/:id/activity - Fetch group activity history (system events)
+exports.chatRouter.get("/groups/:id/activity", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { id } = req.params;
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId: `group_${id}`,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
+        if (!authCheck.authorized) {
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Access denied.",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
+            });
         }
         const events = await prisma_1.prisma.chatMessage.findMany({
             where: {
@@ -1303,73 +2702,31 @@ exports.chatRouter.get("/groups/:id/activity", auth_1.requireAuth, async (req, r
                 isSystemEvent: true,
             },
             orderBy: { createdAt: "desc" },
-            take: 50,
+            take: 100,
         });
         return res.json(events);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/conversations/:threadId/pin - Toggle pin for current user
-exports.chatRouter.post("/conversations/:threadId/pin", auth_1.requireAuth, async (req, res) => {
-    try {
-        const tenantId = req.user?.tenantId || "default";
-        const currentUserId = req.user?.userId || "";
-        const { threadId } = req.params;
-        const existing = await prisma_1.prisma.chatConversationPin.findUnique({
-            where: {
-                tenantId_userId_threadId: {
-                    tenantId,
-                    userId: currentUserId,
-                    threadId,
-                },
-            },
-        });
-        if (existing) {
-            await prisma_1.prisma.chatConversationPin.delete({
-                where: { id: existing.id },
-            });
-            return res.json({ isPinned: false, message: "Conversation unpinned." });
-        }
-        else {
-            await prisma_1.prisma.chatConversationPin.create({
-                data: {
-                    tenantId,
-                    userId: currentUserId,
-                    threadId,
-                },
-            });
-            return res.json({ isPinned: true, message: "Conversation pinned." });
-        }
-    }
-    catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-// GET /api/chat/conversations/pinned - Get all pinned conversation thread IDs for current user
-exports.chatRouter.get("/conversations/pinned", auth_1.requireAuth, async (req, res) => {
-    try {
-        const tenantId = req.user?.tenantId || "default";
-        const currentUserId = req.user?.userId || "";
-        const pins = await prisma_1.prisma.chatConversationPin.findMany({
-            where: { tenantId, userId: currentUserId },
-            orderBy: { pinnedAt: "desc" },
-        });
-        return res.json(pins.map((p) => p.threadId));
-    }
-    catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-// POST /api/chat/upload - Upload attachment or voice note to Centralized Media Library
-exports.chatRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
+// ============================================================================
+// FILE UPLOAD & URL PREVIEW ENDPOINTS
+// ============================================================================
+// POST /api/chat/upload - Upload attachment or voice note to Centralized Media Library with private ACL
+exports.chatRouter.post("/upload", (req, res, next) => {
     chatUpload.any()(req, res, (err) => {
         if (err) {
             if (err.code === "LIMIT_FILE_SIZE") {
                 return res.status(413).json({
                     error: "File size exceeds 30 MB limit. Please select a smaller file.",
                     code: "FILE_TOO_LARGE",
+                });
+            }
+            if (err.code === "LIMIT_FILE_COUNT") {
+                return res.status(400).json({
+                    error: `Cannot upload more than ${chat_service_1.MAX_CHAT_ATTACHMENTS_PER_MESSAGE} files at once.`,
+                    code: "TOO_MANY_FILES",
                 });
             }
             return res.status(400).json({
@@ -1381,26 +2738,57 @@ exports.chatRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
     });
 }, async (req, res) => {
     try {
+        if (!chat_service_1.ChatService.hasChatPermission(req.user, "chat.files")) {
+            return res.status(403).json({ error: "You do not have permission to upload chat attachments." });
+        }
         const rawFiles = req.files || (req.file ? [req.file] : []);
         if (!rawFiles || rawFiles.length === 0) {
             return res.status(400).json({ error: "No file provided" });
         }
+        if (rawFiles.length > chat_service_1.MAX_CHAT_ATTACHMENTS_PER_MESSAGE) {
+            return res.status(400).json({
+                error: `Cannot upload more than ${chat_service_1.MAX_CHAT_ATTACHMENTS_PER_MESSAGE} files at once.`,
+                code: "TOO_MANY_FILES",
+            });
+        }
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "system";
+        const threadId = req.body?.threadId || req.query?.threadId;
+        let participantUserIds = [currentUserId];
+        if (threadId) {
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+                requireWritePermission: true,
+            });
+            if (!authCheck.authorized) {
+                return res.status(authCheck.status || 403).json({
+                    error: authCheck.reason || "Unauthorized access to thread",
+                    code: authCheck.code || "CHAT_UNAUTHORIZED",
+                });
+            }
+            if (authCheck.participantUserIds) {
+                participantUserIds = authCheck.participantUserIds;
+            }
+        }
+        const folderContext = await chat_folder_service_1.ChatFolderService.resolveChatFolderHierarchy(tenantId, threadId, currentUserId);
         const savedFiles = [];
         for (const file of rawFiles) {
             const originalName = file.originalname || "attachment";
             const lastDot = originalName.lastIndexOf(".");
             const ext = lastDot !== -1 ? originalName.slice(lastDot + 1).toLowerCase() : "";
-            if (file.size > 30 * 1024 * 1024 || (file.buffer && file.buffer.length > 30 * 1024 * 1024)) {
+            if (file.size > chat_service_1.MAX_CHAT_FILE_SIZE_BYTES || (file.buffer && file.buffer.length > chat_service_1.MAX_CHAT_FILE_SIZE_BYTES)) {
                 return res.status(413).json({
                     error: `File "${originalName}" exceeds 30 MB limit.`,
                     code: "FILE_TOO_LARGE",
                 });
             }
-            if (exports.RESTRICTED_EXTENSIONS.has(ext)) {
+            if (chat_service_1.CHAT_RESTRICTED_EXTENSIONS.has(ext)) {
                 return res.status(400).json({
-                    error: `Security Violation: Files with extension .${ext} are strictly prohibited (no executables, code, or configuration files).`,
+                    error: `Security Violation: Files with extension .${ext} are strictly prohibited.`,
                     code: "FILE_RESTRICTED",
                 });
             }
@@ -1410,64 +2798,70 @@ exports.chatRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
                     code: "FILE_RESTRICTED",
                 });
             }
-            // Resolve canonical Organization Chat folder hierarchy
-            const threadId = req.body?.threadId || req.query?.threadId;
-            if (threadId) {
-                const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
-                if (!authCheck.authorized) {
-                    return res.status(403).json({ error: authCheck.reason || "Unauthorized access to thread" });
-                }
-            }
-            const folderContext = await chat_folder_service_1.ChatFolderService.resolveChatFolderHierarchy(tenantId, threadId, currentUserId);
-            // Persist in central Media Library with tenant scope and canonical folder
             const mediaRecord = await media_service_1.MediaService.uploadMedia(file.buffer, originalName, {
                 folder: folderContext.folderPath,
                 tenantId,
                 uploadedBy: currentUserId,
                 mimeType: file.mimetype,
-                tags: ["chat", "communication", ...folderContext.folderPath.toLowerCase().split("/")],
+                tags: ["chat", "communication", "private"],
+                systemModule: "chat",
             });
-            // Link node to Attachments folder in File Manager hierarchy
-            if (folderContext.folderId) {
-                await prisma_1.prisma.mediaFile.update({
-                    where: { id: mediaRecord.id },
-                    data: {
-                        parentId: folderContext.folderId,
-                        systemModule: "chat",
-                    },
+            await prisma_1.prisma.mediaFile.update({
+                where: { id: mediaRecord.id },
+                data: {
+                    parentId: folderContext.folderId || undefined,
+                    systemModule: "chat",
+                    isPublic: false,
+                },
+            });
+            // Grant FileAcl to direct conversation participants & uploader
+            const aclRecipients = Array.from(new Set([
+                currentUserId,
+                ...(threadId?.startsWith("direct_") ? participantUserIds : []),
+                ...(folderContext.aclUsers || []),
+            ]));
+            for (const uid of aclRecipients) {
+                const existingAcl = await prisma_1.prisma.fileAcl.findFirst({
+                    where: { fileId: mediaRecord.id, principalType: "USER", principalId: uid },
+                    select: { id: true },
                 });
-            }
-            // For Direct Conversations, grant ACL exclusively to chatting participants
-            if (folderContext.aclUsers && folderContext.aclUsers.length > 0) {
-                for (const uid of folderContext.aclUsers) {
-                    const existingAcl = await prisma_1.prisma.fileAcl.findFirst({
-                        where: {
+                if (!existingAcl) {
+                    await prisma_1.prisma.fileAcl
+                        .create({
+                        data: {
                             fileId: mediaRecord.id,
                             principalType: "USER",
                             principalId: uid,
+                            permission: uid === currentUserId ? "OWNER" : "VIEWER",
+                            createdBy: currentUserId,
                         },
-                    });
-                    if (!existingAcl) {
-                        await prisma_1.prisma.fileAcl.create({
-                            data: {
-                                fileId: mediaRecord.id,
-                                principalType: "USER",
-                                principalId: uid,
-                                permission: "VIEWER",
-                                createdBy: currentUserId,
-                            },
-                        });
-                    }
+                    })
+                        .catch(() => { });
                 }
             }
+            const signedDownloadUrl = chat_service_1.ChatService.signAttachmentDownloadUrl({
+                mediaId: mediaRecord.id,
+                tenantId,
+                userId: currentUserId,
+                inline: false,
+            });
+            const signedPreviewUrl = chat_service_1.ChatService.signAttachmentDownloadUrl({
+                mediaId: mediaRecord.id,
+                tenantId,
+                userId: currentUserId,
+                inline: true,
+            });
             savedFiles.push({
                 id: mediaRecord.id,
                 mediaId: mediaRecord.id,
                 url: mediaRecord.url,
+                signedDownloadUrl,
+                signedPreviewUrl,
                 name: mediaRecord.fileName,
                 fileName: mediaRecord.fileName,
                 size: mediaRecord.fileSize,
                 fileSize: mediaRecord.fileSize,
+                type: mediaRecord.mimeType,
                 mimeType: mediaRecord.mimeType,
                 folder: mediaRecord.folder,
                 extension: ext,
@@ -1478,18 +2872,25 @@ exports.chatRouter.post("/upload", auth_1.requireAuth, (req, res, next) => {
             files: savedFiles,
             data: savedFiles,
             url: savedFiles[0]?.url,
+            signedDownloadUrl: savedFiles[0]?.signedDownloadUrl,
+            signedPreviewUrl: savedFiles[0]?.signedPreviewUrl,
             fileName: savedFiles[0]?.fileName,
             id: savedFiles[0]?.id,
             mediaId: savedFiles[0]?.mediaId,
         });
     }
     catch (err) {
-        console.error("Chat upload error:", err);
-        return res.status(500).json({ error: err.message || "File upload failed" });
+        if (err?.message?.includes("spoofing") ||
+            err?.message?.includes("not allowed") ||
+            err?.message?.includes("Mismatch") ||
+            err?.message?.includes("prohibited")) {
+            return res.status(400).json({ error: err.message, code: "FILE_VALIDATION_FAILED" });
+        }
+        return handleChatError(res, err, "File upload failed");
     }
 });
 // GET /api/chat/url-preview - SSRF-safe URL preview metadata endpoint
-exports.chatRouter.get("/url-preview", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.get("/url-preview", async (req, res) => {
     try {
         const url = String(req.query.url || "").trim();
         if (!url) {
@@ -1505,13 +2906,16 @@ exports.chatRouter.get("/url-preview", auth_1.requireAuth, async (req, res) => {
         const status = err.message?.includes("prohibited") ||
             err.message?.includes("Invalid URL") ||
             err.message?.includes("blocked") ||
-            err.message?.includes("private")
+            err.message?.includes("private") ||
+            err.message?.includes("redirect")
             ? 400
             : 500;
         return res.status(status).json({ error: err.message || "Failed to fetch URL preview" });
     }
 });
-// Handler function for fetching thread messages with cursor pagination (latest 25 first)
+// ============================================================================
+// MESSAGES, SEARCH, RECEIPTS & INTERACTIVE ACTIONS (Section 2, 5, 6)
+// ============================================================================
 async function handleGetThreadMessages(req, res) {
     try {
         const tenantId = req.user?.tenantId || "default";
@@ -1520,20 +2924,61 @@ async function handleGetThreadMessages(req, res) {
         if (!threadId) {
             return res.status(400).json({ error: "threadId is required" });
         }
-        // Security check: verify requester is authorized for this thread
-        const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
         if (!authCheck.authorized) {
-            return res.status(403).json({
+            return res.status(authCheck.status || 403).json({
                 error: authCheck.reason || "Access denied: You are not authorized to view this conversation.",
-                code: "CHAT_UNAUTHORIZED",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
             });
         }
-        const limit = Math.min(Math.max(parseInt(req.query.limit) || 25, 1), 100);
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 25, 1), 100);
         const before = req.query.before;
+        const after = req.query.after;
+        const markRead = req.query.markRead !== "false" && req.query.markRead !== "0";
+        // Reconnect catch-up mode (`after` messageId or ISO timestamp) - Section 5.4
+        if (after) {
+            let afterDate = null;
+            const cursorMsg = await prisma_1.prisma.chatMessage.findFirst({
+                where: { id: after, tenantId, threadId },
+                select: { createdAt: true },
+            });
+            if (cursorMsg) {
+                afterDate = cursorMsg.createdAt;
+            }
+            else if (!Number.isNaN(Date.parse(after))) {
+                afterDate = new Date(after);
+            }
+            if (afterDate) {
+                const missedRaw = await prisma_1.prisma.chatMessage.findMany({
+                    where: {
+                        tenantId,
+                        threadId,
+                        createdAt: { gt: afterDate },
+                    },
+                    orderBy: { createdAt: "asc" },
+                    take: limit,
+                });
+                const missed = missedRaw
+                    .filter((msg) => !(msg.deletedForUserIds || []).includes(currentUserId))
+                    .map((msg) => chat_service_1.ChatService.sanitizeMessageForViewer(msg, currentUserId, tenantId));
+                return res.json({
+                    messages: missed,
+                    nextCursor: null,
+                    hasMore: missedRaw.length === limit,
+                    reconciled: true,
+                });
+            }
+        }
         let cursorWhere = {};
         if (before) {
-            const cursorMessage = await prisma_1.prisma.chatMessage.findUnique({
-                where: { id: before },
+            const cursorMessage = await prisma_1.prisma.chatMessage.findFirst({
+                where: { id: before, tenantId, threadId },
                 select: { createdAt: true, id: true },
             });
             if (cursorMessage) {
@@ -1553,69 +2998,72 @@ async function handleGetThreadMessages(req, res) {
         });
         const hasMore = rawMessages.length > limit;
         const pageMessages = hasMore ? rawMessages.slice(0, limit) : rawMessages;
-        pageMessages.reverse(); // Return in chronological (asc) order
+        pageMessages.reverse(); // Chronological (asc) order
         const nextCursor = hasMore && pageMessages.length > 0 ? pageMessages[0]?.id : null;
-        // Filter out messages deleted for current user ("Delete for me")
         const filteredMessages = pageMessages
             .filter((msg) => {
             const deletedFor = msg.deletedForUserIds || [];
             return !deletedFor.includes(currentUserId);
         })
-            .map((msg) => {
-            const rawPoll = typeof msg.poll === "string" ? JSON.parse(msg.poll) : msg.poll;
-            const rawReactions = typeof msg.reactions === "string" ? JSON.parse(msg.reactions) : msg.reactions;
-            const rawAttachments = typeof msg.attachments === "string" ? JSON.parse(msg.attachments) : msg.attachments;
-            const rawVoiceNote = typeof msg.voiceNote === "string" ? JSON.parse(msg.voiceNote) : msg.voiceNote;
-            if (msg.isDeletedForEveryone) {
-                return {
-                    ...msg,
-                    content: "This message was deleted",
-                    attachments: null,
-                    voiceNote: null,
-                    poll: null,
-                    urlPreviews: null,
-                    reactions: null,
-                };
-            }
-            return {
-                ...msg,
-                poll: rawPoll,
-                reactions: rawReactions,
-                attachments: rawAttachments,
-                voiceNote: rawVoiceNote,
-            };
-        });
-        // Mark as read automatically when fetching thread messages
-        if (currentUserId) {
-            await prisma_1.prisma.chatReadReceipt.upsert({
-                where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-                create: { tenantId, threadId, userId: currentUserId, lastReadAt: new Date() },
-                update: { lastReadAt: new Date() },
-            }).catch(() => { });
+            .map((msg) => chat_service_1.ChatService.sanitizeMessageForViewer(msg, currentUserId, tenantId));
+        // Fetch group per-member seen cursors or mark read
+        let seenBy;
+        if (currentUserId && markRead && !before) {
+            const readRes = await chat_service_1.ChatService.markThreadRead({
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                threadId,
+            }).catch(() => null);
+            if (readRes?.seenBy)
+                seenBy = readRes.seenBy;
+        }
+        else if (authCheck.threadType === "group" && authCheck.participantUserIds) {
+            const [receipts, profiles] = await Promise.all([
+                prisma_1.prisma.chatReadReceipt.findMany({
+                    where: { tenantId, threadId, userId: { in: authCheck.participantUserIds } },
+                }),
+                prisma_1.prisma.profile.findMany({
+                    where: { tenantId, userId: { in: authCheck.participantUserIds } },
+                    select: { userId: true, fullName: true, avatarUrl: true },
+                }),
+            ]);
+            const profMap = new Map(profiles.map((p) => [p.userId, p]));
+            seenBy = receipts.map((r) => ({
+                userId: r.userId,
+                fullName: cleanPersonName(profMap.get(r.userId)?.fullName || "Member"),
+                avatarUrl: profMap.get(r.userId)?.avatarUrl || null,
+                lastReadAt: r.lastReadAt.toISOString(),
+            }));
         }
         return res.json({
             messages: filteredMessages,
             nextCursor,
             hasMore,
+            seenBy,
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 }
-// GET /api/chat/messages/:threadId - Get thread messages
-exports.chatRouter.get("/messages/:threadId", auth_1.requireAuth, handleGetThreadMessages);
-// GET /api/chat/conversations/:threadId/messages - Canonical alias for thread messages
-exports.chatRouter.get("/conversations/:threadId/messages", auth_1.requireAuth, handleGetThreadMessages);
+exports.chatRouter.get("/messages/:threadId", handleGetThreadMessages);
+exports.chatRouter.get("/conversations/:threadId/messages", handleGetThreadMessages);
 // GET /api/chat/messages/:threadId/pinned - Get pinned messages in thread
-exports.chatRouter.get("/messages/:threadId/pinned", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.get("/messages/:threadId/pinned", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { threadId } = req.params;
         const currentUserId = req.user?.userId || "";
-        const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
         if (!authCheck.authorized) {
-            return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
+            return res.status(authCheck.status || 403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
         }
         const rawPinned = await prisma_1.prisma.chatMessage.findMany({
             where: {
@@ -1626,27 +3074,35 @@ exports.chatRouter.get("/messages/:threadId/pinned", auth_1.requireAuth, async (
             },
             orderBy: { pinnedAt: "desc" },
         });
-        const pinnedMessages = rawPinned.filter((m) => {
-            const deletedFor = m.deletedForUserIds || [];
-            return !deletedFor.includes(currentUserId);
-        });
+        const pinnedMessages = rawPinned
+            .filter((m) => !(m.deletedForUserIds || []).includes(currentUserId))
+            .map((m) => chat_service_1.ChatService.sanitizeMessageForViewer(m, currentUserId, tenantId));
         return res.json(pinnedMessages);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/messages/:threadId/files - Get shared files and attachments in thread
-exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/messages/:threadId/files - Shared files & attachments with signed URLs & server pagination
+exports.chatRouter.get("/messages/:threadId/files", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { threadId } = req.params;
         const currentUserId = req.user?.userId || "";
         const typeFilter = String(req.query.type || "").toLowerCase(); // "media" | "documents" | "all"
         const search = String(req.query.search || "").toLowerCase();
-        const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+        const paginatedMode = req.query.paginated === "true" || req.query.paginated === "1";
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = Math.min(200, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
         if (!authCheck.authorized) {
-            return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
+            return res.status(authCheck.status || 403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
         }
         const rawMessages = await prisma_1.prisma.chatMessage.findMany({
             where: {
@@ -1656,7 +3112,7 @@ exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (r
                 attachments: { not: null },
             },
             orderBy: { createdAt: "desc" },
-            take: 200,
+            take: 500,
         });
         const messages = rawMessages.filter((m) => {
             const deletedFor = m.deletedForUserIds || [];
@@ -1664,16 +3120,10 @@ exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (r
         });
         const allFiles = [];
         for (const msg of messages) {
-            const atts = Array.isArray(msg.attachments) ? msg.attachments : [];
+            const sanitized = chat_service_1.ChatService.sanitizeMessageForViewer(msg, currentUserId, tenantId);
+            const atts = Array.isArray(sanitized.attachments) ? sanitized.attachments : [];
             for (const attItem of atts) {
                 const att = typeof attItem === "object" && attItem !== null ? attItem : {};
-                const fileObj = {
-                    messageId: msg.id,
-                    senderId: msg.senderId,
-                    senderName: msg.senderName,
-                    createdAt: msg.createdAt,
-                    ...att,
-                };
                 const fileName = String(att.name || att.fileName || "").toLowerCase();
                 const mime = String(att.type || att.mimeType || "").toLowerCase();
                 const isMedia = mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");
@@ -1683,384 +3133,339 @@ exports.chatRouter.get("/messages/:threadId/files", auth_1.requireAuth, async (r
                     continue;
                 if (search && !fileName.includes(search))
                     continue;
-                allFiles.push(fileObj);
+                allFiles.push({
+                    messageId: msg.id,
+                    senderId: msg.senderId,
+                    senderName: msg.senderName,
+                    createdAt: msg.createdAt,
+                    ...att,
+                });
             }
         }
-        return res.json(allFiles);
+        const total = allFiles.length;
+        const paged = allFiles.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+        res.setHeader("X-Total-Count", String(total));
+        res.setHeader("X-Page", String(pageNum));
+        res.setHeader("X-Total-Pages", String(Math.max(1, Math.ceil(total / limitNum))));
+        if (paginatedMode) {
+            return res.json({
+                files: paged,
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.max(1, Math.ceil(total / limitNum)),
+            });
+        }
+        return res.json(paged);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// GET /api/chat/messages/:threadId/search - In-conversation search
-exports.chatRouter.get("/messages/:threadId/search", auth_1.requireAuth, async (req, res) => {
+// GET /api/chat/search - Global Cross-Conversation Search strictly scoped to caller's authorized threads (Section 6)
+exports.chatRouter.get("/search", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const q = String(req.query.q || req.query.query || "").trim();
+        const senderId = String(req.query.senderId || "").trim();
+        const threadFilter = String(req.query.threadId || "").trim();
+        const hasAttachment = req.query.hasAttachment === "true" || req.query.hasAttachment === "1";
+        const fileName = String(req.query.fileName || "").trim().toLowerCase();
+        const startDate = req.query.startDate ? new Date(String(req.query.startDate)) : null;
+        const endDate = req.query.endDate ? new Date(String(req.query.endDate)) : null;
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "25"), 10) || 25));
+        if (!q && !senderId && !hasAttachment && !fileName && !startDate && !endDate) {
+            return res.json({ results: [], messages: [], files: [], total: 0, page: pageNum, limit: limitNum, totalPages: 1 });
+        }
+        // If a specific threadId was requested, strictly verify caller's authorization for that thread
+        let allowedThreadConditions = [];
+        if (threadFilter) {
+            const check = await chat_service_1.ChatService.authorizeThread({
+                threadId: threadFilter,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+            });
+            if (!check.authorized) {
+                return res.status(check.status || 403).json({
+                    error: check.reason || "Access denied to requested thread.",
+                    code: check.code || "CHAT_UNAUTHORIZED",
+                });
+            }
+            allowedThreadConditions = [{ threadId: threadFilter }];
+        }
+        else {
+            // Build exact set of caller's active groups + caller's own 1:1 DMs (never expose other users' DMs!)
+            const [memberships, callerEmp] = await Promise.all([
+                prisma_1.prisma.chatGroupMember.findMany({
+                    where: { tenantId, userId: currentUserId },
+                    select: { groupId: true },
+                }),
+                prisma_1.prisma.employee.findFirst({
+                    where: { tenantId, userId: currentUserId },
+                    select: { id: true },
+                }),
+            ]);
+            const groupThreadIds = memberships.map((m) => `group_${m.groupId}`);
+            allowedThreadConditions = [
+                ...(groupThreadIds.length > 0 ? [{ threadId: { in: groupThreadIds } }] : []),
+                {
+                    AND: [
+                        { threadId: { startsWith: "direct_" } },
+                        {
+                            OR: [
+                                { threadId: { startsWith: `direct_${currentUserId}_` } },
+                                { threadId: { endsWith: `_${currentUserId}` } },
+                                ...(callerEmp?.id && callerEmp.id !== currentUserId
+                                    ? [
+                                        { threadId: { startsWith: `direct_${callerEmp.id}_` } },
+                                        { threadId: { endsWith: `_${callerEmp.id}` } },
+                                    ]
+                                    : []),
+                            ],
+                        },
+                    ],
+                },
+            ];
+        }
+        const andClauses = [
+            { tenantId },
+            { isDeletedForEveryone: false },
+            { isSystemEvent: false },
+            { OR: allowedThreadConditions },
+        ];
+        if (senderId) {
+            andClauses.push({ senderId });
+        }
+        if (hasAttachment || fileName) {
+            andClauses.push({ attachments: { not: null } });
+        }
+        if (startDate && !Number.isNaN(startDate.getTime())) {
+            andClauses.push({ createdAt: { gte: startDate } });
+        }
+        if (endDate && !Number.isNaN(endDate.getTime())) {
+            andClauses.push({ createdAt: { lte: endDate } });
+        }
+        if (q) {
+            andClauses.push({
+                OR: [
+                    { content: { contains: q, mode: "insensitive" } },
+                    { senderName: { contains: q, mode: "insensitive" } },
+                    { attachments: { string_contains: q } },
+                ],
+            });
+        }
+        const rawMatches = await prisma_1.prisma.chatMessage.findMany({
+            where: { AND: andClauses },
+            orderBy: { createdAt: "desc" },
+            take: 300,
+        });
+        // Post-filter deletedForMe, malformed direct threads, and optional fileName substring
+        const filtered = rawMatches.filter((m) => {
+            if (m.threadId.startsWith("direct_")) {
+                const parts = m.threadId.slice(7).split("_").filter(Boolean);
+                if (parts.length !== 2)
+                    return false;
+            }
+            const deletedFor = m.deletedForUserIds || [];
+            if (deletedFor.includes(currentUserId))
+                return false;
+            if (fileName) {
+                const atts = Array.isArray(m.attachments) ? m.attachments : [];
+                const matchFile = atts.some((a) => String(a?.name || a?.fileName || "")
+                    .toLowerCase()
+                    .includes(fileName));
+                if (!matchFile)
+                    return false;
+            }
+            return true;
+        });
+        const total = filtered.length;
+        const paged = filtered
+            .slice((pageNum - 1) * limitNum, pageNum * limitNum)
+            .map((m) => chat_service_1.ChatService.sanitizeMessageForViewer(m, currentUserId, tenantId));
+        const matchedFiles = [];
+        const lowerQ = q.toLowerCase();
+        for (const msg of paged) {
+            const atts = Array.isArray(msg.attachments) ? msg.attachments : [];
+            for (const att of atts) {
+                if (!att || typeof att !== "object")
+                    continue;
+                const attName = String(att.name || att.fileName || "");
+                if (!lowerQ || attName.toLowerCase().includes(lowerQ) || String(msg.content || "").toLowerCase().includes(lowerQ)) {
+                    matchedFiles.push({
+                        messageId: msg.id,
+                        threadId: msg.threadId,
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
+                        createdAt: msg.createdAt,
+                        ...att,
+                    });
+                }
+            }
+        }
+        return res.json({
+            results: paged,
+            messages: paged,
+            files: matchedFiles,
+            total,
+            page: pageNum,
+            limit: limitNum,
+            totalPages: Math.max(1, Math.ceil(total / limitNum)),
+        });
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// GET /api/chat/messages/:threadId/search - In-conversation search with sender, date, attachment filters & pagination
+exports.chatRouter.get("/messages/:threadId/search", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { threadId } = req.params;
         const currentUserId = req.user?.userId || "";
-        const q = String(req.query.query || req.query.q || "").trim().toLowerCase();
-        if (!q) {
-            return res.json([]);
-        }
-        const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+        const q = String(req.query.query || req.query.q || "").trim();
+        const senderId = String(req.query.senderId || "").trim();
+        const hasAttachment = req.query.hasAttachment === "true" || req.query.hasAttachment === "1";
+        const startDate = req.query.startDate ? new Date(String(req.query.startDate)) : null;
+        const endDate = req.query.endDate ? new Date(String(req.query.endDate)) : null;
+        const paginatedMode = req.query.paginated === "true" || req.query.paginated === "1";
+        const pageNum = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(String(req.query.limit || "50"), 10) || 50));
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+        });
         if (!authCheck.authorized) {
-            return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Access denied",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
+            });
+        }
+        if (!q && !senderId && !hasAttachment && !startDate && !endDate) {
+            return res.json(paginatedMode ? { results: [], total: 0, page: 1, limit: limitNum } : []);
+        }
+        const where = {
+            tenantId,
+            threadId,
+            isDeletedForEveryone: false,
+            ...(senderId ? { senderId } : {}),
+            ...(hasAttachment ? { attachments: { not: null } } : {}),
+        };
+        if (startDate || endDate) {
+            where.createdAt = {};
+            if (startDate && !Number.isNaN(startDate.getTime()))
+                where.createdAt.gte = startDate;
+            if (endDate && !Number.isNaN(endDate.getTime()))
+                where.createdAt.lte = endDate;
+        }
+        if (q) {
+            where.OR = [
+                { content: { contains: q, mode: "insensitive" } },
+                { senderName: { contains: q, mode: "insensitive" } },
+                { attachments: { string_contains: q } },
+            ];
         }
         const messages = await prisma_1.prisma.chatMessage.findMany({
-            where: {
-                tenantId,
-                threadId,
-                isDeletedForEveryone: false,
-                content: { contains: q, mode: "insensitive" },
-            },
+            where,
             orderBy: { createdAt: "desc" },
-            take: 50,
+            take: 200,
         });
-        // Filter out messages deleted for me
-        const results = messages.filter((m) => {
-            const deletedFor = m.deletedForUserIds || [];
-            return !deletedFor.includes(currentUserId);
-        });
-        return res.json(results);
-    }
-    catch (err) {
-        return res.status(500).json({ error: err.message });
-    }
-});
-// POST /api/chat/messages - Send message & broadcast with security checks, idempotency, replies, voice notes, polls, url previews
-exports.chatRouter.post("/messages", auth_1.requireAuth, async (req, res) => {
-    const _t0 = Date.now();
-    try {
-        const tenantId = req.user?.tenantId || "default";
-        const currentUserId = req.user?.userId || "system";
-        const { threadId, content, attachments, replyToId, replyTo, voiceNote, poll, urlPreviews, clientTempId, mentions, } = req.body;
-        if (!content && (!attachments || attachments.length === 0) && !voiceNote && !poll) {
-            return res.status(400).json({ error: "Message content, attachment, voice note, or poll is required" });
-        }
-        if (!threadId || typeof threadId !== "string") {
-            return res.status(400).json({ error: "threadId is required" });
-        }
-        // Security check: verify requester is authorized to send to this thread
-        const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
-        if (!authCheck.authorized) {
-            return res.status(403).json({
-                error: authCheck.reason || "Access denied: You cannot send messages to this thread.",
-                code: "CHAT_UNAUTHORIZED",
+        const filtered = messages
+            .filter((m) => !(m.deletedForUserIds || []).includes(currentUserId))
+            .map((m) => chat_service_1.ChatService.sanitizeMessageForViewer(m, currentUserId, tenantId));
+        const total = filtered.length;
+        const paged = filtered.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+        res.setHeader("X-Total-Count", String(total));
+        if (paginatedMode) {
+            return res.json({
+                results: paged,
+                total,
+                page: pageNum,
+                limit: limitNum,
+                totalPages: Math.max(1, Math.ceil(total / limitNum)),
             });
         }
-        // Server-side Idempotency check: fast in-memory cache then DB fallback
-        if (clientTempId && typeof clientTempId === "string") {
-            const tempKey = `${tenantId}:${threadId}:${clientTempId}`;
-            const memoryMsg = recentClientTempIds.get(tempKey);
-            if (memoryMsg) {
-                return res.status(200).json(memoryMsg);
-            }
-        }
-        // File security validation
-        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-            const secCheck = validateFileSecurity(attachments);
-            if (!secCheck.isAllowed) {
-                return res.status(403).json({
-                    error: `Security Violation: Cannot upload '${secCheck.blockedFile}'. ${secCheck.reason}`,
-                });
-            }
-            for (const att of attachments) {
-                const sz = Number(att.size || att.fileSize || 0);
-                if (sz > 30 * 1024 * 1024) {
-                    return res.status(413).json({
-                        error: `Attachment "${att.name || att.fileName || "File"}" exceeds the 30 MB limit.`,
-                        code: "FILE_TOO_LARGE",
-                    });
-                }
-            }
-        }
-        if (voiceNote) {
-            const vSize = Number(voiceNote.size || 0);
-            if (vSize > 30 * 1024 * 1024) {
-                return res.status(413).json({
-                    error: "Voice note exceeds the 30 MB limit.",
-                    code: "FILE_TOO_LARGE",
-                });
-            }
-        }
-        // Resolve sender's display name and avatar from req.user / in-memory cache / DB fallback
+        return res.json(paged);
+    }
+    catch (err) {
+        return handleChatError(res, err);
+    }
+});
+// POST /api/chat/messages - Single Authoritative Message Service (Section 2.1 & 5.1)
+exports.chatRouter.post("/messages", async (req, res) => {
+    const t0 = Date.now();
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
         const userProfile = req.user?.profile;
-        let senderName = userProfile?.fullName || req.user?.fullName;
-        let senderAvatar = userProfile?.avatarUrl || req.user?.avatarUrl || null;
-        if (!senderName) {
-            const pKey = `${tenantId}:${currentUserId}`;
-            const cached = exports.profileMemoryCache.get(pKey);
-            if (cached && cached.expiresAt > Date.now()) {
-                senderName = cached.fullName;
-                senderAvatar = cached.avatarUrl;
-            }
-            else {
-                const profile = await prisma_1.prisma.profile.findFirst({
-                    where: { userId: currentUserId, tenantId },
-                    select: { fullName: true, avatarUrl: true },
-                });
-                senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
-                senderAvatar = profile?.avatarUrl || null;
-                exports.profileMemoryCache.set(pKey, { fullName: senderName, avatarUrl: senderAvatar, expiresAt: Date.now() + 300000 });
-            }
+        let effectiveThreadId = typeof req.body?.threadId === "string" ? req.body.threadId.trim() : "";
+        if (!effectiveThreadId && req.body?.groupId) {
+            effectiveThreadId = `group_${String(req.body.groupId).trim()}`;
         }
-        // Automatic SSRF-safe URL preview extraction if link found in content
-        let finalUrlPreviews = urlPreviews || null;
-        if (!finalUrlPreviews && content) {
-            const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/i;
-            const urlMatch = content.match(urlRegex);
-            if (urlMatch && urlMatch[0]) {
-                try {
-                    const preview = await url_preview_service_1.UrlPreviewService.fetchPreview(urlMatch[0]);
-                    if (preview) {
-                        finalUrlPreviews = [preview];
-                    }
-                }
-                catch { }
-            }
-        }
-        // Strict Poll Validation & Normalization
-        let validatedPoll = null;
-        if (poll) {
-            const question = typeof poll.question === "string" ? poll.question.trim() : "";
-            if (!question) {
-                return res.status(400).json({ error: "Poll question is required." });
-            }
-            const rawOptions = Array.isArray(poll.options) ? poll.options : [];
-            const cleanOptions = [];
-            const seenTexts = new Set();
-            for (let i = 0; i < rawOptions.length; i++) {
-                const item = rawOptions[i];
-                const text = typeof item === "string" ? item.trim() : (typeof item?.text === "string" ? item.text.trim() : "");
-                if (!text)
-                    continue;
-                const lower = text.toLowerCase();
-                if (seenTexts.has(lower)) {
-                    return res.status(400).json({ error: `Duplicate poll option: "${text}". Each option must be distinct.` });
-                }
-                seenTexts.add(lower);
-                cleanOptions.push({
-                    id: item?.id || `opt_${i + 1}`,
-                    text,
-                    votes: Array.isArray(item?.votes) ? item.votes : [],
+        else if (!effectiveThreadId && req.body?.recipientId) {
+            const resolvedRecipient = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(req.body.recipientId).trim());
+            if (!resolvedRecipient) {
+                return res.status(403).json({
+                    error: "Access denied: Recipient does not belong to your workspace.",
+                    code: "CHAT_CROSS_TENANT_FORBIDDEN",
                 });
             }
-            if (cleanOptions.length < 2) {
-                return res.status(400).json({ error: "Poll must contain at least 2 distinct non-empty options." });
-            }
-            if (cleanOptions.length > 10) {
-                return res.status(400).json({ error: "Poll cannot exceed 10 options." });
-            }
-            const isMulti = Boolean(poll.allowMultiple || poll.isMultiSelect);
-            validatedPoll = {
-                question,
-                options: cleanOptions,
-                isClosed: Boolean(poll.isClosed),
-                allowMultiple: isMulti,
-                isMultiSelect: isMulti,
-                createdAt: new Date().toISOString(),
-            };
+            effectiveThreadId = `direct_${[currentUserId, resolvedRecipient.userId].sort().join("_")}`;
         }
-        const _tPre = Date.now();
-        const msg = await prisma_1.prisma.chatMessage.create({
-            data: {
-                tenantId,
-                threadId,
-                senderId: currentUserId,
-                senderName,
-                senderAvatar,
-                content: content || "",
-                attachments: attachments || null,
-                replyToId: replyToId || null,
-                replyTo: replyTo || null,
-                voiceNote: voiceNote || null,
-                poll: validatedPoll,
-                urlPreviews: finalUrlPreviews,
-                deliveryStatus: "sent",
-                clientTempId: clientTempId || null,
-                mentions: mentions || null,
-            },
+        const { message, deduplicated } = await chat_service_1.ChatService.sendMessage({
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            permissions: req.user?.permissions,
+            workspaceRole: req.user?.workspaceRole,
+            senderNameHint: userProfile?.fullName || req.user?.fullName || null,
+            senderAvatarHint: userProfile?.avatarUrl || req.user?.avatarUrl || null,
+            senderEmailHint: req.user?.email || null,
+            threadId: effectiveThreadId,
+            content: req.body?.content,
+            attachments: req.body?.attachments,
+            replyToId: req.body?.replyToId,
+            replyTo: req.body?.replyTo,
+            voiceNote: req.body?.voiceNote,
+            poll: req.body?.poll,
+            urlPreviews: req.body?.urlPreviews,
+            clientTempId: req.body?.clientTempId,
+            mentions: req.body?.mentions,
         });
-        // Register MediaUsage relations for attachments linked to Media Library records
-        if (attachments && Array.isArray(attachments)) {
-            for (const att of attachments) {
-                const mId = att?.mediaId || (att?.id && !String(att.id).startsWith("att_") && !String(att.id).startsWith("temp_") ? att.id : null);
-                if (mId) {
-                    try {
-                        await prisma_1.prisma.mediaUsage.upsert({
-                            where: {
-                                mediaId_entityType_entityId_fieldKey: {
-                                    mediaId: mId,
-                                    entityType: "chat_message",
-                                    entityId: msg.id,
-                                    fieldKey: "attachment",
-                                },
-                            },
-                            create: {
-                                mediaId: mId,
-                                entityType: "chat_message",
-                                entityId: msg.id,
-                                fieldKey: "attachment",
-                            },
-                            update: {},
-                        }).catch(() => { });
-                    }
-                    catch { }
-                }
-            }
-        }
-        // Mark as read for the sender in background (non-blocking)
-        prisma_1.prisma.chatReadReceipt.upsert({
-            where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-            create: { tenantId, threadId, userId: currentUserId, lastReadAt: new Date() },
-            update: { lastReadAt: new Date() },
-        }).catch(() => { });
-        // Realtime broadcast via Socket.io
-        const broadcastAt = Date.now();
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:message", {
-            threadId: msg.threadId,
-            message: msg,
-            broadcastAt,
-        });
-        // If direct message, trigger push notification for recipient
-        if (threadId.startsWith("direct_")) {
-            const parts = threadId.slice("direct_".length).split("_");
-            const recipientId = parts.find((p) => p !== currentUserId);
-            if (recipientId) {
-                // Push In-App notification to recipient in background
-                setImmediate(() => {
-                    notification_service_1.NotificationService.createNotification({
-                        tenantId,
-                        userId: recipientId,
-                        title: `New message from ${senderName}`,
-                        message: content ? (content.length > 80 ? content.slice(0, 80) + "..." : content) : "Sent an attachment",
-                        type: "CHAT_MESSAGE",
-                        actionUrl: `/me/chat?threadId=${threadId}`,
-                        metadata: { threadId, senderId: currentUserId, messageId: msg.id },
-                    }).catch(() => { });
-                });
-            }
-        }
-        // If group message, process @mentions and notify active members in background
-        if (threadId.startsWith("group_")) {
-            const groupId = threadId.slice("group_".length);
-            (async () => {
-                try {
-                    const members = await prisma_1.prisma.chatGroupMember.findMany({
-                        where: { tenantId, groupId, userId: { not: currentUserId } },
-                    });
-                    // Extract mentioned user IDs
-                    const mentionedUserIds = Array.isArray(mentions) ? [...mentions] : [];
-                    if (content && content.includes("@")) {
-                        for (const mem of members) {
-                            if (!mentionedUserIds.includes(mem.userId)) {
-                                const prof = await prisma_1.prisma.profile.findFirst({
-                                    where: { userId: mem.userId, tenantId },
-                                    select: { fullName: true },
-                                });
-                                if (prof?.fullName && content.toLowerCase().includes(`@${prof.fullName.toLowerCase()}`)) {
-                                    mentionedUserIds.push(mem.userId);
-                                }
-                            }
-                        }
-                    }
-                    for (const mem of members) {
-                        if (mem.isMuted) {
-                            const isMuteActive = !mem.mutedUntil || new Date(mem.mutedUntil).getTime() > Date.now();
-                            if (isMuteActive && !mentionedUserIds.includes(mem.userId)) {
-                                continue;
-                            }
-                        }
-                        const isMentioned = mentionedUserIds.includes(mem.userId);
-                        notification_service_1.NotificationService.createNotification({
-                            tenantId,
-                            userId: mem.userId,
-                            title: isMentioned ? `${senderName} mentioned you in a group` : `New message in group from ${senderName}`,
-                            message: content ? (content.length > 80 ? content.slice(0, 80) + "..." : content) : "Sent an attachment",
-                            type: "CHAT_MESSAGE",
-                            actionUrl: `/me/chat?threadId=${threadId}`,
-                            metadata: { threadId, senderId: currentUserId, messageId: msg.id, isMentioned },
-                        }).catch(() => { });
-                    }
-                }
-                catch { }
-            })().catch(() => { });
-        }
-        // Realtime broadcast via Pusher in background
-        setImmediate(() => {
-            pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message", {
-                threadId: msg.threadId,
-                message: msg,
-            }).catch(() => { });
-        });
-        const _tDb = Date.now() - _tPre;
-        const _tTotal = Date.now() - _t0;
-        res.setHeader("Server-Timing", `db;dur=${_tDb}, total;dur=${_tTotal}`);
-        if (clientTempId && typeof clientTempId === "string") {
-            recentClientTempIds.set(`${tenantId}:${threadId}:${clientTempId}`, msg);
-            if (recentClientTempIds.size > 2000) {
-                const oldestKey = recentClientTempIds.keys().next().value;
-                if (oldestKey)
-                    recentClientTempIds.delete(oldestKey);
-            }
-        }
-        return res.status(201).json(msg);
+        res.setHeader("Server-Timing", `total;dur=${Date.now() - t0}`);
+        return res.status(deduplicated ? 200 : 201).json(message);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// PATCH /api/chat/messages/:id - Edit message content
-exports.chatRouter.patch("/messages/:id", auth_1.requireAuth, async (req, res) => {
+// PATCH /api/chat/messages/:id - Authoritative Edit with Edit History Audit Trail (Section 2.6 & 6)
+exports.chatRouter.patch("/messages/:id", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
-        const currentUserId = req.user?.userId;
-        const { id } = req.params;
-        const { content } = req.body;
-        if (!content || typeof content !== "string" || !content.trim()) {
-            return res.status(400).json({ error: "Content is required for edit" });
-        }
-        const existing = await prisma_1.prisma.chatMessage.findFirst({
-            where: { id, tenantId },
-        });
-        if (!existing) {
-            return res.status(404).json({ error: "Message not found" });
-        }
-        if (existing.senderId !== currentUserId) {
-            return res.status(403).json({
-                error: "Access denied: You can only edit your own messages.",
-                code: "CHAT_EDIT_FORBIDDEN",
-            });
-        }
-        if (existing.isDeletedForEveryone) {
-            return res.status(400).json({ error: "Cannot edit a deleted message." });
-        }
-        const updated = await prisma_1.prisma.chatMessage.update({
-            where: { id },
-            data: {
-                content: content.trim(),
-                isEdited: true,
-                editedAt: new Date(),
-            },
-        });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:message_edited", {
-            id,
-            threadId: existing.threadId,
-            message: updated,
-        });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message_edited", {
-            id,
-            threadId: existing.threadId,
-            message: updated,
+        const currentUserId = req.user?.userId || "";
+        const updated = await chat_service_1.ChatService.editMessage({
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            messageId: req.params.id,
+            content: req.body?.content,
         });
         return res.json(updated);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/forward-batch - Forward a message to multiple direct or group conversations
-exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/forward-batch - Forward message with strict source/dest auth & FileAcl binding
+exports.chatRouter.post("/messages/forward-batch", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2068,34 +3473,70 @@ exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (re
         if (!messageId || !Array.isArray(targetThreadIds) || targetThreadIds.length === 0) {
             return res.status(400).json({ error: "messageId and targetThreadIds array are required" });
         }
-        // 1. Fetch and verify original message
         const originalMessage = await prisma_1.prisma.chatMessage.findFirst({
-            where: { id: messageId, tenantId },
+            where: { id: messageId, tenantId, isDeletedForEveryone: false },
         });
         if (!originalMessage) {
-            return res.status(404).json({ error: "Original message not found" });
+            return res.status(404).json({ error: "Original message not found or was deleted." });
         }
-        // Verify source thread access
-        const sourceAuth = await checkThreadAuthorization(originalMessage.threadId, tenantId, currentUserId, req.user?.roles);
-        if (!sourceAuth.authorized) {
-            return res.status(403).json({ error: "Not authorized to access or forward this message" });
+        const deletedFor = originalMessage.deletedForUserIds || [];
+        if (deletedFor.includes(currentUserId)) {
+            return res.status(404).json({ error: "Original message not found." });
         }
-        const senderProfile = await prisma_1.prisma.profile.findFirst({
-            where: { userId: currentUserId, tenantId },
-            select: { fullName: true, avatarUrl: true },
+        const sourceAuth = await chat_service_1.ChatService.authorizeThread({
+            threadId: originalMessage.threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
         });
-        const senderName = cleanPersonName(senderProfile?.fullName || req.user?.email?.split("@")[0] || "User");
-        const senderAvatar = senderProfile?.avatarUrl || null;
+        if (!sourceAuth.authorized) {
+            return res.status(sourceAuth.status || 403).json({
+                error: "Not authorized to access or forward this message.",
+                code: sourceAuth.code || "CHAT_UNAUTHORIZED",
+            });
+        }
+        const { senderName, senderAvatar } = await chat_service_1.ChatService.resolveSenderIdentity({
+            tenantId,
+            userId: currentUserId,
+            fallbackEmail: req.user?.email,
+        });
         const forwardedMessages = [];
         const failedThreads = [];
-        const uniqueTargets = Array.from(new Set(targetThreadIds));
+        const uniqueTargets = Array.from(new Set(targetThreadIds.map((t) => String(t || "").trim()).filter(Boolean))).slice(0, 20);
+        // Reset votes if forwarding a poll so destination gets a clean poll copy
+        let forwardedPoll = null;
+        if (originalMessage.poll && typeof originalMessage.poll === "object") {
+            forwardedPoll = {
+                ...JSON.parse(JSON.stringify(originalMessage.poll)),
+                isClosed: false,
+                distinctVotersCount: 0,
+                totalVotesCount: 0,
+                options: Array.isArray(originalMessage.poll.options)
+                    ? originalMessage.poll.options.map((o) => ({ id: o.id, text: o.text, votes: [] }))
+                    : [],
+            };
+        }
         for (const targetThreadId of uniqueTargets) {
             try {
-                const destAuth = await checkThreadAuthorization(targetThreadId, tenantId, currentUserId, req.user?.roles);
+                const destAuth = await chat_service_1.ChatService.authorizeThread({
+                    threadId: targetThreadId,
+                    tenantId,
+                    userId: currentUserId,
+                    roles: req.user?.roles,
+                    allowAdminModeration: false,
+                    requireWritePermission: true,
+                });
                 if (!destAuth.authorized) {
-                    failedThreads.push({ threadId: targetThreadId, reason: "Access denied to destination conversation" });
+                    failedThreads.push({ threadId: targetThreadId, reason: destAuth.reason || "Access denied to destination conversation" });
                     continue;
                 }
+                const clonedAttachments = originalMessage.attachments
+                    ? JSON.parse(JSON.stringify(originalMessage.attachments))
+                    : null;
+                const clonedVoice = originalMessage.voiceNote
+                    ? JSON.parse(JSON.stringify(originalMessage.voiceNote))
+                    : null;
                 const newMsg = await prisma_1.prisma.chatMessage.create({
                     data: {
                         tenantId,
@@ -2104,11 +3545,12 @@ exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (re
                         senderName,
                         senderAvatar,
                         content: originalMessage.content,
-                        attachments: originalMessage.attachments ? JSON.parse(JSON.stringify(originalMessage.attachments)) : null,
-                        voiceNote: originalMessage.voiceNote ? JSON.parse(JSON.stringify(originalMessage.voiceNote)) : null,
-                        poll: originalMessage.poll ? JSON.parse(JSON.stringify(originalMessage.poll)) : null,
+                        attachments: clonedAttachments,
+                        voiceNote: clonedVoice,
+                        poll: forwardedPoll,
                         urlPreviews: originalMessage.urlPreviews ? JSON.parse(JSON.stringify(originalMessage.urlPreviews)) : null,
-                        deliveryStatus: "delivered",
+                        deliveryStatus: "sent",
+                        deliveredToUserIds: [],
                         eventMetadata: {
                             isForwarded: true,
                             forwardedFromId: originalMessage.id,
@@ -2116,16 +3558,32 @@ exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (re
                         },
                     },
                 });
-                forwardedMessages.push(newMsg);
-                // Realtime notification to destination conversation
-                (0, socket_1.broadcastToTenant)(tenantId, "chat:message", {
-                    threadId: targetThreadId,
-                    message: newMsg,
+                await chat_service_1.ChatService.bindMessageMediaPermissions({
+                    tenantId,
+                    messageId: newMsg.id,
+                    actorUserId: currentUserId,
+                    attachments: clonedAttachments,
+                    voiceNote: clonedVoice,
+                    participantUserIds: destAuth.participantUserIds || [currentUserId],
+                    threadType: destAuth.threadType || "direct",
                 });
-                await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message", {
+                forwardedMessages.push(chat_service_1.ChatService.sanitizeMessageForViewer(newMsg, currentUserId, tenantId));
+                await chat_service_1.ChatService.emitToAuthorizedThread({
+                    tenantId,
                     threadId: targetThreadId,
-                    message: newMsg,
-                }).catch(() => { });
+                    event: "chat:message",
+                    payload: {
+                        threadId: targetThreadId,
+                        message: chat_service_1.ChatService.sanitizeMessageForViewer(newMsg, undefined, tenantId),
+                    },
+                    participantUserIds: destAuth.participantUserIds,
+                    perUserPayloadTransform: clonedAttachments || clonedVoice
+                        ? (viewerId) => ({
+                            threadId: targetThreadId,
+                            message: chat_service_1.ChatService.sanitizeMessageForViewer(newMsg, viewerId, tenantId),
+                        })
+                        : undefined,
+                });
             }
             catch (destErr) {
                 failedThreads.push({ threadId: targetThreadId, reason: destErr.message });
@@ -2140,11 +3598,11 @@ exports.chatRouter.post("/messages/forward-batch", auth_1.requireAuth, async (re
         });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/:id/pin - Pin or unpin message
-exports.chatRouter.post("/messages/:id/pin", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/:id/pin - Pin or unpin message within thread
+exports.chatRouter.post("/messages/:id/pin", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2152,12 +3610,22 @@ exports.chatRouter.post("/messages/:id/pin", auth_1.requireAuth, async (req, res
         const existing = await prisma_1.prisma.chatMessage.findFirst({
             where: { id, tenantId },
         });
-        if (!existing) {
-            return res.status(404).json({ error: "Message not found" });
+        if (!existing || existing.isDeletedForEveryone) {
+            return res.status(404).json({ error: "Message not found or was deleted." });
         }
-        const authCheck = await checkThreadAuthorization(existing.threadId, tenantId, currentUserId, req.user?.roles);
+        const authCheck = await chat_service_1.ChatService.authorizeThread({
+            threadId: existing.threadId,
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            allowAdminModeration: false,
+            requireWritePermission: true,
+        });
         if (!authCheck.authorized) {
-            return res.status(403).json({ error: "Access denied", code: "CHAT_UNAUTHORIZED" });
+            return res.status(authCheck.status || 403).json({
+                error: authCheck.reason || "Access denied",
+                code: authCheck.code || "CHAT_UNAUTHORIZED",
+            });
         }
         const nextPinned = !existing.isPinned;
         const updated = await prisma_1.prisma.chatMessage.update({
@@ -2168,66 +3636,62 @@ exports.chatRouter.post("/messages/:id/pin", auth_1.requireAuth, async (req, res
                 pinnedById: nextPinned ? currentUserId : null,
             },
         });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:message_pinned", {
-            id,
+        const sanitized = chat_service_1.ChatService.sanitizeMessageForViewer(updated, currentUserId, tenantId);
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
             threadId: existing.threadId,
-            isPinned: nextPinned,
-            message: updated,
+            event: "chat:message_pinned",
+            payload: {
+                id,
+                threadId: existing.threadId,
+                isPinned: nextPinned,
+                message: chat_service_1.ChatService.sanitizeMessageForViewer(updated, undefined, tenantId),
+            },
+            participantUserIds: authCheck.participantUserIds,
         });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message_pinned", {
-            id,
-            threadId: existing.threadId,
-            isPinned: nextPinned,
-            message: updated,
-        });
-        return res.json(updated);
+        return res.json(sanitized);
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/:id/react - Add or toggle emoji reaction with row-level locking
-exports.chatRouter.post("/messages/:id/react", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/:id/react - Toggle emoji reaction with row-level locking & thread-scoped emission
+exports.chatRouter.post("/messages/:id/react", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { id } = req.params;
         const { emoji } = req.body;
-        if (!emoji || typeof emoji !== "string") {
-            return res.status(400).json({ error: "emoji is required" });
+        if (!emoji || typeof emoji !== "string" || emoji.trim().length > 16) {
+            return res.status(400).json({ error: "Valid emoji is required" });
         }
-        // Resolve profile from req.user / memory cache / DB
-        const userProfile = req.user?.profile;
-        let senderName = userProfile?.fullName || req.user?.fullName;
-        let senderAvatar = userProfile?.avatarUrl || req.user?.avatarUrl || null;
-        if (!senderName) {
-            const pKey = `${tenantId}:${currentUserId}`;
-            const cached = exports.profileMemoryCache.get(pKey);
-            if (cached && cached.expiresAt > Date.now()) {
-                senderName = cached.fullName;
-                senderAvatar = cached.avatarUrl;
-            }
-            else {
-                const profile = await prisma_1.prisma.profile.findFirst({
-                    where: { userId: currentUserId, tenantId },
-                    select: { fullName: true, avatarUrl: true },
-                });
-                senderName = profile?.fullName || req.user?.email?.split("@")[0] || "User";
-                senderAvatar = profile?.avatarUrl || null;
-                exports.profileMemoryCache.set(pKey, { fullName: senderName, avatarUrl: senderAvatar, expiresAt: Date.now() + 300000 });
-            }
-        }
-        // Execute in transaction with row-level lock (FOR UPDATE) to prevent lost updates under concurrency
+        const { senderName, senderAvatar } = await chat_service_1.ChatService.resolveSenderIdentity({
+            tenantId,
+            userId: currentUserId,
+            fallbackName: req.user?.profile?.fullName || req.user?.fullName,
+            fallbackAvatar: req.user?.profile?.avatarUrl || req.user?.avatarUrl,
+            fallbackEmail: req.user?.email,
+        });
         const result = await prisma_1.prisma.$transaction(async (tx) => {
-            const rows = await tx.$queryRawUnsafe('SELECT id, thread_id, tenant_id, reactions FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
-            if (!rows || rows.length === 0) {
+            const rows = await tx.$queryRawUnsafe("SELECT id, thread_id, tenant_id, reactions, is_deleted_for_everyone FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantId);
+            if (!rows || rows.length === 0 || rows[0].is_deleted_for_everyone) {
                 return { status: 404, error: "Message not found" };
             }
             const row = rows[0];
             const threadId = row.thread_id;
-            const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+            });
             if (!authCheck.authorized) {
-                return { status: 403, error: "Access denied", code: "CHAT_UNAUTHORIZED" };
+                return {
+                    status: authCheck.status || 403,
+                    error: authCheck.reason || "Access denied",
+                    code: authCheck.code || "CHAT_UNAUTHORIZED",
+                };
             }
             let rawReactions = [];
             if (Array.isArray(row.reactions)) {
@@ -2236,26 +3700,25 @@ exports.chatRouter.post("/messages/:id/react", auth_1.requireAuth, async (req, r
             else if (row.reactions && typeof row.reactions === "object") {
                 rawReactions = Object.entries(row.reactions).map(([k, v]) => ({
                     emoji: k,
-                    userIds: Array.isArray(v) ? v : (v?.userIds || []),
-                    count: Array.isArray(v) ? v.length : (v?.count || 0),
+                    userIds: Array.isArray(v) ? v : v?.userIds || [],
+                    count: Array.isArray(v) ? v.length : v?.count || 0,
                     users: Array.isArray(v?.users) ? v.users : [],
                 }));
             }
             let reactions = rawReactions.map((r) => ({
                 emoji: r.emoji,
                 userIds: Array.isArray(r.userIds) ? [...r.userIds] : [],
-                count: Array.isArray(r.userIds) ? r.userIds.length : (typeof r.count === "number" ? r.count : 0),
+                count: Array.isArray(r.userIds) ? r.userIds.length : typeof r.count === "number" ? r.count : 0,
                 users: Array.isArray(r.users) ? [...r.users] : [],
             }));
-            const existingReaction = reactions.find((r) => r.emoji === emoji);
+            const cleanEmoji = emoji.trim();
+            const existingReaction = reactions.find((r) => r.emoji === cleanEmoji);
             if (existingReaction) {
                 if (existingReaction.userIds.includes(currentUserId)) {
-                    // Toggle OFF: remove user reaction
                     existingReaction.userIds = existingReaction.userIds.filter((u) => u !== currentUserId);
                     existingReaction.users = existingReaction.users.filter((u) => u.userId !== currentUserId);
                 }
                 else {
-                    // Toggle ON: add user reaction
                     existingReaction.userIds.push(currentUserId);
                     if (!existingReaction.users.some((u) => u.userId === currentUserId)) {
                         existingReaction.users.push({
@@ -2269,45 +3732,47 @@ exports.chatRouter.post("/messages/:id/react", auth_1.requireAuth, async (req, r
             }
             else {
                 reactions.push({
-                    emoji,
+                    emoji: cleanEmoji,
                     userIds: [currentUserId],
                     count: 1,
-                    users: [{
+                    users: [
+                        {
                             userId: currentUserId,
                             fullName: senderName,
                             avatarUrl: senderAvatar,
-                        }],
+                        },
+                    ],
                 });
             }
-            // Filter out reactions with 0 userIds
             reactions = reactions.filter((r) => r.userIds.length > 0);
             const updated = await tx.chatMessage.update({
                 where: { id },
                 data: { reactions },
             });
-            return { status: 200, threadId, reactions, updated };
+            return { status: 200, threadId, reactions, updated, participantUserIds: authCheck.participantUserIds };
         });
         if (result.status !== 200) {
             return res.status(result.status).json({ error: result.error, code: result.code });
         }
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:reaction", {
-            id,
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
             threadId: result.threadId,
-            reactions: result.reactions,
+            event: "chat:reaction",
+            payload: {
+                id,
+                threadId: result.threadId,
+                reactions: result.reactions,
+            },
+            participantUserIds: result.participantUserIds,
         });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:reaction", {
-            id,
-            threadId: result.threadId,
-            reactions: result.reactions,
-        });
-        return res.json(result.updated);
+        return res.json(chat_service_1.ChatService.sanitizeMessageForViewer(result.updated, currentUserId, tenantId));
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/:id/poll/vote - Cast a vote on a poll with atomic database transactions & row-level locking
-exports.chatRouter.post("/messages/:id/poll/vote", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/:id/poll/vote - Atomic poll vote with anonymous voter privacy enforcement (Section 6)
+exports.chatRouter.post("/messages/:id/poll/vote", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2316,23 +3781,25 @@ exports.chatRouter.post("/messages/:id/poll/vote", auth_1.requireAuth, async (re
         if (optionId === undefined || optionId === null || optionId === "") {
             return res.status(400).json({ error: "optionId is required" });
         }
-        // Execute vote inside a database transaction with row-level lock (FOR UPDATE)
-        // to guarantee atomicity and prevent lost updates under concurrent voting
         const result = await prisma_1.prisma.$transaction(async (tx) => {
-            // 1. Acquire row-level lock on the chat message
-            const rows = await tx.$queryRawUnsafe('SELECT id, thread_id, tenant_id, poll FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
-            if (!rows || rows.length === 0 || !rows[0].poll) {
+            const rows = await tx.$queryRawUnsafe("SELECT id, thread_id, tenant_id, poll, is_deleted_for_everyone FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantId);
+            if (!rows || rows.length === 0 || !rows[0].poll || rows[0].is_deleted_for_everyone) {
                 return { status: 404, error: "Poll message not found" };
             }
             const row = rows[0];
             const threadId = row.thread_id;
-            // Security check: verify voter belongs to this thread
-            const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+            });
             if (!authCheck.authorized) {
                 return {
-                    status: 403,
+                    status: authCheck.status || 403,
                     error: authCheck.reason || "Access denied: You cannot vote on polls in this thread.",
-                    code: "CHAT_UNAUTHORIZED",
+                    code: authCheck.code || "CHAT_UNAUTHORIZED",
                 };
             }
             const pollData = typeof row.poll === "string" ? JSON.parse(row.poll) : row.poll;
@@ -2346,18 +3813,16 @@ exports.chatRouter.post("/messages/:id/poll/vote", auth_1.requireAuth, async (re
                 return { status: 404, error: "Poll option not found" };
             }
             if (!isMultiSelect) {
-                // Single-choice mode: remove user from all options
+                const hadVotedTarget = Array.isArray(targetOpt.votes) && targetOpt.votes.includes(currentUserId);
                 for (const opt of options) {
                     opt.votes = Array.isArray(opt.votes) ? opt.votes.filter((u) => u !== currentUserId) : [];
                 }
-                // Then record vote on target option
-                if (!Array.isArray(targetOpt.votes)) {
-                    targetOpt.votes = [];
+                // Toggle off if clicking same option, otherwise select target option
+                if (!hadVotedTarget) {
+                    targetOpt.votes.push(currentUserId);
                 }
-                targetOpt.votes.push(currentUserId);
             }
             else {
-                // Multiple-choice mode: toggle user's vote on target option
                 const currentVotes = Array.isArray(targetOpt.votes) ? targetOpt.votes : [];
                 if (currentVotes.includes(currentUserId)) {
                     targetOpt.votes = currentVotes.filter((u) => u !== currentUserId);
@@ -2366,14 +3831,8 @@ exports.chatRouter.post("/messages/:id/poll/vote", auth_1.requireAuth, async (re
                     targetOpt.votes = [...currentVotes, currentUserId];
                 }
             }
-            // Deduplicate voter IDs on all options
             for (const opt of options) {
-                if (Array.isArray(opt.votes)) {
-                    opt.votes = Array.from(new Set(opt.votes));
-                }
-                else {
-                    opt.votes = [];
-                }
+                opt.votes = Array.isArray(opt.votes) ? Array.from(new Set(opt.votes)) : [];
             }
             pollData.options = options;
             const allVoterIds = new Set(options.flatMap((o) => (Array.isArray(o.votes) ? o.votes : [])));
@@ -2383,59 +3842,80 @@ exports.chatRouter.post("/messages/:id/poll/vote", auth_1.requireAuth, async (re
                 where: { id },
                 data: { poll: pollData },
             });
-            return { status: 200, threadId, poll: pollData };
+            return { status: 200, threadId, rawPoll: pollData, participantUserIds: authCheck.participantUserIds };
         });
         if (result.status !== 200) {
             return res.status(result.status).json({ error: result.error, code: result.code });
         }
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:poll_updated", {
-            id,
+        // Emit personalized viewer-sanitized poll payloads when anonymous!
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
             threadId: result.threadId,
-            poll: result.poll,
+            event: "chat:poll_updated",
+            payload: {
+                id,
+                threadId: result.threadId,
+                poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, undefined),
+            },
+            participantUserIds: result.participantUserIds,
+            perUserPayloadTransform: result.rawPoll?.isAnonymous
+                ? (viewerId) => ({
+                    id,
+                    threadId: result.threadId,
+                    poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, viewerId),
+                })
+                : undefined,
         });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:poll_updated", {
-            id,
-            threadId: result.threadId,
-            poll: result.poll,
+        return res.json({
+            success: true,
+            poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, currentUserId),
         });
-        return res.json({ success: true, poll: result.poll });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/:id/poll/close - Close a poll with row-level locking
-exports.chatRouter.post("/messages/:id/poll/close", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/:id/poll/close - Close a poll with row-level locking & anonymous voter privacy
+exports.chatRouter.post("/messages/:id/poll/close", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { id } = req.params;
         const result = await prisma_1.prisma.$transaction(async (tx) => {
-            const rows = await tx.$queryRawUnsafe('SELECT id, thread_id, tenant_id, sender_id, poll FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE', id, tenantId);
-            if (!rows || rows.length === 0 || !rows[0].poll) {
+            const rows = await tx.$queryRawUnsafe("SELECT id, thread_id, tenant_id, sender_id, poll, is_deleted_for_everyone FROM chat_messages WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantId);
+            if (!rows || rows.length === 0 || !rows[0].poll || rows[0].is_deleted_for_everyone) {
                 return { status: 404, error: "Poll message not found" };
             }
             const row = rows[0];
             const threadId = row.thread_id;
-            const authCheck = await checkThreadAuthorization(threadId, tenantId, currentUserId, req.user?.roles);
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+            });
             if (!authCheck.authorized) {
                 return {
-                    status: 403,
+                    status: authCheck.status || 403,
                     error: authCheck.reason || "Access denied: You cannot close polls in this thread.",
-                    code: "CHAT_UNAUTHORIZED",
+                    code: authCheck.code || "CHAT_UNAUTHORIZED",
                 };
             }
             const isCreator = row.sender_id === currentUserId;
-            const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
-            if (!isCreator && !isAdmin) {
-                return { status: 403, error: "Only the poll creator or admin can close this poll." };
+            const isGroupAdmin = authCheck.threadType === "group" && ["owner", "admin"].includes(authCheck.memberRole || "");
+            const isTenantAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
+            if (!isCreator && !isGroupAdmin && !isTenantAdmin) {
+                return { status: 403, error: "Only the poll creator or group admin can close this poll." };
             }
-            const pollObj = typeof row.poll === "string" ? JSON.parse(row.poll) : (row.poll || {});
+            const pollObj = typeof row.poll === "string" ? JSON.parse(row.poll) : row.poll || {};
             const opts = Array.isArray(pollObj.options) ? pollObj.options : [];
             const allVoterIds = new Set(opts.flatMap((o) => (Array.isArray(o.votes) ? o.votes : [])));
             const pollData = {
                 ...pollObj,
                 isClosed: true,
+                closedAt: new Date().toISOString(),
+                closedById: currentUserId,
                 distinctVotersCount: allVoterIds.size,
                 totalVotesCount: opts.reduce((sum, o) => sum + (Array.isArray(o.votes) ? o.votes.length : 0), 0),
             };
@@ -2443,108 +3923,94 @@ exports.chatRouter.post("/messages/:id/poll/close", auth_1.requireAuth, async (r
                 where: { id },
                 data: { poll: pollData },
             });
-            return { status: 200, threadId, poll: pollData };
+            return { status: 200, threadId, rawPoll: pollData, participantUserIds: authCheck.participantUserIds };
         });
         if (result.status !== 200) {
             return res.status(result.status).json({ error: result.error, code: result.code });
         }
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:poll_updated", {
-            id,
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
             threadId: result.threadId,
-            poll: result.poll,
+            event: "chat:poll_updated",
+            payload: {
+                id,
+                threadId: result.threadId,
+                poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, undefined),
+            },
+            participantUserIds: result.participantUserIds,
+            perUserPayloadTransform: result.rawPoll?.isAnonymous
+                ? (viewerId) => ({
+                    id,
+                    threadId: result.threadId,
+                    poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, viewerId),
+                })
+                : undefined,
         });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:poll_updated", {
-            id,
-            threadId: result.threadId,
-            poll: result.poll,
+        return res.json({
+            success: true,
+            poll: chat_service_1.ChatService.sanitizePollForViewer(result.rawPoll, currentUserId),
         });
-        return res.json({ success: true, poll: result.poll });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// POST /api/chat/messages/delivered - Acknowledge message delivery
-exports.chatRouter.post("/messages/delivered", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/messages/delivered - Authoritative Delivery Receipt Acknowledgment (Section 5.2)
+exports.chatRouter.post("/messages/delivered", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { messageIds, threadId } = req.body;
         if (!Array.isArray(messageIds) || messageIds.length === 0) {
-            return res.json({ success: true });
+            return res.json({ success: true, acknowledgedIds: [] });
         }
-        await prisma_1.prisma.chatMessage.updateMany({
-            where: {
-                id: { in: messageIds },
-                tenantId,
-                senderId: { not: currentUserId },
-            },
-            data: {
-                deliveryStatus: "delivered",
-            },
-        });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:delivered", {
-            messageIds,
-            threadId,
+        // Resolve threadId from first message if client omitted threadId
+        let targetThreadId = typeof threadId === "string" ? threadId : "";
+        if (!targetThreadId) {
+            const sample = await prisma_1.prisma.chatMessage.findFirst({
+                where: { id: String(messageIds[0]), tenantId },
+                select: { threadId: true },
+            });
+            if (!sample)
+                return res.json({ success: true, acknowledgedIds: [] });
+            targetThreadId = sample.threadId;
+        }
+        const result = await chat_service_1.ChatService.acknowledgeDelivered({
+            tenantId,
             userId: currentUserId,
-            deliveredAt: new Date().toISOString(),
-        });
-        void pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:delivered", {
+            roles: req.user?.roles,
+            threadId: targetThreadId,
             messageIds,
-            threadId,
-            userId: currentUserId,
-            deliveredAt: new Date().toISOString(),
-        }).catch(() => { });
-        return res.json({ success: true });
+        });
+        return res.json({ success: true, ...result });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
-// Handler for marking thread messages as read
+// POST /api/chat/messages/:threadId/read (+ aliases) - Authoritative Read Receipt Update (Section 5.3)
 const handleMarkThreadRead = async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
         const { threadId } = req.params;
-        const receipt = await prisma_1.prisma.chatReadReceipt.upsert({
-            where: { tenantId_threadId_userId: { tenantId, threadId, userId: currentUserId } },
-            create: { tenantId, threadId, userId: currentUserId, lastReadAt: new Date() },
-            update: { lastReadAt: new Date() },
-        });
-        // Mark deliveryStatus as read in database
-        await prisma_1.prisma.chatMessage.updateMany({
-            where: {
-                tenantId,
-                threadId,
-                senderId: { not: currentUserId },
-            },
-            data: {
-                deliveryStatus: "read",
-            },
-        });
-        (0, socket_1.broadcastToTenant)(tenantId, "chat:read", {
-            threadId,
+        const result = await chat_service_1.ChatService.markThreadRead({
+            tenantId,
             userId: currentUserId,
-            readAt: receipt.lastReadAt,
-        });
-        await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:read", {
+            roles: req.user?.roles,
             threadId,
-            userId: currentUserId,
-            readAt: receipt.lastReadAt,
         });
-        return res.json({ success: true, lastReadAt: receipt.lastReadAt });
+        return res.json({ success: true, lastReadAt: result.lastReadAt, seenBy: result.seenBy });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 };
-// POST /api/chat/messages/:threadId/read - Mark thread messages as read
-exports.chatRouter.post("/messages/:threadId/read", auth_1.requireAuth, handleMarkThreadRead);
-exports.chatRouter.post("/conversations/:threadId/read", auth_1.requireAuth, handleMarkThreadRead);
-exports.chatRouter.post("/threads/:threadId/read", auth_1.requireAuth, handleMarkThreadRead);
-// DELETE /api/chat/messages/:id - Delete message ("Delete for everyone" vs "Delete for me")
-exports.chatRouter.delete("/messages/:id", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.post("/messages/:threadId/read", handleMarkThreadRead);
+exports.chatRouter.post("/conversations/:threadId/read", handleMarkThreadRead);
+exports.chatRouter.post("/threads/:threadId/read", handleMarkThreadRead);
+// DELETE /api/chat/messages/:id - Authoritative Delete ("Delete for everyone" vs "Delete for me") (Section 2.6)
+exports.chatRouter.delete("/messages/:id", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2553,77 +4019,30 @@ exports.chatRouter.delete("/messages/:id", auth_1.requireAuth, async (req, res) 
             req.query.mode === "everyone" ||
             req.body?.forEveryone === true ||
             req.body?.mode === "everyone";
-        const existing = await prisma_1.prisma.chatMessage.findFirst({
-            where: { id, tenantId },
+        const result = await chat_service_1.ChatService.deleteMessage({
+            tenantId,
+            userId: currentUserId,
+            roles: req.user?.roles,
+            permissions: req.user?.permissions,
+            workspaceRole: req.user?.workspaceRole,
+            messageId: id,
+            forEveryone,
         });
-        if (!existing) {
-            return res.status(404).json({ error: "Message not found" });
-        }
-        if (forEveryone) {
-            const isSender = existing.senderId === currentUserId;
-            const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r));
-            if (!isSender && !isAdmin) {
-                return res.status(403).json({
-                    error: "Access denied: You can only delete your own messages for everyone.",
-                    code: "CHAT_DELETE_FORBIDDEN",
-                });
-            }
-            await prisma_1.prisma.chatMessage.update({
-                where: { id },
-                data: {
-                    isDeletedForEveryone: true,
-                    content: "This message was deleted",
-                    attachments: null,
-                    voiceNote: null,
-                    poll: null,
-                    urlPreviews: null,
-                    reactions: null,
-                },
-            });
-            (0, socket_1.broadcastToTenant)(tenantId, "chat:message_deleted", {
-                id,
-                threadId: existing.threadId,
-                isDeletedForEveryone: true,
-            });
-            await pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:message_deleted", {
-                id,
-                threadId: existing.threadId,
-                isDeletedForEveryone: true,
-            });
-            return res.json({ success: true, id, mode: "everyone", message: "Message deleted for everyone" });
-        }
-        else {
-            // Delete for me only: append currentUserId to deletedForUserIds
-            const currentList = Array.isArray(existing.deletedForUserIds)
-                ? existing.deletedForUserIds
-                : [];
-            if (!currentList.includes(currentUserId)) {
-                currentList.push(currentUserId);
-            }
-            await prisma_1.prisma.chatMessage.update({
-                where: { id },
-                data: {
-                    deletedForUserIds: currentList,
-                },
-            });
-            (0, socket_1.broadcastToUser)(currentUserId, "chat:message_deleted", {
-                id,
-                threadId: existing.threadId,
-                isDeletedForEveryone: false,
-                deletedForUserId: currentUserId,
-            });
-            return res.json({ success: true, id, mode: "me", message: "Message hidden for you" });
-        }
+        return res.json({
+            success: true,
+            id: result.id,
+            mode: result.mode,
+            message: result.mode === "everyone" ? "Message deleted for everyone" : "Message hidden for you",
+        });
     }
     catch (err) {
-        return res.status(500).json({ error: err.message });
+        return handleChatError(res, err);
     }
 });
 // =========================================================================
 // CALL HISTORY ENDPOINTS (/api/chat/calls)
 // =========================================================================
-// GET /api/chat/calls - List authoritative Call History records for user & tenant
-exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.get("/calls", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2638,7 +4057,6 @@ exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
                 hiddenByUserIds: { has: currentUserId },
             },
         };
-        // Non-admin users only see calls where they were caller, receiver, or participant
         if (!isAdmin && currentUserId) {
             where.OR = [
                 { callerId: currentUserId },
@@ -2646,7 +4064,6 @@ exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
                 { participantIds: { has: currentUserId } },
             ];
         }
-        // Filter by specific contact
         if (contactId && typeof contactId === "string") {
             where.AND = [
                 ...(where.AND || []),
@@ -2659,29 +4076,22 @@ exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
                 },
             ];
         }
-        // Filter by call type: audio vs video
         if (callType && callType !== "all") {
             where.callType = String(callType).toLowerCase();
         }
-        // Filter by direction: incoming vs outgoing
         if (direction && direction !== "all") {
             where.direction = String(direction).toLowerCase();
         }
-        // Filter by outcome / status: completed, missed, rejected, cancelled, failed
         if (status && status !== "all") {
             where.status = String(status).toLowerCase();
         }
-        // Date range filtering
         if (startDate || endDate) {
             where.callTime = {};
-            if (startDate) {
+            if (startDate)
                 where.callTime.gte = new Date(String(startDate));
-            }
-            if (endDate) {
+            if (endDate)
                 where.callTime.lte = new Date(String(endDate));
-            }
         }
-        // Search by contact name, email, or phone
         if (search && String(search).trim()) {
             const q = String(search).trim();
             where.AND = [
@@ -2705,12 +4115,11 @@ exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
                 take: limitNum,
             }),
         ]);
-        // Format response to include caller/receiver details and direction
         const enrichedCalls = calls.map((c) => {
             const isCaller = c.callerId === currentUserId;
             const isReceiver = c.receiverId === currentUserId;
             const computedDirection = c.direction || (isCaller ? "outgoing" : isReceiver ? "incoming" : "outgoing");
-            const otherPartyName = isCaller ? (c.receiverName || "Colleague") : c.callerName;
+            const otherPartyName = isCaller ? c.receiverName || "Colleague" : c.callerName;
             const otherPartyAvatar = isCaller ? c.receiverAvatarUrl : c.callerAvatarUrl;
             return {
                 ...c,
@@ -2732,41 +4141,73 @@ exports.chatRouter.get("/calls", auth_1.requireAuth, async (req, res) => {
         });
     }
     catch (err) {
-        console.error("Call History GET error:", err);
-        return res.status(500).json({ error: err.message || "Failed to fetch call history" });
+        return handleChatError(res, err, "Failed to fetch call history");
     }
 });
-// POST /api/chat/calls - Persist call lifecycle event (Idempotent WebRTC lifecycle recording)
-exports.chatRouter.post("/calls", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.post("/calls", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const { callSessionId, callerId, callerName, callerEmail, callerPhone = "Internal Call", callerAvatarUrl, receiverId, receiverName, receiverAvatarUrl, direction = "outgoing", callType = "audio", durationSeconds = 0, status = "completed", notes, groupId, participantIds = [], } = req.body;
-        // Reject unverified manual entries without session identity
+        const { callSessionId, callerId, callerName, callerEmail, callerPhone = "Internal Call", callerAvatarUrl, receiverId, receiverName, receiverAvatarUrl, direction = "outgoing", callType = "audio", durationSeconds = 0, status = "completed", notes, groupId, threadId, participantIds = [], } = req.body;
         if (!callSessionId) {
             return res.status(400).json({
                 error: "Direct manual call logging is disabled. Call records must originate from verified call sessions.",
                 code: "MANUAL_CALL_LOGGING_DISABLED",
             });
         }
-        // Check for existing record by session ID for idempotency
         const existing = await prisma_1.prisma.callHistoryRecord.findFirst({
             where: { tenantId, callSessionId },
         });
         if (existing) {
-            // Update existing record with final duration and outcome
-            const updated = await prisma_1.prisma.callHistoryRecord.update({
-                where: { id: existing.id },
+            // Only call participants may update an existing call history record
+            const isParticipant = existing.callerId === currentUserId ||
+                existing.receiverId === currentUserId ||
+                (Array.isArray(existing.participantIds) && existing.participantIds.includes(currentUserId));
+            if (!isParticipant) {
+                return res.status(403).json({ error: "Access denied: Not a participant of this call session." });
+            }
+            const finalStatus = status || existing.status;
+            await prisma_1.prisma.callHistoryRecord.updateMany({
+                where: { tenantId, callSessionId },
                 data: {
                     durationSeconds: Math.max(existing.durationSeconds, Number(durationSeconds) || 0),
-                    status: status || existing.status,
+                    status: finalStatus,
                     endedAt: new Date(),
                     notes: notes || existing.notes,
                 },
             });
-            return res.status(200).json(updated);
+            const updated = await prisma_1.prisma.callHistoryRecord.findUnique({ where: { id: existing.id } });
+            if (["completed", "missed", "declined", "cancelled", "rejected"].includes(String(finalStatus).toLowerCase())) {
+                const memSession = socket_1.activeCalls.get(callSessionId);
+                if (memSession) {
+                    if (memSession.timeoutTimer)
+                        clearTimeout(memSession.timeoutTimer);
+                    socket_1.activeCalls.delete(callSessionId);
+                    const peerId = memSession.callerId === currentUserId ? memSession.targetUserId : memSession.callerId;
+                    const io = (0, socket_1.getIO)();
+                    io?.to(`user:${peerId}`).emit("call:ended", { callId: callSessionId, endedBy: currentUserId, durationSeconds: Number(durationSeconds) || 0 });
+                    io?.to(`user:${peerId}`).emit("call.ended", { callId: callSessionId, endedBy: currentUserId, durationSeconds: Number(durationSeconds) || 0 });
+                }
+                const db = prisma_1.rawPrisma || prisma_1.prisma;
+                const dbCalls = await db.call
+                    .findMany({
+                    where: { tenantId, OR: [{ id: callSessionId }, { roomKey: callSessionId }] },
+                    select: { id: true },
+                })
+                    .catch(() => []);
+                if (dbCalls.length > 0) {
+                    const ids = dbCalls.map((c) => c.id);
+                    await db.call
+                        .updateMany({ where: { id: { in: ids } }, data: { status: "ENDED", endedAt: new Date() } })
+                        .catch(() => { });
+                    await db.callParticipant
+                        .updateMany({ where: { callId: { in: ids }, leftAt: null }, data: { state: "LEFT", leftAt: new Date() } })
+                        .catch(() => { });
+                }
+            }
+            return res.status(200).json(updated || existing);
         }
-        const resolvedCallerId = callerId || currentUserId;
+        const resolvedCallerId = callerId === currentUserId ? callerId : currentUserId;
         const record = await prisma_1.prisma.callHistoryRecord.create({
             data: {
                 tenantId,
@@ -2787,36 +4228,52 @@ exports.chatRouter.post("/calls", auth_1.requireAuth, async (req, res) => {
                 endedAt: new Date(),
                 status: status || "completed",
                 groupId: groupId || null,
+                threadId: threadId || (groupId ? `group_${groupId}` : receiverId ? chat_service_1.ChatService.canonicalizeDirectThreadId(resolvedCallerId, receiverId) : null),
                 participantIds: Array.isArray(participantIds) ? participantIds : [],
                 notes: notes || null,
             },
         });
+        if (["completed", "missed", "declined", "cancelled", "rejected"].includes(String(status || "completed").toLowerCase())) {
+            const memSession = socket_1.activeCalls.get(callSessionId);
+            if (memSession && memSession.tenantId === tenantId) {
+                if (memSession.timeoutTimer)
+                    clearTimeout(memSession.timeoutTimer);
+                socket_1.activeCalls.delete(callSessionId);
+                const peerId = memSession.callerId === currentUserId ? memSession.targetUserId : memSession.callerId;
+                const io = (0, socket_1.getIO)();
+                io?.to(`user:${peerId}`).emit("call:ended", { callId: callSessionId, endedBy: currentUserId, durationSeconds: Number(durationSeconds) || 0 });
+                io?.to(`user:${peerId}`).emit("call.ended", { callId: callSessionId, endedBy: currentUserId, durationSeconds: Number(durationSeconds) || 0 });
+            }
+            const db = prisma_1.rawPrisma || prisma_1.prisma;
+            const dbCall = await db.call
+                .findFirst({
+                where: { tenantId, OR: [{ id: callSessionId }, { roomKey: callSessionId }] },
+                select: { id: true },
+            })
+                .catch(() => null);
+            if (dbCall?.id) {
+                await db.call.update({ where: { id: dbCall.id }, data: { status: "ENDED", endedAt: new Date() } }).catch(() => { });
+                await db.callParticipant.updateMany({ where: { callId: dbCall.id, leftAt: null }, data: { state: "LEFT", leftAt: new Date() } }).catch(() => { });
+            }
+        }
         return res.status(201).json(record);
     }
     catch (err) {
-        console.error("Call History POST error:", err);
-        return res.status(500).json({ error: err.message || "Failed to record call event" });
+        return handleChatError(res, err, "Failed to record call event");
     }
 });
-// DELETE /api/chat/calls/:id - User-specific hide (or admin delete)
-exports.chatRouter.delete("/calls/:id", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.delete("/calls/:id", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
-        const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) || false;
         const { id } = req.params;
-        const force = req.query.force === "true";
         const record = await prisma_1.prisma.callHistoryRecord.findFirst({
             where: { id, tenantId },
         });
         if (!record) {
             return res.status(404).json({ error: "Call record not found." });
         }
-        if (isAdmin && force) {
-            await prisma_1.prisma.callHistoryRecord.delete({ where: { id } });
-            return res.json({ success: true, message: "Call record permanently deleted by administrator." });
-        }
-        // Hide record for current user without destroying audit data for the other party
+        // Soft-hide for current user without destroying call history records (Section 0 rule: never delete call history)
         const existingHidden = record.hiddenByUserIds || [];
         if (!existingHidden.includes(currentUserId)) {
             await prisma_1.prisma.callHistoryRecord.update({
@@ -2826,15 +4283,13 @@ exports.chatRouter.delete("/calls/:id", auth_1.requireAuth, async (req, res) => 
                 },
             });
         }
-        return res.json({ success: true, message: "Call record removed from your Call History." });
+        return res.json({ success: true, message: "Call record hidden from your Call History." });
     }
     catch (err) {
-        console.error("Call History DELETE error:", err);
-        return res.status(500).json({ error: err.message || "Failed to delete call record" });
+        return handleChatError(res, err, "Failed to remove call record");
     }
 });
-// POST /api/chat/calls/bulk-delete - Hide multiple call records for current user
-exports.chatRouter.post("/calls/bulk-delete", auth_1.requireAuth, async (req, res) => {
+exports.chatRouter.post("/calls/bulk-delete", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const currentUserId = req.user?.userId || "";
@@ -2860,41 +4315,142 @@ exports.chatRouter.post("/calls/bulk-delete", auth_1.requireAuth, async (req, re
         return res.json({ success: true, count: records.length });
     }
     catch (err) {
-        console.error("Call History Bulk DELETE error:", err);
-        return res.status(500).json({ error: err.message || "Failed to bulk remove call records" });
+        return handleChatError(res, err, "Failed to bulk remove call records");
     }
 });
 // ============================================================================
-// MULTI-PARTICIPANT MEETINGS & SFU TOKEN CONTROLLER
+// MULTI-PARTICIPANT WEBRTC MESH MEETINGS CONTROLLER (Section 8)
 // ============================================================================
-// GET /api/chat/meetings/config - Public client SFU configuration & diagnostics
-exports.chatRouter.get("/meetings/config", auth_1.requireAuth, async (_req, res) => {
+/**
+ * Recovers an active group meeting from PostgreSQL (`Call` + `CallParticipant`) if in-memory `activeGroupCalls`
+ * was cleared by a process restart or routed to another backend instance.
+ */
+async function resolveOrRecoverGroupMeeting(callId, tenantId) {
+    // The PostgreSQL Call/CallParticipant rows are authoritative. On serverless deployments every request can
+    // land on a different instance, so an in-memory roster is only used as a cache for media flags and is
+    // always re-synchronised from the database (otherwise peers that joined via another instance never
+    // receive join/leave/signal events and the WebRTC mesh cannot form).
+    const existingMem = socket_1.activeGroupCalls.get(callId);
+    const memForTenant = existingMem && existingMem.tenantId === tenantId ? existingMem : null;
+    const db = prisma_1.rawPrisma || prisma_1.prisma;
+    const dbCall = await db.call
+        .findFirst({
+        where: {
+            roomKey: `group_meeting:${callId}`,
+            tenantId,
+            status: { in: ["RINGING", "ACTIVE"] },
+        },
+        include: { participants: true },
+    })
+        .catch(() => null);
+    if (!dbCall || !dbCall.groupId) {
+        if (memForTenant && dbCall === null) {
+            // Meeting row missing (DB write failed) — fall back to the in-memory session only when it was never persisted.
+            const persisted = await db.call
+                .findFirst({ where: { roomKey: `group_meeting:${callId}`, tenantId }, select: { status: true } })
+                .catch(() => null);
+            if (!persisted)
+                return memForTenant;
+            socket_1.activeGroupCalls.delete(callId);
+        }
+        return null;
+    }
+    const group = await db.chatGroup
+        .findFirst({
+        where: { id: dbCall.groupId, tenantId },
+        select: { id: true, name: true, avatarUrl: true },
+    })
+        .catch(() => null);
+    const participantUserIds = dbCall.participants.map((p) => p.userId);
+    const profiles = await db.profile
+        .findMany({
+        where: { tenantId, userId: { in: participantUserIds } },
+        select: { userId: true, fullName: true, avatarUrl: true },
+    })
+        .catch(() => []);
+    const profMap = new Map(profiles.map((p) => [p.userId, p]));
+    const participants = new Map();
+    const invitedUserIds = new Set();
+    for (const p of dbCall.participants) {
+        const prof = profMap.get(p.userId);
+        if (p.state === "JOINED" || p.state === "RECONNECTING") {
+            const cached = memForTenant?.participants.get(p.userId);
+            participants.set(p.userId, {
+                userId: p.userId,
+                name: cached?.name || cleanPersonName(prof?.fullName || "Participant"),
+                avatar: cached?.avatar ?? prof?.avatarUrl ?? null,
+                role: p.role === "HOST" ? "host" : "participant",
+                joinedAt: p.joinedAt || dbCall.startedAt,
+                isMuted: cached?.isMuted ?? false,
+                isCameraOff: cached?.isCameraOff ?? dbCall.media === "AUDIO",
+                isScreenSharing: cached?.isScreenSharing ?? false,
+                isSpeaking: cached?.isSpeaking ?? false,
+                socketIds: cached?.socketIds || new Set(),
+            });
+        }
+        else if (p.state === "INVITED" || p.state === "RINGING") {
+            invitedUserIds.add(p.userId);
+        }
+    }
+    if (memForTenant) {
+        // Mutate the cached object in place so existing references (socket handlers) stay consistent.
+        memForTenant.participants = participants;
+        memForTenant.invitedUserIds = invitedUserIds;
+        return memForTenant;
+    }
+    const recovered = {
+        callId,
+        groupId: dbCall.groupId,
+        groupName: group?.name || "Group Meeting",
+        groupAvatarUrl: group?.avatarUrl || null,
+        tenantId,
+        creatorId: dbCall.startedBy,
+        callType: (dbCall.media === "AUDIO" ? "audio" : "video"),
+        startedAt: dbCall.startedAt,
+        participants,
+        invitedUserIds,
+        historyPersisted: Boolean(dbCall.historyRecordId),
+    };
+    socket_1.activeGroupCalls.set(callId, recovered);
+    return recovered;
+}
+exports.chatRouter.get("/meetings/config", async (req, res) => {
     try {
-        const diagnostic = meeting_sfu_service_1.MeetingSfuService.getDiagnosticInfo();
-        const iceServers = meeting_sfu_service_1.MeetingSfuService.getIceServers();
+        const userId = req.user?.userId || req.user?.id || "anonymous";
+        const diagnostic = webrtc_ice_service_1.WebRtcIceService.getDiagnostics(userId);
+        const iceServers = webrtc_ice_service_1.WebRtcIceService.getIceServers(userId);
         return res.json({
+            transport: "webrtc-mesh",
             ...diagnostic,
             iceServers,
         });
     }
     catch (err) {
-        console.error("Meetings config error:", err);
-        return res.status(500).json({ error: err.message || "Failed to resolve meetings config" });
+        return handleChatError(res, err, "Failed to resolve meetings config");
     }
 });
-// POST /api/chat/meetings/start - Server-authoritative meeting start with explicit confirmation
-exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/meetings/start - Server-authoritative WebRTC Mesh meeting start & direct ringing
+exports.chatRouter.post("/meetings/start", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
         const userId = req.user?.userId || req.user?.id;
-        const { groupId, callId, callType = "video", groupName } = req.body;
-        if (!groupId || !callId || !tenantId) {
+        const { groupId, callId, callType = "video", invitedUserIds: extraInvitees = [] } = req.body;
+        if (!groupId || !callId || !tenantId || !userId) {
             return res.status(400).json({ success: false, error: "groupId, callId and tenantId are required." });
         }
-        if (socket_1.activeGroupCalls.has(callId)) {
-            return res.json({ success: true, callId, status: "connected", message: "Meeting already active." });
+        if (!chat_service_1.ChatService.hasChatPermission(req.user, "chat.meetings")) {
+            return res.status(403).json({ success: false, error: "You do not have permission to start meetings." });
         }
-        // 1. Verify group exists and belongs to user's tenant
+        const existingActive = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (existingActive) {
+            return res.json({
+                success: true,
+                callId,
+                status: "connected",
+                iceServers: webrtc_ice_service_1.WebRtcIceService.getIceServers(userId),
+                message: "Meeting already active.",
+            });
+        }
         const group = await prisma_1.prisma.chatGroup.findFirst({
             where: { id: groupId, tenantId },
             include: { members: true },
@@ -2902,27 +4458,33 @@ exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) 
         if (!group || !group.members.some((m) => m.userId === userId)) {
             return res.status(403).json({ success: false, error: "You cannot start a meeting for this group." });
         }
-        // 2. Check if organizer is already on an active 1-to-1 call
-        for (const [, call] of socket_1.activeCalls) {
-            if (call.tenantId === tenantId &&
-                (call.status === "ringing" || call.status === "connected") &&
-                (call.callerId === userId || call.targetUserId === userId)) {
-                return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in an active call." });
-            }
-        }
-        // 3. Check if organizer is in another group meeting
-        for (const [, meeting] of socket_1.activeGroupCalls) {
-            if (meeting.tenantId === tenantId && meeting.participants.has(userId)) {
-                return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in another meeting." });
-            }
-        }
-        // 4. Resolve organizer name and avatar
-        const userProfile = await prisma_1.prisma.userProfile.findUnique({
-            where: { userId },
-            select: { fullName: true, avatarUrl: true },
+        // Serverless-safe busy detection: reap zombie sessions of the host, then trust only the database.
+        await call_lifecycle_service_1.CallLifecycleService.reapStaleSessions({ tenantId, initiatorId: userId }).catch(() => { });
+        const hostBusy = await (prisma_1.rawPrisma || prisma_1.prisma).call.findFirst({
+            where: {
+                tenantId,
+                status: { in: ["RINGING", "ACTIVE"] },
+                participants: { some: { userId, state: { in: ["RINGING", "JOINED", "RECONNECTING"] } } },
+            },
+            select: { id: true },
         });
-        const hostName = userProfile?.fullName || req.user?.email || "Host";
-        const hostAvatar = userProfile?.avatarUrl || null;
+        if (hostBusy) {
+            return res.status(409).json({ success: false, code: "CALL_BUSY", error: "You are already in an active call." });
+        }
+        for (const [mId, meeting] of socket_1.activeGroupCalls) {
+            if (meeting.tenantId === tenantId && meeting.participants.has(userId)) {
+                // Database confirmed the host is free; drop the stale in-memory membership.
+                meeting.participants.delete(userId);
+                if (meeting.participants.size === 0)
+                    socket_1.activeGroupCalls.delete(mId);
+            }
+        }
+        const { senderName: hostName, senderAvatar: hostAvatar } = await chat_service_1.ChatService.resolveSenderIdentity({
+            tenantId,
+            userId,
+            fallbackEmail: req.user?.email,
+        });
+        const normalizedCallType = callType === "audio" ? "audio" : "video";
         const participants = new Map();
         participants.set(userId, {
             userId,
@@ -2931,7 +4493,7 @@ exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) 
             role: "host",
             joinedAt: new Date(),
             isMuted: false,
-            isCameraOff: callType === "audio",
+            isCameraOff: normalizedCallType === "audio",
             isScreenSharing: false,
             isSpeaking: false,
             socketIds: new Set(),
@@ -2942,6 +4504,15 @@ exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) 
                 invitedUserIds.add(m.userId);
             }
         }
+        // Validate optional extra same-tenant invitees
+        if (Array.isArray(extraInvitees)) {
+            for (const cand of extraInvitees) {
+                const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(cand));
+                if (resolved && resolved.userId !== userId) {
+                    invitedUserIds.add(resolved.userId);
+                }
+            }
+        }
         socket_1.activeGroupCalls.set(callId, {
             callId,
             groupId,
@@ -2949,138 +4520,465 @@ exports.chatRouter.post("/meetings/start", auth_1.requireAuth, async (req, res) 
             groupAvatarUrl: group.avatarUrl,
             tenantId,
             creatorId: userId,
-            callType: callType || "audio",
+            callType: normalizedCallType,
             startedAt: new Date(),
             participants,
             invitedUserIds,
             historyPersisted: false,
         });
-        // 5. Broadcast incoming group call to invitees via Socket.IO & Pusher
+        // Persist durable Call + CallParticipant records in PostgreSQL for multi-node/restart resilience
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        await db.call
+            .upsert({
+            where: { roomKey: `group_meeting:${callId}` },
+            create: {
+                tenantId,
+                type: "GROUP",
+                media: normalizedCallType === "audio" ? "AUDIO" : "VIDEO",
+                status: "ACTIVE",
+                startedBy: userId,
+                roomKey: `group_meeting:${callId}`,
+                groupId,
+                threadId: `group_${groupId}`,
+                answeredAt: new Date(),
+                ringingExpiresAt: new Date(Date.now() + 3600 * 1000),
+                maxParticipants: 25,
+                participants: {
+                    create: [
+                        { userId, state: "JOINED", role: "HOST", joinedAt: new Date() },
+                        ...Array.from(invitedUserIds).map((uid) => ({
+                            userId: uid,
+                            state: "INVITED",
+                            role: "PARTICIPANT",
+                        })),
+                    ],
+                },
+            },
+            update: { status: "ACTIVE" },
+        })
+            .catch(() => { });
         const ioInstance = (0, socket_1.getIO)();
-        for (const m of group.members) {
-            if (m.userId !== userId) {
-                const invitePayload = {
-                    groupId,
-                    groupName: group.name,
-                    groupAvatarUrl: group.avatarUrl,
-                    callId,
-                    callType: callType || "audio",
-                    callerId: userId,
-                    callerName: hostName,
-                    callerAvatar: hostAvatar,
-                    eventId: `group_call_${callId}_${m.userId}`,
-                };
-                ioInstance?.to(`user:${m.userId}`).emit("group-call:incoming", invitePayload);
-                pusher_service_1.PusherService.triggerUserEvent(tenantId, m.userId, "group-call:incoming", invitePayload).catch((err) => console.warn("Pusher group-call:incoming delivery warning:", err?.message || err));
-            }
+        for (const inviteeId of invitedUserIds) {
+            const invitePayload = {
+                groupId,
+                groupName: group.name,
+                groupAvatarUrl: group.avatarUrl,
+                callId,
+                callType: normalizedCallType,
+                callerId: userId,
+                callerName: hostName,
+                callerAvatar: hostAvatar,
+                eventId: `group_call_${callId}_${inviteeId}`,
+            };
+            ioInstance?.to(`user:${inviteeId}`).emit("group-call:incoming", invitePayload);
+            pusher_service_1.PusherService.triggerUserEvent(tenantId, inviteeId, "group-call:incoming", invitePayload).catch(() => { });
+            void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                tenantId,
+                targetUserId: inviteeId,
+                callId,
+                callerId: userId,
+                callerName: `${hostName} (${group.name})`,
+                callerAvatar: group.avatarUrl || hostAvatar,
+                callType: normalizedCallType,
+                threadId: `group_${groupId}`,
+            }).catch(() => { });
         }
-        // Record system event
-        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, userId, "group_call_started", `${hostName} started a group ${callType} meeting.`, { groupId, callId, callType }).catch(() => { });
+        await (0, chat_system_events_service_1.recordSystemEvent)(tenantId, `group_${groupId}`, userId, "group_call_started", `${hostName} started a group ${normalizedCallType} meeting.`, { groupId, callId, callType: normalizedCallType }).catch(() => { });
         return res.json({
             success: true,
             callId,
             status: "connected",
+            iceServers: webrtc_ice_service_1.WebRtcIceService.getIceServers(userId),
             message: "Meeting session confirmed and started successfully",
         });
     }
     catch (err) {
-        console.error("[Meetings API] Start meeting error:", err);
-        return res.status(500).json({ success: false, error: err.message || "Failed to start meeting" });
+        return handleChatError(res, err, "Failed to start meeting");
     }
 });
-// POST /api/chat/meetings/:callId/token - Issues short-lived, scoped SFU room token
-exports.chatRouter.post("/meetings/:callId/token", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/meetings/:callId/join - Join WebRTC Mesh group meeting (REST + Pusher + Socket parity)
+exports.chatRouter.post("/meetings/:callId/join", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const userId = req.user?.userId || "";
         const { callId } = req.params;
-        const { groupId, callType = "video" } = req.body;
-        if (!groupId || !callId) {
-            return res.status(400).json({ error: "groupId and callId are required." });
-        }
-        const session = socket_1.activeGroupCalls.get(callId);
-        if (!session || session.tenantId !== tenantId || session.groupId !== groupId) {
+        const { groupId } = req.body || {};
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId || (groupId && session.groupId !== groupId)) {
             return res.status(404).json({ error: "Active meeting session not found." });
         }
-        const isParticipantOrInvited = session.participants.has(userId) || session.invitedUserIds.has(userId);
-        if (!isParticipantOrInvited) {
-            return res.status(403).json({ error: "Access denied. You are not invited to this meeting." });
-        }
-        // 1. Verify group exists and belongs to user's tenant
         const group = await prisma_1.prisma.chatGroup.findFirst({
-            where: { id: groupId, tenantId },
+            where: { id: session.groupId, tenantId },
             include: { members: true },
         });
-        if (!group) {
-            return res.status(404).json({ error: "Chat group not found or inaccessible." });
-        }
-        // 2. Verify authenticated user is a valid member of this group
-        const isMember = group.members.some((m) => m.userId === userId);
-        if (!isMember && !session.invitedUserIds.has(userId)) {
+        const isMember = Boolean(group && group.members.some((m) => m.userId === userId));
+        const isInvited = session.participants.has(userId) || session.invitedUserIds.has(userId);
+        if (!isMember && !isInvited) {
             return res.status(403).json({ error: "Access denied. You are not a member or invitee of this meeting." });
         }
-        // 3. Only the creator or an authorized tenant admin receives LiveKit room-admin rights.
         const isHost = session.creatorId === userId ||
             req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
             false;
-        // 4. Resolve user display name and avatar
-        const userProfile = await prisma_1.prisma.userProfile.findUnique({
-            where: { userId },
-            select: { fullName: true, avatarUrl: true },
-        });
-        const displayName = userProfile?.fullName || req.user?.email || "Colleague";
-        // 5. Check if SFU is configured
-        const sfuConfig = meeting_sfu_service_1.MeetingSfuService.getConfig();
-        if (!sfuConfig.configured) {
-            return res.status(200).json({
-                configured: false,
-                provider: "livekit",
-                error: "SFU_NOT_CONFIGURED",
-                message: "LiveKit SFU credentials are not configured on this server.",
-                setupGuide: meeting_sfu_service_1.MeetingSfuService.getDiagnosticInfo().setupGuide,
-                room: meeting_sfu_service_1.MeetingSfuService.formatRoomName(tenantId, groupId, callId),
-                iceServers: meeting_sfu_service_1.MeetingSfuService.getIceServers(),
-                isHost,
-                user: { userId, name: displayName, avatarUrl: userProfile?.avatarUrl || null },
-            });
-        }
-        // 6. Generate cryptographically signed, short-lived room token
-        const tokenResult = meeting_sfu_service_1.MeetingSfuService.generateMeetingToken({
+        const { senderName: displayName, senderAvatar } = await chat_service_1.ChatService.resolveSenderIdentity({
             tenantId,
-            groupId,
+            userId,
+            fallbackEmail: req.user?.email,
+        });
+        let participant = session.participants.get(userId);
+        if (!participant) {
+            participant = {
+                userId,
+                name: displayName,
+                avatar: senderAvatar,
+                role: isHost ? "host" : "participant",
+                joinedAt: new Date(),
+                isMuted: false,
+                isCameraOff: session.callType === "audio",
+                isScreenSharing: false,
+                isSpeaking: false,
+                socketIds: new Set(),
+            };
+            session.participants.set(userId, participant);
+        }
+        // Mark participant JOINED in durable DB call record
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const dbCall = await db.call
+            .findUnique({ where: { roomKey: `group_meeting:${callId}` }, select: { id: true } })
+            .catch(() => null);
+        if (dbCall?.id) {
+            await db.callParticipant
+                .upsert({
+                where: { callId_userId: { callId: dbCall.id, userId } },
+                create: { callId: dbCall.id, userId, state: "JOINED", role: isHost ? "HOST" : "PARTICIPANT", joinedAt: new Date() },
+                update: { state: "JOINED", joinedAt: new Date(), leftAt: null },
+            })
+                .catch(() => { });
+        }
+        const joinedPayload = {
             callId,
             userId,
-            name: displayName,
-            avatarUrl: userProfile?.avatarUrl || null,
-            isHost,
-            callType: callType === "audio" ? "audio" : "video",
-            ttlSeconds: 900, // 15 minutes
-        });
+            name: participant.name,
+            avatar: participant.avatar,
+            role: participant.role,
+            isMuted: participant.isMuted,
+            isCameraOff: participant.isCameraOff,
+        };
+        const io = (0, socket_1.getIO)();
+        io?.to(`group_call_${callId}`).emit("group-call:user_joined", joinedPayload);
+        for (const pid of session.participants.keys()) {
+            if (pid !== userId) {
+                io?.to(`user:${pid}`).emit("group-call:user_joined", joinedPayload);
+                void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "group-call:user_joined", joinedPayload).catch(() => { });
+            }
+        }
+        void incoming_call_push_service_1.IncomingCallPushService.sendCallCancelledPush({
+            tenantId,
+            targetUserId: userId,
+            callId,
+            reason: "accepted",
+        }).catch(() => { });
+        const roster = Array.from(session.participants.values()).map((p) => ({
+            userId: p.userId,
+            name: p.name,
+            avatar: p.avatar,
+            role: p.role,
+            isMuted: p.isMuted,
+            isCameraOff: p.isCameraOff,
+            isScreenSharing: p.isScreenSharing,
+            isSpeaking: p.isSpeaking,
+        }));
         return res.json({
-            configured: true,
-            provider: "livekit",
-            token: tokenResult.token,
-            room: tokenResult.room,
-            url: tokenResult.url,
-            expiresAt: tokenResult.expiresAt,
-            iceServers: tokenResult.iceServers,
+            success: true,
+            mode: "webrtc_mesh",
+            callId,
+            groupId: session.groupId,
+            callType: session.callType,
+            creatorId: session.creatorId,
             isHost,
-            user: { userId, name: displayName, avatarUrl: userProfile?.avatarUrl || null },
+            iceServers: webrtc_ice_service_1.WebRtcIceService.getIceServers(userId),
+            user: { userId, name: displayName, avatarUrl: senderAvatar },
+            participants: roster,
         });
     }
     catch (err) {
-        console.error("Meeting token generation error:", err);
-        return res.status(500).json({ error: err.message || "Failed to generate meeting token" });
+        return handleChatError(res, err, "Failed to join meeting");
     }
 });
-// GET /api/chat/meetings/:callId/participants - Returns server-authoritative participant roster
-exports.chatRouter.get("/meetings/:callId/participants", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/meetings/:callId/signal - HTTP WebRTC Mesh signaling relay for group meetings
+exports.chatRouter.post("/meetings/:callId/signal", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
+        const userId = req.user?.userId || "";
         const { callId } = req.params;
-        const session = socket_1.activeGroupCalls.get(callId);
+        const rawTargetId = req.body?.targetUserId || req.body?.toUserId;
+        const signal = req.body?.signal;
+        if (!rawTargetId || !signal || typeof signal !== "object") {
+            return res.status(400).json({ error: "targetUserId and signal are required." });
+        }
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
         if (!session || session.tenantId !== tenantId) {
             return res.status(404).json({ error: "Active meeting session not found." });
+        }
+        const resolvedTarget = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(rawTargetId));
+        const targetUserId = resolvedTarget?.userId || String(rawTargetId);
+        const senderOk = session.participants.has(userId) || session.invitedUserIds.has(userId);
+        const targetOk = session.participants.has(targetUserId) || session.invitedUserIds.has(targetUserId);
+        if (!senderOk || !targetOk) {
+            return res.status(403).json({ error: "Unauthorized meeting signaling peer." });
+        }
+        const signalPayload = {
+            callId,
+            senderId: userId,
+            fromUserId: userId,
+            signal,
+        };
+        const io = (0, socket_1.getIO)();
+        io?.to(`user:${targetUserId}`).emit("group-call:signal", signalPayload);
+        void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "group-call:signal", signalPayload).catch(() => { });
+        return res.json({ success: true, delivered: true });
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to relay meeting signal");
+    }
+});
+// POST /api/chat/meetings/:callId/media-state - Sync mute / camera / screen-share in group meeting
+exports.chatRouter.post("/meetings/:callId/media-state", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const userId = req.user?.userId || "";
+        const { callId } = req.params;
+        const { isMuted, isScreenSharing, isSpeaking } = req.body || {};
+        const isCameraOff = typeof req.body?.isCameraOff === "boolean" ? req.body.isCameraOff : req.body?.isVideoOff;
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Active meeting session not found." });
+        }
+        const participant = session.participants.get(userId);
+        if (!participant) {
+            return res.status(403).json({ error: "Not an active participant in this meeting." });
+        }
+        if (typeof isMuted === "boolean")
+            participant.isMuted = isMuted;
+        if (typeof isCameraOff === "boolean")
+            participant.isCameraOff = isCameraOff;
+        if (typeof isScreenSharing === "boolean")
+            participant.isScreenSharing = isScreenSharing;
+        if (typeof isSpeaking === "boolean")
+            participant.isSpeaking = isSpeaking;
+        const statePayload = {
+            callId,
+            userId,
+            isMuted: participant.isMuted,
+            isCameraOff: participant.isCameraOff,
+            isScreenSharing: participant.isScreenSharing,
+            isSpeaking: participant.isSpeaking,
+        };
+        const io = (0, socket_1.getIO)();
+        io?.to(`group_call_${callId}`).emit("group-call:media_state", statePayload);
+        for (const pid of session.participants.keys()) {
+            if (pid !== userId) {
+                void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "group-call:media_state", statePayload).catch(() => { });
+            }
+        }
+        return res.json({ success: true });
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to update meeting media state");
+    }
+});
+// POST /api/chat/meetings/:callId/invite - Directly ring additional workspace colleagues into group meeting
+exports.chatRouter.post("/meetings/:callId/invite", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const userId = req.user?.userId || "";
+        const { callId } = req.params;
+        const rawUserIds = Array.isArray(req.body?.userIds)
+            ? req.body.userIds
+            : Array.isArray(req.body?.targetUserIds)
+                ? req.body.targetUserIds
+                : req.body?.targetUserId
+                    ? [req.body.targetUserId]
+                    : [];
+        if (rawUserIds.length === 0) {
+            return res.status(400).json({ error: "userIds array is required." });
+        }
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Active meeting session not found." });
+        }
+        if (!session.participants.has(userId)) {
+            return res.status(403).json({ error: "Only active meeting participants can invite colleagues." });
+        }
+        const { senderName: inviterName, senderAvatar: inviterAvatar } = await chat_service_1.ChatService.resolveSenderIdentity({
+            tenantId,
+            userId,
+            fallbackEmail: req.user?.email,
+        });
+        const io = (0, socket_1.getIO)();
+        const invitedIds = [];
+        for (const candidate of rawUserIds) {
+            const resolved = await chat_service_1.ChatService.resolveParticipantUserInTenant(tenantId, String(candidate));
+            if (!resolved || resolved.userId === userId || session.participants.has(resolved.userId))
+                continue;
+            const targetId = resolved.userId;
+            session.invitedUserIds.add(targetId);
+            invitedIds.push(targetId);
+            const invitePayload = {
+                groupId: session.groupId,
+                groupName: session.groupName || "Group Meeting",
+                groupAvatarUrl: session.groupAvatarUrl || null,
+                callId,
+                callType: session.callType,
+                callerId: userId,
+                callerName: inviterName,
+                callerAvatar: inviterAvatar,
+                eventId: `group_call_${callId}_${targetId}_${Date.now()}`,
+            };
+            io?.to(`user:${targetId}`).emit("group-call:incoming", invitePayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetId, "group-call:incoming", invitePayload).catch(() => { });
+            void incoming_call_push_service_1.IncomingCallPushService.sendIncomingCallPush({
+                tenantId,
+                targetUserId: targetId,
+                callId,
+                callerId: userId,
+                callerName: `${inviterName} (${session.groupName || "Group Meeting"})`,
+                callerAvatar: session.groupAvatarUrl || inviterAvatar,
+                callType: session.callType,
+                threadId: `group_${session.groupId}`,
+            }).catch(() => { });
+        }
+        return res.json({ success: true, invitedCount: invitedIds.length, invitedUserIds: invitedIds });
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to invite colleagues to meeting");
+    }
+});
+// POST /api/chat/meetings/:callId/leave - Leave group meeting cleanly
+exports.chatRouter.post("/meetings/:callId/leave", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const userId = req.user?.userId || "";
+        const { callId } = req.params;
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId) {
+            return res.json({ success: true });
+        }
+        const leavingParticipant = session.participants.get(userId);
+        session.participants.delete(userId);
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const dbCall = await db.call
+            .findUnique({ where: { roomKey: `group_meeting:${callId}` }, select: { id: true } })
+            .catch(() => null);
+        if (dbCall?.id) {
+            await db.callParticipant
+                .updateMany({
+                where: { callId: dbCall.id, userId },
+                data: { state: "LEFT", leftAt: new Date(), leaveReason: "USER_LEFT" },
+            })
+                .catch(() => { });
+        }
+        const leftPayload = {
+            callId,
+            userId,
+            userName: leavingParticipant?.name || "Participant",
+        };
+        const io = (0, socket_1.getIO)();
+        io?.to(`group_call_${callId}`).emit("group-call:user_left", leftPayload);
+        for (const pid of session.participants.keys()) {
+            io?.to(`user:${pid}`).emit("group-call:user_left", leftPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "group-call:user_left", leftPayload).catch(() => { });
+        }
+        if (session.participants.size === 0) {
+            socket_1.activeGroupCalls.delete(callId);
+            if (dbCall?.id) {
+                await db.call
+                    .update({
+                    where: { id: dbCall.id },
+                    data: { status: "ENDED", endedAt: new Date(), endReason: "ALL_PARTICIPANTS_LEFT" },
+                })
+                    .catch(() => { });
+            }
+        }
+        return res.json({ success: true });
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to leave meeting");
+    }
+});
+// POST /api/chat/meetings/:callId/remove - Host removes a participant (REST + Pusher parity for serverless)
+exports.chatRouter.post("/meetings/:callId/remove", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const userId = req.user?.userId || "";
+        const { callId } = req.params;
+        const targetUserId = String(req.body?.targetUserId || "");
+        if (!targetUserId)
+            return res.status(400).json({ error: "targetUserId is required." });
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Active meeting session not found." });
+        }
+        const isHost = session.creatorId === userId ||
+            req.user?.roles?.some((r) => ["super_admin", "tenant_admin"].includes(r)) ||
+            false;
+        if (!isHost)
+            return res.status(403).json({ error: "Only the meeting host can remove participants." });
+        const removed = session.participants.get(targetUserId);
+        session.participants.delete(targetUserId);
+        session.invitedUserIds.delete(targetUserId);
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const dbCall = await db.call
+            .findUnique({ where: { roomKey: `group_meeting:${callId}` }, select: { id: true } })
+            .catch(() => null);
+        if (dbCall?.id) {
+            await db.callParticipant
+                .updateMany({
+                where: { callId: dbCall.id, userId: targetUserId },
+                data: { state: "LEFT", leftAt: new Date(), leaveReason: "REMOVED_BY_HOST" },
+            })
+                .catch(() => { });
+        }
+        const io = (0, socket_1.getIO)();
+        const removedPayload = { callId, userId: targetUserId, removedBy: userId };
+        io?.to(`user:${targetUserId}`).emit("group-call:removed", removedPayload);
+        void pusher_service_1.PusherService.triggerUserEvent(tenantId, targetUserId, "group-call:removed", removedPayload).catch(() => { });
+        const leftPayload = { callId, userId: targetUserId, userName: removed?.name || "Participant" };
+        for (const pid of session.participants.keys()) {
+            io?.to(`user:${pid}`).emit("group-call:user_left", leftPayload);
+            void pusher_service_1.PusherService.triggerUserEvent(tenantId, pid, "group-call:user_left", leftPayload).catch(() => { });
+        }
+        return res.json({ success: true });
+    }
+    catch (err) {
+        return handleChatError(res, err, "Failed to remove participant");
+    }
+});
+// GET /api/chat/meetings/:callId/participants - Authorized participant roster
+exports.chatRouter.get("/meetings/:callId/participants", async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const currentUserId = req.user?.userId || "";
+        const { callId } = req.params;
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
+        if (!session || session.tenantId !== tenantId) {
+            return res.status(404).json({ error: "Active meeting session not found." });
+        }
+        // Enforce membership / invitation authorization before disclosing active meeting participants!
+        const isInSession = session.participants.has(currentUserId) || session.invitedUserIds.has(currentUserId);
+        if (!isInSession) {
+            const authCheck = await chat_service_1.ChatService.authorizeThread({
+                threadId: `group_${session.groupId}`,
+                tenantId,
+                userId: currentUserId,
+                roles: req.user?.roles,
+                allowAdminModeration: false,
+            });
+            if (!authCheck.authorized) {
+                return res.status(403).json({
+                    error: "Access denied: You are not authorized to view participants of this meeting.",
+                    code: "CHAT_UNAUTHORIZED",
+                });
+            }
         }
         const participants = Array.from(session.participants.values()).map((p) => ({
             userId: p.userId,
@@ -3104,17 +5002,16 @@ exports.chatRouter.get("/meetings/:callId/participants", auth_1.requireAuth, asy
         });
     }
     catch (err) {
-        console.error("Get meeting participants error:", err);
-        return res.status(500).json({ error: err.message || "Failed to get meeting participants" });
+        return handleChatError(res, err, "Failed to get meeting participants");
     }
 });
-// POST /api/chat/meetings/:callId/end - Server endpoint to end meeting for everyone (host only)
-exports.chatRouter.post("/meetings/:callId/end", auth_1.requireAuth, async (req, res) => {
+// POST /api/chat/meetings/:callId/end - End meeting for everyone (host only, scoped emission)
+exports.chatRouter.post("/meetings/:callId/end", async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const userId = req.user?.userId || "";
         const { callId } = req.params;
-        const session = socket_1.activeGroupCalls.get(callId);
+        const session = await resolveOrRecoverGroupMeeting(callId, tenantId);
         if (!session || session.tenantId !== tenantId) {
             return res.status(404).json({ error: "Active meeting session not found." });
         }
@@ -3124,11 +5021,15 @@ exports.chatRouter.post("/meetings/:callId/end", auth_1.requireAuth, async (req,
         if (!isHost) {
             return res.status(403).json({ error: "Only the meeting host can end the meeting for everyone." });
         }
-        // Persist CallHistoryRecord once
+        const participantIds = Array.from(session.participants.keys());
+        const allRecipientIds = Array.from(new Set([...participantIds, ...Array.from(session.invitedUserIds)]));
         if (!session.historyPersisted) {
             session.historyPersisted = true;
-            const durationSeconds = Math.max(1, Math.round((Date.now() - session.startedAt.getTime()) / 1000));
-            const participantIds = Array.from(session.participants.keys());
+            const durationSeconds = Math.max(1, Math.round((Date.now() - new Date(session.startedAt).getTime()) / 1000));
+            const { senderName: hostName } = await chat_service_1.ChatService.resolveSenderIdentity({
+                tenantId,
+                userId: session.creatorId,
+            });
             try {
                 await (0, tenant_context_1.runWithTenantContext)({
                     tenantId,
@@ -3138,48 +5039,71 @@ exports.chatRouter.post("/meetings/:callId/end", auth_1.requireAuth, async (req,
                     tenancyStrategy: "SHARED_SCHEMA",
                     db: prisma_1.rawPrisma,
                 }, async () => {
-                    return prisma_1.rawPrisma.callHistoryRecord.create({
-                        data: {
-                            tenantId,
-                            callSessionId: callId,
-                            callerId: session.creatorId,
-                            callerName: req.user?.profile?.fullName || req.user?.email || "Host",
-                            callerPhone: "Group Meeting",
-                            callType: session.callType,
-                            status: "completed",
-                            durationSeconds,
-                            callTime: new Date(),
-                            groupId: session.groupId,
-                            participantIds: participantIds.length > 0 ? participantIds : [userId],
-                            notes: `Group meeting ended by host via API.`,
-                        },
+                    const existingHistory = await prisma_1.rawPrisma.callHistoryRecord.findFirst({
+                        where: { tenantId, callSessionId: callId },
+                        select: { id: true },
                     });
+                    const historyRec = existingHistory
+                        ? await prisma_1.rawPrisma.callHistoryRecord.update({
+                            where: { id: existingHistory.id },
+                            data: { status: "completed", durationSeconds },
+                        })
+                        : await prisma_1.rawPrisma.callHistoryRecord.create({
+                            data: {
+                                tenantId,
+                                callSessionId: callId,
+                                callerId: session.creatorId,
+                                callerName: hostName,
+                                callerPhone: "Group Meeting",
+                                callType: session.callType,
+                                status: "completed",
+                                durationSeconds,
+                                callTime: new Date(),
+                                groupId: session.groupId,
+                                threadId: `group_${session.groupId}`,
+                                participantIds: participantIds.length > 0 ? participantIds : [userId],
+                                notes: "Group meeting ended by host.",
+                            },
+                        });
+                    await prisma_1.rawPrisma.call
+                        .updateMany({
+                        where: { roomKey: `group_meeting:${callId}`, tenantId },
+                        data: {
+                            status: "ENDED",
+                            endedAt: new Date(),
+                            endReason: "HOST_ENDED",
+                            historyRecordId: historyRec.id,
+                        },
+                    })
+                        .catch(() => { });
                 });
             }
             catch (e) {
                 console.warn("Failed to persist call history on API meeting end:", e.message);
             }
         }
-        // Broadcast group-call:ended over Socket.IO and Pusher so all connected clients close dialog
-        const io = (0, socket_1.getIO)();
-        if (io) {
-            io.to(`group_call_${callId}`).emit("group-call:ended", {
-                callId,
-                groupId: session.groupId,
-                endedBy: userId,
-                reason: "host_ended",
-            });
-        }
-        void pusher_service_1.PusherService.triggerTenantEvent(tenantId, "chat:meeting_ended", {
+        const endPayload = {
             callId,
             groupId: session.groupId,
             endedBy: userId,
-        }).catch(() => { });
+            reason: "host_ended",
+        };
+        const io = (0, socket_1.getIO)();
+        if (io) {
+            io.to(`group_call_${callId}`).emit("group-call:ended", endPayload);
+        }
+        // Scoped strictly to meeting participants & invitees (never PusherService.triggerTenantEvent!)
+        await chat_service_1.ChatService.emitToAuthorizedThread({
+            tenantId,
+            threadId: `group_${session.groupId}`,
+            event: "group-call:ended",
+            payload: endPayload,
+            participantUserIds: allRecipientIds,
+        });
         socket_1.activeGroupCalls.delete(callId);
         return res.json({ success: true, message: "Meeting ended for everyone." });
     }
     catch (err) {
-        console.error("Meeting end error:", err);
-        return res.status(500).json({ error: err.message || "Failed to end meeting" });
+        return handleChatError(res, err, "Failed to end meeting");
     }
 });

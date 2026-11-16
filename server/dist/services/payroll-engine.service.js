@@ -722,6 +722,8 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
     if (leaveEncashment > 0)
         earningsItemized.push({ code: "LEAVE_ENCASH", name: "Approved Leave Encashment", amount: leaveEncashment, isTaxable: true });
     const totalEarnedGross = Math.round((basicSalary + hra + specialAllowance + statutoryBonus + conveyance + medical + otherAllowance + overtime + arrears + reimbursements + leaveEncashment) * 100) / 100;
+    // Non-taxable expense reimbursements are not wages under EPF/ESIC/PT/LWF/TDS
+    const statutoryWages = Math.round((totalEarnedGross - reimbursements) * 100) / 100;
     // Statutory Calculations with dynamic rule resolution with dynamic rule resolution
     const epfRule = options?.statutoryRules?.find((r) => r.ruleType === "EPF" && (r.isActive !== false));
     const esiRule = options?.statutoryRules?.find((r) => r.ruleType === "ESI" && (r.isActive !== false));
@@ -729,18 +731,18 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
     const pfCalc = employee.pfEligible !== false
         ? calculateStatutoryEPF(basicSalary, true, epfRule, {
             pfWageBasis: options?.pfWageBasis ?? employee.pfWageBasis,
-            grossWages: totalEarnedGross,
+            grossWages: statutoryWages,
             allowContractGross: options?.allowContractGrossPf ?? employee.allowContractGrossPf,
         })
         : { employeePf: 0, epfEmployer: 0, eps: 0, edli: 0, adminCharges: 0, totalEmployerCost: 0, ruleVersion: 1, ruleId: undefined, statutoryCeiling: 15000, employeeRate: 0.12 };
     const esiCalc = employee.esiEligible !== false
-        ? calculateStatutoryESI(totalEarnedGross, Boolean(employee.isDisability), esiRule)
+        ? calculateStatutoryESI(statutoryWages, Boolean(employee.isDisability), esiRule)
         : { isEligible: false, employeeEsi: 0, employerEsi: 0, totalCost: 0, ruleVersion: 1, ruleId: undefined, wageCeiling: 21000, employeeRate: 0.0075, employerRate: 0.0325 };
     const ptAmount = employee.ptEligible !== false && attendance.payableDays > 0
-        ? calculateProfessionalTax(totalEarnedGross, employee.state || "MH", periodMonth, options?.statutoryRules)
+        ? calculateProfessionalTax(statutoryWages, employee.state || "MH", periodMonth, options?.statutoryRules)
         : 0;
     const lwfCalc = employee.lwfEligible !== false && attendance.payableDays > 0
-        ? calculateLabourWelfareFund(totalEarnedGross, employee.state || "MH", periodMonth, options?.statutoryRules)
+        ? calculateLabourWelfareFund(statutoryWages, employee.state || "MH", periodMonth, options?.statutoryRules)
         : { isApplicable: false, employeeLwf: 0, employerLwf: 0, totalLwf: 0, ruleVersion: 1, isDeductionMonth: false };
     const gratuityCalc = calculateGratuityAccrual(basicSalary, gratuityRule);
     // Tax Withholding (TDS) Calculation
@@ -756,7 +758,7 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
     if (options?.priorGrossEarned !== undefined) {
         const futurePeriods = Math.max(0, (options.remainingPeriods ?? 1) - 1);
         annualProjectedGross = new decimal_js_1.default(options.priorGrossEarned)
-            .plus(totalEarnedGross)
+            .plus(statutoryWages)
             .plus(new decimal_js_1.default(baseMonthlyCtc).times(futurePeriods))
             .toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP)
             .toNumber();
@@ -774,7 +776,7 @@ function computeEmployeePayrollBreakdown(employee, attendance, options) {
         annualProjectedGross = Number(employee.annualCtc);
     }
     else {
-        annualProjectedGross = new decimal_js_1.default(totalEarnedGross).times(12).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP).toNumber();
+        annualProjectedGross = new decimal_js_1.default(statutoryWages).times(12).toDecimalPlaces(2, decimal_js_1.default.ROUND_HALF_UP).toNumber();
     }
     const taxResult = employee.tdsEligible !== false
         ? calculateAnnualTDS(annualProjectedGross, employee.taxRegime || "new", options?.declarations, {

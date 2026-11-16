@@ -858,7 +858,6 @@ exports.cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
                 "smtpPassword",
                 "pusherAppSecret",
                 "pusherSecret",
-                "livekitApiSecret",
                 "slackClientSecret",
             ];
             const maskedContent = { ...(page.content || {}) };
@@ -940,7 +939,6 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                 "smtpPassword",
                 "pusherAppSecret",
                 "pusherSecret",
-                "livekitApiSecret",
                 "slackClientSecret",
             ];
             const mergedContent = { ...existingContent, ...(content || {}) };
@@ -1098,7 +1096,6 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                 "smtpPassword",
                 "pusherAppSecret",
                 "pusherSecret",
-                "livekitApiSecret",
                 "slackClientSecret",
             ];
             for (const sk of SENSITIVE_KEYS) {

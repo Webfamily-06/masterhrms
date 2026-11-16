@@ -30,6 +30,7 @@ const SENSITIVE_DOCUMENT_FOLDERS = [
   "statutory",
   "private",
   "identity",
+  "leave-attachments",
 ];
 
 /**
@@ -190,20 +191,35 @@ export async function uploadsSecurityMiddleware(req: Request, res: Response, nex
 
         let isSubordinateLeaveAttachment = false;
         if (!isOwner && !hasDocPermission && employee && userTenantId) {
-          const linkedLeave = await db.leaveRequest
-            .findFirst({
-              where: {
-                tenantId: userTenantId,
-                attachmentUrl: { contains: subPath },
-                OR: [
-                  { employeeId: employee.id },
-                  { employee: { managerId: employee.id } },
-                ],
-              },
-              select: { id: true },
-            })
-            .catch(() => null);
-          isSubordinateLeaveAttachment = Boolean(linkedLeave);
+          const [linkedLeave, linkedEncashment] = await Promise.all([
+            db.leaveRequest
+              .findFirst({
+                where: {
+                  tenantId: userTenantId,
+                  attachmentUrl: { contains: subPath },
+                  OR: [
+                    { employeeId: employee.id },
+                    { employee: { managerId: employee.id } },
+                  ],
+                },
+                select: { id: true },
+              })
+              .catch(() => null),
+            db.leaveEncashmentRequest
+              .findFirst({
+                where: {
+                  tenantId: userTenantId,
+                  supportingDocUrl: { contains: subPath },
+                  OR: [
+                    { employeeId: employee.id },
+                    { employee: { managerId: employee.id } },
+                  ],
+                },
+                select: { id: true },
+              })
+              .catch(() => null),
+          ]);
+          isSubordinateLeaveAttachment = Boolean(linkedLeave || linkedEncashment);
         }
 
         if (!isOwner && !hasDocPermission && !isSubordinateLeaveAttachment) {

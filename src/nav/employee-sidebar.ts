@@ -70,6 +70,7 @@ export const employeeSidebar: EmployeeMenuSection[] = [
       { label: "Notifications", path: "/me/notifications", icon: "ph-bell" },
       { label: "My Profile", path: "/me/profile", icon: "ph-user" },
       { label: "Profile Change Requests", path: "/me/profile/change-requests", icon: "ph-file-text" },
+      { label: "My Settings", path: "/me/settings", icon: "ph-gear" },
       { label: "Employee Directory", path: "/me/employees", icon: "ph-users" },
       {
         label: "Organization",

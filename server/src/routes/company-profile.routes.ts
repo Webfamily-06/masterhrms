@@ -26,7 +26,13 @@ function resolveTenantId(req: AuthRequest): string {
 
 function assertAdminOrHr(req: AuthRequest) {
   const isSuper = req.user?.roles?.includes("super_admin");
-  const isAdmin = req.user?.roles?.includes("admin") || req.user?.roles?.includes("workspace_admin");
+  const wsRole = String(req.user?.workspaceRole || "").toLowerCase().replace(/[-_ ]/g, "");
+  const isWsAdmin = ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(wsRole);
+  const isAdmin =
+    isWsAdmin ||
+    req.user?.roles?.includes("admin") ||
+    req.user?.roles?.includes("tenant_admin") ||
+    req.user?.roles?.includes("workspace_admin");
   const isHr = req.user?.roles?.includes("hr_admin");
 
   if (!isSuper && !isAdmin && !isHr) {

@@ -296,13 +296,18 @@ export async function getAuthoritativeCustomerInfo(tenantId: string, tenant: any
   const company = content.company || {};
 
   const tenantEmail =
-    tenant?.profiles?.find((p: any) => p.email)?.email ||
     identity?.email ||
     company.email ||
+    tenant?.profiles?.find((p: any) => p.email)?.email ||
     customerBranding.supportEmail ||
     `billing@${tenant?.slug || "tenant"}.masterhrms.com`;
 
-  let fullAddress: string | null = identity?.billingOffice?.formatted || identity?.registeredOffice?.formatted || company.address || null;
+  let fullAddress: string | null =
+    identity?.billingOffice?.formatted ||
+    identity?.registeredOffice?.formatted ||
+    company.address ||
+    tenant?.address ||
+    null;
   if (!fullAddress && (company.city || company.state || company.country)) {
     fullAddress = [company.city, company.state, company.country].filter(Boolean).join(", ");
   }
@@ -310,10 +315,10 @@ export async function getAuthoritativeCustomerInfo(tenantId: string, tenant: any
   const customerName =
     identity?.legalName ||
     identity?.tradeName ||
-    customerBranding.appName ||
-    tenant?.name ||
     company.name ||
     company.companyName ||
+    customerBranding.appName ||
+    tenant?.name ||
     "Enterprise Customer";
 
   const taxId =

@@ -55,9 +55,22 @@ function TenantDashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             {tenantMetrics?.tenantName || branding.name || "Enterprise Workspace"} Overview
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Tenant administration, plan governance, employee quotas, and system configuration.
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <p className="text-sm text-muted-foreground">
+              Tenant administration, role authority, employee quotas, and system configuration.
+            </p>
+            <Badge variant="outline" className="text-[11px] font-mono">
+              TZ: {tenantMetrics?.timezone || branding.timezone || "Asia/Kolkata"}
+            </Badge>
+            <Badge variant="outline" className="text-[11px] font-mono">
+              Currency: {tenantMetrics?.currency || branding.currency || "INR"} ({tenantMetrics?.currencySymbol || branding.currencySymbol || "₹"})
+            </Badge>
+            {typeof tenantMetrics?.rolesCount === "number" && (
+              <Badge variant="secondary" className="text-[11px]">
+                {tenantMetrics.rolesCount} Active Roles
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2.5">
           <Link to="/hr/dashboard">
@@ -234,9 +247,9 @@ function TenantDashboardPage() {
                 <div key={audit.id} className="flex items-start gap-2.5 text-xs pb-2 border-b border-border/50 last:border-0 last:pb-0">
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 mt-0.5 shrink-0" />
                   <div className="min-w-0">
-                    <div className="font-medium text-foreground truncate">{audit.key}</div>
+                    <div className="font-medium text-foreground truncate">{audit.key || audit.action}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {audit.changedBy || "System"} · {new Date(audit.createdAt).toLocaleDateString()}
+                      {audit.changedBy || audit.user || "Tenant Admin"} · {audit.createdAt || audit.timestamp ? new Date(audit.createdAt || audit.timestamp).toLocaleDateString() : "Recent"}
                     </div>
                   </div>
                 </div>

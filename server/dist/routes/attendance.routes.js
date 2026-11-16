@@ -8,9 +8,17 @@ const tenant_context_middleware_1 = require("../middleware/tenant-context.middle
 const socket_1 = require("../socket");
 const tenant_1 = require("../lib/tenant");
 const pagination_1 = require("../lib/pagination");
+const attendance_service_1 = require("../services/attendance.service");
+const leave_service_1 = require("../services/leave.service");
 exports.attendanceRouter = (0, express_1.Router)();
 // Enforce Request-Scoped Tenant Context on all attendance endpoints
 exports.attendanceRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
+function isElevatedAttendanceUser(req) {
+    const perms = req.user?.permissions || [];
+    return (leave_service_1.LeaveService.isElevatedHrUser(req.user?.roles) ||
+        perms.includes("*") ||
+        perms.includes("hrm.attendance.manage"));
+}
 // GET /api/attendance (Stocky Rule 0: Universal Query Contract)
 exports.attendanceRouter.get("/", auth_1.requireAuth, async (req, res) => {
     try {
@@ -20,16 +28,28 @@ exports.attendanceRouter.get("/", auth_1.requireAuth, async (req, res) => {
         const pagination = (0, pagination_1.parsePaginationParams)(req, "date", 50);
         const { date, employeeId, month, year, status } = req.query;
         const where = { tenantId };
-        const isEmployeeRoleOnly = req.user?.roles?.includes("employee") && !req.user?.roles?.some((r) => ["super_admin", "admin", "hr_admin", "manager", "Workspace Admin"].includes(r));
-        if (isEmployeeRoleOnly) {
+        const isElevated = isElevatedAttendanceUser(req);
+        if (!isElevated) {
             const selfEmp = await prisma_1.prisma.employee.findFirst({
                 where: { tenantId, userId: req.user?.userId },
+                select: { id: true },
             });
-            if (selfEmp) {
-                where.employeeId = selfEmp.id;
+            if (!selfEmp) {
+                return res.json(pagination.isPaginated ? (0, pagination_1.formatPaginatedResponse)([], 0, pagination) : []);
+            }
+            const directReports = await prisma_1.prisma.employee.findMany({
+                where: { tenantId, managerId: selfEmp.id },
+                select: { id: true },
+            });
+            const allowedEmployeeIds = [selfEmp.id, ...directReports.map((d) => d.id)];
+            if (employeeId && employeeId !== "all") {
+                if (!allowedEmployeeIds.includes(String(employeeId))) {
+                    return res.status(403).json({ error: "Forbidden: You do not have access to this employee's attendance." });
+                }
+                where.employeeId = String(employeeId);
             }
             else {
-                return res.json(pagination.isPaginated ? (0, pagination_1.formatPaginatedResponse)([], 0, pagination) : []);
+                where.employeeId = allowedEmployeeIds.length === 1 ? selfEmp.id : { in: allowedEmployeeIds };
             }
         }
         else if (employeeId && employeeId !== "all") {
@@ -118,12 +138,26 @@ exports.attendanceRouter.post("/", auth_1.requireAuth, async (req, res) => {
         const tenantId = (0, tenant_1.resolveTenantId)(req, res);
         if (!tenantId)
             return;
+        if (!isElevatedAttendanceUser(req)) {
+            return res.status(403).json({
+                error: "Forbidden: Only HR Administrators can manually record or override attendance.",
+                code: "HR_ADMIN_REQUIRED",
+            });
+        }
         const { employeeId, date, checkIn, checkOut, totalHours, hours, status, notes } = req.body;
         if (!employeeId || !date) {
             return res.status(400).json({ error: "employeeId and date are required." });
         }
+        const targetEmployee = await prisma_1.prisma.employee.findFirst({
+            where: { id: String(employeeId), tenantId },
+            select: { id: true },
+        });
+        if (!targetEmployee) {
+            return res.status(404).json({ error: "Employee not found in this workspace." });
+        }
         const attendanceDate = new Date(date);
         attendanceDate.setUTCHours(0, 0, 0, 0);
+        await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, attendanceDate);
         const calculatedHours = Number(totalHours ?? hours ?? 0);
         let attendanceStatus = status || "present";
         if (calculatedHours > 0 && calculatedHours < 4 && attendanceStatus === "present") {
@@ -164,6 +198,9 @@ exports.attendanceRouter.post("/", auth_1.requireAuth, async (req, res) => {
         return res.status(201).json(attendance);
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED") {
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+        }
         console.error("[POST /api/attendance] error:", err);
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
@@ -333,6 +370,8 @@ exports.attendanceRouter.post("/punch", auth_1.requireAuth, async (req, res) => 
         return res.json({ success: true, action: "check_in", attendance, geoFence: { valid: isGeoFenceValid, distanceMeters: Math.round(distanceToOffice) } });
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
 });
@@ -343,18 +382,29 @@ exports.attendanceRouter.post("/check-in", auth_1.requireAuth, async (req, res) 
         if (!tenantId)
             return;
         const { employeeId, notes, latitude, longitude } = req.body;
+        const isPrivileged = isElevatedAttendanceUser(req);
+        const selfEmp = await prisma_1.prisma.employee.findFirst({
+            where: { tenantId, userId: req.user.userId },
+        });
         let targetEmployeeId = employeeId;
-        if (!targetEmployeeId) {
-            const emp = await prisma_1.prisma.employee.findFirst({
-                where: { tenantId, userId: req.user.userId },
-            });
-            if (!emp) {
+        if (!isPrivileged) {
+            if (!selfEmp) {
                 return res.status(400).json({ error: "Employee record not found for current user." });
             }
-            targetEmployeeId = emp.id;
+            if (employeeId && employeeId !== selfEmp.id) {
+                return res.status(403).json({ error: "Forbidden: You can only check in for yourself." });
+            }
+            targetEmployeeId = selfEmp.id;
+        }
+        else if (!targetEmployeeId) {
+            if (!selfEmp) {
+                return res.status(400).json({ error: "Employee record not found for current user." });
+            }
+            targetEmployeeId = selfEmp.id;
         }
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, today);
         const existing = await prisma_1.prisma.attendance.findUnique({
             where: {
                 tenantId_employeeId_date: {
@@ -436,6 +486,8 @@ exports.attendanceRouter.post("/check-in", auth_1.requireAuth, async (req, res) 
         return res.json(attendance);
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
 });
@@ -446,18 +498,29 @@ exports.attendanceRouter.post("/check-out", auth_1.requireAuth, async (req, res)
         if (!tenantId)
             return;
         const { employeeId, notes } = req.body;
+        const isPrivileged = isElevatedAttendanceUser(req);
+        const selfEmp = await prisma_1.prisma.employee.findFirst({
+            where: { tenantId, userId: req.user.userId },
+        });
         let targetEmployeeId = employeeId;
-        if (!targetEmployeeId) {
-            const emp = await prisma_1.prisma.employee.findFirst({
-                where: { tenantId, userId: req.user.userId },
-            });
-            if (!emp) {
+        if (!isPrivileged) {
+            if (!selfEmp) {
                 return res.status(400).json({ error: "Employee record not found for current user." });
             }
-            targetEmployeeId = emp.id;
+            if (employeeId && employeeId !== selfEmp.id) {
+                return res.status(403).json({ error: "Forbidden: You can only check out for yourself." });
+            }
+            targetEmployeeId = selfEmp.id;
+        }
+        else if (!targetEmployeeId) {
+            if (!selfEmp) {
+                return res.status(400).json({ error: "Employee record not found for current user." });
+            }
+            targetEmployeeId = selfEmp.id;
         }
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, today);
         const existing = await prisma_1.prisma.attendance.findUnique({
             where: {
                 tenantId_employeeId_date: {
@@ -503,6 +566,8 @@ exports.attendanceRouter.post("/check-out", auth_1.requireAuth, async (req, res)
         return res.json(attendance);
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         return res.status(500).json({ error: err.message || "Internal server error" });
     }
 });
@@ -532,10 +597,30 @@ exports.attendanceRouter.post("/regularize", auth_1.requireAuth, async (req, res
             return res.status(400).json({ error: "Date is required." });
         const targetDate = new Date(date);
         const d = new Date(Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()));
+        await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, d);
         const cIn = checkIn ? new Date(`${date}T${checkIn}`) : new Date(`${date}T09:00:00`);
         const cOut = checkOut ? new Date(`${date}T${checkOut}`) : new Date(`${date}T18:00:00`);
         const diffMs = cOut.getTime() - cIn.getTime();
         const hours = Math.max(0, Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100);
+        if (!isAttAdmin) {
+            const regRequest = await prisma_1.prisma.attendanceRegularization.create({
+                data: {
+                    tenantId,
+                    employeeId: targetEmployeeId,
+                    attendanceDate: d,
+                    proposedIn: cIn,
+                    proposedOut: cOut,
+                    reason: reason || "Attendance regularization request",
+                    status: "PENDING",
+                },
+            });
+            return res.status(201).json({
+                success: true,
+                status: "PENDING",
+                message: "Attendance regularization request submitted for approval.",
+                regularization: regRequest,
+            });
+        }
         const record = await prisma_1.prisma.attendance.upsert({
             where: {
                 tenantId_employeeId_date: {
@@ -567,6 +652,8 @@ exports.attendanceRouter.post("/regularize", auth_1.requireAuth, async (req, res
         return res.json({ success: true, message: "Attendance regularized successfully.", record });
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         return res.status(500).json({ error: err.message || "Failed to regularize attendance." });
     }
 });
@@ -730,18 +817,43 @@ exports.attendanceRouter.get("/daily-report", auth_1.requireAuth, async (req, re
         if (!tenantId)
             return;
         const { date, status, sort = "desc" } = req.query;
-        const targetDate = date ? new Date(String(date)) : new Date();
-        targetDate.setHours(0, 0, 0, 0);
-        const nextDay = new Date(targetDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        const d = date ? new Date(String(date)) : new Date();
+        const targetDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        const nextDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1));
         const where = {
             tenantId,
             date: { gte: targetDate, lt: nextDay },
         };
+        const isElevated = isElevatedAttendanceUser(req);
+        let scopedEmployeeWhere = {};
+        if (!isElevated) {
+            const selfEmp = await prisma_1.prisma.employee.findFirst({
+                where: { tenantId, userId: req.user?.userId },
+                select: { id: true },
+            });
+            if (!selfEmp) {
+                return res.json({
+                    success: true,
+                    metrics: { totalPresent: 0, totalAbsent: 0, completedTasks: 0, pendingTasks: 0 },
+                    records: [],
+                    monthlyTrends: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((month) => ({ month, present: 0, absent: 0 })),
+                });
+            }
+            const directReports = await prisma_1.prisma.employee.findMany({
+                where: { tenantId, managerId: selfEmp.id },
+                select: { id: true },
+            });
+            const allowedIds = [selfEmp.id, ...directReports.map((r) => r.id)];
+            scopedEmployeeWhere = { employeeId: { in: allowedIds } };
+            where.employeeId = { in: allowedIds };
+        }
         if (status && status !== "all") {
             where.status = String(status);
         }
-        const [attendanceList, totalPresent, totalAbsent, completedTasks, pendingTasks] = await Promise.all([
+        const currentYear = targetDate.getUTCFullYear();
+        const yearStart = new Date(Date.UTC(currentYear, 0, 1));
+        const yearEnd = new Date(Date.UTC(currentYear, 11, 31, 23, 59, 59, 999));
+        const [attendanceList, totalPresent, totalAbsent, completedTasks, pendingTasks, yearRecords] = await Promise.all([
             prisma_1.prisma.attendance.findMany({
                 where,
                 orderBy: { date: sort === "asc" ? "asc" : "desc" },
@@ -762,6 +874,7 @@ exports.attendanceRouter.get("/daily-report", auth_1.requireAuth, async (req, re
             prisma_1.prisma.attendance.count({
                 where: {
                     tenantId,
+                    ...scopedEmployeeWhere,
                     date: { gte: targetDate, lt: nextDay },
                     status: "present",
                 },
@@ -769,6 +882,7 @@ exports.attendanceRouter.get("/daily-report", auth_1.requireAuth, async (req, re
             prisma_1.prisma.attendance.count({
                 where: {
                     tenantId,
+                    ...scopedEmployeeWhere,
                     date: { gte: targetDate, lt: nextDay },
                     status: "absent",
                 },
@@ -785,8 +899,17 @@ exports.attendanceRouter.get("/daily-report", auth_1.requireAuth, async (req, re
                     status: { not: "completed" },
                 },
             }),
+            prisma_1.prisma.attendance.findMany({
+                where: {
+                    tenantId,
+                    ...scopedEmployeeWhere,
+                    date: { gte: yearStart, lte: yearEnd },
+                    status: { in: ["present", "late", "absent"] },
+                },
+                select: { date: true, status: true },
+            }),
         ]);
-        // Format records for table
+        // Format records for table (strictly dynamic, zero fake fallback employees)
         const records = attendanceList.map((a) => ({
             id: a.id,
             name: `${a.employee?.firstName || ""} ${a.employee?.lastName || ""}`.trim() || "Employee",
@@ -797,32 +920,33 @@ exports.attendanceRouter.get("/daily-report", auth_1.requireAuth, async (req, re
             checkIn: a.checkIn?.toISOString() || null,
             checkOut: a.checkOut?.toISOString() || null,
             status: a.status,
-            hours: a.hours ? Number(a.hours) : 8,
+            hours: a.hours ? Number(a.hours) : 0,
         }));
-        // Generate yearly monthly trends (Jan - Dec)
-        const currentYear = targetDate.getFullYear();
+        // Dynamic 12-month trends computed from actual tenant attendance records
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const presentByMonth = new Array(12).fill(0);
+        const absentByMonth = new Array(12).fill(0);
+        for (const r of yearRecords) {
+            const mIdx = new Date(r.date).getUTCMonth();
+            if (r.status === "absent")
+                absentByMonth[mIdx]++;
+            else
+                presentByMonth[mIdx]++;
+        }
         const monthlyTrends = months.map((m, idx) => ({
             month: m,
-            present: Math.round(200 + Math.sin(idx) * 50 + 20),
-            absent: Math.round(15 + Math.cos(idx) * 8),
+            present: presentByMonth[idx],
+            absent: absentByMonth[idx],
         }));
         return res.json({
             success: true,
             metrics: {
-                totalPresent: totalPresent || 300,
-                totalAbsent: totalAbsent || 15,
-                completedTasks: completedTasks || 100,
-                pendingTasks: pendingTasks || 125,
+                totalPresent,
+                totalAbsent,
+                completedTasks,
+                pendingTasks,
             },
-            records: records.length > 0 ? records : [
-                { id: "1", name: "Anthony Lewis", email: "anthony@example.com", department: "Finance", position: "Finance Analyst", date: targetDate.toISOString(), status: "present", hours: 8.5 },
-                { id: "2", name: "Brian Villalobos", email: "brian@example.com", department: "Application Development", position: "Developer", date: targetDate.toISOString(), status: "present", hours: 8.0 },
-                { id: "3", name: "Harvey Smith", email: "harvey@example.com", department: "Application Development", position: "Developer", date: targetDate.toISOString(), status: "present", hours: 8.2 },
-                { id: "4", name: "Stephan Peralt", email: "peralt@example.com", department: "Quality Assurance", position: "QA Engineer", date: targetDate.toISOString(), status: "absent", hours: 0 },
-                { id: "5", name: "Doglas Martini", email: "martni@example.com", department: "HR & Admin", position: "HR Executive", date: targetDate.toISOString(), status: "present", hours: 8.0 },
-                { id: "6", name: "Linda Craver", email: "linda@example.com", department: "Marketing", position: "Marketing Specialist", date: targetDate.toISOString(), status: "present", hours: 7.8 },
-            ],
+            records,
             monthlyTrends,
         });
     }

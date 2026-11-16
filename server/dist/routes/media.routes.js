@@ -8,6 +8,7 @@ const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
 const auth_1 = require("../middleware/auth");
 const media_service_1 = require("../services/media/media.service");
+const chat_service_1 = require("../services/chat.service");
 const upload = (0, multer_1.default)({
     storage: multer_1.default.memoryStorage(),
     limits: { fileSize: 30 * 1024 * 1024 }, // 30 MB
@@ -77,11 +78,20 @@ exports.mediaRouter.get("/", auth_1.requireAuth, async (req, res) => {
             }
         }
         const folder = req.query.folder ? String(req.query.folder) : undefined;
+        const currentUserId = req.user?.userId || req.user?.id || "";
         const mediaList = await media_service_1.MediaService.listMedia({
             tenantId,
             folder,
         });
-        return res.json(mediaList);
+        // Never expose private chat attachments in generic workspace media listings unless uploaded by caller
+        const filtered = mediaList.filter((file) => {
+            const isChatFile = file.systemModule === "chat" ||
+                String(file.folder || "").toLowerCase().includes("communication");
+            if (!isChatFile)
+                return true;
+            return file.uploadedBy === currentUserId;
+        });
+        return res.json(filtered);
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to list media" });
@@ -90,13 +100,15 @@ exports.mediaRouter.get("/", auth_1.requireAuth, async (req, res) => {
 /**
  * GET /api/v1/media/:id
  * Retrieve a single media file record with usages.
- * Enforces strict tenant authorization (Tenant A cannot access Tenant B or Platform media).
+ * Enforces strict tenant authorization (Tenant A cannot access Tenant B or Platform media)
+ * and thread participant / FileAcl authorization for chat attachments.
  */
 exports.mediaRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
     try {
         const id = req.params.id;
         const isSuper = req.user?.roles?.includes("super_admin");
         const userTenantId = req.user?.tenantId || null;
+        const currentUserId = req.user?.userId || req.user?.id || "";
         const file = await media_service_1.MediaService.getMedia(id);
         if (!file) {
             return res.status(404).json({ error: "Media file not found" });
@@ -107,6 +119,22 @@ exports.mediaRouter.get("/:id", auth_1.requireAuth, async (req, res) => {
             }
             if (file.tenantId !== userTenantId) {
                 return res.status(403).json({ error: "Forbidden: Access denied to media from another workspace" });
+            }
+        }
+        const isChatFile = file.systemModule === "chat" ||
+            String(file.folder || "").toLowerCase().includes("communication");
+        if (isChatFile) {
+            const chatAllowed = await chat_service_1.ChatService.authorizeChatMediaAccess({
+                mediaFile: file,
+                tenantId: file.tenantId || userTenantId || "",
+                userId: currentUserId,
+                roles: req.user?.roles || [],
+            });
+            if (!chatAllowed) {
+                return res.status(403).json({
+                    error: "Forbidden: You are not authorized to access this chat attachment.",
+                    code: "UNAUTHORIZED_CHAT_MEDIA_ACCESS",
+                });
             }
         }
         return res.json(file);
@@ -126,6 +154,19 @@ exports.mediaRouter.delete("/:id", auth_1.requireAuth, async (req, res) => {
         const force = req.query.force === "true" || req.query.force === "1";
         const isSuper = req.user?.roles?.includes("super_admin");
         const requestedByTenantId = isSuper ? null : req.user?.tenantId;
+        const currentUserId = req.user?.userId || req.user?.id || "";
+        const existingFile = await media_service_1.MediaService.getMedia(id);
+        if (existingFile) {
+            const isChatFile = existingFile.systemModule === "chat" ||
+                String(existingFile.folder || "").toLowerCase().includes("communication");
+            const isAdmin = req.user?.roles?.some((r) => ["super_admin", "tenant_admin", "hr_admin", "admin"].includes(r));
+            if (isChatFile && !isAdmin && existingFile.uploadedBy !== currentUserId) {
+                return res.status(403).json({
+                    error: "Forbidden: Only the uploader or workspace administrator can delete this chat attachment.",
+                    code: "UNAUTHORIZED_CHAT_MEDIA_DELETE",
+                });
+            }
+        }
         const result = await media_service_1.MediaService.deleteMedia(id, {
             force,
             isSuper,

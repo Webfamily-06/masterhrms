@@ -12,6 +12,53 @@ const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../../prisma");
 const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const integrity_hasher_1 = require("../storage/integrity-hasher");
+const supabase_js_1 = require("@supabase/supabase-js");
+let supabaseMediaClient = null;
+function getSupabaseMediaClient() {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_KEY;
+    if (!supabaseUrl || !supabaseKey)
+        return null;
+    if (!supabaseMediaClient) {
+        supabaseMediaClient = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+        });
+    }
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET || "hrms-files";
+    return { client: supabaseMediaClient, bucket };
+}
+let mediaBlobsTableReadyPromise = null;
+let supabaseStorageSkipUntil = 0;
+async function ensureMediaBlobsTable() {
+    if (!mediaBlobsTableReadyPromise) {
+        mediaBlobsTableReadyPromise = (async () => {
+            try {
+                await prisma.$executeRawUnsafe(`
+          CREATE TABLE IF NOT EXISTS "chat_media_blobs" (
+            "media_id" TEXT PRIMARY KEY,
+            "tenant_id" TEXT,
+            "file_path" TEXT NOT NULL,
+            "mime_type" TEXT NOT NULL,
+            "byte_size" INTEGER NOT NULL,
+            "content" BYTEA NOT NULL,
+            "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+                await prisma.$executeRawUnsafe(`
+          CREATE INDEX IF NOT EXISTS "idx_chat_media_blobs_file_path"
+          ON "chat_media_blobs" ("file_path")
+        `);
+            }
+            catch (err) {
+                mediaBlobsTableReadyPromise = null;
+                console.warn("⚠️ [MediaService] Ensure chat_media_blobs table warning:", err?.message);
+            }
+        })();
+    }
+    return mediaBlobsTableReadyPromise;
+}
 function getUploadsRoot() {
     if (process.env.VERCEL) {
         const tmpUploads = path_1.default.join(os_1.default.tmpdir(), "uploads");
@@ -33,7 +80,7 @@ class MediaService {
     /**
      * Validate buffer headers for safety (Images, PDFs, Office Documents, Plain Text, CSV, Audio)
      */
-    static validateImageBuffer(buffer, declaredMime, originalName) {
+    static validateImageBuffer(buffer, declaredMime, originalName, context) {
         if (!buffer || buffer.length === 0) {
             return { isValid: false, mimeType: "", extension: "", error: "File buffer is empty" };
         }
@@ -83,20 +130,31 @@ class MediaService {
             buffer[3] === 0x00) {
             return { isValid: true, mimeType: "image/x-icon", extension: ".ico" };
         }
-        // 6. SVG check: look for <svg and reject malicious scripts
+        // 6. SVG check: look for <svg and reject malicious scripts / chat SVGs
         const textSample = buffer.toString("utf8", 0, Math.min(buffer.length, 2048)).toLowerCase();
         if (textSample.includes("<svg") || ext === ".svg") {
-            const fullText = buffer.toString("utf8").toLowerCase();
-            if (fullText.includes("<script") ||
-                fullText.includes("javascript:") ||
-                fullText.includes("onload=") ||
-                fullText.includes("onerror=") ||
-                fullText.includes("xlink:href=\"data:text/html")) {
+            if (context?.isChat) {
                 return {
                     isValid: false,
                     mimeType: "",
                     extension: "",
-                    error: "Malicious script tags detected in SVG file",
+                    error: "SVG uploads are disabled in chat attachments for XSS protection. Please upload PNG, JPG, WebP, or PDF.",
+                };
+            }
+            const fullText = buffer.toString("utf8").toLowerCase();
+            if (fullText.includes("<script") ||
+                fullText.includes("<foreignobject") ||
+                fullText.includes("<iframe") ||
+                fullText.includes("<embed") ||
+                fullText.includes("<object") ||
+                fullText.includes("javascript:") ||
+                fullText.includes("data:text/html") ||
+                /\bon[a-z]+\s*=/i.test(fullText)) {
+                return {
+                    isValid: false,
+                    mimeType: "",
+                    extension: "",
+                    error: "Malicious script or active content detected in SVG file",
                 };
             }
             return { isValid: true, mimeType: "image/svg+xml", extension: ".svg" };
@@ -158,13 +216,12 @@ class MediaService {
             }
             return { isValid: true, mimeType: "application/msword", extension: ".doc" };
         }
-        // 10. WebM / Matroska (Audio or Video): 1A 45 DF A3 or declared webm extension
-        if ((buffer.length >= 4 &&
+        // 10. WebM / Matroska (Audio or Video): strict EBML magic header 1A 45 DF A3
+        if (buffer.length >= 4 &&
             buffer[0] === 0x1a &&
             buffer[1] === 0x45 &&
             buffer[2] === 0xdf &&
-            buffer[3] === 0xa3) ||
-            (ext === ".webm" || ext === ".weba" || declaredMime === "audio/webm" || declaredMime === "video/webm")) {
+            buffer[3] === 0xa3) {
             if (ext === ".weba" || declaredMime?.startsWith("audio/")) {
                 return { isValid: true, mimeType: "audio/webm", extension: ".webm" };
             }
@@ -185,12 +242,27 @@ class MediaService {
             buffer.toString("ascii", 8, 12) === "WAVE") {
             return { isValid: true, mimeType: "audio/wav", extension: ".wav" };
         }
-        // 14. MP4 / M4A / AAC Audio
-        if ((buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") ||
-            (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0)) {
-            if (ext === ".m4a" || ext === ".aac" || declaredMime?.startsWith("audio/")) {
-                return { isValid: true, mimeType: "audio/mp4", extension: ext || ".m4a" };
+        // 14. MP4 / M4A / MOV / HEIC / AAC (ISO Base Media File Format `ftyp` or ADTS AAC)
+        if (buffer.length >= 8 && buffer.toString("ascii", 4, 8) === "ftyp") {
+            const brand = buffer.length >= 12 ? buffer.toString("ascii", 8, 12).toLowerCase() : "";
+            if (ext === ".heic" ||
+                ext === ".heif" ||
+                brand.startsWith("hei") ||
+                brand === "mif1" ||
+                declaredMime === "image/heic" ||
+                declaredMime === "image/heif") {
+                return { isValid: true, mimeType: "image/heic", extension: ext === ".heif" ? ".heif" : ".heic" };
             }
+            if (ext === ".m4a" || ext === ".aac" || declaredMime?.startsWith("audio/")) {
+                return { isValid: true, mimeType: "audio/mp4", extension: ext === ".aac" ? ".aac" : ".m4a" };
+            }
+            if (ext === ".mov" || declaredMime === "video/quicktime") {
+                return { isValid: true, mimeType: "video/quicktime", extension: ".mov" };
+            }
+            return { isValid: true, mimeType: "video/mp4", extension: ".mp4" };
+        }
+        if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0) {
+            return { isValid: true, mimeType: "audio/aac", extension: ".aac" };
         }
         // 14. Text & CSV Files (Ensure valid utf8 without null bytes)
         if (ext === ".txt" || ext === ".csv" || declaredMime === "text/csv" || declaredMime === "text/plain") {
@@ -219,37 +291,45 @@ class MediaService {
     /**
      * Alias for backwards compatibility
      */
-    static validateMediaBuffer(buffer, declaredMime, originalName) {
-        return this.validateImageBuffer(buffer, declaredMime, originalName);
+    static validateMediaBuffer(buffer, declaredMime, originalName, context) {
+        return this.validateImageBuffer(buffer, declaredMime, originalName, context);
     }
     /**
      * Save an uploaded file to local disk and create MediaFile record.
-     * Performs deduplication within the target tenant scope when checksum & filename match.
+     * Performs deduplication within the target tenant+folder scope for non-chat assets.
      */
     static async uploadMedia(buffer, originalName, options = {}) {
-        const validation = this.validateImageBuffer(buffer, options.mimeType, originalName);
+        const folder = (options.folder || "system/branding")
+            .replace(/[^a-zA-Z0-9_\-\/]/g, "")
+            .replace(/\.\./g, "");
+        const isChatUpload = options.systemModule === "chat" ||
+            folder.toLowerCase().includes("communication") ||
+            (Array.isArray(options.tags) && options.tags.includes("chat"));
+        const validation = this.validateImageBuffer(buffer, options.mimeType, originalName, {
+            isChat: isChatUpload,
+        });
         if (!validation.isValid) {
             throw new Error(validation.error || "Invalid file");
         }
         const checksumSha = (0, integrity_hasher_1.computeSha256)(buffer);
-        // Deduplication check within the same scope
-        const existing = await prisma.mediaFile.findFirst({
-            where: {
-                tenantId: options.tenantId || null,
-                checksumSha,
-                fileName: originalName,
-                deletedAt: null,
-            },
-            include: {
-                usages: true,
-            },
-        });
-        if (existing) {
-            return existing;
+        // Never deduplicate private chat attachments across threads/users (each thread has independent FileAcl & lifecycle)
+        if (!isChatUpload && !options.skipDeduplication) {
+            const existing = await prisma.mediaFile.findFirst({
+                where: {
+                    tenantId: options.tenantId || null,
+                    folder,
+                    checksumSha,
+                    fileName: originalName,
+                    deletedAt: null,
+                },
+                include: {
+                    usages: true,
+                },
+            });
+            if (existing) {
+                return existing;
+            }
         }
-        const folder = (options.folder || "system/branding")
-            .replace(/[^a-zA-Z0-9_\-\/]/g, "")
-            .replace(/\.\./g, "");
         const uploadsRoot = getUploadsRoot();
         const targetDir = path_1.default.join(uploadsRoot, folder);
         const uniqueFileName = `${Date.now()}-${crypto_1.default.randomBytes(4).toString("hex")}${validation.extension}`;
@@ -264,13 +344,51 @@ class MediaService {
             await fs_1.default.promises.writeFile(fullDiskPath, buffer);
         }
         catch (fsErr) {
-            console.warn("⚠️ [MediaService] Disk write warning (read-only filesystem or tmp limitation):", fsErr?.message);
+            console.warn("⚠️ [MediaService] Disk write warning:", fsErr?.message);
+            if (!process.env.VERCEL && !getSupabaseMediaClient()) {
+                throw new Error(`Failed to write uploaded media to persistent storage: ${fsErr?.message || "disk error"}`);
+            }
+        }
+        // Mirror to Supabase Storage when configured (ensures Vercel serverless durability across lambdas)
+        let storageDisk = "LOCAL";
+        const supa = Date.now() >= supabaseStorageSkipUntil ? getSupabaseMediaClient() : null;
+        if (supa) {
+            try {
+                const storageKey = `media/${options.tenantId || "global"}/${relativeFilePath}`;
+                let { error } = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
+                    contentType: validation.mimeType,
+                    upsert: true,
+                });
+                if (error && String(error.message || "").toLowerCase().includes("bucket")) {
+                    const created = await supa.client.storage.createBucket(supa.bucket, { public: false }).catch(() => null);
+                    if (created && !created.error) {
+                        const retry = await supa.client.storage.from(supa.bucket).upload(storageKey, buffer, {
+                            contentType: validation.mimeType,
+                            upsert: true,
+                        });
+                        error = retry.error;
+                    }
+                    else {
+                        supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
+                    }
+                }
+                else if (error) {
+                    supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
+                }
+                if (!error) {
+                    storageDisk = "SUPABASE";
+                }
+            }
+            catch (cloudErr) {
+                supabaseStorageSkipUntil = Date.now() + 5 * 60 * 1000;
+                console.warn("⚠️ [MediaService] Cloud storage mirror warning:", cloudErr?.message);
+            }
         }
         // Save record to DB
         const mediaFile = await prisma.mediaFile.create({
             data: {
                 tenantId: options.tenantId || null,
-                storageDisk: "LOCAL",
+                storageDisk,
                 filePath: relativeFilePath,
                 url: publicUrl,
                 fileName: originalName,
@@ -280,12 +398,122 @@ class MediaService {
                 folder,
                 tags: options.tags || ["branding"],
                 uploadedBy: options.uploadedBy || "system",
+                ...(isChatUpload || options.systemModule
+                    ? { systemModule: options.systemModule || "chat" }
+                    : {}),
             },
             include: {
                 usages: true,
             },
         });
+        // Durable PostgreSQL binary persistence so Vercel serverless Lambdas never 404 when `/tmp/uploads` is ephemeral
+        if (buffer.length <= 30 * 1024 * 1024) {
+            try {
+                await ensureMediaBlobsTable();
+                await prisma.$executeRaw `
+          INSERT INTO "chat_media_blobs" ("media_id", "tenant_id", "file_path", "mime_type", "byte_size", "content")
+          VALUES (${mediaFile.id}, ${options.tenantId || null}, ${relativeFilePath}, ${validation.mimeType}, ${buffer.length}, ${buffer})
+          ON CONFLICT ("media_id") DO UPDATE
+          SET "content" = EXCLUDED."content",
+              "byte_size" = EXCLUDED."byte_size",
+              "mime_type" = EXCLUDED."mime_type",
+              "file_path" = EXCLUDED."file_path"
+        `;
+            }
+            catch (blobErr) {
+                console.warn("⚠️ [MediaService] PostgreSQL media blob mirror warning:", blobErr?.message);
+            }
+        }
         return mediaFile;
+    }
+    /**
+     * Fetches file buffer from Supabase Storage or PostgreSQL `chat_media_blobs` if missing from local/serverless `/tmp` disk.
+     */
+    static async fetchCloudMediaBuffer(tenantId, relativeFilePath, mediaId) {
+        const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+        const supa = getSupabaseMediaClient();
+        if (supa && cleanRel) {
+            try {
+                const storageKey = `media/${tenantId || "global"}/${cleanRel}`;
+                const { data, error } = await supa.client.storage.from(supa.bucket).download(storageKey);
+                if (!error && data) {
+                    const arrayBuf = await data.arrayBuffer();
+                    return Buffer.from(arrayBuf);
+                }
+            }
+            catch { }
+        }
+        try {
+            await ensureMediaBlobsTable();
+            const rows = mediaId
+                ? await prisma.$queryRaw `
+            SELECT "content" FROM "chat_media_blobs"
+            WHERE ("media_id" = ${mediaId} OR "file_path" = ${cleanRel})
+            LIMIT 1
+          `
+                : await prisma.$queryRaw `
+            SELECT "content" FROM "chat_media_blobs"
+            WHERE "file_path" = ${cleanRel}
+            LIMIT 1
+          `;
+            if (rows && rows.length > 0 && rows[0].content) {
+                return Buffer.isBuffer(rows[0].content)
+                    ? rows[0].content
+                    : Buffer.from(rows[0].content);
+            }
+        }
+        catch { }
+        return null;
+    }
+    /**
+     * Persists a raw relative upload buffer into `chat_media_blobs` so two-step local/serverless uploads survive `/tmp` eviction.
+     */
+    static async persistRelativeMediaBlob(relativeFilePath, buffer, mimeType = "application/octet-stream", tenantId, mediaId) {
+        const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+        if (!cleanRel || !buffer || buffer.length === 0 || buffer.length > 30 * 1024 * 1024)
+            return;
+        const blobKey = mediaId ||
+            `path:${crypto_1.default.createHash("sha256").update(cleanRel).digest("hex").slice(0, 28)}`;
+        try {
+            await ensureMediaBlobsTable();
+            await prisma.$executeRaw `
+        INSERT INTO "chat_media_blobs" ("media_id", "tenant_id", "file_path", "mime_type", "byte_size", "content")
+        VALUES (${blobKey}, ${tenantId || null}, ${cleanRel}, ${mimeType || "application/octet-stream"}, ${buffer.length}, ${buffer})
+        ON CONFLICT ("media_id") DO UPDATE
+        SET "content" = EXCLUDED."content",
+            "byte_size" = EXCLUDED."byte_size",
+            "mime_type" = EXCLUDED."mime_type",
+            "file_path" = EXCLUDED."file_path"
+      `;
+        }
+        catch (err) {
+            console.warn("⚠️ [MediaService] persistRelativeMediaBlob warning:", err?.message);
+        }
+    }
+    /**
+     * Resolves a public/protected `/uploads/*` file from PostgreSQL `chat_media_blobs` when local `/tmp/uploads` is empty.
+     */
+    static async fetchMediaBlobByRelativePath(relativeFilePath) {
+        const cleanRel = String(relativeFilePath || "").replace(/^[/\\]+/, "");
+        if (!cleanRel)
+            return null;
+        try {
+            await ensureMediaBlobsTable();
+            const rows = await prisma.$queryRaw `
+        SELECT "content", "mime_type" FROM "chat_media_blobs"
+        WHERE "file_path" = ${cleanRel}
+        ORDER BY "created_at" DESC
+        LIMIT 1
+      `;
+            if (rows && rows.length > 0 && rows[0].content) {
+                return {
+                    buffer: Buffer.isBuffer(rows[0].content) ? rows[0].content : Buffer.from(rows[0].content),
+                    mimeType: rows[0].mime_type || "application/octet-stream",
+                };
+            }
+        }
+        catch { }
+        return null;
     }
     /**
      * Get a single media file by ID with usages

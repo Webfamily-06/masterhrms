@@ -27,6 +27,7 @@ async function requireEmployee(req, res, next) {
                 lastName: true,
                 email: true,
                 departmentId: true,
+                branchId: true,
                 designationId: true,
                 managerId: true,
                 status: true,

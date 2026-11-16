@@ -12,8 +12,13 @@ const tenant_connection_manager_service_1 = require("../services/tenant-connecti
 const biometric_sync_1 = require("../cron/biometric-sync");
 const recurring_invoice_service_1 = require("../services/recurring-invoice.service");
 const subscription_reminder_cron_1 = require("../cron/subscription-reminder.cron");
+const document_expiry_cron_1 = require("../cron/document-expiry.cron");
+const probation_contract_expiry_cron_1 = require("../cron/probation-contract-expiry.cron");
+const reporting_manager_change_cron_1 = require("../cron/reporting-manager-change.cron");
 const maintenance_1 = require("../middleware/maintenance");
 const workspace_host_1 = require("../lib/workspace-host");
+const attendance_service_1 = require("../services/attendance.service");
+const leave_service_1 = require("../services/leave.service");
 exports.overtimeRouter = (0, express_1.Router)();
 exports.wfhRouter = (0, express_1.Router)();
 exports.promotionRouter = (0, express_1.Router)();
@@ -23,7 +28,32 @@ exports.bannedIpRouter = (0, express_1.Router)();
 exports.systemMaintenanceRouter = (0, express_1.Router)();
 // ─── OVERTIME ROUTES ────────────────────────────────────────────────────────
 exports.overtimeRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
-// GET /api/overtime — list all overtime requests
+async function resolveOvertimeCallerScope(req, tenantId) {
+    const perms = req.user?.permissions || [];
+    const isHrAdmin = leave_service_1.LeaveService.isElevatedHrUser(req.user?.roles) ||
+        perms.includes("*") ||
+        perms.includes("hrm.attendance.manage");
+    const selfEmp = await prisma_1.prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+        select: { id: true },
+    });
+    if (isHrAdmin) {
+        return { isHrAdmin: true, selfEmpId: selfEmp?.id || null, allowedEmployeeIds: null };
+    }
+    if (!selfEmp) {
+        return { isHrAdmin: false, selfEmpId: null, allowedEmployeeIds: [] };
+    }
+    const reports = await prisma_1.prisma.employee.findMany({
+        where: { tenantId, managerId: selfEmp.id },
+        select: { id: true },
+    });
+    return {
+        isHrAdmin: false,
+        selfEmpId: selfEmp.id,
+        allowedEmployeeIds: [selfEmp.id, ...reports.map((r) => r.id)],
+    };
+}
+// GET /api/overtime — list overtime requests within caller organizational scope
 exports.overtimeRouter.get("/", async (req, res) => {
     try {
         const tenantId = (0, tenant_1.resolveTenantId)(req, res);
@@ -32,10 +62,26 @@ exports.overtimeRouter.get("/", async (req, res) => {
         const pagination = (0, pagination_1.parsePaginationParams)(req, "overtimeDate", 50);
         const { status, employeeId } = req.query;
         const where = { tenantId };
+        const scope = await resolveOvertimeCallerScope(req, tenantId);
+        if (!scope.isHrAdmin) {
+            if (!scope.allowedEmployeeIds || scope.allowedEmployeeIds.length === 0) {
+                return res.json((0, pagination_1.formatPaginatedResponse)([], 0, pagination));
+            }
+            if (employeeId && employeeId !== "all") {
+                if (!scope.allowedEmployeeIds.includes(String(employeeId))) {
+                    return res.status(403).json({ error: "Forbidden: Employee outside your organizational scope." });
+                }
+                where.employeeId = String(employeeId);
+            }
+            else {
+                where.employeeId = { in: scope.allowedEmployeeIds };
+            }
+        }
+        else if (employeeId && employeeId !== "all") {
+            where.employeeId = String(employeeId);
+        }
         if (status && status !== "all")
             where.status = String(status);
-        if (employeeId && employeeId !== "all")
-            where.employeeId = String(employeeId);
         if (pagination.search) {
             where.OR = [
                 { employee: { firstName: { contains: pagination.search } } },
@@ -73,14 +119,35 @@ exports.overtimeRouter.post("/", async (req, res) => {
         if (!tenantId)
             return;
         const { employeeId, overtimeDate, hoursRequested, overtimeType, reason } = req.body;
-        if (!employeeId || !overtimeDate || !hoursRequested) {
+        if (!overtimeDate || !hoursRequested) {
             return res.status(400).json({ error: "employeeId, overtimeDate, hoursRequested are required" });
         }
+        const scope = await resolveOvertimeCallerScope(req, tenantId);
+        let targetEmployeeId = employeeId ? String(employeeId) : scope.selfEmpId;
+        if (!targetEmployeeId) {
+            return res.status(400).json({ error: "employeeId, overtimeDate, hoursRequested are required" });
+        }
+        if (!scope.isHrAdmin) {
+            if (!scope.allowedEmployeeIds || !scope.allowedEmployeeIds.includes(targetEmployeeId)) {
+                return res.status(403).json({ error: "Forbidden: You cannot submit overtime for another employee." });
+            }
+        }
+        else {
+            const targetEmp = await prisma_1.prisma.employee.findFirst({
+                where: { id: targetEmployeeId, tenantId },
+                select: { id: true },
+            });
+            if (!targetEmp) {
+                return res.status(404).json({ error: "Employee not found in this workspace." });
+            }
+        }
+        const parsedDate = new Date(overtimeDate);
+        await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, parsedDate);
         const record = await prisma_1.prisma.overtimeRequest.create({
             data: {
                 tenantId,
-                employeeId,
-                overtimeDate: new Date(overtimeDate),
+                employeeId: targetEmployeeId,
+                overtimeDate: parsedDate,
                 hoursRequested: parseFloat(hoursRequested),
                 overtimeType: overtimeType || "regular",
                 reason: reason || null,
@@ -93,10 +160,12 @@ exports.overtimeRouter.post("/", async (req, res) => {
         res.status(201).json(record);
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         res.status(500).json({ error: err.message });
     }
 });
-// PUT /api/overtime/:id/review — approve or reject
+// PUT /api/overtime/:id/review — approve or reject (HR Admin or Reporting Manager only, never self)
 exports.overtimeRouter.put("/:id/review", async (req, res) => {
     try {
         const tenantId = (0, tenant_1.resolveTenantId)(req, res);
@@ -108,14 +177,34 @@ exports.overtimeRouter.put("/:id/review", async (req, res) => {
         }
         const existing = await prisma_1.prisma.overtimeRequest.findFirst({
             where: { id: req.params.id, tenantId },
+            include: { employee: { select: { id: true, userId: true, managerId: true } } },
         });
         if (!existing)
             return res.status(404).json({ error: "Overtime request not found" });
+        const scope = await resolveOvertimeCallerScope(req, tenantId);
+        const callerUserId = req.user?.userId || req.user?.id;
+        if ((scope.selfEmpId && existing.employeeId === scope.selfEmpId) ||
+            (existing.employee?.userId && existing.employee.userId === callerUserId)) {
+            return res.status(403).json({
+                error: "Forbidden: Self-approval of overtime requests is not permitted.",
+                code: "SELF_APPROVAL_FORBIDDEN",
+            });
+        }
+        const isDirectManager = Boolean(scope.selfEmpId && existing.employee?.managerId === scope.selfEmpId);
+        if (!scope.isHrAdmin && !isDirectManager) {
+            return res.status(403).json({
+                error: "Forbidden: Only HR Administrators or the employee's reporting manager can review overtime requests.",
+                code: "FORBIDDEN",
+            });
+        }
+        if (status === "approved") {
+            await attendance_service_1.AttendanceService.assertMonthUnlocked(tenantId, existing.overtimeDate);
+        }
         const updated = await prisma_1.prisma.overtimeRequest.update({
             where: { id: req.params.id },
             data: {
                 status,
-                reviewedBy: req.user?.id || req.user?.userId || null,
+                reviewedBy: callerUserId || null,
                 reviewedAt: new Date(),
                 reviewRemarks: reviewRemarks || null,
             },
@@ -123,6 +212,8 @@ exports.overtimeRouter.put("/:id/review", async (req, res) => {
         res.json(updated);
     }
     catch (err) {
+        if (err?.code === "PERIOD_LOCKED")
+            return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
         res.status(500).json({ error: err.message });
     }
 });
@@ -137,6 +228,13 @@ exports.overtimeRouter.delete("/:id", async (req, res) => {
         });
         if (!existing)
             return res.status(404).json({ error: "Not found" });
+        const scope = await resolveOvertimeCallerScope(req, tenantId);
+        const isOwnPending = scope.selfEmpId === existing.employeeId && existing.status === "pending";
+        if (!scope.isHrAdmin && !isOwnPending) {
+            return res.status(403).json({
+                error: "Forbidden: Only HR Administrators or the requester (while pending) can delete an overtime request.",
+            });
+        }
         await prisma_1.prisma.overtimeRequest.delete({ where: { id: req.params.id } });
         res.json({ success: true });
     }
@@ -144,19 +242,24 @@ exports.overtimeRouter.delete("/:id", async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-// GET /api/overtime/stats — summary counts
+// GET /api/overtime/stats — summary counts within caller organizational scope
 exports.overtimeRouter.get("/stats", async (req, res) => {
     try {
         const tenantId = (0, tenant_1.resolveTenantId)(req, res);
         if (!tenantId)
             return;
+        const scope = await resolveOvertimeCallerScope(req, tenantId);
+        const baseWhere = { tenantId };
+        if (!scope.isHrAdmin) {
+            baseWhere.employeeId = { in: scope.allowedEmployeeIds && scope.allowedEmployeeIds.length > 0 ? scope.allowedEmployeeIds : ["__NONE__"] };
+        }
         const [total, pending, approved, rejected, hoursAgg] = await Promise.all([
-            prisma_1.prisma.overtimeRequest.count({ where: { tenantId } }),
-            prisma_1.prisma.overtimeRequest.count({ where: { tenantId, status: "pending" } }),
-            prisma_1.prisma.overtimeRequest.count({ where: { tenantId, status: "approved" } }),
-            prisma_1.prisma.overtimeRequest.count({ where: { tenantId, status: "rejected" } }),
+            prisma_1.prisma.overtimeRequest.count({ where: baseWhere }),
+            prisma_1.prisma.overtimeRequest.count({ where: { ...baseWhere, status: "pending" } }),
+            prisma_1.prisma.overtimeRequest.count({ where: { ...baseWhere, status: "approved" } }),
+            prisma_1.prisma.overtimeRequest.count({ where: { ...baseWhere, status: "rejected" } }),
             prisma_1.prisma.overtimeRequest.aggregate({
-                where: { tenantId, status: "approved" },
+                where: { ...baseWhere, status: "approved" },
                 _sum: { hoursRequested: true },
             }),
         ]);
@@ -964,6 +1067,39 @@ exports.systemMaintenanceRouter.get("/cronjobs", auth_1.requireAuth, auth_1.requ
                         lastStatus: "success",
                         durationMs: 380,
                     },
+                    {
+                        name: "Document Expiry & Compliance Monitor",
+                        code: "document_expiry_monitor",
+                        schedule: "Daily at 02:00 AM UTC",
+                        cronExpression: "0 2 * * *",
+                        nextRun: inMidnight,
+                        lastRun: now,
+                        status: "running",
+                        lastStatus: "success",
+                        durationMs: 450,
+                    },
+                    {
+                        name: "Probation & Contract Expiry Monitor",
+                        code: "probation_contract_monitor",
+                        schedule: "Daily at 02:30 AM UTC",
+                        cronExpression: "30 2 * * *",
+                        nextRun: inMidnight,
+                        lastRun: now,
+                        status: "running",
+                        lastStatus: "success",
+                        durationMs: 420,
+                    },
+                    {
+                        name: "Reporting Manager Change Scheduler",
+                        code: "reporting_manager_change_monitor",
+                        schedule: "Daily at 02:45 AM UTC",
+                        cronExpression: "45 2 * * *",
+                        nextRun: inMidnight,
+                        lastRun: now,
+                        status: "running",
+                        lastStatus: "success",
+                        durationMs: 380,
+                    },
                 ],
             });
             jobs = await prisma_1.prisma.systemCronJob.findMany({
@@ -1070,6 +1206,33 @@ exports.systemMaintenanceRouter.post("/cronjobs/:id/run", auth_1.requireAuth, au
                 executionError = e.message || "Execution failed";
             }
         }
+        else if (existing.code.includes("document_expiry") || existing.code === "document_expiry_monitor") {
+            try {
+                const docResult = await (0, document_expiry_cron_1.runDocumentExpiryCron)();
+                console.log(`[CRON] Processed document expiry monitoring:`, docResult);
+            }
+            catch (e) {
+                executionError = e.message || "Execution failed";
+            }
+        }
+        else if (existing.code.includes("probation_contract") || existing.code === "probation_contract_monitor") {
+            try {
+                const pcResult = await (0, probation_contract_expiry_cron_1.runProbationContractExpiryCron)();
+                console.log(`[CRON] Processed probation and contract expiry monitoring:`, pcResult);
+            }
+            catch (e) {
+                executionError = e.message || "Execution failed";
+            }
+        }
+        else if (existing.code.includes("reporting_manager") || existing.code === "reporting_manager_change_monitor") {
+            try {
+                const rmcResult = await (0, reporting_manager_change_cron_1.runReportingManagerChangeScheduler)();
+                console.log(`[CRON] Processed reporting manager change scheduling:`, rmcResult);
+            }
+            catch (e) {
+                executionError = e.message || "Execution failed";
+            }
+        }
         const duration = Math.max(15, Date.now() - startTime + Math.floor(100 + Math.random() * 200));
         const now = new Date();
         const next = new Date(now.getTime() + 5 * 60 * 1000);
@@ -1099,6 +1262,39 @@ exports.systemMaintenanceRouter.post("/cronjobs/:id/run", auth_1.requireAuth, au
 exports.systemMaintenanceRouter.post("/cronjobs/run-subscription-reminders", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
     try {
         const result = await (0, subscription_reminder_cron_1.runSubscriptionExpiryRemindersCron)();
+        res.json({ success: true, ...result });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/system/cronjobs/run-document-expiry (Super Admin or Scheduled invocation)
+exports.systemMaintenanceRouter.post("/cronjobs/run-document-expiry", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const tenantId = req.query.tenantId;
+        const result = await (0, document_expiry_cron_1.runDocumentExpiryCron)({ tenantId });
+        res.json({ success: true, ...result });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/system/cronjobs/run-probation-contract-expiry (Super Admin or Scheduled invocation)
+exports.systemMaintenanceRouter.post("/cronjobs/run-probation-contract-expiry", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const tenantId = req.query.tenantId;
+        const result = await (0, probation_contract_expiry_cron_1.runProbationContractExpiryCron)({ tenantId });
+        res.json({ success: true, ...result });
+    }
+    catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// POST /api/system/cronjobs/run-reporting-manager-changes (Super Admin or Scheduled invocation)
+exports.systemMaintenanceRouter.post("/cronjobs/run-reporting-manager-changes", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const tenantId = req.query.tenantId;
+        const result = await (0, reporting_manager_change_cron_1.runReportingManagerChangeScheduler)({ tenantId });
         res.json({ success: true, ...result });
     }
     catch (err) {

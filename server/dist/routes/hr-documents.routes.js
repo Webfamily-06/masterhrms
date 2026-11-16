@@ -2,8 +2,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.hrDocumentsRouter = void 0;
 const express_1 = require("express");
+const prisma_js_1 = require("../prisma.js");
 const auth_js_1 = require("../middleware/auth.js");
 const document_service_js_1 = require("../services/document.service.js");
+const contract_lifecycle_service_js_1 = require("../services/contract-lifecycle.service.js");
 exports.hrDocumentsRouter = (0, express_1.Router)();
 // Categories
 exports.hrDocumentsRouter.get("/categories", auth_js_1.requireAuth, async (req, res) => {
@@ -200,7 +202,60 @@ exports.hrDocumentsRouter.delete("/contract-types/:id", auth_js_1.requireAuth, a
         return res.status(400).json({ error: err.message });
     }
 });
+// Employee Contracts Settings
+exports.hrDocumentsRouter.get("/contracts/vendors", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const suppliers = await prisma_js_1.rawPrisma.supplier.findMany({
+            where: { tenantId },
+            select: {
+                id: true,
+                name: true,
+                gstin: true,
+                email: true,
+                phone: true,
+                city: true,
+            },
+            orderBy: { name: "asc" },
+        });
+        return res.json(suppliers);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+exports.hrDocumentsRouter.get("/contracts/settings", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const settings = await contract_lifecycle_service_js_1.ContractLifecycleService.getTenantExpirySettings(tenantId);
+        return res.json(settings);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+exports.hrDocumentsRouter.put("/contracts/settings", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const settings = await contract_lifecycle_service_js_1.ContractLifecycleService.updateTenantExpirySettings(tenantId, req.body, actorId);
+        return res.json(settings);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
 // Employee Contracts
+exports.hrDocumentsRouter.get("/contracts/overview", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const overview = await contract_lifecycle_service_js_1.ContractLifecycleService.getContractOverview(tenantId);
+        return res.json(overview);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
 exports.hrDocumentsRouter.get("/contracts", auth_js_1.requireAuth, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId;
@@ -208,8 +263,24 @@ exports.hrDocumentsRouter.get("/contracts", auth_js_1.requireAuth, async (req, r
             employeeId: req.query.employeeId,
             status: req.query.status,
             contractTypeId: req.query.contractTypeId,
+            category: req.query.category,
+            paymentWorkflow: req.query.paymentWorkflow,
+            supplierId: req.query.supplierId,
         });
-        return res.json(contracts);
+        const now = new Date();
+        const settings = await contract_lifecycle_service_js_1.ContractLifecycleService.getTenantExpirySettings(tenantId);
+        const evaluated = contracts.map((c) => {
+            const cls = contract_lifecycle_service_js_1.ContractLifecycleService.classifyContract(c, now, settings.reminderIntervals);
+            return {
+                ...c,
+                classification: cls.classification,
+                daysRemaining: cls.daysRemaining,
+                isExpired: cls.isExpired,
+                isExpiringSoon: cls.isExpiringSoon,
+                stage: cls.stage,
+            };
+        });
+        return res.json(evaluated);
     }
     catch (err) {
         return res.status(500).json({ error: err.message });
@@ -220,6 +291,99 @@ exports.hrDocumentsRouter.post("/contracts", auth_js_1.requireAuth, async (req, 
         const tenantId = req.user?.tenantId;
         const contract = await document_service_js_1.documentService.createContract(tenantId, req.body);
         return res.status(201).json(contract);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+// POST /contracts/:id/renew (Contract Renewal Lifecycle)
+exports.hrDocumentsRouter.post("/contracts/:id/renew", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const result = await contract_lifecycle_service_js_1.ContractLifecycleService.renewContract({
+            tenantId,
+            actorUserId: actorId,
+            predecessorId: req.params.id,
+            renewal: req.body,
+        });
+        return res.status(201).json(result);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+// POST /contracts/:id/convert (Convert to Permanent Employment)
+exports.hrDocumentsRouter.post("/contracts/:id/convert", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const result = await contract_lifecycle_service_js_1.ContractLifecycleService.convertContractToPermanent({
+            tenantId,
+            contractId: req.params.id,
+            actorUserId: actorId,
+            salary: req.body.salary,
+            notes: req.body.notes,
+        });
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+// POST /contracts/:id/amend (Amend Active Contract)
+exports.hrDocumentsRouter.post("/contracts/:id/amend", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const result = await contract_lifecycle_service_js_1.ContractLifecycleService.amendContract({
+            tenantId,
+            contractId: req.params.id,
+            actorUserId: actorId,
+            amendment: req.body,
+        });
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+// POST /contracts/:id/terminate (Terminate Contract)
+exports.hrDocumentsRouter.post("/contracts/:id/terminate", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const result = await contract_lifecycle_service_js_1.ContractLifecycleService.terminateContract({
+            tenantId,
+            contractId: req.params.id,
+            actorUserId: actorId,
+            reason: req.body.reason,
+        });
+        return res.status(200).json(result);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message });
+    }
+});
+// POST /contracts/:id/payable-voucher (Workflow B: Accounts Payable Purchase Voucher)
+exports.hrDocumentsRouter.post("/contracts/:id/payable-voucher", auth_js_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const { period, amount, invoiceNumber, notes } = req.body;
+        if (!period || amount === undefined) {
+            return res.status(400).json({ error: "Billing period and amount are required." });
+        }
+        const voucher = await contract_lifecycle_service_js_1.ContractLifecycleService.createVendorPayableVoucher({
+            tenantId,
+            contractId: req.params.id,
+            period,
+            amount: Number(amount),
+            invoiceNumber,
+            notes,
+            actorUserId: actorId,
+        });
+        return res.status(201).json(voucher);
     }
     catch (err) {
         return res.status(400).json({ error: err.message });

@@ -6,6 +6,7 @@ const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const tenant_context_1 = require("../context/tenant-context");
 const lifecycle_service_1 = require("../services/lifecycle.service");
+const probation_service_js_1 = require("../services/probation.service.js");
 exports.meLifecycleRouter = (0, express_1.Router)();
 exports.meLifecycleRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 async function resolveEmployee(req) {
@@ -331,5 +332,97 @@ exports.meLifecycleRouter.post("/complaints", auth_1.requireAuth, async (req, re
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to file complaint." });
+    }
+});
+// =========================================================================
+// 8. MY PROBATION & TEAM PROBATION REVIEWS (ME-LC-08)
+// =========================================================================
+// GET /api/v1/me/lifecycle/probation (My own probation status)
+exports.meLifecycleRouter.get("/probation", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const employee = await resolveEmployee(req);
+        if (!employee)
+            return res.status(404).json({ error: "Employee profile not found" });
+        const db = (0, tenant_context_1.getTenantDb)();
+        const probation = await db.probationRecord.findFirst({
+            where: { tenantId, employeeId: employee.id },
+            orderBy: { createdAt: "desc" },
+        });
+        if (!probation)
+            return res.json(null);
+        const cls = probation_service_js_1.ProbationService.classifyProbation(probation, new Date());
+        return res.json({
+            ...probation,
+            classification: cls.classification,
+            daysRemaining: cls.daysRemaining,
+            isOverdue: cls.isOverdue,
+            isDueSoon: cls.isDueSoon,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load probation." });
+    }
+});
+// GET /api/v1/me/lifecycle/team/probation (Subordinates' probation reviews assigned to me)
+exports.meLifecycleRouter.get("/team/probation", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const employee = await resolveEmployee(req);
+        if (!employee)
+            return res.json([]);
+        const db = (0, tenant_context_1.getTenantDb)();
+        const now = new Date();
+        const teamProbations = await db.probationRecord.findMany({
+            where: {
+                tenantId,
+                employee: { managerId: employee.id },
+            },
+            include: {
+                employee: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        employeeCode: true,
+                        position: true,
+                        department: { select: { id: true, name: true } },
+                    },
+                },
+            },
+            orderBy: { endDate: "asc" },
+        });
+        const evaluated = teamProbations.map((p) => {
+            const cls = probation_service_js_1.ProbationService.classifyProbation(p, now);
+            return {
+                ...p,
+                classification: cls.classification,
+                daysRemaining: cls.daysRemaining,
+                isOverdue: cls.isOverdue,
+                isDueSoon: cls.isDueSoon,
+                stage: cls.stage,
+            };
+        });
+        return res.json(evaluated);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to load team probation records." });
+    }
+});
+// POST /api/v1/me/lifecycle/team/probation/:id/review (Manager submits review)
+exports.meLifecycleRouter.post("/team/probation/:id/review", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        const actorId = req.user?.userId || "system";
+        const updated = await probation_service_js_1.ProbationService.submitManagerReview({
+            tenantId,
+            actorUserId: actorId,
+            probationId: req.params.id,
+            review: req.body,
+        });
+        return res.json(updated);
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to submit probation review." });
     }
 });

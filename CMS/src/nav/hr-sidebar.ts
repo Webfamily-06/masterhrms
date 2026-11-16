@@ -296,6 +296,7 @@ export const hrSidebar: HRMenuItem[] = [
         ],
       },
       { label: "My Profile", path: "/hr/profile", icon: "ph-user", permission: "hrm.dashboard.view" },
+      { label: "HR Settings", path: "/hr/settings", icon: "ph-gear", permission: "hrm.dashboard.view" },
     ],
   },
 

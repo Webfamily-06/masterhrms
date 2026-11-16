@@ -621,7 +621,10 @@ hrLeaveEncashmentCompOffRouter.post(
         tenantId,
         req.params.id,
         profile,
-        { reason: req.body?.reason || req.body?.comments || "" }
+        {
+          reason: req.body?.reason || req.body?.comments || "",
+          payrollRecoveryRef: req.body?.payrollRecoveryRef || req.body?.recoveryRef || undefined,
+        }
       );
       return res.json(reversed);
     } catch (err: any) {
@@ -1075,7 +1078,10 @@ hrLeaveEncashmentCompOffRouter.post(
         tenantId,
         req.params.id,
         profile,
-        { reason: req.body?.reason || req.body?.comments || "" }
+        {
+          reason: req.body?.reason || req.body?.comments || "",
+          payrollRecoveryRef: req.body?.payrollRecoveryRef || req.body?.recoveryRef || undefined,
+        }
       );
       return res.json(reversed);
     } catch (err: any) {

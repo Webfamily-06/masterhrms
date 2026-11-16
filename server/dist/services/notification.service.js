@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationService = void 0;
+const background_tasks_1 = require("../lib/background-tasks");
 const tenant_context_1 = require("../context/tenant-context");
 const prisma_1 = require("../prisma");
 const socket_1 = require("../socket");
@@ -104,7 +105,8 @@ class NotificationService {
         void pusher_service_1.PusherService.triggerUserEvent(params.tenantId, targetUserId, "notification:new", payload)
             .catch(() => { });
         // Web Push (RFC 8291 / RFC 8292) delivery to user's registered browser/device subscriptions
-        void this.dispatchWebPush(params.tenantId, targetUserId, {
+        // Tracked via trackBackgroundTask so Vercel serverless waits until push HTTP requests settle!
+        void (0, background_tasks_1.trackBackgroundTask)(this.dispatchWebPush(params.tenantId, targetUserId, {
             id: notification.id,
             title: notification.title,
             body: notification.body,
@@ -114,7 +116,7 @@ class NotificationService {
             actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
             metadata: notification.metadataJson,
             createdAt: notification.createdAt,
-        }).catch((err) => {
+        })).catch((err) => {
             console.warn("[NotificationService] Web Push dispatch failed:", err?.message || err);
         });
         return notification;
@@ -131,6 +133,9 @@ class NotificationService {
             if (!subscriptions || subscriptions.length === 0) {
                 return { sent: 0, failed: 0 };
             }
+            const isChatOrUrgent = payload.module === "CHAT_MESSAGE" ||
+                payload.module === "HR_ANNOUNCEMENT" ||
+                String(payload.module || "").includes("CALL");
             const pushPayload = {
                 type: "NOTIFICATION_NEW",
                 eventType: "NOTIFICATION_NEW",
@@ -144,7 +149,7 @@ class NotificationService {
                 module: payload.module || "SYSTEM",
                 linkTo: payload.linkTo || "/",
                 actionUrl: payload.actionUrl || payload.linkTo || "/",
-                icon: "/assets/img/logo-small.svg",
+                icon: "/assets/img/apple-icon.png",
                 badge: "/assets/img/favicon.png",
                 tag: `notif_${payload.id}`,
                 timestamp: payload.createdAt || new Date().toISOString(),
@@ -153,7 +158,11 @@ class NotificationService {
             let sent = 0;
             let failed = 0;
             await Promise.allSettled(subscriptions.map(async (sub) => {
-                const res = await vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, pushPayload, { ttl: 86400, urgency: "normal", topic: `notif_${payload.module?.toLowerCase() || "system"}` });
+                const res = await vapid_service_1.VapidService.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, pushPayload, {
+                    ttl: 86400,
+                    urgency: isChatOrUrgent ? "high" : "normal",
+                    topic: `notif_${payload.module?.toLowerCase() || "system"}`,
+                });
                 if (res.success) {
                     sent++;
                 }
@@ -261,3 +270,6 @@ class NotificationService {
     }
 }
 exports.NotificationService = NotificationService;
+// Serverless-safe: Web Push delivery is fire-and-forget at call sites; track it for the current request.
+const originalDispatchWebPush = NotificationService.dispatchWebPush.bind(NotificationService);
+NotificationService.dispatchWebPush = ((tenantId, userId, payload) => (0, background_tasks_1.trackBackgroundTask)(originalDispatchWebPush(tenantId, userId, payload)));

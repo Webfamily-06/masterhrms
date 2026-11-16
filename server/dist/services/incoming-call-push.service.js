@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IncomingCallPushService = void 0;
+const background_tasks_1 = require("../lib/background-tasks");
 const vapid_service_1 = require("./vapid.service");
 const push_subscription_store_1 = require("./push-subscription.store");
 class IncomingCallPushService {
@@ -122,3 +123,8 @@ class IncomingCallPushService {
     }
 }
 exports.IncomingCallPushService = IncomingCallPushService;
+// Serverless-safe: keep Web Push deliveries alive until they settle, even when callers fire-and-forget.
+const originalSendIncomingCallPush = IncomingCallPushService.sendIncomingCallPush.bind(IncomingCallPushService);
+const originalSendCallCancelledPush = IncomingCallPushService.sendCallCancelledPush.bind(IncomingCallPushService);
+IncomingCallPushService.sendIncomingCallPush = ((session) => (0, background_tasks_1.trackBackgroundTask)(originalSendIncomingCallPush(session)));
+IncomingCallPushService.sendCallCancelledPush = ((session) => (0, background_tasks_1.trackBackgroundTask)(originalSendCallCancelledPush(session)));

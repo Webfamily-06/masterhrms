@@ -17,7 +17,11 @@ import { OAuthFactory } from "../factories/oauth.factory";
 import { StorageFactory } from "../factories/storage.factory";
 import { SmsFactory } from "../factories/sms.factory";
 import { RealtimeFactory } from "../factories/realtime.factory";
+import { PusherService } from "../pusher.service";
+import { EnvSyncService } from "./env-sync.service";
 import { invalidateMaintenanceCache } from "../../middleware/maintenance";
+import { invalidateAuthCache } from "../../middleware/auth";
+import { prisma, rawPrisma } from "../../prisma";
 
 export interface LifecycleContext {
   userId?: string;
@@ -111,6 +115,21 @@ export class RuntimeLifecycleService {
     if (group === "email") {
       await MailerFactory.invalidate(scope, normScopeId);
       hotReloaded.push("MailerFactory");
+      if (scope === "PLATFORM") {
+        await EnvSyncService.syncPlatformGroup("email");
+        hotReloaded.push("EnvSyncService:email");
+      }
+    }
+
+    if (group === "pusher" && scope === "PLATFORM") {
+      PusherService.resetInstance();
+      await EnvSyncService.syncPlatformGroup("pusher");
+      hotReloaded.push("PusherService", "EnvSyncService:pusher");
+    }
+
+    if (group === "firebase" && scope === "PLATFORM") {
+      await EnvSyncService.syncPlatformGroup("firebase");
+      hotReloaded.push("FirebaseConfig", "EnvSyncService:firebase");
     }
 
     if (group === "oauth" && scope === "PLATFORM") {
@@ -131,6 +150,53 @@ export class RuntimeLifecycleService {
     if (group === "system" || changedKeys.some((k) => k.startsWith("system."))) {
       invalidateMaintenanceCache();
       hotReloaded.push("MaintenanceMiddleware");
+    }
+
+    // 4b. Synchronize authoritative Tenant table columns when TENANT locale/payments/branding change
+    if (scope === "TENANT" && normScopeId && ["locale", "payments", "branding"].includes(group)) {
+      try {
+        const db = rawPrisma || prisma;
+        const tenantUpdate: Record<string, any> = {};
+
+        if (group === "locale") {
+          const localeResolved = await SettingsService.getGroup("TENANT", normScopeId, "locale");
+          if (localeResolved?.values?.["locale.timezone"]) {
+            tenantUpdate.timezone = String(localeResolved.values["locale.timezone"]);
+          }
+          if (localeResolved?.values?.["locale.default_currency"]) {
+            tenantUpdate.currency = String(localeResolved.values["locale.default_currency"]).toUpperCase();
+          }
+        }
+
+        if (group === "payments" && payload["payments.currency"]) {
+          const nextCurrency = String(payload["payments.currency"]).toUpperCase();
+          tenantUpdate.currency = nextCurrency;
+          // Keep locale.default_currency aligned when Tenant Admin sets gateway currency
+          await SettingsService.setGroup(
+            "TENANT",
+            normScopeId,
+            "locale",
+            { "locale.default_currency": nextCurrency },
+            context
+          ).catch(() => null);
+          SettingsService.invalidateCache("TENANT", normScopeId, "locale");
+        }
+
+        if (group === "branding" && payload["branding.app_name"]) {
+          tenantUpdate.name = String(payload["branding.app_name"]).trim();
+        }
+
+        if (Object.keys(tenantUpdate).length > 0) {
+          await db.tenant.update({
+            where: { id: normScopeId },
+            data: tenantUpdate,
+          });
+          invalidateAuthCache(undefined, normScopeId);
+          hotReloaded.push("TenantTableSync");
+        }
+      } catch (syncErr: any) {
+        console.warn("[RuntimeLifecycleService] Tenant column sync warning:", syncErr?.message);
+      }
     }
 
     // 5. Realtime Socket.io broadcast phase (safe metadata only)

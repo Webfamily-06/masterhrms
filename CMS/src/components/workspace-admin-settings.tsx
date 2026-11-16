@@ -56,12 +56,12 @@ interface WorkspaceUserItem {
   createdAt: string;
 }
 
-export function WorkspaceAdminSettings() {
+export function WorkspaceAdminSettings({ defaultTab = "roles" }: { defaultTab?: string } = {}) {
   const queryClient = useQueryClient();
   const { isWorkspaceAdmin, isSuperAdmin, profile } = usePermissions();
   const { branding } = useTenantBranding();
 
-  const [activeSubTab, setActiveSubTab] = useState("roles");
+  const [activeSubTab, setActiveSubTab] = useState(defaultTab);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Role Form State (Create / Edit)

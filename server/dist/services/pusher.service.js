@@ -38,10 +38,35 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PusherService = void 0;
 const pusher_1 = __importDefault(require("pusher"));
+const zlib_1 = __importDefault(require("zlib"));
 const prisma_1 = require("../prisma");
+const background_tasks_1 = require("../lib/background-tasks");
 let pusherInstance = null;
 let pusherConfigInitialized = false;
 let lastConfigFingerprint = "";
+let cachedConfig = null;
+const CONFIG_CACHE_MS = 30_000;
+// Pusher Channels rejects event payloads above 10KB. WebRTC SDP offers/answers (especially
+// renegotiation offers when screen sharing) can approach that, so larger payloads are
+// gzip-compressed and the client transparently inflates `__gz` envelopes.
+const PUSHER_SAFE_PAYLOAD_BYTES = 9000;
+function encodePayloadForPusher(payload) {
+    try {
+        const json = JSON.stringify(payload);
+        if (Buffer.byteLength(json, "utf8") <= PUSHER_SAFE_PAYLOAD_BYTES)
+            return payload;
+        const gz = zlib_1.default.gzipSync(Buffer.from(json, "utf8")).toString("base64");
+        return {
+            __gz: gz,
+            callId: payload?.callId,
+            tenantId: payload?.tenantId,
+            timestamp: payload?.timestamp,
+        };
+    }
+    catch {
+        return payload;
+    }
+}
 class PusherService {
     /**
      * Resets the cached singleton instance to force re-instantiation on config changes.
@@ -50,11 +75,24 @@ class PusherService {
         pusherInstance = null;
         pusherConfigInitialized = false;
         lastConfigFingerprint = "";
+        cachedConfig = null;
+    }
+    /**
+     * Resolves Pusher configuration (cached for 30s so realtime call signaling does not pay
+     * two database round-trips per relayed SDP/ICE packet).
+     */
+    static async getConfig() {
+        if (cachedConfig && cachedConfig.expiresAt > Date.now()) {
+            return cachedConfig.value;
+        }
+        const value = await this.loadConfig();
+        cachedConfig = { value, expiresAt: Date.now() + CONFIG_CACHE_MS };
+        return value;
     }
     /**
      * Resolves Pusher configuration from SettingsService, CMS Settings (system-platform-settings), or Environment.
      */
-    static async getConfig() {
+    static async loadConfig() {
         let appId = process.env.PUSHER_APP_ID || process.env.VITE_PUSHER_APP_ID || "";
         let key = process.env.PUSHER_KEY || process.env.VITE_PUSHER_KEY || "";
         let secret = process.env.PUSHER_SECRET || process.env.VITE_PUSHER_SECRET || "";
@@ -209,13 +247,16 @@ class PusherService {
     /**
      * Triggers an in-app event on a user's private channel (private-user-{userId}).
      */
-    static async triggerUserEvent(tenantId, userId, eventName, data) {
+    static triggerUserEvent(tenantId, userId, eventName, data) {
+        return (0, background_tasks_1.trackBackgroundTask)(this.triggerUserEventNow(tenantId, userId, eventName, data));
+    }
+    static async triggerUserEventNow(tenantId, userId, eventName, data) {
         const channel = `private-user-${userId}`;
-        const payload = {
+        const payload = encodePayloadForPusher({
             ...data,
             tenantId,
             timestamp: new Date().toISOString(),
-        };
+        });
         const pusher = await this.getInstance();
         if (!pusher) {
             // Log delivery attempt safely in development
@@ -237,13 +278,16 @@ class PusherService {
     /**
      * Triggers an in-app event on a tenant's private channel (private-tenant-{tenantId}).
      */
-    static async triggerTenantEvent(tenantId, eventName, data) {
+    static triggerTenantEvent(tenantId, eventName, data) {
+        return (0, background_tasks_1.trackBackgroundTask)(this.triggerTenantEventNow(tenantId, eventName, data));
+    }
+    static async triggerTenantEventNow(tenantId, eventName, data) {
         const channel = `private-tenant-${tenantId}`;
-        const payload = {
+        const payload = encodePayloadForPusher({
             ...data,
             tenantId,
             timestamp: new Date().toISOString(),
-        };
+        });
         const pusher = await this.getInstance();
         if (!pusher) {
             console.log(`[PusherService (Dev/Mock)] Event "${eventName}" dispatched to tenant channel "${channel}"`);

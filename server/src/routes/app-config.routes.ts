@@ -8,6 +8,7 @@ import { getEffectiveRequestHost } from "../lib/workspace-host";
 import { verifyToken } from "../lib/jwt";
 import { prisma, rawPrisma } from "../prisma";
 import { getPlatformMaintenanceConfig, evaluateMaintenanceStatus } from "../middleware/maintenance";
+import { PusherService } from "../services/pusher.service";
 
 export const appConfigRouter = Router();
 
@@ -53,13 +54,18 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       (req.hostContext && (req.hostContext.type === "tenant" || req.hostContext.type === "custom_domain"))
     );
     let resolvedTenantId = req.resolvedTenant?.id || null;
+    let authenticatedUserId: string | null = null;
 
-    // Bearer token fallback for authenticated SPA context if not already tenant host
-    if (!isTenantHost && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+    // Decode Bearer token if present (works on both platform and tenant hosts)
+    // to resolve tenant fallback AND per-employee USER scope preferences (color, timezone, theme).
+    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
       try {
         const token = req.headers.authorization.split(" ")[1];
         const decoded = verifyToken(token);
-        if (decoded?.tenantId) {
+        if (decoded?.userId) {
+          authenticatedUserId = decoded.userId;
+        }
+        if (!isTenantHost && decoded?.tenantId) {
           resolvedTenantId = decoded.tenantId;
         }
       } catch {
@@ -75,14 +81,55 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       isTenantHost: isTenantHost || Boolean(resolvedTenantId),
     });
 
-    // Resolve branding and maintenance status concurrently
-    const [resolved, maintConfig] = await Promise.all([
+    // Resolve branding, maintenance, user preferences, and public realtime/push client configs concurrently
+    const [resolved, maintConfig, userGroupResult, pusherConfigResult, firebaseGroupResult] = await Promise.all([
       resolveBranding({
         scope: resolution.scope,
         tenantId: resolution.scope === "TENANT" ? resolution.tenantId : null,
       }),
       getPlatformMaintenanceConfig(),
+      authenticatedUserId
+        ? SettingsService.getGroup("USER", authenticatedUserId, "user").catch(() => null)
+        : Promise.resolve(null),
+      PusherService.getConfig().catch(() => null),
+      SettingsService.getGroup("PLATFORM", null, "firebase").catch(() => null),
     ]);
+
+    const isCmsOrAuth = resolution.context === "CMS" || resolution.context === "TENANT_LOGIN";
+
+    const rawUserColor =
+      !isCmsOrAuth && userGroupResult?.sources?.["user.primary_color"] === "USER"
+        ? userGroupResult.values["user.primary_color"]
+        : null;
+    const userPrimaryColor =
+      typeof rawUserColor === "string" && /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(rawUserColor.trim())
+        ? rawUserColor.trim()
+        : null;
+
+    const rawUserTimezone =
+      !isCmsOrAuth && userGroupResult?.sources?.["user.timezone"] === "USER"
+        ? userGroupResult.values["user.timezone"]
+        : "";
+    const userTimezoneOverride =
+      typeof rawUserTimezone === "string" && rawUserTimezone.trim().length > 0
+        ? rawUserTimezone.trim()
+        : null;
+
+    const userDateFormatOverride =
+      !isCmsOrAuth &&
+      userGroupResult?.sources?.["user.date_format"] === "USER" &&
+      userGroupResult.values["user.date_format"]
+        ? String(userGroupResult.values["user.date_format"])
+        : null;
+
+    const userTimeFormatOverride =
+      !isCmsOrAuth &&
+      userGroupResult?.sources?.["user.time_format"] === "USER" &&
+      userGroupResult.values["user.time_format"]
+        ? String(userGroupResult.values["user.time_format"])
+        : null;
+
+    const effectivePrimaryColor = userPrimaryColor || resolved.primaryColor;
 
     const branding = {
       logoLight: resolved.logoLightUrl,
@@ -91,13 +138,84 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       logoDarkUrl: resolved.logoDarkUrl,
       favicon: resolved.faviconUrl,
       faviconUrl: resolved.faviconUrl,
-      primaryColor: resolved.primaryColor,
+      primaryColor: effectivePrimaryColor,
+      workspacePrimaryColor: resolved.primaryColor,
+      userPrimaryColor,
       appName: resolved.appName,
       footerText: resolved.footerText,
       supportEmail: resolved.supportEmail,
     };
 
     const maintEvaluation = evaluateMaintenanceStatus(maintConfig);
+
+    // Public client-safe Firebase configuration (NEVER expose service_account_json)
+    const fbVals = firebaseGroupResult?.values || {};
+    const fbApiKey =
+      fbVals["firebase.api_key"] ||
+      process.env.VITE_FIREBASE_API_KEY ||
+      process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
+      "";
+    const fbProjectId =
+      fbVals["firebase.project_id"] ||
+      process.env.VITE_FIREBASE_PROJECT_ID ||
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+      "";
+    const fbEnabled =
+      firebaseGroupResult?.sources?.["firebase.enabled"] === "PLATFORM"
+        ? Boolean(fbVals["firebase.enabled"])
+        : Boolean(fbApiKey && fbProjectId);
+
+    const publicFirebase = {
+      enabled: fbEnabled,
+      apiKey: fbApiKey,
+      authDomain:
+        fbVals["firebase.auth_domain"] ||
+        process.env.VITE_FIREBASE_AUTH_DOMAIN ||
+        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+        "",
+      projectId: fbProjectId,
+      storageBucket:
+        fbVals["firebase.storage_bucket"] ||
+        process.env.VITE_FIREBASE_STORAGE_BUCKET ||
+        process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+        "",
+      messagingSenderId:
+        fbVals["firebase.messaging_sender_id"] ||
+        process.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+        process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ||
+        "",
+      appId:
+        fbVals["firebase.app_id"] ||
+        process.env.VITE_FIREBASE_APP_ID ||
+        process.env.NEXT_PUBLIC_FIREBASE_APP_ID ||
+        "",
+      measurementId:
+        fbVals["firebase.measurement_id"] ||
+        process.env.VITE_FIREBASE_MEASUREMENT_ID ||
+        process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID ||
+        "",
+      vapidKey:
+        fbVals["firebase.vapid_key"] ||
+        process.env.VITE_FIREBASE_VAPID_KEY ||
+        process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY ||
+        process.env.VAPID_PUBLIC_KEY ||
+        "",
+    };
+
+    // Public client-safe Pusher configuration (NEVER expose secret or appId)
+    const publicPusher = {
+      enabled: Boolean(pusherConfigResult?.enabled),
+      key: pusherConfigResult?.key || "",
+      cluster: pusherConfigResult?.cluster || "ap2",
+    };
+
+    const effectiveLocale = {
+      ...resolved.locale,
+      workspaceTimezone: resolved.locale.timezone,
+      timezone: userTimezoneOverride || resolved.locale.timezone,
+      dateFormat: userDateFormatOverride || resolved.locale.dateFormat,
+      timeFormat: userTimeFormatOverride || resolved.locale.timeFormat,
+    };
 
     const config = {
       scope: resolution.scope,
@@ -106,7 +224,9 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       branding,
       appName: resolved.appName,
       supportEmail: resolved.supportEmail,
-      primaryColor: resolved.primaryColor,
+      primaryColor: effectivePrimaryColor,
+      workspacePrimaryColor: resolved.primaryColor,
+      userPrimaryColor,
       logoLight: resolved.logoLightUrl,
       logoLightUrl: resolved.logoLightUrl,
       logoDark: resolved.logoDarkUrl,
@@ -114,13 +234,24 @@ appConfigRouter.get("/app-config", async (req: WorkspaceHostRequest, res: Respon
       favicon: resolved.faviconUrl,
       faviconUrl: resolved.faviconUrl,
       footerText: resolved.footerText,
-      locale: resolved.locale,
+      locale: effectiveLocale,
+      userPreferences: authenticatedUserId
+        ? {
+            userId: authenticatedUserId,
+            primaryColor: userPrimaryColor,
+            themeMode: userGroupResult?.values?.["user.theme_mode"] || "system",
+            timezone: userTimezoneOverride,
+            locale: userGroupResult?.values?.["user.locale"] || "en-US",
+          }
+        : null,
+      pusher: publicPusher,
+      firebase: publicFirebase,
       maintenance: {
         active: maintEvaluation.isActive,
         message: maintConfig.maintenanceNoticeMessage || null,
       },
       isWhiteLabeled: resolution.scope === "TENANT",
-      version: resolved.version,
+      version: Math.max(resolved.version, userGroupResult?.version || 1),
       timestamp: new Date().toISOString(),
     };
 

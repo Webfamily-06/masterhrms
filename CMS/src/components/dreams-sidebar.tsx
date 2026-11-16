@@ -102,6 +102,7 @@ const HR_ICON_MAP: Record<string, string> = {
   "Company Documents": "ph-file-text",
   "Media Library": "ph-image",
   "My Profile": "ph-user",
+  "HR Settings": "ph-gear",
 
   // 06. Reports & Analytics
   Reports: "ph-chart-bar",
@@ -1256,6 +1257,15 @@ export function DreamsSidebar({
                     </li>
                     <li>
                       <Link
+                        to="/tenant/settings"
+                        onClick={onCloseMobile}
+                        className={cn(currentPath === "/tenant/settings" && "active")}
+                      >
+                        Workspace Settings
+                      </Link>
+                    </li>
+                    <li>
+                      <Link
                         to="/tenant/domain"
                         onClick={onCloseMobile}
                         className={cn(currentPath === "/tenant/domain" && "active")}
@@ -2402,14 +2412,26 @@ export function DreamsSidebar({
             <li className="menu-title">
               <span>SETTINGS & SYSTEM</span>
             </li>
+            {(isTenantAdmin || isSuperAdmin) && (
+              <li>
+                <Link
+                  to="/tenant/settings"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/tenant/settings" && "active")}
+                >
+                  <i className="ph-duotone ph-gear-six"></i>
+                  <span>Workspace Settings</span>
+                </Link>
+              </li>
+            )}
             <li>
               <Link
-                to={isAdminOrSuper ? "/hr/settings" : "/settings"}
+                to={isAdminOrSuper ? "/hr/settings" : "/me/settings"}
                 onClick={onCloseMobile}
-                className={cn((currentPath === "/hr/settings" || currentPath === "/settings") && "active")}
+                className={cn((currentPath === "/hr/settings" || currentPath === "/me/settings" || currentPath === "/settings") && "active")}
               >
                 <i className="ph-duotone ph-gear"></i>
-                <span>Settings</span>
+                <span>{isAdminOrSuper ? "HR Settings" : "My Settings"}</span>
               </Link>
             </li>
             <li>

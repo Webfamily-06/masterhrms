@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import { rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
@@ -11,10 +11,124 @@ import { buildDataScopeFilter, DataScope } from "../lib/data-scope";
 import { AttendanceExportService, AttendanceCycle } from "../services/attendance-export.service.js";
 import { SandwichLeaveService } from "../services/sandwich-leave.service.js";
 import { ContractLifecycleService } from "../services/contract-lifecycle.service.js";
+import { LeaveService } from "../services/leave.service";
 
 export const hrAttendanceRouter = Router();
 
 hrAttendanceRouter.use(requireAuth, resolveTenantContext);
+
+function isElevatedHrAttendanceAdmin(req: AuthRequest): boolean {
+  const perms = req.user?.permissions || [];
+  return (
+    LeaveService.isElevatedHrUser(req.user?.roles) ||
+    perms.includes("*") ||
+    perms.includes("hrm.attendance.manage")
+  );
+}
+
+// Router-level RBAC guard:
+// - Read-only reference metadata (/departments, /policies, /shifts, /month-lock) remains accessible to authenticated workspace users (e.g., Employee Edit & ESS display).
+// - Administrative configuration & manual override mutations require elevated HR/Workspace Admin privileges (403 HR_ADMIN_REQUIRED).
+// - Operational HR/Team views, approvals, and exports require either elevated HR/Admin OR Reporting Manager privileges (403 FORBIDDEN).
+const READONLY_REFERENCE_PATHS = new Set(["/departments", "/policies", "/shifts", "/month-lock"]);
+const ADMIN_MUTATION_PREFIXES = [
+  "/records",
+  "/month-lock",
+  "/policies",
+  "/shifts",
+  "/devices",
+  "/automation",
+  "/settings",
+];
+
+hrAttendanceRouter.use(async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (req.method === "GET" && READONLY_REFERENCE_PATHS.has(req.path)) {
+      return next();
+    }
+
+    const isHrAdmin = isElevatedHrAttendanceAdmin(req);
+    if (isHrAdmin) {
+      return next();
+    }
+
+    // Non-GET administrative mutations on policies, shifts, rosters, month-locks, bulk/manual records, devices, automation
+    const isShiftSwapAction = req.path.startsWith("/shifts/swaps/");
+    if (
+      req.method !== "GET" &&
+      !isShiftSwapAction &&
+      ADMIN_MUTATION_PREFIXES.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))
+    ) {
+      return res.status(403).json({
+        error: "Forbidden: HR Administrator privileges are required for attendance configuration and overrides.",
+        code: "HR_ADMIN_REQUIRED",
+      });
+    }
+
+    // Check Reporting Manager status for team views & approval actions
+    const tenantId = req.tenantId!;
+    const callerEmp = await rawPrisma.employee.findFirst({
+      where: { tenantId, userId: req.user!.userId },
+      select: { id: true },
+    });
+    const directReportCount = callerEmp
+      ? await rawPrisma.employee.count({ where: { tenantId, managerId: callerEmp.id } })
+      : 0;
+    const isManager =
+      Boolean(req.user?.roles?.some((r) => ["manager", "team_lead", "department_head"].includes(String(r).toLowerCase()))) ||
+      directReportCount > 0;
+
+    if (!isManager) {
+      return res.status(403).json({
+        error: "Forbidden: HR Administrator or Reporting Manager privileges are required.",
+        code: "FORBIDDEN",
+      });
+    }
+
+    (req as any).callerManagerEmployeeId = callerEmp?.id || null;
+    return next();
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Authorization check failed" });
+  }
+});
+
+async function assertNotSelfOrOutOfScopeApproval(
+  req: AuthRequest,
+  tenantId: string,
+  targetEmployeeId: string
+): Promise<{ ok: boolean; status?: number; error?: string; code?: string }> {
+  const callerUserId = req.user!.userId;
+  const targetEmp = await rawPrisma.employee.findFirst({
+    where: { id: targetEmployeeId, tenantId },
+    select: { id: true, userId: true, managerId: true },
+  });
+  if (!targetEmp) {
+    return { ok: false, status: 404, error: "Target employee not found", code: "NOT_FOUND" };
+  }
+  const callerEmp = await rawPrisma.employee.findFirst({
+    where: { tenantId, userId: callerUserId },
+    select: { id: true },
+  });
+  if (targetEmp.userId === callerUserId || (callerEmp && callerEmp.id === targetEmp.id)) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Forbidden: Self-approval is not permitted.",
+      code: "SELF_APPROVAL_FORBIDDEN",
+    };
+  }
+  if (!isElevatedHrAttendanceAdmin(req)) {
+    if (!callerEmp || targetEmp.managerId !== callerEmp.id) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Forbidden: You can only review requests for your direct reports.",
+        code: "EMPLOYEE_SCOPE_FORBIDDEN",
+      };
+    }
+  }
+  return { ok: true };
+}
 
 // GET /api/v1/hr/attendance/departments
 hrAttendanceRouter.get("/departments", async (req: AuthRequest, res: Response) => {
@@ -888,6 +1002,11 @@ hrAttendanceRouter.post("/regularizations/:id/action", async (req: AuthRequest, 
       return res.status(404).json({ error: "Regularization request not found" });
     }
 
+    const authCheck = await assertNotSelfOrOutOfScopeApproval(req, tenantId, reg.employeeId);
+    if (!authCheck.ok) {
+      return res.status(authCheck.status).json({ error: authCheck.error, code: authCheck.code });
+    }
+
     if (action === "approve") {
       await AttendanceService.assertMonthUnlocked(tenantId, reg.attendanceDate);
 
@@ -1090,6 +1209,11 @@ hrAttendanceRouter.post("/shifts/swaps/:id/action", async (req: AuthRequest, res
       return res.status(404).json({ error: "Shift swap request not found" });
     }
 
+    const swapAuthCheck = await assertNotSelfOrOutOfScopeApproval(req, tenantId, swap.requesterEmployeeId);
+    if (!swapAuthCheck.ok) {
+      return res.status(swapAuthCheck.status).json({ error: swapAuthCheck.error, code: swapAuthCheck.code });
+    }
+
     const updated = await rawPrisma.shiftSwapRequest.update({
       where: { id },
       data: {
@@ -1139,6 +1263,11 @@ hrAttendanceRouter.post("/timesheets/:id/action", async (req: AuthRequest, res: 
       return res.status(404).json({ error: "Timesheet not found" });
     }
 
+    const tsAuthCheck = await assertNotSelfOrOutOfScopeApproval(req, tenantId, item.employeeId);
+    if (!tsAuthCheck.ok) {
+      return res.status(tsAuthCheck.status).json({ error: tsAuthCheck.error, code: tsAuthCheck.code });
+    }
+
     const updated = await rawPrisma.timesheet.update({
       where: { id },
       data: {
@@ -1181,6 +1310,11 @@ hrAttendanceRouter.post("/overtime/:id/action", async (req: AuthRequest, res: Re
     const item = await rawPrisma.overtimeRequest.findUnique({ where: { id } });
     if (!item || item.tenantId !== tenantId) {
       return res.status(404).json({ error: "Overtime request not found" });
+    }
+
+    const otAuthCheck = await assertNotSelfOrOutOfScopeApproval(req, tenantId, item.employeeId);
+    if (!otAuthCheck.ok) {
+      return res.status(otAuthCheck.status).json({ error: otAuthCheck.error, code: otAuthCheck.code });
     }
 
     const updated = await rawPrisma.overtimeRequest.update({

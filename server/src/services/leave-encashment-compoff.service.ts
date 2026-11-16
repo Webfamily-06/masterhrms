@@ -619,11 +619,21 @@ export class LeaveEncashmentCompOffService {
     };
   }
 
+  private static readonly serverlessExpirySweepAt = new Map<string, number>();
+
   static async getSummaryAggregates(
     tenantId: string,
     profile: CallerAuthorizationProfile,
     options?: { selfOnly?: boolean; expiringDaysHorizon?: number }
   ) {
+    if (process.env.VERCEL) {
+      const lastSwept = this.serverlessExpirySweepAt.get(tenantId) || 0;
+      if (Date.now() - lastSwept > 15 * 60 * 1000) {
+        this.serverlessExpirySweepAt.set(tenantId, Date.now());
+        await this.processTenantCompOffExpiry(tenantId).catch(() => {});
+      }
+    }
+
     const scopeFilter: any = { tenantId };
     if (options?.selfOnly) {
       scopeFilter.employeeId = profile.employeeId || "__NONE__";
@@ -4104,7 +4114,7 @@ export class LeaveEncashmentCompOffService {
     tenantId: string,
     requestId: string,
     profile: CallerAuthorizationProfile,
-    params: { reason: string }
+    params: { reason: string; payrollRecoveryRef?: string }
   ) {
     if (!profile.isHrAdmin) {
       throw new LeaveHttpError(
@@ -4148,6 +4158,56 @@ export class LeaveEncashmentCompOffService {
           400,
           "INVALID_REVERSAL_STATE"
         );
+      }
+
+      // Enforce documented financial control: PAID encashments disbursed in a finalized/published payroll run
+      // require a verified formal Payroll recovery/deduction entry before reversing the leave ledger.
+      const isAlreadyPaid = req.status === "PAID" || req.payrollStatus === "PAID";
+      let verifiedRecoveryRef: string | null = null;
+      if (isAlreadyPaid) {
+        const candidateRef = String(params.payrollRecoveryRef || "").trim();
+        if (!candidateRef || (req.payslipId && candidateRef === req.payslipId)) {
+          throw new LeaveHttpError(
+            "Cannot reverse a PAID leave encashment directly in the leave ledger. Record a formal Payroll recovery/adjustment entry first and provide its verified recovery reference.",
+            409,
+            "PAID_REQUIRES_PAYROLL_ADJUSTMENT"
+          );
+        }
+
+        const expectedAmount = Number(req.netPayableAmount || 0);
+        const [recoveryLoan, recoveryPayslip] = await Promise.all([
+          rawPrisma.employeeLoan.findFirst({
+            where: {
+              id: candidateRef,
+              tenantId,
+              employeeId: req.employeeId,
+              status: { in: ["active", "approved", "completed"] },
+            },
+            select: { id: true, principal: true },
+          }),
+          rawPrisma.payslip.findFirst({
+            where: {
+              id: candidateRef,
+              tenantId,
+              employeeId: req.employeeId,
+            },
+            select: { id: true, deductions: true },
+          }),
+        ]);
+
+        const validLoanRecovery =
+          recoveryLoan && Number(recoveryLoan.principal || 0) >= expectedAmount;
+        const validPayslipRecovery =
+          recoveryPayslip && Number(recoveryPayslip.deductions || 0) >= expectedAmount;
+
+        if (!validLoanRecovery && !validPayslipRecovery) {
+          throw new LeaveHttpError(
+            "Verified Payroll recovery/adjustment record not found or insufficient for this PAID encashment. Complete formal Payroll recovery before reversing the leave ledger.",
+            409,
+            "PAID_REQUIRES_PAYROLL_ADJUSTMENT"
+          );
+        }
+        verifiedRecoveryRef = candidateRef;
       }
 
       const reversed = await rawPrisma.$transaction(async (tx) => {
