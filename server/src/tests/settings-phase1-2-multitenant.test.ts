@@ -95,10 +95,46 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
       },
     });
 
+    const expiresNextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const superSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: superAdminUser.id,
+        tenantId: null,
+        deviceName: "Settings MultiTenant Super Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const tenantASession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantAAdminUser.id,
+        tenantId: tenantAId,
+        deviceName: "Settings MultiTenant A Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const tenantBSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantBAdminUser.id,
+        tenantId: tenantBId,
+        deviceName: "Settings MultiTenant B Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
     superToken = generateToken({
       userId: superAdminUser.id,
       email: superAdminUser.email,
       roles: ["super_admin"],
+      role: "super_admin",
+      sessionId: superSession.id,
     });
 
     tenantAToken = generateToken({
@@ -106,6 +142,8 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
       email: tenantAAdminUser.email,
       tenantId: tenantAId,
       roles: ["hr_admin"],
+      role: "hr_admin",
+      sessionId: tenantASession.id,
     });
 
     tenantBToken = generateToken({
@@ -113,6 +151,8 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
       email: tenantBAdminUser.email,
       tenantId: tenantBId,
       roles: ["hr_admin"],
+      role: "hr_admin",
+      sessionId: tenantBSession.id,
     });
 
     // 3. Create Media Assets
@@ -176,7 +216,7 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
     }
 
     // Cleanup settings, media, users and tenants
-    await prisma.mediaUsage.deleteMany({
+    await rawPrisma.mediaUsage.deleteMany({
       where: {
         mediaId: {
           in: [
@@ -190,20 +230,20 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
       },
     });
 
-    await prisma.setting.deleteMany({
+    await rawPrisma.setting.deleteMany({
       where: {
         scopeId: { in: [normalizeScopeId("PLATFORM", null), tenantAId, tenantBId] },
         group: "branding",
       },
     });
 
-    await prisma.settingAudit.deleteMany({
+    await rawPrisma.settingAudit.deleteMany({
       where: {
         scopeId: { in: [normalizeScopeId("PLATFORM", null), tenantAId, tenantBId] },
       },
     });
 
-    await prisma.mediaFile.deleteMany({
+    await rawPrisma.mediaFile.deleteMany({
       where: {
         id: {
           in: [
@@ -223,6 +263,9 @@ describe("Phase 1.2: White-Label Multi-Tenant Branding (Platform Default + Tenan
         where: { userId: { in: userIds } },
       });
       await rawPrisma.profile.deleteMany({
+        where: { userId: { in: userIds } },
+      });
+      await rawPrisma.deviceSession.deleteMany({
         where: { userId: { in: userIds } },
       });
       await rawPrisma.user.deleteMany({

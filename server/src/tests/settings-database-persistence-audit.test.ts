@@ -92,25 +92,65 @@ describe("Settings Database Persistence & Secret-Field Audit", { timeout: 30000 
       },
     });
 
+    const expiresNextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const superSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: superUser.id,
+        tenantId: null,
+        deviceName: "Settings Audit Super Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const tenantASession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantAUser.id,
+        tenantId: tenantAId,
+        deviceName: "Settings Audit Tenant A Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const tenantBSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantBUser.id,
+        tenantId: tenantBId,
+        deviceName: "Settings Audit Tenant B Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
     superToken = generateToken({
       userId: superUser.id,
       email: superUser.email,
       roles: ["super_admin"],
+      role: "super_admin",
       tenantId: null,
+      sessionId: superSession.id,
     });
 
     tenantAToken = generateToken({
       userId: tenantAUser.id,
       email: tenantAUser.email,
       roles: ["hr_admin"],
+      role: "hr_admin",
       tenantId: tenantAId,
+      sessionId: tenantASession.id,
     });
 
     tenantBToken = generateToken({
       userId: tenantBUser.id,
       email: tenantBUser.email,
       roles: ["hr_admin"],
+      role: "hr_admin",
       tenantId: tenantBId,
+      sessionId: tenantBSession.id,
     });
 
     // 3. Start ephemeral HTTP server
@@ -151,6 +191,12 @@ describe("Settings Database Persistence & Secret-Field Audit", { timeout: 30000 
             ],
           },
         },
+      });
+      await rawPrisma.deviceSession.deleteMany({
+        where: { userId: { in: [superUser.id, tenantAUser.id, tenantBUser.id] } },
+      });
+      await rawPrisma.user.deleteMany({
+        where: { id: { in: [superUser.id, tenantAUser.id, tenantBUser.id] } },
       });
       await rawPrisma.tenant.deleteMany({
         where: { id: { in: [tenantAId, tenantBId] } },

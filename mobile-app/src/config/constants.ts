@@ -1,0 +1,41 @@
+export const STORAGE_KEYS = {
+  REFRESH_TOKEN: 'masterhrms_refresh_token',
+  SESSION_ID: 'masterhrms_session_id',
+  TENANT_ID: 'masterhrms_tenant_id',
+  TENANT_SLUG: 'masterhrms_tenant_slug',
+  BIOMETRIC_ENABLED: 'masterhrms_biometric_enabled',
+  THEME_MODE: 'masterhrms_theme_mode',
+  LAST_WORKSPACE_NAME: 'masterhrms_last_workspace_name',
+} as const;
+
+export const QUERY_KEYS = {
+  AUTH: 'auth',
+  ME: 'me',
+  PROFILE: 'profile',
+  DASHBOARD: 'dashboard',
+  ATTENDANCE: 'attendance',
+  LEAVES: 'leaves',
+  LEAVE_BALANCES: 'leave_balances',
+  PAYSLIPS: 'payslips',
+  SHIFTS: 'shifts',
+  DOCUMENTS: 'documents',
+  ANNOUNCEMENTS: 'announcements',
+  TENANT: 'tenant',
+  HR_EMPLOYEES: 'hr_employees',
+  HR_DASHBOARD: 'hr_dashboard',
+  ADMIN_DASHBOARD: 'admin_dashboard',
+} as const;
+
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  LOCKED: 423,
+  TOO_MANY_REQUESTS: 429,
+  INTERNAL_SERVER_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503,
+} as const;

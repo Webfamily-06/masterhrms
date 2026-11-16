@@ -86,6 +86,10 @@ import {
   Play,
   AlertTriangle,
   Palette,
+  LayoutDashboard,
+  ArrowLeft,
+  Search,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -117,7 +121,7 @@ export function Settings() {
   const isEmployeeOnly = !isAdmin && (profile?.roles ?? []).includes("employee");
 
   const [activeTab, setActiveTabState] = useState<string>(
-    searchParams.tab || (isEmployeeOnly ? "security" : "organization"),
+    searchParams.tab || (isEmployeeOnly ? "security" : "overview"),
   );
 
   const navigate = Route.useNavigate();
@@ -831,9 +835,254 @@ export function Settings() {
     },
   ];
 
+  // Quick Hub Interactive Cards & Instant Filter State
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState("all");
+
+  const ALL_SETTING_CARDS = useMemo(() => [
+    {
+      id: "workspace",
+      tab: "workspace",
+      category: "identity",
+      categoryLabel: "Identity & Branding",
+      title: "Workspace Roles & Modules",
+      description: "Manage member roles, seat licenses, feature toggles and RBAC access matrices.",
+      icon: Users,
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      badge: "Admin Access",
+      hidden: !isAdmin,
+      keywords: ["roles", "users", "permissions", "modules", "rbac", "members", "seats"],
+    },
+    {
+      id: "workspace-branding",
+      tab: "workspace-branding",
+      category: "identity",
+      categoryLabel: "Identity & Branding",
+      title: "Workspace Branding & Appearance",
+      description: "Customize company logo, primary theme color, dark/light appearance and favicon.",
+      icon: Palette,
+      iconBg: "bg-purple-500/10",
+      iconColor: "text-purple-600 dark:text-purple-400",
+      badge: "White-Label",
+      hidden: !isAdmin,
+      keywords: ["branding", "logo", "theme", "color", "appearance", "favicon", "white-label"],
+    },
+    {
+      id: "company-profile",
+      tab: "company-profile",
+      category: "identity",
+      categoryLabel: "Identity & Branding",
+      title: "Company Profile & GSTIN",
+      description: "Authoritative legal business name, tax GSTINs, legal registration and billing addresses.",
+      icon: Building2,
+      iconBg: "bg-emerald-500/10",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      badge: "Legal Compliance",
+      hidden: !isAdmin,
+      keywords: ["company", "profile", "gst", "gstin", "tax", "address", "legal", "registration"],
+    },
+    {
+      id: "organization",
+      tab: "organization",
+      category: "identity",
+      categoryLabel: "Identity & Branding",
+      title: "Office Timings & Shift Rules",
+      description: "Set default office work hours, arrival grace periods, half-day thresholds and break windows.",
+      icon: Clock,
+      iconBg: "bg-amber-500/10",
+      iconColor: "text-amber-600 dark:text-amber-400",
+      badge: "Work Timings",
+      hidden: !isAdmin,
+      keywords: ["timing", "shift", "hours", "grace", "break", "halfday", "attendance", "office"],
+    },
+    {
+      id: "system-settings",
+      tab: "system-settings",
+      category: "identity",
+      categoryLabel: "Identity & Branding",
+      title: "Settings & Cloud Gateways",
+      description: "Manage storage providers (S3/MinIO), SMTP mail relays, SMS and payment gateways.",
+      icon: SlidersHorizontal,
+      iconBg: "bg-cyan-500/10",
+      iconColor: "text-cyan-600 dark:text-cyan-400",
+      badge: "Gateways & S3",
+      hidden: !isAdmin,
+      keywords: ["s3", "storage", "minio", "smtp", "gateway", "payments", "email", "sms"],
+    },
+    {
+      id: "leave-types",
+      tab: "leave-types",
+      category: "workforce",
+      categoryLabel: "Workforce & HR",
+      title: "Leave Categories & Quotas",
+      description: "Configure annual Paid Leave, Sick Leave, Casual Leave quotas, carryovers, and color tags.",
+      icon: CalendarCheck,
+      iconBg: "bg-teal-500/10",
+      iconColor: "text-teal-600 dark:text-teal-400",
+      badge: "Leave Policies",
+      hidden: !isHR && !isAdmin,
+      keywords: ["leave", "quota", "pto", "vacation", "sick", "casual", "policy", "days"],
+    },
+    {
+      id: "departments",
+      tab: "departments",
+      category: "workforce",
+      categoryLabel: "Workforce & HR",
+      title: "Departments & Teams",
+      description: "Organize organizational structure, reporting divisions, and team structures.",
+      icon: Briefcase,
+      iconBg: "bg-indigo-500/10",
+      iconColor: "text-indigo-600 dark:text-indigo-400",
+      badge: "Org Hierarchy",
+      hidden: !isHR && !isAdmin,
+      keywords: ["department", "team", "division", "structure", "head", "hierarchy"],
+    },
+    {
+      id: "approvals",
+      tab: "approvals",
+      category: "workforce",
+      categoryLabel: "Workforce & HR",
+      title: "Multi-Tier Approval Workflows",
+      description: "Configure multi-level approval hierarchies, timeout auto-approvals, and notifications.",
+      icon: Workflow,
+      iconBg: "bg-violet-500/10",
+      iconColor: "text-violet-600 dark:text-violet-400",
+      badge: "Automation",
+      hidden: !isAdmin,
+      keywords: ["approval", "workflow", "tier", "levels", "autoapprove", "escalation"],
+    },
+    {
+      id: "salary-settings",
+      tab: "salary-settings",
+      category: "payroll",
+      categoryLabel: "Payroll & Finance",
+      title: "Salary & Statutory Deductions",
+      description: "Formula rules for DA, HRA, Provident Fund (PF), ESI, and Professional Tax deductions.",
+      icon: Calculator,
+      iconBg: "bg-emerald-500/10",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      badge: "Payroll Rules",
+      hidden: !isAdmin,
+      keywords: ["salary", "payroll", "pf", "esi", "hra", "da", "tax", "statutory", "deductions"],
+    },
+    {
+      id: "invoice-settings",
+      tab: "invoice-settings",
+      category: "payroll",
+      categoryLabel: "Payroll & Finance",
+      title: "Invoicing & Payment Terms",
+      description: "Customize invoice prefixes, due day windows, wire bank details, and payment notes.",
+      icon: Receipt,
+      iconBg: "bg-amber-500/10",
+      iconColor: "text-amber-600 dark:text-amber-400",
+      badge: "Billing Terms",
+      hidden: !isAdmin,
+      keywords: ["invoice", "billing", "payment", "bank", "account", "terms", "prefix", "wire"],
+    },
+    {
+      id: "ai-settings",
+      tab: "ai-settings",
+      category: "intelligence",
+      categoryLabel: "System & AI",
+      title: "AI Multi-Model Engine",
+      description: "Configure API credentials for OpenAI (GPT-4o), Google Gemini, Claude, and DeepSeek.",
+      icon: Sparkles,
+      iconBg: "bg-fuchsia-500/10",
+      iconColor: "text-fuchsia-600 dark:text-fuchsia-400",
+      badge: "LLM Providers",
+      hidden: !isAdmin,
+      keywords: ["ai", "openai", "gemini", "claude", "deepseek", "chatgpt", "api", "keys", "llm"],
+    },
+    {
+      id: "custom-fields",
+      tab: "custom-fields",
+      category: "intelligence",
+      categoryLabel: "System & AI",
+      title: "Dynamic Custom Fields",
+      description: "Extend standard employee, client, ticket, and asset profiles with custom fields.",
+      icon: Code,
+      iconBg: "bg-rose-500/10",
+      iconColor: "text-rose-600 dark:text-rose-400",
+      badge: "Custom Schema",
+      hidden: !isAdmin,
+      keywords: ["custom", "fields", "schema", "attributes", "dynamic", "extend"],
+    },
+    {
+      id: "config-hub",
+      tab: "config-hub",
+      category: "intelligence",
+      categoryLabel: "System & AI",
+      title: "HRMS Module Config Hub",
+      description: "Direct one-click access to Attendance, Payroll, Claims, Vault, and SaaS subscriptions.",
+      icon: Layers,
+      iconBg: "bg-sky-500/10",
+      iconColor: "text-sky-600 dark:text-sky-400",
+      badge: "Module Directory",
+      hidden: !isAdmin,
+      keywords: ["hub", "modules", "shortcuts", "attendance", "vault", "announcements"],
+    },
+    {
+      id: "security",
+      tab: "security",
+      category: "security",
+      categoryLabel: "Security & Accounts",
+      title: "Security & Two-Factor (2FA)",
+      description: "Secure your account with TOTP authenticator apps and emergency recovery codes.",
+      icon: ShieldCheck,
+      iconBg: "bg-emerald-500/10",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+      badge: twoFactorStatus?.twoFactorEnabled ? "Active & Protected" : "Setup Recommended",
+      badgeColor: twoFactorStatus?.twoFactorEnabled ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20",
+      keywords: ["security", "2fa", "two-factor", "totp", "authenticator", "password", "backup"],
+    },
+    {
+      id: "email",
+      tab: "email",
+      category: "security",
+      categoryLabel: "Security & Accounts",
+      title: "Connected Email Accounts",
+      description: "Connect personal and corporate SMTP/IMAP accounts for email sync and outbound notifications.",
+      icon: Mail,
+      iconBg: "bg-blue-500/10",
+      iconColor: "text-blue-600 dark:text-blue-400",
+      badge: "Mail Accounts",
+      keywords: ["email", "smtp", "imap", "mail", "inbox", "accounts"],
+    },
+  ], [isAdmin, isHR, twoFactorStatus?.twoFactorEnabled]);
+
+  const filteredSettingCards = useMemo(() => {
+    return ALL_SETTING_CARDS.filter((card) => {
+      if (card.hidden) return false;
+      if (selectedCategoryFilter !== "all" && card.category !== selectedCategoryFilter) {
+        return false;
+      }
+      if (!settingsSearchQuery.trim()) return true;
+      const q = settingsSearchQuery.toLowerCase();
+      const matchTitle = card.title.toLowerCase().includes(q);
+      const matchDesc = card.description.toLowerCase().includes(q);
+      const matchCat = card.categoryLabel.toLowerCase().includes(q);
+      const matchKeywords = card.keywords?.some((k) => k.toLowerCase().includes(q));
+      return matchTitle || matchDesc || matchCat || matchKeywords;
+    });
+  }, [ALL_SETTING_CARDS, selectedCategoryFilter, settingsSearchQuery]);
+
   // Tenant Settings Nested Menus Hierarchy Definition — Text-driven enterprise navigation
   const TENANT_SETTINGS_NAV: SettingsNavCategory[] = useMemo(() => {
     return [
+      {
+        id: "overview-cat",
+        label: "Quick Access",
+        description: "Central overview and directory of all workspace settings",
+        items: [
+          {
+            id: "overview",
+            label: "Settings Quick Hub",
+            description: "Visual directory & search across all settings modules",
+            icon: LayoutDashboard,
+          },
+        ],
+      },
       {
         id: "workspace-cat",
         label: "Workspace & Identity",
@@ -844,26 +1093,31 @@ export function Settings() {
             id: "workspace",
             label: "Workspace Roles & Modules",
             description: "Manage member roles, seat licenses & module permissions",
+            icon: Users,
           },
           {
             id: "workspace-branding",
             label: "Workspace Branding",
             description: "Tenant logo, primary accent color & custom appearance",
+            icon: Palette,
           },
           {
             id: "company-profile",
             label: "Company Profile & GST",
             description: "Authoritative legal entity, GSTIN registrations & dispatch address",
+            icon: Building2,
           },
           {
             id: "organization",
             label: "Office Timing & Policy",
             description: "Working shift timings, grace windows & official hours",
+            icon: Clock,
           },
           {
             id: "system-settings",
             label: "Settings & Gateways (S3)",
             description: "General, communication, payments, storage and security settings",
+            icon: SlidersHorizontal,
           },
         ],
       },
@@ -877,18 +1131,21 @@ export function Settings() {
             id: "leave-types",
             label: "Leave Types & Quotas",
             description: "Annual vacation, sick, and casual leave quotas",
+            icon: CalendarCheck,
             hidden: !isHR,
           },
           {
             id: "departments",
             label: "Departments & Teams",
             description: "Organizational structure, divisions and department heads",
+            icon: Briefcase,
             hidden: !isHR,
           },
           {
             id: "approvals",
             label: "Approval Workflows",
             description: "Multi-tier approval chains and auto-approval timeouts",
+            icon: Workflow,
             hidden: !isAdmin,
           },
         ],
@@ -903,11 +1160,13 @@ export function Settings() {
             id: "salary-settings",
             label: "Salary & Statutory",
             description: "DA, HRA, PF, ESI, and professional tax formula rules",
+            icon: Calculator,
           },
           {
             id: "invoice-settings",
             label: "Invoice & Billing Terms",
             description: "Invoice numbering prefix, standard terms, and bank wire details",
+            icon: Receipt,
           },
         ],
       },
@@ -921,16 +1180,19 @@ export function Settings() {
             id: "config-hub",
             label: "HRMS Portal Config Hub",
             description: "Quick access shortcuts to core operational modules",
+            icon: Layers,
           },
           {
             id: "custom-fields",
             label: "Dynamic Custom Fields",
             description: "Extend schemas for employees, projects, tickets and clients",
+            icon: Code,
           },
           {
             id: "ai-settings",
             label: "AI & ChatGPT Settings",
             description: "Configure OpenAI, Google Gemini, Claude, and DeepSeek keys",
+            icon: Sparkles,
           },
         ],
       },
@@ -945,11 +1207,13 @@ export function Settings() {
             description: "Authenticator app, emergency backup codes & protection",
             badge: twoFactorStatus?.twoFactorEnabled ? "ACTIVE" : undefined,
             badgeColor: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+            icon: ShieldCheck,
           },
           {
             id: "email",
             label: "Email Accounts",
             description: "Personal and corporate SMTP, IMAP, and POP3 mailboxes",
+            icon: Mail,
           },
         ],
       },
@@ -1005,19 +1269,197 @@ export function Settings() {
 
           {/* Right Active Panel (No Tab Space!) */}
           <main className="flex-1 min-w-0 w-full space-y-5">
-            <SettingsSectionBreadcrumb
-              categoryLabel={activeNavInfo?.category?.label}
-              itemLabel={activeNavInfo?.item?.label || "Settings"}
-              itemDescription={activeNavInfo?.item?.description}
-              icon={activeNavInfo?.item?.icon}
-              badge={
-                activeNavInfo?.item?.badge ? (
-                  <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
-                    {activeNavInfo.item.badge}
+            {activeTab !== "overview" && (
+              <SettingsSectionBreadcrumb
+                categoryLabel={activeNavInfo?.category?.label}
+                itemLabel={activeNavInfo?.item?.label || "Settings"}
+                itemDescription={activeNavInfo?.item?.description}
+                icon={activeNavInfo?.item?.icon}
+                badge={
+                  activeNavInfo?.item?.badge ? (
+                    <Badge variant="outline" className={cn("text-[10px] font-mono", activeNavInfo.item.badgeColor)}>
+                      {activeNavInfo.item.badge}
+                    </Badge>
+                  ) : null
+                }
+                actions={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("overview")}
+                    className="h-8 gap-1.5 text-xs rounded-xl shadow-2xs hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    <span>Back to Settings Hub</span>
+                  </Button>
+                }
+              />
+            )}
+
+        {/* ===================== TAB: OVERVIEW (SETTINGS QUICK HUB) ===================== */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Hero / Quick Status Banner */}
+          <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 via-primary/5 to-background p-5 sm:p-6 shadow-2xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-xs font-semibold px-2 py-0.5 rounded-full">
+                    Admin Central Hub
                   </Badge>
-                ) : null
-              }
-            />
+                  <span className="text-xs text-muted-foreground">•</span>
+                  <span className="text-xs font-medium text-muted-foreground">{profile?.tenant?.name || "Workspace"}</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                  Settings Quick Hub & Directory
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
+                  Easily navigate, search, and configure all workspace modules, branding, workforce policies, salary formulas, and cloud integrations.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/80 border border-border/80 text-xs shadow-2xs">
+                  <Globe className="size-3.5 text-primary" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Timezone</span>
+                    <span className="font-semibold text-foreground truncate max-w-[120px]">{orgTimezone}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-background/80 border border-border/80 text-xs shadow-2xs">
+                  <ShieldCheck className={cn("size-3.5", twoFactorStatus?.twoFactorEnabled ? "text-emerald-500" : "text-amber-500")} />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Account 2FA</span>
+                    <span className={cn("font-semibold", twoFactorStatus?.twoFactorEnabled ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")}>
+                      {twoFactorStatus?.twoFactorEnabled ? "Protected" : "Disabled"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Search & Category Filter Bar */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+              {/* Live Instant Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  placeholder="Search any setting (e.g. branding, salary, logo, leave, email, 2fa, ai, gst, shifts...)"
+                  value={settingsSearchQuery}
+                  onChange={(e) => setSettingsSearchQuery(e.target.value)}
+                  className="pl-9 pr-9 h-10 rounded-xl bg-card border-border/80 text-sm shadow-2xs"
+                />
+                {settingsSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSettingsSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Result Counter */}
+              <div className="text-xs text-muted-foreground shrink-0 self-center sm:self-auto px-1">
+                Showing <span className="font-semibold text-foreground">{filteredSettingCards.length}</span> settings modules
+              </div>
+            </div>
+
+            {/* Quick Category Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: "all", label: "All Settings" },
+                { id: "identity", label: "Identity & Branding" },
+                { id: "workforce", label: "Workforce & HR" },
+                { id: "payroll", label: "Payroll & Finance" },
+                { id: "intelligence", label: "System & AI" },
+                { id: "security", label: "Security & Accounts" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter(cat.id)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs rounded-xl font-medium transition-all shrink-0 border",
+                    selectedCategoryFilter === cat.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                      : "bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60",
+                  )}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Settings Cards Grid */}
+          {filteredSettingCards.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredSettingCards.map((card) => {
+                const IconComponent = card.icon;
+                return (
+                  <div
+                    key={card.id}
+                    onClick={() => setActiveTab(card.tab)}
+                    className="group relative flex flex-col justify-between p-4 sm:p-5 rounded-2xl border border-border/70 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200 cursor-pointer text-left"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className={cn("p-2.5 rounded-xl border border-transparent transition-transform group-hover:scale-105 shrink-0", card.iconBg, card.iconColor)}>
+                          <IconComponent className="size-5" />
+                        </div>
+                        {card.badge && (
+                          <Badge variant="outline" className={cn("text-[10px] font-medium px-2 py-0.5", card.badgeColor || "bg-muted/50 text-muted-foreground border-border/60")}>
+                            {card.badge}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm sm:text-base font-bold text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+                          {card.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                          {card.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 mt-2 border-t border-border/40 flex items-center justify-between text-xs font-semibold text-primary">
+                      <span className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">{card.categoryLabel}</span>
+                      <span className="flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        Configure <ArrowRight className="size-3.5" />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-border bg-muted/10 space-y-3">
+              <div className="p-3 rounded-full bg-muted/60 text-muted-foreground w-fit mx-auto">
+                <Search className="size-6" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">No settings match your search</h3>
+              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                We couldn&apos;t find any settings matching &quot;{settingsSearchQuery}&quot;. Try searching for &quot;branding&quot;, &quot;salary&quot;, &quot;email&quot;, or &quot;leave&quot;.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSettingsSearchQuery("");
+                  setSelectedCategoryFilter("all");
+                }}
+                className="text-xs rounded-xl"
+              >
+                Reset Filter
+              </Button>
+            </div>
+          )}
+        </TabsContent>
 
         {/* ===================== TAB 0: WORKSPACE ADMIN (ROLES & MODULES) ===================== */}
         <TabsContent value="workspace" className="space-y-5">

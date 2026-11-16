@@ -42,11 +42,24 @@ describe("Platform Identity & Colors Settings Restart Persistence & DB Source-of
       },
     });
 
+    const expiresNextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const superSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: superAdminUser.id,
+        tenantId: null,
+        deviceName: "Settings E2E Super Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
     superToken = generateToken({
       userId: superAdminUser.id,
       email: superAdminUser.email,
       roles: ["super_admin"],
       role: "super_admin",
+      sessionId: superSession.id,
     });
 
     // 2. Create test tenant & tenant admin
@@ -72,12 +85,24 @@ describe("Platform Identity & Colors Settings Restart Persistence & DB Source-of
       },
     });
 
+    const tenantSession = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantAdminUser.id,
+        tenantId: testTenant.id,
+        deviceName: "Settings E2E Tenant Test",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
     tenantToken = generateToken({
       userId: tenantAdminUser.id,
       email: tenantAdminUser.email,
       roles: ["hr_admin"],
       role: "hr_admin",
       tenantId: testTenant.id,
+      sessionId: tenantSession.id,
     });
 
     // 3. Create test logo media record
@@ -118,6 +143,9 @@ describe("Platform Identity & Colors Settings Restart Persistence & DB Source-of
     }
     // Clean up test data
     try {
+      await rawPrisma.deviceSession.deleteMany({
+        where: { userId: { in: [superAdminUser.id, tenantAdminUser.id] } },
+      });
       await rawPrisma.setting.deleteMany({
         where: {
           OR: [

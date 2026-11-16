@@ -415,6 +415,36 @@ export const hrSidebar: HRMenuItem[] = [
       },
     ],
   },
+
+  // ─── 08. Settings & System ───────────────────────────────────────────────
+  {
+    label: "Settings & System",
+    icon: "gear",
+    permission: "hrm.dashboard.view",
+    children: [
+      {
+        label: "General Settings",
+        path: "/hr/settings",
+        icon: "ph-gear",
+        permission: "hrm.dashboard.view",
+      },
+      {
+        label: "Settings",
+        icon: "ph-sliders-horizontal",
+        permission: "hrm.dashboard.view",
+        children: [
+          { label: "Settings Quick Hub", path: "/hr/settings?tab=overview", permission: "hrm.dashboard.view" },
+          { label: "Workspace Branding", path: "/hr/settings?tab=workspace-branding", permission: "hrm.dashboard.view" },
+          { label: "Company Profile", path: "/hr/settings?tab=company-profile", permission: "hrm.dashboard.view" },
+          { label: "Custom Domain", path: "/settings/custom-domain", permission: "hrm.dashboard.view" },
+          { label: "Dynamic Custom Fields", path: "/custom-fields", permission: "hrm.dashboard.view" },
+          { label: "Users & Roles", path: "/users", permission: "hrm.dashboard.view" },
+          { label: "Email Accounts", path: "/settings/email-accounts", permission: "hrm.dashboard.view" },
+          { label: "Subscription & Billing", path: "/subscription", permission: "hrm.dashboard.view" },
+        ],
+      },
+    ],
+  },
 ];
 
 /**

@@ -93,11 +93,12 @@ export function getClientAuthState(): AuthUserState {
   const isTenantAdmin =
     isSuperAdmin ||
     normalizedRoles.some((r) =>
-      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
+      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner", "hradmin", "hr_admin"].includes(r)
     ) ||
     roleName.includes("admin") ||
     roleName.includes("owner") ||
-    roleName.includes("tenant");
+    roleName.includes("tenant") ||
+    roleName.includes("hr");
 
   const resolvedTenantId =
     user?.tenantId ||
