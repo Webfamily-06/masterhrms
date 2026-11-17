@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -59,61 +59,14 @@ export const PayslipsScreen: React.FC = () => {
   ];
 
   const latestSlip = payslips[0] || null;
-
-  const historyList = useMemo(() => {
-    if (payslips.length > 0) return payslips;
-    // Standard mock list matching 64. Payslip - Home.png
-    return [
-      {
-        id: 'ps1',
-        month: 2,
-        year: 2026,
-        grossSalary: 4250,
-        netSalary: 4250,
-        totalDeductions: 1550,
-        status: 'PAID',
-        paymentDate: 'Feb 01, 2026',
-      },
-      {
-        id: 'ps2',
-        month: 1,
-        year: 2026,
-        grossSalary: 4250,
-        netSalary: 4250,
-        totalDeductions: 1550,
-        status: 'PAID',
-        paymentDate: 'Jan 01, 2026',
-      },
-      {
-        id: 'ps-bonus',
-        month: 12,
-        year: 2025,
-        grossSalary: 1500,
-        netSalary: 1500,
-        totalDeductions: 0,
-        status: 'PAID',
-        paymentDate: 'Dec 20, 2025',
-        isBonus: true,
-      },
-      {
-        id: 'ps3',
-        month: 11,
-        year: 2025,
-        grossSalary: 4250,
-        netSalary: 4250,
-        totalDeductions: 1550,
-        status: 'PAID',
-        paymentDate: 'Nov 01, 2025',
-      },
-    ] as (PayslipItem & { isBonus?: boolean })[];
-  }, [payslips]);
+  const historyList = payslips;
 
   const handleSelectSlip = (slip: PayslipItem) => {
     navigation.navigate('SalarySlipDetail', {
-      month: monthNames[(slip.month || 2) - 1] || 'February',
-      year: slip.year || 2026,
-      gross: slip.grossSalary || 4250,
-      net: slip.netSalary || 4250,
+      month: monthNames[(slip.month || 1) - 1] || 'Current',
+      year: slip.year || new Date().getFullYear(),
+      gross: slip.grossSalary || 0,
+      net: slip.netSalary || 0,
     });
   };
 
@@ -155,20 +108,22 @@ export const PayslipsScreen: React.FC = () => {
             <Text style={styles.heroSub}>Latest Pay Period</Text>
             <Text style={styles.heroPeriod}>
               {latestSlip
-                ? `${monthNames[(latestSlip.month || 2) - 1]} 1 - ${monthNames[(latestSlip.month || 2) - 1]} 28, ${latestSlip.year || 2026}`
-                : 'Feb 1 - Feb 28, 2026'}
+                ? `${monthNames[(latestSlip.month || 1) - 1]} 1 - ${monthNames[(latestSlip.month || 1) - 1]} 28, ${latestSlip.year || new Date().getFullYear()}`
+                : 'No Recent Pay Period'}
             </Text>
 
             <View style={styles.heroDivider} />
 
             <View style={styles.heroAmountRow}>
               <Text style={styles.heroAmount}>
-                ${(latestSlip?.netSalary || 4250).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${Number(latestSlip?.netSalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </Text>
 
               <View style={styles.heroPaidPill}>
                 <Check size={12} color="#2563EB" strokeWidth={3} style={{ marginRight: 4 }} />
-                <Text style={styles.heroPaidText}>Paid</Text>
+                <Text style={styles.heroPaidText}>
+                  {latestSlip?.status || 'Pending'}
+                </Text>
               </View>
             </View>
           </View>
@@ -177,8 +132,13 @@ export const PayslipsScreen: React.FC = () => {
           <Text style={styles.sectionHeading}>HISTORY</Text>
 
           <View style={styles.historyList}>
-            {historyList.map((item) => {
-              const mName = monthNames[(item.month || 2) - 1] || 'February';
+            {historyList.length === 0 ? (
+              <View style={{ padding: 32, alignItems: 'center' }}>
+                <Text style={{ color: '#64748B', fontSize: 13 }}>No historical payslips found.</Text>
+              </View>
+            ) : (
+              historyList.map((item) => {
+              const mName = monthNames[(item.month || 1) - 1] || 'Month';
               const isBonus = (item as any).isBonus;
               return (
                 <TouchableOpacity
@@ -200,21 +160,22 @@ export const PayslipsScreen: React.FC = () => {
                       {isBonus ? 'Annual Bonus' : `${mName} ${item.year}`}
                     </Text>
                     <Text style={styles.historySub}>
-                      Paid on {item.paymentDate || `Feb 01, ${item.year}`}
+                      Paid on {item.paymentDate || `${mName} 01, ${item.year}`}
                     </Text>
                   </View>
 
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.historyAmount}>
-                      ${(item.netSalary || 4250).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      ${Number(item.netSalary || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </Text>
                     <View style={styles.historyPaidBadge}>
-                      <Text style={styles.historyPaidBadgeText}>Paid</Text>
+                      <Text style={styles.historyPaidBadgeText}>{item.status || 'Paid'}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
               );
-            })}
+            })
+            )}
           </View>
         </ScrollView>
       )}

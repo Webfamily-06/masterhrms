@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
@@ -15,51 +17,120 @@ import {
   Calendar,
   Pencil,
   X,
+  Plus,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { AttendanceService, TimesheetItem } from '../../../core/services/attendanceService';
 
 export const TimesheetScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Timesheet'>>();
 
   const [payPeriodMode, setPayPeriodMode] = useState<'weekly' | 'biweekly'>('biweekly');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [timesheets, setTimesheets] = useState<TimesheetItem[]>([]);
 
-  // Daily entries
-  const [entries, setEntries] = useState([
-    { id: '1', day: 'Monday', date: '15 September, 2025', regularHours: '08.00', overtimeHours: '01.50' },
-    { id: '2', day: 'Tuesday', date: '16 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
-    { id: '3', day: 'Wednesday', date: '17 September, 2025', regularHours: '08.00', overtimeHours: '01.50' },
-    { id: '4', day: 'Thursday', date: '18 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
-    { id: '5', day: 'Friday', date: '19 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
-    { id: '6', day: 'Saturday', date: '20 September, 2025', regularHours: '08.00', overtimeHours: '00.00' },
-  ]);
+  // Edit/Add Time Entry Modal
+  const [editingEntry, setEditingEntry] = useState<TimesheetItem | null>(null);
+  const [editDate, setEditDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editHours, setEditHours] = useState('8.00');
+  const [editDescription, setEditDescription] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // Edit Time Entry Modal (Matches 39_Edit Time Entry.png)
-  const [editingEntry, setEditingEntry] = useState<any | null>(null);
-  const [editRegular, setEditRegular] = useState('08.00');
-  const [editOvertime, setEditOvertime] = useState('01.50');
+  const loadData = useCallback(async () => {
+    try {
+      const data = await AttendanceService.getTimesheets();
+      setTimesheets(data || []);
+    } catch {
+      // Non-fatal
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const handleOpenEdit = (entry: any) => {
-    setEditingEntry(entry);
-    setEditRegular(entry.regularHours);
-    setEditOvertime(entry.overtimeHours);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
   };
 
-  const handleSaveEdit = () => {
-    if (!editingEntry) return;
-    setEntries((prev) =>
-      prev.map((e) =>
-        e.id === editingEntry.id
-          ? { ...e, regularHours: editRegular, overtimeHours: editOvertime }
-          : e
-      )
-    );
+  // Date range label for current period
+  const periodLabel = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    const endDays = payPeriodMode === 'weekly' ? 6 : 13;
+    const end = new Date(monday);
+    end.setDate(monday.getDate() + endDays);
+
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `${fmt(monday)} - ${fmt(end)}, ${end.getFullYear()}`;
+  }, [payPeriodMode]);
+
+  // Aggregate stats from real records
+  const { regularHours, overtimeHours, totalHours } = useMemo(() => {
+    let reg = 0;
+    let ot = 0;
+    timesheets.forEach((t) => {
+      const h = Number(t.hours) || 0;
+      if (h > 8) {
+        reg += 8;
+        ot += h - 8;
+      } else {
+        reg += h;
+      }
+    });
+    return {
+      regularHours: reg.toFixed(1),
+      overtimeHours: ot.toFixed(1),
+      totalHours: (reg + ot).toFixed(1),
+    };
+  }, [timesheets]);
+
+  const handleOpenAdd = () => {
     setEditingEntry(null);
+    setEditDate(new Date().toISOString().split('T')[0]);
+    setEditHours('8.00');
+    setEditDescription('');
   };
 
-  const handleSubmitTimesheet = () => {
-    Alert.alert('Timesheet Submitted', 'Your timesheet has been submitted to your supervisor for review.');
+  const handleOpenEdit = (entry: TimesheetItem) => {
+    setEditingEntry(entry);
+    setEditDate(entry.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
+    setEditHours(String(entry.hours || '8.00'));
+    setEditDescription(entry.description || '');
+  };
+
+  const handleSaveEntry = async () => {
+    const hoursNum = parseFloat(editHours);
+    if (isNaN(hoursNum) || hoursNum <= 0) {
+      Alert.alert('Invalid Hours', 'Please enter a valid positive number of hours.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      await AttendanceService.createTimesheet({
+        date: editDate,
+        hours: hoursNum,
+        description: editDescription,
+      });
+      setEditingEntry(null);
+      await loadData();
+      Alert.alert('Success', 'Timesheet entry saved.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Could not save timesheet entry.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -75,11 +146,22 @@ export const TimesheetScreen: React.FC = () => {
           <ArrowLeft size={18} color="#0F172A" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Timesheet</Text>
-        <View style={{ width: 36 }} />
+        <TouchableOpacity
+          onPress={handleOpenAdd}
+          style={styles.backCircleBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Add Time Entry"
+        >
+          <Plus size={18} color="#0284C7" strokeWidth={2.4} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Card: Pay Period (Matches 38_Timesheet.png) */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* Card: Pay Period */}
         <View style={styles.mainCard}>
           <Text style={styles.cardSectionTitle}>Pay Period</Text>
 
@@ -106,84 +188,92 @@ export const TimesheetScreen: React.FC = () => {
 
           {/* Week Info & Status */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12 }}>
-            <Text style={styles.weekRangeText}>Week on July 14- June 19</Text>
-            <Text style={styles.pendingApprovalText}>(Pending Approval)</Text>
+            <Text style={styles.weekRangeText}>{periodLabel}</Text>
+            <Text style={styles.pendingApprovalText}>
+              ({timesheets.length > 0 ? `${timesheets.length} Entries` : 'No Entries'})
+            </Text>
           </View>
 
           {/* 4 Stats Boxes */}
           <View style={styles.fourStatsGrid}>
             <View style={[styles.statBox, { backgroundColor: '#E0F2FE' }]}>
-              <Text style={styles.statVal}>40.0</Text>
+              <Text style={styles.statVal}>{regularHours}</Text>
               <Text style={styles.statLabel}>Regular</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: '#FEF3C7' }]}>
-              <Text style={styles.statVal}>09.0</Text>
+              <Text style={styles.statVal}>{overtimeHours}</Text>
               <Text style={styles.statLabel}>Overtime</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: '#F3E8FF' }]}>
-              <Text style={styles.statVal}>00.0</Text>
+              <Text style={styles.statVal}>0.0</Text>
               <Text style={styles.statLabel}>Leave</Text>
             </View>
 
             <View style={[styles.statBox, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={styles.statVal}>49.0</Text>
+              <Text style={styles.statVal}>{totalHours}</Text>
               <Text style={styles.statLabel}>Total Hours</Text>
             </View>
           </View>
         </View>
 
-        {/* Card: Daily Breakdown (Matches 38_Timesheet.png) */}
+        {/* Card: Daily Breakdown */}
         <View style={styles.mainCard}>
           <Text style={styles.cardSectionTitle}>Daily Breakdown</Text>
 
-          <View style={styles.entriesList}>
-            {entries.map((item) => (
-              <View key={item.id} style={styles.entryRowCard}>
-                <View style={[styles.entryIconBox, { backgroundColor: '#E0F2FE' }]}>
-                  <Calendar size={18} color="#0284C7" />
-                </View>
+          {loading ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#0284C7" />
+            </View>
+          ) : timesheets.length === 0 ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <Text style={{ color: '#64748B', fontSize: 13 }}>No timesheet records found for this period.</Text>
+            </View>
+          ) : (
+            <View style={styles.entriesList}>
+              {timesheets.map((item) => {
+                const itemDate = new Date(item.date);
+                const dayName = isNaN(itemDate.getTime())
+                  ? 'Workday'
+                  : itemDate.toLocaleDateString('en-US', { weekday: 'long' });
+                const dateFmt = isNaN(itemDate.getTime())
+                  ? item.date
+                  : itemDate.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.entryDayTitle}>{item.day}</Text>
-                  <Text style={styles.entryDateSub}>{item.date}</Text>
-                </View>
+                return (
+                  <View key={item.id} style={styles.entryRowCard}>
+                    <View style={[styles.entryIconBox, { backgroundColor: '#E0F2FE' }]}>
+                      <Calendar size={18} color="#0284C7" />
+                    </View>
 
-                <Text style={styles.entryHoursText}>{item.regularHours} Hrs</Text>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={styles.entryDayTitle}>{dayName}</Text>
+                      <Text style={styles.entryDateSub}>{dateFmt}</Text>
+                      {item.projectName && (
+                        <Text style={{ fontSize: 11, color: '#64748B', marginTop: 2 }}>
+                          {item.projectName}
+                        </Text>
+                      )}
+                    </View>
 
-                <TouchableOpacity
-                  style={styles.pencilEditBtn}
-                  onPress={() => handleOpenEdit(item)}
-                >
-                  <Pencil size={16} color="#64748B" />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        </View>
+                    <Text style={styles.entryHoursText}>{Number(item.hours).toFixed(2)} Hrs</Text>
 
-        {/* Bottom Double Actions: Cancel | Submit */}
-        <View style={styles.bottomButtonsRow}>
-          <TouchableOpacity
-            style={styles.whiteBtn}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.whiteBtnText}>Cancel</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.blueBtn}
-            onPress={handleSubmitTimesheet}
-          >
-            <Text style={styles.blueBtnText}>Submit</Text>
-          </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.pencilEditBtn}
+                      onPress={() => handleOpenEdit(item)}
+                    >
+                      <Pencil size={16} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
       </ScrollView>
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* 39_Edit Time Entry Modal                                          */}
-      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* Edit/Add Time Entry Modal */}
       <Modal visible={Boolean(editingEntry)} animationType="slide" transparent onRequestClose={() => setEditingEntry(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.editModalSheet}>
@@ -191,23 +281,32 @@ export const TimesheetScreen: React.FC = () => {
               <X size={18} color="#0F172A" />
             </TouchableOpacity>
 
-            <Text style={styles.editModalTitle}>Edit Time Entry</Text>
+            <Text style={styles.editModalTitle}>
+              {editingEntry ? 'Edit Time Entry' : 'New Time Entry'}
+            </Text>
             <View style={styles.dividerThin} />
 
             <TextInput
               style={styles.inputOutline}
-              value={editRegular}
-              onChangeText={setEditRegular}
-              placeholder="Regulars time"
-              keyboardType="numeric"
+              value={editDate}
+              onChangeText={setEditDate}
+              placeholder="Date (YYYY-MM-DD)"
             />
 
             <TextInput
               style={styles.inputOutline}
-              value={editOvertime}
-              onChangeText={setEditOvertime}
-              placeholder="Over time"
+              value={editHours}
+              onChangeText={setEditHours}
+              placeholder="Hours (e.g. 8.0)"
               keyboardType="numeric"
+            />
+
+            <TextInput
+              style={[styles.inputOutline, { height: 64 }]}
+              value={editDescription}
+              onChangeText={setEditDescription}
+              placeholder="Work description / notes"
+              multiline
             />
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
@@ -220,9 +319,14 @@ export const TimesheetScreen: React.FC = () => {
 
               <TouchableOpacity
                 style={styles.blueBtn}
-                onPress={handleSaveEdit}
+                onPress={handleSaveEntry}
+                disabled={saving}
               >
-                <Text style={styles.blueBtnText}>Save</Text>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.blueBtnText}>Save</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

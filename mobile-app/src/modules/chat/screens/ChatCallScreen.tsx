@@ -36,6 +36,7 @@ import { Config } from '../../../config/environment';
 type CallLifecycleState =
   | 'DIALING'
   | 'RINGING'
+  | 'ACCEPTING'
   | 'CONNECTED'
   | 'BUSY'
   | 'DECLINED'
@@ -45,6 +46,7 @@ type CallLifecycleState =
 interface MeetingPeer {
   userId: string;
   name: string;
+  avatarUrl?: string;
   isMuted?: boolean;
   isVideoOff?: boolean;
 }
@@ -103,8 +105,9 @@ export const ChatCallScreen: React.FC = () => {
 
   const [activeCallId, setActiveCallId] = useState<string | null>(initialCallId || null);
   const [callState, setCallState] = useState<CallLifecycleState>(
-    isIncoming || isGroupMeeting ? 'CONNECTED' : 'DIALING'
+    isGroupMeeting ? 'CONNECTED' : isIncoming ? 'RINGING' : 'DIALING'
   );
+  const [isAnswering, setIsAnswering] = useState(false);
   const [statusNote, setStatusNote] = useState<string>('');
   const [callDuration, setCallDuration] = useState(0);
 
@@ -165,6 +168,7 @@ export const ChatCallScreen: React.FC = () => {
           data.participants.map((p: any) => ({
             userId: String(p.userId || p.id),
             name: String(p.name || 'Participant'),
+            avatarUrl: p.avatarUrl || p.avatar || p.image,
             isMuted: Boolean(p.isMuted),
             isVideoOff: Boolean(p.isVideoOff ?? p.isCameraOff),
           }))
@@ -199,7 +203,7 @@ export const ChatCallScreen: React.FC = () => {
 
         if (isIncoming && initialCallId) {
           setActiveCallId(initialCallId);
-          setCallState('CONNECTED');
+          setCallState('RINGING');
           return;
         }
 
@@ -386,12 +390,32 @@ export const ChatCallScreen: React.FC = () => {
     }
   };
 
+  const handleAnswerIncoming = async () => {
+    if (!activeCallId || isAnswering) return;
+    try {
+      setIsAnswering(true);
+      setCallState('ACCEPTING');
+      setStatusNote('Connecting...');
+      await ChatService.acceptCall(activeCallId);
+      setCallState('CONNECTED');
+      setStatusNote('');
+    } catch (err: any) {
+      setCallState('ERROR');
+      setStatusNote(err?.message || 'Failed to connect call');
+      setTimeout(() => navigation.goBack(), 1500);
+    } finally {
+      setIsAnswering(false);
+    }
+  };
+
   const handleHangupOrLeave = async () => {
     if (!endedCleanupRef.current && activeCallId) {
       endedCleanupRef.current = true;
       try {
         if (isGroupMeeting) {
           await ChatService.leaveGroupMeeting(activeCallId);
+        } else if (isIncoming && (callState === 'RINGING' || callState === 'ACCEPTING')) {
+          await ChatService.rejectCall(activeCallId, 'declined_by_user');
         } else if (callState === 'RINGING' || callState === 'DIALING') {
           await ChatService.cancelCall(activeCallId);
         } else if (callState === 'CONNECTED') {
@@ -438,7 +462,9 @@ export const ChatCallScreen: React.FC = () => {
     callState === 'DIALING'
       ? 'Dialing...'
       : callState === 'RINGING'
-      ? 'Ringing...'
+      ? isIncoming ? 'Incoming Call...' : 'Ringing...'
+      : callState === 'ACCEPTING'
+      ? 'Connecting...'
       : callState === 'CONNECTED'
       ? formatDuration(callDuration)
       : statusNote || callState;
@@ -524,40 +550,50 @@ export const ChatCallScreen: React.FC = () => {
         <ScrollView contentContainerStyle={styles.gridWrap}>
           {participants.length === 0 ? (
             <View style={styles.tileCard}>
-              <Text style={styles.tileInitials}>
-                {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
-              </Text>
+              {user?.profile?.avatarUrl ? (
+                <Image source={{ uri: selfAvatar }} style={styles.tileAvatarImage} />
+              ) : (
+                <Text style={styles.tileInitials}>
+                  {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
+                </Text>
+              )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                 <Text style={styles.tileName}>You</Text>
                 {isMuted ? <MicOff size={12} color="#EF4444" /> : <Mic size={12} color="#10B981" />}
               </View>
             </View>
           ) : (
-            participants.map((p) => (
-              <View key={p.userId} style={styles.tileCard}>
-                <Text style={styles.tileInitials}>
-                  {p.name.substring(0, 2).toUpperCase()}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <Text style={styles.tileName} numberOfLines={1}>
-                    {p.name}
-                  </Text>
-                  {p.isMuted ? <MicOff size={12} color="#EF4444" /> : <Mic size={12} color="#10B981" />}
+            participants.map((p) => {
+              const pAvatar = p.avatarUrl
+                ? (p.avatarUrl.startsWith('http')
+                    ? p.avatarUrl
+                    : `${Config.API_BASE_URL}${p.avatarUrl.startsWith('/') ? '' : '/'}${p.avatarUrl}`)
+                : `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(p.name)}&backgroundColor=00d287`;
+
+              return (
+                <View key={p.userId} style={styles.tileCard}>
+                  <Image source={{ uri: pAvatar }} style={styles.tileAvatarImage} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                    <Text style={styles.tileName} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    {p.isMuted ? <MicOff size={12} color="#EF4444" /> : <Mic size={12} color="#10B981" />}
+                  </View>
+                  {canEndMeetingForAll && p.userId !== user?.id && activeCallId && (
+                    <TouchableOpacity
+                      style={styles.removePeerBtn}
+                      onPress={() =>
+                        ChatService.removeGroupMeetingParticipant(activeCallId, p.userId).then(() =>
+                          refreshMeetingRoster(activeCallId)
+                        )
+                      }
+                    >
+                      <Text style={styles.removePeerText}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                {canEndMeetingForAll && p.userId !== user?.id && activeCallId && (
-                  <TouchableOpacity
-                    style={styles.removePeerBtn}
-                    onPress={() =>
-                      ChatService.removeGroupMeetingParticipant(activeCallId, p.userId).then(() =>
-                        refreshMeetingRoster(activeCallId)
-                      )
-                    }
-                  >
-                    <Text style={styles.removePeerText}>Remove</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       ) : isVideoEnabled ? (
@@ -621,12 +657,17 @@ export const ChatCallScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.answerCircleBtn}
-              onPress={() => setCallState('CONNECTED')}
+              onPress={handleAnswerIncoming}
+              disabled={isAnswering}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Answer incoming call"
             >
-              <Phone size={28} color="#FFFFFF" strokeWidth={2.4} />
+              {isAnswering ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Phone size={28} color="#FFFFFF" strokeWidth={2.4} />
+              )}
             </TouchableOpacity>
           </View>
         ) : (
@@ -861,6 +902,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  tileAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginBottom: 6,
+    backgroundColor: '#E2E8F0',
   },
   tileInitials: {
     color: '#0F172A',

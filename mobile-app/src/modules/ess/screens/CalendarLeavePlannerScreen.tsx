@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,22 +10,69 @@ import { ArrowLeft } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { LeaveService, LeaveRequest } from '../../../core/services/leaveService';
+import { EmployeeService, Holiday } from '../../../core/services/employeeService';
 
 export const CalendarLeavePlannerScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'CalendarLeavePlanner'>>();
-  const [selectedDay, setSelectedDay] = useState<number>(16);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
+  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
 
-  // November 2026 dates (starts on Sunday Nov 1)
-  const daysInMonth = Array.from({ length: 30 }, (_, i) => i + 1);
+  useEffect(() => {
+    Promise.all([
+      LeaveService.getMyRequests().catch(() => []),
+      EmployeeService.getHolidays().catch(() => []),
+    ]).then(([l, h]) => {
+      setLeaves(l || []);
+      setHolidays(h || []);
+    });
+  }, []);
 
-  // Sample status mapping
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const numDays = useMemo(() => new Date(year, month + 1, 0).getDate(), [year, month]);
+  const daysInMonth = useMemo(() => Array.from({ length: numDays }, (_, i) => i + 1), [numDays]);
+  const monthTitle = useMemo(
+    () => currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    [currentDate]
+  );
+
+  const handlePrevMonth = () => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  // Status mapping based on real leaves and holidays
   const getDayStatus = (day: number) => {
-    // Weekends (Sundays: 1, 8, 15, 22, 29; Saturdays: 7, 14, 21, 28)
-    const dayOfWeek = (day - 1) % 7;
+    const d = new Date(year, month, day);
+    const dayOfWeek = d.getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) return 'WEEKEND';
-    if (day === 12 || day === 27) return 'HOLIDAY';
-    if (day === 5 || day === 6) return 'LEAVE';
-    if (day <= 16) return 'PRESENT';
+
+    const dateStr = d.toISOString().split('T')[0];
+    const isHoliday = holidays.some((h) => h.date?.split('T')[0] === dateStr);
+    if (isHoliday) return 'HOLIDAY';
+
+    const isLeave = leaves.some((l) => {
+      const s = l.startDate?.split('T')[0];
+      const e = (l.endDate || l.startDate)?.split('T')[0];
+      return (
+        s &&
+        e &&
+        s <= dateStr &&
+        dateStr <= e &&
+        l.status !== 'REJECTED' &&
+        l.status !== 'CANCELLED'
+      );
+    });
+    if (isLeave) return 'LEAVE';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (dateStr <= todayStr) return 'PRESENT';
     return 'FUTURE';
   };
 
@@ -57,11 +104,21 @@ export const CalendarLeavePlannerScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Month Selector */}
         <View style={styles.monthHeader}>
-          <TouchableOpacity style={styles.arrowBtn}>
+          <TouchableOpacity
+            style={styles.arrowBtn}
+            onPress={handlePrevMonth}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
             <Text style={styles.arrowText}>‹</Text>
           </TouchableOpacity>
-          <Text style={styles.monthTitle}>November 2026</Text>
-          <TouchableOpacity style={styles.arrowBtn}>
+          <Text style={styles.monthTitle}>{monthTitle}</Text>
+          <TouchableOpacity
+            style={styles.arrowBtn}
+            onPress={handleNextMonth}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
             <Text style={styles.arrowText}>›</Text>
           </TouchableOpacity>
         </View>

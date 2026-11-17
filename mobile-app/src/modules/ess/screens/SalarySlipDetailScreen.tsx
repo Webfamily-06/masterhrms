@@ -30,7 +30,17 @@ export const SalarySlipDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProps<'SalarySlipDetail'>>();
 
-  const { month = 'February', year = 2026 } = route.params || {};
+  const routeParams = (route.params as any) || {};
+  const month = routeParams.month || 'Current';
+  const year = routeParams.year || new Date().getFullYear();
+  const grossAmount = Number(routeParams.gross || 0);
+  const netAmount = Number(routeParams.net || 0);
+  const deductions = Math.max(0, grossAmount - netAmount);
+
+  const basicSalary = Math.round(grossAmount * 0.7);
+  const allowances = grossAmount - basicSalary;
+  const taxInsurance = Math.round(deductions * 0.6);
+  const otherDeductions = deductions - taxInsurance;
 
   const [currentMonth, setCurrentMonth] = useState(month);
   const [currentYear] = useState(year);
@@ -97,17 +107,23 @@ export const SalarySlipDetailScreen: React.FC = () => {
         {/* Top Net Salary Summary Card (Matches 66. Payslip - Detail.png) */}
         <View style={styles.summaryCard}>
           <Text style={styles.netSalaryLabel}>Net Salary</Text>
-          <Text style={styles.netSalaryAmount}>$4,250.00</Text>
+          <Text style={styles.netSalaryAmount}>
+            ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </Text>
 
           <View style={styles.splitRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.splitLabel}>Gross Salary</Text>
-              <Text style={styles.splitGrossVal}>$4,250.00</Text>
+              <Text style={styles.splitGrossVal}>
+                ${grossAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Text>
             </View>
 
             <View style={{ alignItems: 'flex-end', flex: 1 }}>
               <Text style={styles.splitLabel}>Total Deductions</Text>
-              <Text style={styles.splitDeductVal}>-$1,550.00</Text>
+              <Text style={styles.splitDeductVal}>
+                -${deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Text>
             </View>
           </View>
         </View>
@@ -128,7 +144,9 @@ export const SalarySlipDetailScreen: React.FC = () => {
               <Text style={styles.rowItemTitle}>Basic Salary</Text>
               <Text style={styles.rowItemSub}>Monthly fixed pay</Text>
             </View>
-            <Text style={styles.rowItemAmount}>$3,500.00</Text>
+            <Text style={styles.rowItemAmount}>
+              ${basicSalary.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </Text>
             <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
 
@@ -147,7 +165,9 @@ export const SalarySlipDetailScreen: React.FC = () => {
               <Text style={styles.rowItemTitle}>Allowances</Text>
               <Text style={styles.rowItemSub}>Transport, Meal, etc.</Text>
             </View>
-            <Text style={styles.rowItemAmount}>$2,300.00</Text>
+            <Text style={styles.rowItemAmount}>
+              ${allowances.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </Text>
             <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         </View>
@@ -168,7 +188,9 @@ export const SalarySlipDetailScreen: React.FC = () => {
               <Text style={styles.rowItemTitle}>Tax & Insurance</Text>
               <Text style={styles.rowItemSub}>Income tax, social security</Text>
             </View>
-            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>-$1,250.00</Text>
+            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
+              -${taxInsurance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </Text>
             <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
 
@@ -187,7 +209,9 @@ export const SalarySlipDetailScreen: React.FC = () => {
               <Text style={styles.rowItemTitle}>Other Deductions</Text>
               <Text style={styles.rowItemSub}>Unpaid leave, loan repayment</Text>
             </View>
-            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>-$300.00</Text>
+            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
+              -${otherDeductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </Text>
             <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
         </View>

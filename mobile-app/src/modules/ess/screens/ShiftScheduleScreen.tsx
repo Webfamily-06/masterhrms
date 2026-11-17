@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,22 +13,51 @@ import { ArrowLeft, X } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { AttendanceService } from '../../../core/services/attendanceService';
 
 export const ShiftScheduleScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'ShiftSchedule'>>();
   const [modalVisible, setModalVisible] = useState(false);
   const [colleagueName, setColleagueName] = useState('');
   const [reason, setReason] = useState('');
+  const [shiftData, setShiftData] = useState<{ name: string; startTime: string; endTime: string } | null>(null);
 
-  const weekShifts = [
-    { day: 'Monday', date: 'Nov 16', shift: 'General Day Shift', time: '09:00 AM – 06:00 PM', type: 'WORK' },
-    { day: 'Tuesday', date: 'Nov 17', shift: 'General Day Shift', time: '09:00 AM – 06:00 PM', type: 'WORK' },
-    { day: 'Wednesday', date: 'Nov 18', shift: 'General Day Shift', time: '09:00 AM – 06:00 PM', type: 'WORK' },
-    { day: 'Thursday', date: 'Nov 19', shift: 'General Day Shift', time: '09:00 AM – 06:00 PM', type: 'WORK' },
-    { day: 'Friday', date: 'Nov 20', shift: 'General Day Shift', time: '09:00 AM – 06:00 PM', type: 'WORK' },
-    { day: 'Saturday', date: 'Nov 21', shift: 'Rotational Support / Half', time: '09:00 AM – 01:00 PM', type: 'HALF' },
-    { day: 'Sunday', date: 'Nov 22', shift: 'Weekly Off', time: 'Rest Day', type: 'OFF' },
-  ];
+  useEffect(() => {
+    AttendanceService.getDashboardSummary().then((summary) => {
+      if (summary?.shift) {
+        setShiftData(summary.shift);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const weekShifts = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+
+    const shiftName = shiftData?.name || 'General Day Shift';
+    const shiftTime = shiftData?.startTime && shiftData?.endTime
+      ? `${shiftData.startTime} – ${shiftData.endTime}`
+      : '09:00 AM – 06:00 PM';
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days.map((dayName, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const isSunday = idx === 6;
+      const isSaturday = idx === 5;
+      return {
+        day: dayName,
+        date: dateStr,
+        shift: isSunday ? 'Weekly Off' : isSaturday ? 'Weekend Support / Half' : shiftName,
+        time: isSunday ? 'Rest Day' : isSaturday ? '09:00 AM – 01:00 PM' : shiftTime,
+        type: isSunday ? 'OFF' : isSaturday ? 'HALF' : 'WORK',
+      };
+    });
+  }, [shiftData]);
 
   const handleSwapRequest = () => {
     if (!colleagueName.trim()) {
@@ -68,8 +97,12 @@ export const ShiftScheduleScreen: React.FC = () => {
         {/* Current Active Shift Banner */}
         <View style={styles.activeShiftCard}>
           <Text style={styles.activeShiftTag}>CURRENT SHIFT</Text>
-          <Text style={styles.activeShiftTitle}>General Day Shift</Text>
-          <Text style={styles.activeShiftHours}>09:00 AM – 06:00 PM (9.0 Hours)</Text>
+          <Text style={styles.activeShiftTitle}>{shiftData?.name || 'General Day Shift'}</Text>
+          <Text style={styles.activeShiftHours}>
+            {shiftData?.startTime && shiftData?.endTime
+              ? `${shiftData.startTime} – ${shiftData.endTime}`
+              : '09:00 AM – 06:00 PM'}
+          </Text>
           <View style={styles.breakBadge}>
             <Text style={styles.breakText}>Lunch Break: 01:00 PM – 02:00 PM</Text>
           </View>

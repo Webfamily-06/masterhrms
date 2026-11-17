@@ -58,6 +58,18 @@ export interface DashboardSummaryResponse {
   pendingTasks?: number;
 }
 
+export interface TimesheetItem {
+  id: string;
+  employeeId?: string;
+  employeeName?: string;
+  projectName?: string;
+  date: string;
+  hours: number;
+  description?: string;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  createdAt?: string;
+}
+
 export class AttendanceService {
   /**
    * Get employee dashboard summary (today's punch, shift, leave balances)
@@ -135,5 +147,32 @@ export class AttendanceService {
   static async withdrawRegularization(id: string): Promise<boolean> {
     await apiClient.post(`/api/v1/me/regularizations/${id}/withdraw`);
     return true;
+  }
+
+  /**
+   * Fetch employee timesheets
+   */
+  static async getTimesheets(params?: { startDate?: string; endDate?: string }): Promise<TimesheetItem[]> {
+    try {
+      const response = await apiClient.get<any>('/api/timesheets', { params });
+      if (Array.isArray(response.data)) return response.data;
+      if (Array.isArray(response.data?.items)) return response.data.items;
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Submit new timesheet entry
+   */
+  static async createTimesheet(payload: {
+    projectId?: string;
+    date: string;
+    hours: number;
+    description?: string;
+  }): Promise<TimesheetItem> {
+    const response = await apiClient.post<TimesheetItem>('/api/timesheets', payload);
+    return response.data;
   }
 }

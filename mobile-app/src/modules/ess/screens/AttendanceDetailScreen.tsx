@@ -100,14 +100,30 @@ export const AttendanceDetailScreen: React.FC = () => {
   // Selected Day Record for Day Details View (35_Attendance Details.png)
   const activeRecord: AttendanceRecord | undefined = records[selectedRecordIndex] || records[0];
 
-  // Calculated metrics from real records or fallback stats
+  // Calculated metrics from real records
   const totalHoursWorked = useMemo(() => {
-    const sum = records.reduce((acc, curr) => acc + (curr.hours || 8), 0);
-    return sum > 0 ? sum : 176.5;
+    return records.reduce((acc, curr) => acc + (curr.hours || 0), 0);
   }, [records]);
 
-  const workDaysCount = records.length > 0 ? records.length : 22;
-  const onTimeCount = records.filter((r) => r.status === 'PRESENT').length || 20;
+  const workDaysCount = records.length;
+  const onTimeCount = useMemo(() => {
+    return records.filter((r) => r.status === 'PRESENT').length;
+  }, [records]);
+
+  const avgClockInText = useMemo(() => {
+    const validCheckIns = records.filter((r) => r.checkIn);
+    if (validCheckIns.length === 0) return '--:--';
+    const totalMinutes = validCheckIns.reduce((acc, curr) => {
+      const d = new Date(curr.checkIn!);
+      return acc + (d.getHours() * 60 + d.getMinutes());
+    }, 0);
+    const avgMin = Math.round(totalMinutes / validCheckIns.length);
+    const h = Math.floor(avgMin / 60);
+    const m = avgMin % 60;
+    const period = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+  }, [records]);
 
   // Handle Correction Submission (Step 3 -> API -> Step 4)
   const handleSubmitCorrection = async () => {
@@ -248,14 +264,8 @@ export const AttendanceDetailScreen: React.FC = () => {
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
                     <Text style={styles.totalHoursVal}>{Math.floor(totalHoursWorked)}h </Text>
                     <Text style={styles.totalHoursMin}>
-                      {Math.round((totalHoursWorked % 1) * 60) || 30}m
+                      {Math.round((totalHoursWorked % 1) * 60)}m
                     </Text>
-                  </View>
-                  <View style={styles.vsLastMonthRow}>
-                    <View style={styles.plusHoursBadge}>
-                      <Text style={styles.plusHoursText}>+4h</Text>
-                    </View>
-                    <Text style={styles.vsLastMonthText}>vs last month</Text>
                   </View>
                 </View>
                 <View style={styles.clockCircleBox}>
@@ -272,8 +282,10 @@ export const AttendanceDetailScreen: React.FC = () => {
                 </View>
                 <View style={styles.statMetricCard}>
                   <Text style={styles.statMetricLabel}>Avg. Clock-In</Text>
-                  <Text style={styles.statMetricValue}>08:52 AM</Text>
-                  <Text style={[styles.statMetricSub, { color: '#16A34A' }]}>2m early</Text>
+                  <Text style={styles.statMetricValue}>{avgClockInText}</Text>
+                  <Text style={[styles.statMetricSub, { color: '#16A34A' }]}>
+                    {records.length > 0 ? 'Recorded' : 'No records'}
+                  </Text>
                 </View>
               </View>
 

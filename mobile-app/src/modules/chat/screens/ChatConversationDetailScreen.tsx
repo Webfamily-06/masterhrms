@@ -86,12 +86,12 @@ import * as Location from 'expo-location';
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
 
 const PRESET_GROUP_AVATARS = [
-  { id: 'office', label: 'Office', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=150&auto=format&fit=crop&q=80' },
-  { id: 'tech', label: 'Tech & Dev', url: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=150&auto=format&fit=crop&q=80' },
-  { id: 'team', label: 'People / HR', url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=150&auto=format&fit=crop&q=80' },
-  { id: 'sales', label: 'Growth / Sales', url: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=150&auto=format&fit=crop&q=80' },
-  { id: 'design', label: 'Design & UI', url: 'https://images.unsplash.com/photo-1542744094-3a31f272c490?w=150&auto=format&fit=crop&q=80' },
-  { id: 'support', label: 'Support / Ops', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
+  { id: 'office', label: 'Office', url: 'https://api.dicebear.com/7.x/identicon/png?seed=office&backgroundColor=00d287' },
+  { id: 'tech', label: 'Tech & Dev', url: 'https://api.dicebear.com/7.x/identicon/png?seed=tech&backgroundColor=4f46e5' },
+  { id: 'team', label: 'People / HR', url: 'https://api.dicebear.com/7.x/identicon/png?seed=people&backgroundColor=f59e0b' },
+  { id: 'sales', label: 'Growth / Sales', url: 'https://api.dicebear.com/7.x/identicon/png?seed=sales&backgroundColor=10b981' },
+  { id: 'design', label: 'Design & UI', url: 'https://api.dicebear.com/7.x/identicon/png?seed=design&backgroundColor=ec4899' },
+  { id: 'support', label: 'Support / Ops', url: 'https://api.dicebear.com/7.x/identicon/png?seed=support&backgroundColor=06b6d4' },
 ];
 
 const EMOJI_CATEGORIES = [
@@ -99,63 +99,6 @@ const EMOJI_CATEGORIES = [
   { name: 'Gestures', emojis: ['👍', '👎', '👏', '🙌', '🤝', '👊', '✌️', '🤞', '🤟', '🤘', '👌', '🤌', '👈', '👉', '👆', '👇', '✋', '👋', '🙏'] },
   { name: 'Reactions', emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🤍', '💔', '🔥', '✨', '💯', '🎉', '🚀', '⭐', '💥', '👀', '💡', '🏆'] },
   { name: 'Work', emojis: ['💼', '📁', '📊', '📈', '📌', '📎', '📝', '📅', '🕒', '🔔', '💻', '📱', '🔒', '🔑', '☕', '🏢'] },
-];
-
-const DEVICE_DOCUMENTS_MOCK = [
-  {
-    id: 'doc_1',
-    name: 'Q4_Financial_Report_2026.pdf',
-    type: 'application/pdf',
-    size: 2450000,
-    uri: 'https://cdn.masterhrms.internal/docs/Q4_Financial_Report_2026.pdf',
-    ext: 'PDF',
-    color: '#EF4444',
-  },
-  {
-    id: 'doc_2',
-    name: 'Employee_Handbook_2026.pdf',
-    type: 'application/pdf',
-    size: 1840000,
-    uri: 'https://cdn.masterhrms.internal/docs/Employee_Handbook_2026.pdf',
-    ext: 'PDF',
-    color: '#EF4444',
-  },
-  {
-    id: 'doc_3',
-    name: 'Offer_Letter_Template.docx',
-    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    size: 420000,
-    uri: 'https://cdn.masterhrms.internal/docs/Offer_Letter_Template.docx',
-    ext: 'DOC',
-    color: '#3B82F6',
-  },
-  {
-    id: 'doc_4',
-    name: 'HR_Policy_Update_May.pdf',
-    type: 'application/pdf',
-    size: 890000,
-    uri: 'https://cdn.masterhrms.internal/docs/HR_Policy_Update_May.pdf',
-    ext: 'PDF',
-    color: '#EF4444',
-  },
-  {
-    id: 'doc_5',
-    name: 'Sprint_Deliverables_Summary.xlsx',
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    size: 650000,
-    uri: 'https://cdn.masterhrms.internal/docs/Sprint_Deliverables_Summary.xlsx',
-    ext: 'XLS',
-    color: '#10B981',
-  },
-  {
-    id: 'doc_6',
-    name: 'Architecture_Blueprint_v3.png',
-    type: 'image/png',
-    size: 1120000,
-    uri: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=800&q=80',
-    ext: 'IMG',
-    color: '#8B5CF6',
-  },
 ];
 
 export const ChatConversationDetailScreen: React.FC = () => {
@@ -258,10 +201,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const [isContactMuted, setIsContactMuted] = useState(false);
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-
-  // Document Picker Modal State
-  const [docPickerOpen, setDocPickerOpen] = useState(false);
-  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
 
   // Camera Viewfinder & Photo Capture Modal State
   const [cameraModalOpen, setCameraModalOpen] = useState(false);
@@ -546,16 +485,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
     } finally {
       setSending(false);
     }
-  };
-
-  const handleToggleSelectDoc = (docId: string) => {
-    setSelectedDocIds((prev) =>
-      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
-    );
-  };
-
-  const handleConfirmAttachDocuments = async () => {
-    handleDocumentPick();
   };
 
   const handleLocationPick = async () => {
@@ -2217,92 +2146,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
                   <MapPin size={24} color="#FFFFFF" />
                 </View>
                 <Text style={styles.attachLabel}>Location</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* 1. Device Document Picker Modal (Single or Multiple File Access) */}
-      <Modal visible={docPickerOpen} animationType="slide" transparent>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => setDocPickerOpen(false)}
-        >
-          <View style={styles.docPickerSheet} onStartShouldSetResponder={() => true}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.docPickerHeaderRow}>
-              <View>
-                <Text style={styles.docPickerTitle}>Device Files & Documents</Text>
-                <Text style={styles.docPickerSubTitle}>
-                  Select one or multiple files to attach
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setDocPickerOpen(false)}
-                style={styles.docPickerCloseBtn}
-              >
-                <X size={18} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.docPickerList} showsVerticalScrollIndicator={false}>
-              {DEVICE_DOCUMENTS_MOCK.map((doc) => {
-                const isSelected = selectedDocIds.includes(doc.id);
-                return (
-                  <TouchableOpacity
-                    key={doc.id}
-                    style={[styles.docPickerCard, isSelected && styles.docPickerCardSelected]}
-                    onPress={() => handleToggleSelectDoc(doc.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.docTypeBadge, { backgroundColor: doc.color }]}>
-                      <Text style={styles.docTypeBadgeText}>{doc.ext}</Text>
-                    </View>
-                    <View style={styles.docCardInfo}>
-                      <Text style={styles.docCardName} numberOfLines={1}>
-                        {doc.name}
-                      </Text>
-                      <Text style={styles.docCardMeta}>
-                        {formatFileSize(doc.size)} • Local Storage
-                      </Text>
-                    </View>
-                    <View style={styles.docCheckboxWrap}>
-                      {isSelected ? (
-                        <CheckSquare size={20} color="#00D287" />
-                      ) : (
-                        <Square size={20} color="#94A3B8" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.docPickerFooterRow}>
-              <TouchableOpacity
-                style={styles.docPickerCancelBtn}
-                onPress={() => {
-                  setSelectedDocIds([]);
-                  setDocPickerOpen(false);
-                }}
-              >
-                <Text style={styles.docPickerCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.docPickerConfirmBtn,
-                  selectedDocIds.length === 0 && styles.docPickerConfirmBtnDisabled,
-                ]}
-                disabled={selectedDocIds.length === 0}
-                onPress={handleConfirmAttachDocuments}
-              >
-                <Text style={styles.docPickerConfirmText}>
-                  {selectedDocIds.length > 0
-                    ? `Attach & Send (${selectedDocIds.length})`
-                    : 'Select Files'}
-                </Text>
               </TouchableOpacity>
             </View>
           </View>

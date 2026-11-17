@@ -35,8 +35,8 @@ export const PerformanceScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'kpis' | 'feedback'>('overview');
 
-  const [, setReviews] = useState<PerformanceReview[]>([]);
-  const [, setGoals] = useState<PerformanceGoal[]>([]);
+  const [reviews, setReviews] = useState<PerformanceReview[]>([]);
+  const [goals, setGoals] = useState<PerformanceGoal[]>([]);
 
   // Selected KPI Detail Modal State (Matches KPI – Detail.png)
   const [selectedKpi, setSelectedKpi] = useState<any | null>(null);
@@ -69,135 +69,75 @@ export const PerformanceScreen: React.FC = () => {
     loadData();
   };
 
-  // KPIs Mock data matching KPI – List.png
-  const kpisList = useMemo(() => [
-    {
-      id: 'k1',
-      title: 'Increase Sales Conversion',
-      desc: 'Optimize the checkout flow to improve conversion rates by end of Q1. Focus on reducing cart abandonment and streamlining payment options.',
-      status: 'COMPLETED',
-      weight: '20%',
-      target: '5.0%',
-      current: '5.2%',
-      pct: 100,
-      color: '#16A34A',
-      managerNote: 'Excellent work on the checkout redesign. The new one-click payment integration significantly boosted our mobile conversion numbers ahead of schedule.',
-      history: [
-        { achievement: '5.2% Achievement', date: 'Mar 15', updatedBy: 'System' },
-        { achievement: '4.8% Achievement', date: 'Feb 28', updatedBy: 'System' },
-      ],
-    },
-    {
-      id: 'k2',
-      title: 'Team Training Completion',
-      desc: 'Ensure 100% of the team completes the mandatory security compliance training.',
-      status: 'ON TRACK',
-      weight: '15%',
-      target: '100%',
-      current: '85%',
-      pct: 85,
-      color: '#2563EB',
-      managerNote: 'Almost there, 4 more developers need to take the quiz.',
-      history: [
-        { achievement: '85% Achievement', date: 'Mar 14', updatedBy: 'Manager' },
-      ],
-    },
-    {
-      id: 'k3',
-      title: 'Reduce Churn Rate',
-      desc: 'Implement new retention strategies to lower monthly customer churn.',
-      status: 'AT RISK',
-      weight: '25%',
-      target: '< 2.0%',
-      current: '2.8%',
-      pct: 45,
-      color: '#F59E0B',
-      managerNote: 'Churn increased slightly after the recent pricing revision.',
-      history: [
-        { achievement: '2.8% Achievement', date: 'Mar 10', updatedBy: 'Analytics' },
-      ],
-    },
-    {
-      id: 'k4',
-      title: 'Launch Mobile App v2',
-      desc: 'Release the major update for iOS and Android platforms including dark mode.',
-      status: 'COMPLETED',
-      weight: '30%',
-      target: 'Feb 28',
-      current: 'Done: Feb 20',
-      pct: 100,
-      color: '#16A34A',
-      managerNote: 'Flawless release! Great leadership across teams.',
-      history: [
-        { achievement: 'App Deployed to Stores', date: 'Feb 20', updatedBy: 'CI/CD Pipeline' },
-      ],
-    },
-    {
-      id: 'k5',
-      title: 'Customer Feedback Score',
-      desc: 'Maintain an average CSAT score above 4.5 throughout the quarter.',
-      status: 'ON TRACK',
-      weight: '10%',
-      target: '4.5',
-      current: '4.7',
-      pct: 94,
-      color: '#2563EB',
-      managerNote: 'Customer sentiments remain very strong.',
-      history: [
-        { achievement: '4.7 CSAT Rating', date: 'Mar 12', updatedBy: 'Zendesk Sync' },
-      ],
-    },
-  ], []);
+  // Dynamic KPIs derived from backend performance goals
+  const kpisList = useMemo(() => {
+    if (goals.length > 0) {
+      return goals.map((g, idx) => {
+        const kr = g.keyResults?.[0];
+        const targetVal = kr ? `${kr.targetValue}${kr.unit || '%'}` : '100%';
+        const currentVal = kr ? `${kr.currentValue}${kr.unit || '%'}` : '0%';
+        const pct =
+          kr && kr.targetValue > 0
+            ? Math.min(100, Math.round((kr.currentValue / kr.targetValue) * 100))
+            : 0;
+        const status = pct >= 100 ? 'COMPLETED' : pct >= 50 ? 'ON TRACK' : 'IN PROGRESS';
+        const color = pct >= 100 ? '#16A34A' : pct >= 50 ? '#2563EB' : '#F59E0B';
+        return {
+          id: g.id || `kpi-${idx}`,
+          title: g.title,
+          desc: g.description || 'Employee strategic objective and key results.',
+          status,
+          weight: `${Math.round(100 / Math.max(1, goals.length))}%`,
+          target: targetVal,
+          current: currentVal,
+          pct,
+          color,
+          managerNote: 'Quarterly review progress recorded.',
+          history:
+            kr?.checkins?.map((c) => ({
+              achievement: `${c.value} Achievement`,
+              date: new Date(c.createdAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              }),
+              updatedBy: 'System',
+            })) || [],
+        };
+      });
+    }
+    return [];
+  }, [goals]);
 
-  // Feedback Mock data matching Feedback – List.png
-  const feedbacksList = useMemo(() => [
-    {
-      id: 'fb1',
-      name: 'Sarah Miller',
-      title: 'Sales Director',
-      role: 'Manager',
-      date: 'Today',
-      submittedDate: 'Submitted Mar 15, 2026 • 2:30 PM',
-      quote: 'Great job leading the Q1 retrospective. The team really appreciated your structured approach to solving core bottlenecks...',
-      fullText:
-        'Sarah has shown exceptional leadership during the Q1 sales sprint. Her ability to rally the team around the new conversion targets was instrumental in our success. She effectively communicated the strategic importance of the checkout flow optimization, ensuring everyone understood their role.\n\nOne area for continued focus is cross-departmental collaboration earlier in the project lifecycle. While execution was flawless, involving the marketing team sooner could have amplified the launch impact even further.\n\nOverall, a fantastic quarter with tangible results. Keep pushing the boundaries on what our team can achieve.',
-      category: 'Leadership & Execution',
-      rating: '4.5 / 5',
-      status: 'Action Required',
-      accentColor: '#F59E0B',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    },
-    {
-      id: 'fb2',
-      name: 'David Chen',
-      title: 'Product Designer',
-      role: 'Peer',
-      date: 'Yesterday',
-      submittedDate: 'Submitted Mar 14, 2026 • 11:15 AM',
-      quote: 'Thanks for helping me debug the frontend component library. Your quick turnaround saved us 2 full engineering days...',
-      fullText: 'David is a consummate team player. His attention to detail in our shared design systems is exemplary.',
-      category: 'Collaboration',
-      rating: '5.0 / 5',
-      status: 'Acknowledged',
-      accentColor: '#16A34A',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    },
-    {
-      id: 'fb3',
-      name: 'Elena Rodriguez',
-      title: 'Marketing Lead',
-      role: 'Peer',
-      date: 'Mar 28',
-      submittedDate: 'Submitted Mar 28, 2026 • 4:00 PM',
-      quote: 'I loved the collaboration on the new brand guidelines. You were very open to feedback and shipped the assets fast...',
-      fullText: 'Great cross-team synchronization during the marketing campaign rollout.',
-      category: 'Communication',
-      rating: '4.8 / 5',
-      status: 'Acknowledged',
-      accentColor: '#16A34A',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
-    },
-  ], []);
+  // Dynamic Feedback derived from backend performance reviews
+  const feedbacksList = useMemo(() => {
+    if (reviews.length > 0) {
+      return reviews.map((r, idx) => {
+        const revName = r.reviewerName || 'Supervisor';
+        const avatar = `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(
+          revName
+        )}&backgroundColor=00d287`;
+        return {
+          id: r.id || `fb-${idx}`,
+          name: revName,
+          title: r.reviewType || 'Performance Evaluation',
+          role: r.reviewType?.toLowerCase().includes('peer') ? 'Peer' : 'Manager',
+          date: new Date(r.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+          }),
+          submittedDate: `Submitted ${new Date(r.createdAt).toLocaleDateString('en-US')}`,
+          quote: r.feedbackText?.substring(0, 100) || 'Performance review submitted.',
+          fullText: r.feedbackText || 'Comprehensive performance review assessment.',
+          category: r.reviewType || 'General Review',
+          rating: r.ratingScore ? `${r.ratingScore} / 5` : 'Pending',
+          status: r.status || 'Acknowledged',
+          accentColor: '#16A34A',
+          avatar,
+        };
+      });
+    }
+    return [];
+  }, [reviews]);
 
   return (
     <View style={styles.container}>
@@ -344,23 +284,38 @@ export const PerformanceScreen: React.FC = () => {
               <View style={styles.kpiStatsCard}>
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Total</Text>
-                  <Text style={styles.kpiColVal}>12</Text>
+                  <Text style={styles.kpiColVal}>{kpisList.length}</Text>
                 </View>
                 <View style={styles.kpiStatColDivider} />
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Completed</Text>
-                  <Text style={[styles.kpiColVal, { color: '#16A34A' }]}>9</Text>
+                  <Text style={[styles.kpiColVal, { color: '#16A34A' }]}>
+                    {kpisList.filter((k) => k.status === 'COMPLETED').length}
+                  </Text>
                 </View>
                 <View style={styles.kpiStatColDivider} />
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Rate</Text>
-                  <Text style={[styles.kpiColVal, { color: '#2563EB' }]}>75%</Text>
+                  <Text style={[styles.kpiColVal, { color: '#2563EB' }]}>
+                    {kpisList.length > 0
+                      ? `${Math.round(
+                          (kpisList.filter((k) => k.status === 'COMPLETED').length /
+                            kpisList.length) *
+                            100
+                        )}%`
+                      : '0%'}
+                  </Text>
                 </View>
               </View>
 
               {/* KPI Cards List */}
               <View style={styles.kpisListContainer}>
-                {kpisList.map((kpi) => (
+                {kpisList.length === 0 ? (
+                  <View style={{ padding: 32, alignItems: 'center' }}>
+                    <Text style={{ color: '#64748B', fontSize: 14 }}>No KPIs or goals found for this cycle.</Text>
+                  </View>
+                ) : (
+                  kpisList.map((kpi) => (
                   <TouchableOpacity
                     key={kpi.id}
                     style={styles.kpiItemCard}
@@ -417,7 +372,8 @@ export const PerformanceScreen: React.FC = () => {
                       />
                     </View>
                   </TouchableOpacity>
-                ))}
+                  ))
+                )}
               </View>
             </>
           ) : (
@@ -425,28 +381,37 @@ export const PerformanceScreen: React.FC = () => {
             /* Feedback – List View (Matches Feedback – List.png)          */
             /* ─────────────────────────────────────────────────────────── */
             <>
-              <Text style={styles.cycleTitle}>Performance Cycle Q1 2026</Text>
+              <Text style={styles.cycleTitle}>Performance Reviews & Feedback</Text>
 
-              {/* Stats Card: Total 12 | Manager 4 | Peer 8 */}
+              {/* Stats Card: Total | Manager | Peer */}
               <View style={styles.kpiStatsCard}>
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Total</Text>
-                  <Text style={styles.kpiColVal}>12</Text>
+                  <Text style={styles.kpiColVal}>{feedbacksList.length}</Text>
                 </View>
                 <View style={styles.kpiStatColDivider} />
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Manager</Text>
-                  <Text style={[styles.kpiColVal, { color: '#16A34A' }]}>4</Text>
+                  <Text style={[styles.kpiColVal, { color: '#16A34A' }]}>
+                    {feedbacksList.filter((f) => f.role === 'Manager').length}
+                  </Text>
                 </View>
                 <View style={styles.kpiStatColDivider} />
                 <View style={styles.kpiStatCol}>
                   <Text style={styles.kpiColLabel}>Peer</Text>
-                  <Text style={[styles.kpiColVal, { color: '#2563EB' }]}>8</Text>
+                  <Text style={[styles.kpiColVal, { color: '#2563EB' }]}>
+                    {feedbacksList.filter((f) => f.role !== 'Manager').length}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.feedbacksListContainer}>
-                {feedbacksList.map((fb) => (
+                {feedbacksList.length === 0 ? (
+                  <View style={{ padding: 32, alignItems: 'center' }}>
+                    <Text style={{ color: '#64748B', fontSize: 14 }}>No feedback or review records found.</Text>
+                  </View>
+                ) : (
+                  feedbacksList.map((fb) => (
                   <TouchableOpacity
                     key={fb.id}
                     style={[styles.feedbackDetailedCard, { borderLeftColor: fb.accentColor }]}
@@ -482,7 +447,8 @@ export const PerformanceScreen: React.FC = () => {
                       <Text style={styles.readFullText}>Read Full →</Text>
                     </View>
                   </TouchableOpacity>
-                ))}
+                  ))
+                )}
               </View>
             </>
           )}
