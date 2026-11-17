@@ -3,11 +3,10 @@
  * Never defaults unknown roles to employee.
  */
 export type CanonicalRole =
-  | 'employee'
-  | 'manager'
-  | 'hr_admin'
   | 'tenant_admin'
-  | 'super_admin';
+  | 'hr_admin'
+  | 'manager'
+  | 'employee';
 
 export interface RoleDescriptor {
   role: CanonicalRole;
@@ -17,12 +16,6 @@ export interface RoleDescriptor {
 }
 
 export const CANONICAL_ROLE_DESCRIPTORS: Record<CanonicalRole, RoleDescriptor> = {
-  super_admin: {
-    role: 'super_admin',
-    title: 'Super Administrator',
-    badgeLabel: 'Platform Admin',
-    description: 'Global SaaS Platform overview and operational diagnostics',
-  },
   tenant_admin: {
     role: 'tenant_admin',
     title: 'Organization Administrator',
@@ -53,7 +46,6 @@ export const CANONICAL_ROLE_DESCRIPTORS: Record<CanonicalRole, RoleDescriptor> =
  * Precedence order for default active persona when user has multiple roles
  */
 export const ROLE_HIERARCHY_ORDER: CanonicalRole[] = [
-  'super_admin',
   'tenant_admin',
   'hr_admin',
   'manager',
@@ -63,6 +55,7 @@ export const ROLE_HIERARCHY_ORDER: CanonicalRole[] = [
 /**
  * Normalizes raw server roles to canonical mobile roles.
  * Unknown roles are completely ignored (NOT defaulted to employee).
+ * Super Admin is strictly forbidden on mobile and will be ignored/filtered out.
  */
 export function normalizeToCanonicalRoles(rawRoles: (string | undefined | null)[]): CanonicalRole[] {
   if (!rawRoles || !Array.isArray(rawRoles)) return [];
@@ -73,8 +66,9 @@ export function normalizeToCanonicalRoles(rawRoles: (string | undefined | null)[
     if (!raw) continue;
     const clean = String(raw).trim().toLowerCase();
 
+    // Super Admin is strictly excluded from mobile application
     if (clean === 'super_admin' || clean === 'superadmin') {
-      canonicalSet.add('super_admin');
+      continue;
     } else if (
       clean === 'tenant_admin' ||
       clean === 'workspace_admin' ||

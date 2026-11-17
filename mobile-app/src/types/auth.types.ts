@@ -10,11 +10,16 @@ export type UserRole =
 
 export interface UserProfile {
   id?: string;
+  firstName?: string | null;
+  lastName?: string | null;
   fullName?: string | null;
   avatarUrl?: string | null;
   phone?: string | null;
   gender?: string | null;
   tenantId?: string | null;
+  designation?: string | null;
+  position?: string | null;
+  department?: string | null;
 }
 
 export interface User {
@@ -22,6 +27,7 @@ export interface User {
   email: string;
   profile?: UserProfile | null;
   roles: UserRole[];
+  designation?: string | null;
   permissions?: string[];
   workspaceRole?: {
     id: string;

@@ -89,6 +89,33 @@ describe('Phase 2: Authentication & Multi-Tenant Engine Tests', () => {
       expect(result).toHaveProperty('token');
     });
 
+    it('strictly throws an error and denies login when user has super_admin role', async () => {
+      const mockSuperAdminResponse = {
+        data: {
+          token: 'jwt_super_token',
+          refreshToken: 'jwt_super_refresh',
+          sessionId: 'session_super_123',
+          user: {
+            id: 'super_1',
+            email: 'admin@masterhrms.com',
+            roles: ['super_admin'],
+          },
+          roles: ['super_admin'],
+        },
+      };
+
+      (apiClient.post as jest.Mock).mockResolvedValueOnce(mockSuperAdminResponse);
+
+      await expect(
+        AuthService.login({
+          email: 'admin@masterhrms.com',
+          password: 'Password123!',
+        })
+      ).rejects.toThrow(/Super Administrator accounts cannot log in to the mobile application/);
+
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    });
+
     it('handles 2FA challenge response when 2FA is enabled', async () => {
       const mock2FaResponse = {
         data: {

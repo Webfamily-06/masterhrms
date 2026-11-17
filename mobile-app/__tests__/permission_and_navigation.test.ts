@@ -109,7 +109,7 @@ describe('Phase 3: Role & Permission Navigation Engine & Security', () => {
       expect(normalizeToCanonicalRoles(['hr'])).toEqual(['hr_admin']);
       expect(normalizeToCanonicalRoles(['team_lead'])).toEqual(['manager']);
       expect(normalizeToCanonicalRoles(['staff'])).toEqual(['employee']);
-      expect(normalizeToCanonicalRoles(['super_admin'])).toEqual(['super_admin']);
+      expect(normalizeToCanonicalRoles(['super_admin'])).toEqual([]);
     });
   });
 
@@ -265,7 +265,7 @@ describe('Phase 3: Role & Permission Navigation Engine & Security', () => {
   });
 
   describe('6. Super Admin Isolation', () => {
-    it('sets isSuperAdmin flag strictly when super_admin role is present', () => {
+    it('strictly forbids super_admin from receiving a mobile active persona', () => {
       const store = useAuthStore.getState();
       store.setUser({
         id: 'super-root',
@@ -274,8 +274,8 @@ describe('Phase 3: Role & Permission Navigation Engine & Security', () => {
         permissions: ['*'],
       });
 
-      expect(useAuthStore.getState().isSuperAdmin).toBe(true);
-      expect(useAuthStore.getState().activeRole).toBe('super_admin');
+      expect(useAuthStore.getState().activeRole).toBeNull();
+      expect(useAuthStore.getState().canonicalRoles).toEqual([]);
     });
 
     it('does not conflate super_admin with tenant_admin', () => {
@@ -287,7 +287,6 @@ describe('Phase 3: Role & Permission Navigation Engine & Security', () => {
         permissions: ['hrm.*'],
       });
 
-      expect(useAuthStore.getState().isSuperAdmin).toBe(false);
       expect(useAuthStore.getState().activeRole).toBe('tenant_admin');
     });
   });

@@ -215,13 +215,19 @@ export function resolveHostContext(hostHeader: string, baseDomainOverride?: stri
   const hostname = hostHeader.split(":")[0].toLowerCase().trim();
 
   // ── Public / Root Hosts ────────────────────────────────────
+  const isPrivateOrLocalIp =
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname);
+
   if (
     hostname === baseDomain ||
     hostname === `www.${baseDomain}` ||
     hostname === "masterhrms.vercel.app" ||
     hostname.endsWith(".vercel.app") ||
-    hostname === "127.0.0.1" ||
-    hostname === "0.0.0.0"
+    isPrivateOrLocalIp
   ) {
     return { type: "public", baseDomain };
   }

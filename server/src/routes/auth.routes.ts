@@ -549,8 +549,21 @@ const loginHandler = async (req: any, res: Response) => {
       include: {
         profile: true,
         roles: true,
-        employees: { select: { id: true, tenantId: true, status: true } },
-        workspaceRoleAssignments: true,
+        employees: {
+          select: {
+            id: true,
+            tenantId: true,
+            status: true,
+            position: true,
+            designation: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
+        workspaceRoleAssignments: {
+          include: {
+            role: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 
@@ -559,6 +572,54 @@ const loginHandler = async (req: any, res: Response) => {
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       return res.status(400).json({ error: "Invalid email or password." });
+    }
+
+    // ── Mobile App Persona Restriction ────────────────────────────
+    // The mobile application is exclusively for Employee, HR, and Tenant Administrator roles.
+    // Super Administrator accounts are strictly forbidden from logging in via the mobile application.
+    const userAgent = (req.headers["user-agent"] as string) || "";
+    const isMobileClient =
+      req.headers["x-client-platform"] === "mobile" ||
+      req.headers["x-mobile-app"] === "true" ||
+      userAgent.includes("MasterHRMS-Mobile") ||
+      userAgent.includes("Expo");
+
+    if (isMobileClient) {
+      const hasSuperAdminRole = user.roles.some((r: any) => r.role === "super_admin");
+      if (hasSuperAdminRole) {
+        return res.status(403).json({
+          error: "Access denied. Super Administrator accounts cannot log in to the mobile application. This mobile app is exclusively for Employees, HR, and Tenant Administrators. Please use the Web Super Admin portal.",
+          code: "SUPER_ADMIN_MOBILE_ACCESS_DENIED",
+        });
+      }
+
+      // Check if user has at least one tenant-level role (employee, hr_admin, hr, manager, tenant_admin, admin)
+      const allowedMobileRoles = [
+        "employee",
+        "staff",
+        "hr_admin",
+        "hr",
+        "hr_manager",
+        "manager",
+        "team_lead",
+        "tenant_admin",
+        "workspace_admin",
+        "admin",
+      ];
+      const hasAllowedRole =
+        user.roles.some((r: any) => allowedMobileRoles.includes(r.role?.toLowerCase())) ||
+        (user.workspaceRoleAssignments &&
+          user.workspaceRoleAssignments.some((a: any) =>
+            allowedMobileRoles.includes(a.role?.toLowerCase())
+          )) ||
+        (user.employees && user.employees.length > 0);
+
+      if (!hasAllowedRole) {
+        return res.status(403).json({
+          error: "Access denied. Your account does not have an active Employee, HR, or Tenant Administrator role.",
+          code: "MOBILE_ROLE_NOT_AUTHORIZED",
+        });
+      }
     }
 
     // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -728,6 +789,27 @@ const loginHandler = async (req: any, res: Response) => {
         }
       }
 
+      const matchingEmployee = user.employees?.find((e: any) => e.tenantId === effectiveTenantId) || user.employees?.[0];
+      const matchingAssignment = user.workspaceRoleAssignments?.find((a: any) => a.tenantId === effectiveTenantId) || user.workspaceRoleAssignments?.[0];
+      const resolvedDesignation =
+        matchingEmployee?.designation?.name ||
+        matchingEmployee?.position ||
+        matchingAssignment?.role?.name ||
+        (roles.includes("hr_admin")
+          ? "HR Administrator"
+          : roles.includes("tenant_admin")
+          ? "Organization Administrator"
+          : roles.includes("manager")
+          ? "Team Manager"
+          : "Employee");
+
+      const enhancedProfile = {
+        ...user.profile,
+        designation: resolvedDesignation,
+        position: matchingEmployee?.position || resolvedDesignation,
+        department: matchingEmployee?.department?.name || null,
+      };
+
       return res.json({
         token,
         refreshToken: sessionResult?.refreshToken,
@@ -735,7 +817,8 @@ const loginHandler = async (req: any, res: Response) => {
         user: {
           id: user.id,
           email: user.email,
-          profile: user.profile,
+          profile: enhancedProfile,
+          designation: resolvedDesignation,
           roles,
         },
         roles,
@@ -1069,6 +1152,16 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
           },
         },
         roles: true,
+        employees: {
+          select: {
+            id: true,
+            tenantId: true,
+            status: true,
+            position: true,
+            designation: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
         employees: { select: { id: true, tenantId: true, status: true } },
         workspaceRoleAssignments: true,
       },
@@ -1469,6 +1562,16 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
           },
         },
         roles: true,
+        employees: {
+          select: {
+            id: true,
+            tenantId: true,
+            status: true,
+            position: true,
+            designation: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 
@@ -1680,10 +1783,31 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
         activeAddons = Array.from(activeAddonSlugs);
       }
 
+    const matchingEmployee = user!.employees?.find((e: any) => e.tenantId === tenantId) || user!.employees?.[0];
+    const resolvedDesignation =
+      matchingEmployee?.designation?.name ||
+      matchingEmployee?.position ||
+      workspaceRole?.name ||
+      (roles.includes("hr_admin")
+        ? "HR Administrator"
+        : roles.includes("tenant_admin")
+        ? "Organization Administrator"
+        : roles.includes("manager")
+        ? "Team Manager"
+        : "Employee");
+
+    const enhancedProfile = {
+      ...user!.profile,
+      designation: resolvedDesignation,
+      position: matchingEmployee?.position || resolvedDesignation,
+      department: matchingEmployee?.department?.name || null,
+    };
+
     return res.json({
       id: user!.id,
       email: user!.email,
-      profile: user!.profile,
+      profile: enhancedProfile,
+      designation: resolvedDesignation,
       roles,
       workspaceRole,
       permissions,
@@ -1795,6 +1919,16 @@ authRouter.put("/profile", requireAuth, async (req: AuthRequest, res: Response) 
           },
         },
         roles: true,
+        employees: {
+          select: {
+            id: true,
+            tenantId: true,
+            status: true,
+            position: true,
+            designation: { select: { id: true, name: true } },
+            department: { select: { id: true, name: true } },
+          },
+        },
       },
     });
 

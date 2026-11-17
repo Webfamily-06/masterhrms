@@ -1,10 +1,35 @@
+import { NativeModules } from 'react-native';
+
 export type Environment = 'development' | 'staging' | 'production';
 
 // Detect or override environment
 const currentEnv: Environment = __DEV__ ? 'development' : 'production';
 
-// Local development machine Wi-Fi IP and backend port 4000
-const DEV_API_HOST = '192.168.1.176:4000';
+/**
+ * Dynamically resolves the development host machine IP address.
+ * Works seamlessly across:
+ * - Physical mobile devices running Expo Go on the local Wi-Fi
+ * - Android Emulators
+ * - iOS Simulators
+ */
+const getDevApiHost = (): string => {
+  try {
+    const scriptURL = NativeModules.SourceCode?.scriptURL;
+    if (scriptURL && typeof scriptURL === 'string') {
+      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
+      if (match && match[1] && match[1] !== 'localhost' && match[1] !== '127.0.0.1') {
+        return `${match[1]}:4000`;
+      }
+    }
+  } catch {
+    // Ignore and fallback
+  }
+
+  // Active host machine Wi-Fi IP and backend port 4000
+  return '10.113.181.209:4000';
+};
+
+const DEV_API_HOST = getDevApiHost();
 
 const API_BASE_URLS: Record<Environment, string> = {
   // Use host machine Wi-Fi IP so physical devices on Wi-Fi (Expo Go) and emulators can reach the backend

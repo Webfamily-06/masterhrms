@@ -1,344 +1,525 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
-  Modal,
+  RefreshControl,
   Alert,
 } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
-import { useNavigation } from '@react-navigation/native';
+import {
+  WorkspaceModuleShell,
+  WorkspaceLoadingBlock,
+  WorkspaceErrorBlock,
+  WorkspaceEmptyBlock,
+} from '../../../components/workspace/WorkspaceModuleShell';
+import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { useAuthStore } from '../../../store/authStore';
+import { usePermission } from '../../../hooks/usePermission';
 import {
   TodoService,
   TodoItem,
-  TodoAssignee,
+  DEFAULT_TODO_CATEGORIES,
 } from '../../../core/services/todoService';
+import {
+  TodoTaskInspectorSheet,
+  TodoTaskFormModal,
+  TodoCategoryManagerModal,
+  getTodoPriorityColor,
+  isTodoOverdue,
+} from '../components/TodoSharedModals';
+
+type TodoSortKey = 'created' | 'due' | 'priority' | 'progress';
+
+const PRIORITY_RANK: Record<string, number> = {
+  urgent: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 export const TodoListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const { hasAnyPermission, activeRole } = usePermission();
 
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const isAdminPersona =
+    activeRole !== 'employee' &&
+    (hasAnyPermission(['hrm.dashboard.view', 'hrm.manage', '*']) ||
+      activeRole === 'hr_admin' ||
+      activeRole === 'tenant_admin');
+
+  // Filter & Sort state
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED'>('ALL');
-  const [priorityFilter, setPriorityFilter] = useState<string>('ALL');
+  const [statusTab, setStatusTab] = useState<'all' | 'pending' | 'completed'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<TodoSortKey>('created');
 
-  // Detail Modal
+  // Modals & Drawers
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
-  const [newChecklistText, setNewChecklistText] = useState('');
-  const [newCommentText, setNewCommentText] = useState('');
+  const [formVisible, setFormVisible] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
 
-  // Create Modal
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newPriority, setNewPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
-  const [newDueDate, setNewDueDate] = useState('2026-11-20');
-  const [assignees, setAssignees] = useState<TodoAssignee[]>([]);
-  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
+  // Queries
+  const todosQuery = useQuery({
+    queryKey: createTenantQueryKey(['todos', 'list', isAdminPersona ? 'all' : 'own']),
+    queryFn: () => TodoService.getTodos({ scope: isAdminPersona ? 'all' : 'own' }),
+  });
 
-  const loadTodos = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [todoList, assList] = await Promise.all([
-        TodoService.getTodos({
-          status: statusFilter === 'ALL' ? undefined : statusFilter,
-          priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
-          search: search.trim() || undefined,
-        }),
-        TodoService.getAssignees(),
-      ]);
-      setTodos(todoList);
-      setAssignees(assList);
-    } catch {
-      // Graceful fallback
-    } finally {
-      setLoading(false);
+  const categoriesQuery = useQuery({
+    queryKey: createTenantQueryKey(['todos', 'categories']),
+    queryFn: () => TodoService.getCategories(),
+  });
+
+  const assigneesQuery = useQuery({
+    queryKey: createTenantQueryKey(['todos', 'assignees']),
+    queryFn: () => TodoService.getAssignees(),
+    enabled: formVisible,
+  });
+
+  const todos = useMemo(() => todosQuery.data || [], [todosQuery.data]);
+  const categories = categoriesQuery.data || DEFAULT_TODO_CATEGORIES;
+
+  // Sync selectedTodo when query data refreshes or deep-linked via route.params?.taskId
+  useEffect(() => {
+    const deepTaskId = route.params?.taskId;
+    if (deepTaskId && todos.length > 0 && !selectedTodo) {
+      const found = todos.find((t) => t.id === deepTaskId);
+      if (found) setSelectedTodo(found);
     }
-  }, [statusFilter, priorityFilter, search]);
+  }, [route.params?.taskId, todos, selectedTodo]);
 
   useEffect(() => {
-    loadTodos();
-  }, [loadTodos]);
+    if (selectedTodo) {
+      const fresh = todos.find((t) => t.id === selectedTodo.id);
+      if (fresh) setSelectedTodo(fresh);
+    }
+  }, [todos, selectedTodo]);
 
-  const handleToggleTaskStatus = async (item: TodoItem) => {
-    const nextStatus = item.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
-    const nextProgress = nextStatus === 'COMPLETED' ? 100 : 0;
+  const invalidateTodoAndCalendar = () => {
+    void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['todos']) });
+    void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+  };
+
+  // KPI Overview Metrics (matches UnifiedTodoApp)
+  const stats = useMemo(() => {
+    const total = todos.length;
+    const completed = todos.filter((t) => t.completed).length;
+    const pending = total - completed;
+    const urgent = todos.filter(
+      (t) => !t.completed && (t.priority === 'urgent' || t.priority === 'high')
+    ).length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return { total, pending, completed, urgent, rate };
+  }, [todos]);
+
+  // Filtered & Sorted Tasks
+  const filteredTodos = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = todos.filter((t) => {
+      if (statusTab === 'pending' && t.completed) return false;
+      if (statusTab === 'completed' && !t.completed) return false;
+      if (starredOnly && !t.starred) return false;
+      if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
+      if (categoryFilter !== 'all' && t.tag.toLowerCase() !== categoryFilter.toLowerCase()) {
+        return false;
+      }
+      if (q) {
+        const assigneeMatch = t.assignees.some((a) => a.name.toLowerCase().includes(q));
+        return (
+          t.title.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q) ||
+          assigneeMatch
+        );
+      }
+      return true;
+    });
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'due') {
+        return (a.dueDate || '9999').localeCompare(b.dueDate || '9999');
+      }
+      if (sortBy === 'priority') {
+        return (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0);
+      }
+      if (sortBy === 'progress') {
+        return b.progress - a.progress;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [todos, statusTab, starredOnly, priorityFilter, categoryFilter, search, sortBy]);
+
+  const handleToggleComplete = async (item: TodoItem) => {
     try {
+      const next = !item.completed;
       await TodoService.updateTodo(item.id, {
-        status: nextStatus,
-        progress: nextProgress,
+        completed: next,
+        progress: next ? 100 : 0,
       });
-      loadTodos();
-    } catch {
-      Alert.alert('Error', 'Failed to update task status.');
+      invalidateTodoAndCalendar();
+    } catch (err: any) {
+      Alert.alert('Update Error', err?.message || 'Unable to update task completion.');
     }
   };
 
-  const handleAddChecklist = async () => {
-    if (!selectedTodo || !newChecklistText.trim()) return;
+  const handleToggleStar = async (item: TodoItem) => {
     try {
-      const added = await TodoService.addChecklistItem(selectedTodo.id, newChecklistText.trim());
-      if (added) {
-        setSelectedTodo({
-          ...selectedTodo,
-          checklist: [...(selectedTodo.checklist || []), added],
-        });
-        setNewChecklistText('');
-        loadTodos();
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to add checklist item.');
+      await TodoService.updateTodo(item.id, { starred: !item.starred });
+      invalidateTodoAndCalendar();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Unable to update favorite status.');
     }
   };
 
-  const handleToggleChecklist = async (itemId: string, currentCompleted: boolean) => {
-    if (!selectedTodo) return;
-    try {
-      await TodoService.updateChecklistItem(selectedTodo.id, itemId, !currentCompleted);
-      const updatedList = (selectedTodo.checklist || []).map((c) =>
-        c.id === itemId ? { ...c, completed: !currentCompleted } : c
-      );
-      setSelectedTodo({ ...selectedTodo, checklist: updatedList });
-      loadTodos();
-    } catch {
-      Alert.alert('Error', 'Failed to update checklist.');
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!selectedTodo || !newCommentText.trim()) return;
-    try {
-      const added = await TodoService.addComment(selectedTodo.id, newCommentText.trim());
-      if (added) {
-        setSelectedTodo({
-          ...selectedTodo,
-          comments: [...(selectedTodo.comments || []), added],
-        });
-        setNewCommentText('');
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to post comment.');
-    }
-  };
-
-  const handleCreateTodo = async () => {
-    if (!newTitle.trim()) {
-      Alert.alert('Required', 'Please enter a task title.');
-      return;
-    }
-    try {
-      setCreating(true);
-      await TodoService.createTodo({
-        title: newTitle.trim(),
-        description: newDesc.trim(),
-        priority: newPriority,
-        dueDate: newDueDate,
-        startDate: '2026-11-16',
-        status: 'PENDING',
-        progress: 0,
-      });
-      setCreateModalVisible(false);
-      setNewTitle('');
-      setNewDesc('');
-      loadTodos();
-      Alert.alert('Task Created', 'Work item scheduled successfully.');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create task';
-      Alert.alert('Error', msg);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const getPriorityColor = (p: string) => {
-    switch (p) {
-      case 'URGENT': return '#DC2626';
-      case 'HIGH': return '#EA580C';
-      case 'MEDIUM': return '#3B82F6';
-      default: return '#10B981';
-    }
-  };
+  const hasActiveFilter =
+    Boolean(search.trim()) ||
+    priorityFilter !== 'all' ||
+    categoryFilter !== 'all' ||
+    starredOnly;
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tasks & Action Items</Text>
+    <WorkspaceModuleShell
+      activeModule="todo"
+      title="Todo & Deliverables"
+      rightActions={
         <View style={styles.headerActions}>
           <TouchableOpacity
+            style={styles.catBtn}
+            onPress={() => setCategoryModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Manage task categories"
+          >
+            <Text style={styles.catBtnText}>🏷️ Tags</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.ganttSwitchBtn}
             onPress={() => navigation.navigate('GanttTimeline')}
-            style={styles.ganttBtn}
             accessibilityRole="button"
-            accessibilityLabel="Gantt timeline"
+            accessibilityLabel="Switch to Gantt timeline"
           >
-            <Text style={styles.ganttBtnText}>📊 Gantt</Text>
+            <Text style={styles.catBtnText}>📊 Gantt</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setCreateModalVisible(true)}
-            style={styles.addBtn}
+            style={styles.createBtn}
+            onPress={() => {
+              setEditingTodo(null);
+              setFormVisible(true);
+            }}
             accessibilityRole="button"
-            accessibilityLabel="New task"
+            accessibilityLabel="Create task"
           >
-            <Text style={styles.addBtnText}>+ Task</Text>
+            <Text style={styles.createBtnText}>+ Task</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      }
+      subHeader={
+        <View style={styles.toolbar}>
+          {/* Search + Starred + Sort Row */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Text style={styles.searchIcon}>🔍</Text>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search tasks, descriptions, assignees..."
+                placeholderTextColor="#94A3B8"
+                value={search}
+                onChangeText={setSearch}
+              />
+            </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBox}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search tasks, action items, tags..."
-            placeholderTextColor="#94A3B8"
-            value={search}
-            onChangeText={setSearch}
-          />
-        </View>
-      </View>
-
-      {/* Status Filter Tabs */}
-      <View style={styles.statusTabs}>
-        {(['ALL', 'PENDING', 'IN_PROGRESS', 'COMPLETED'] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.statusTab, statusFilter === tab && styles.statusTabActive]}
-            onPress={() => setStatusFilter(tab)}
-          >
-            <Text
-              style={[
-                styles.statusTabText,
-                statusFilter === tab && styles.statusTabTextActive,
-              ]}
-            >
-              {tab.replace('_', ' ')}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Priority Filter Chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.priorityFilterScroll}
-      >
-        {['ALL', 'LOW', 'MEDIUM', 'HIGH', 'URGENT'].map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.priorityChip, priorityFilter === p && styles.priorityChipActive]}
-            onPress={() => setPriorityFilter(p)}
-          >
-            <Text
-              style={[
-                styles.priorityChipText,
-                priorityFilter === p && styles.priorityChipTextActive,
-              ]}
-            >
-              {p}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Tasks List */}
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <ActivityIndicator color="#4F46E5" style={styles.loader} />
-        ) : todos.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyIcon}>📋</Text>
-            <Text style={styles.emptyTitle}>No Tasks Found</Text>
-            <Text style={styles.emptySubtitle}>
-              Create a new task to assign work items, checklists, and track milestones.
-            </Text>
             <TouchableOpacity
-              style={styles.emptyBtn}
-              onPress={() => setCreateModalVisible(true)}
+              style={[styles.iconFilterBtn, starredOnly && styles.iconFilterBtnActive]}
+              onPress={() => setStarredOnly((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel="Filter starred tasks"
             >
-              <Text style={styles.emptyBtnText}>Create New Task</Text>
+              <Text style={{ fontSize: 16 }}>{starredOnly ? '⭐' : '☆'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sortBtn}
+              onPress={() =>
+                setSortBy((s) =>
+                  s === 'created'
+                    ? 'due'
+                    : s === 'due'
+                    ? 'priority'
+                    : s === 'priority'
+                    ? 'progress'
+                    : 'created'
+                )
+              }
+            >
+              <Text style={styles.sortBtnText}>⇅ {sortBy.toUpperCase()}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Status Segmented Tabs with Live Counts */}
+          <View style={styles.statusTabs}>
+            {(
+              [
+                { k: 'all', label: `All (${stats.total})` },
+                { k: 'pending', label: `Pending (${stats.pending})` },
+                { k: 'completed', label: `Done (${stats.completed})` },
+              ] as const
+            ).map((t) => (
+              <TouchableOpacity
+                key={t.k}
+                style={[styles.statusTab, statusTab === t.k && styles.statusTabActive]}
+                onPress={() => setStatusTab(t.k)}
+              >
+                <Text
+                  style={[
+                    styles.statusTabText,
+                    statusTab === t.k && styles.statusTabTextActive,
+                  ]}
+                >
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Priority & Category Filter Chips */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsScroll}
+          >
+            {(['all', 'urgent', 'high', 'medium', 'low'] as const).map((p) => (
+              <TouchableOpacity
+                key={`prio-${p}`}
+                style={[styles.chip, priorityFilter === p && styles.chipActive]}
+                onPress={() => setPriorityFilter(p)}
+              >
+                <Text style={[styles.chipText, priorityFilter === p && styles.chipTextActive]}>
+                  {p === 'all' ? 'All Priority' : p.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {categories.map((cat) => {
+              const active = categoryFilter.toLowerCase() === cat.id.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={`cat-${cat.id}`}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => setCategoryFilter(active ? 'all' : cat.id)}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    #{cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {hasActiveFilter && (
+              <TouchableOpacity
+                style={styles.resetChip}
+                onPress={() => {
+                  setSearch('');
+                  setPriorityFilter('all');
+                  setCategoryFilter('all');
+                  setStarredOnly(false);
+                }}
+              >
+                <Text style={styles.resetChipText}>Reset</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </View>
+      }
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={todosQuery.isRefetching}
+            onRefresh={() => {
+              void todosQuery.refetch();
+            }}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 4 KPI Overview Cards */}
+        <View style={styles.kpiRow}>
+          <View style={styles.kpiCard}>
+            <Text style={styles.kpiVal}>{stats.total}</Text>
+            <Text style={styles.kpiLbl}>Deliverables</Text>
+          </View>
+          <View style={styles.kpiCard}>
+            <Text style={[styles.kpiVal, { color: '#4F46E5' }]}>{stats.pending}</Text>
+            <Text style={styles.kpiLbl}>Pending</Text>
+          </View>
+          <View style={styles.kpiCard}>
+            <Text style={[styles.kpiVal, { color: '#10B981' }]}>{stats.completed}</Text>
+            <Text style={styles.kpiLbl}>Done ({stats.rate}%)</Text>
+          </View>
+          <View style={styles.kpiCard}>
+            <Text style={[styles.kpiVal, { color: '#DC2626' }]}>{stats.urgent}</Text>
+            <Text style={styles.kpiLbl}>High / Urgent</Text>
+          </View>
+        </View>
+
+        {todosQuery.isLoading ? (
+          <WorkspaceLoadingBlock message="Loading authorized workspace tasks..." />
+        ) : todosQuery.isError ? (
+          <WorkspaceErrorBlock
+            message={(todosQuery.error as any)?.message || 'Failed to load workspace tasks.'}
+            onRetry={() => {
+              void todosQuery.refetch();
+            }}
+          />
+        ) : filteredTodos.length === 0 ? (
+          <WorkspaceEmptyBlock
+            icon="📋"
+            title="No Tasks Match Criteria"
+            description="Adjust your search or filters, or create a new deliverable."
+            actionLabel="Create Task"
+            onAction={() => {
+              setEditingTodo(null);
+              setFormVisible(true);
+            }}
+          />
         ) : (
-          todos.map((item) => {
-            const isDone = item.status === 'COMPLETED';
+          filteredTodos.map((item) => {
+            const overdue = isTodoOverdue(item);
+            const cat = categories.find((c) => c.id.toLowerCase() === item.tag.toLowerCase());
+            const doneSubs = item.checklist.filter((c) => c.done).length;
+            const accentColor = item.completed
+              ? '#10B981'
+              : overdue
+              ? '#EF4444'
+              : '#4F46E5';
+
             return (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.taskCard, isDone && styles.taskCardDone]}
+                style={[styles.taskCard, item.completed && styles.taskCardCompleted]}
                 onPress={() => setSelectedTodo(item)}
                 accessibilityRole="button"
                 accessibilityLabel={item.title}
               >
-                <TouchableOpacity
-                  style={[styles.checkbox, isDone && styles.checkboxChecked]}
-                  onPress={() => handleToggleTaskStatus(item)}
-                >
-                  {isDone && <Text style={styles.checkIcon}>✓</Text>}
-                </TouchableOpacity>
+                <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
 
-                <View style={styles.taskInfo}>
-                  <Text style={[styles.taskTitle, isDone && styles.taskTitleDone]}>
-                    {item.title}
-                  </Text>
+                <View style={styles.cardInner}>
+                  <View style={styles.cardTopRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.checkbox,
+                        item.completed && styles.checkboxChecked,
+                      ]}
+                      onPress={() => handleToggleComplete(item)}
+                    >
+                      {item.completed && <Text style={styles.checkIcon}>✓</Text>}
+                    </TouchableOpacity>
+
+                    <Text
+                      style={[
+                        styles.taskTitle,
+                        item.completed && styles.taskTitleDone,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.title}
+                    </Text>
+
+                    <TouchableOpacity
+                      onPress={() => handleToggleStar(item)}
+                      style={{ paddingHorizontal: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>{item.starred ? '⭐' : '☆'}</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   {item.description ? (
                     <Text style={styles.taskDesc} numberOfLines={1}>
                       {item.description}
                     </Text>
                   ) : null}
 
-                  <View style={styles.taskMetaRow}>
+                  <View style={styles.metaBadgesRow}>
                     <View
                       style={[
-                        styles.priorityBadge,
-                        { backgroundColor: `${getPriorityColor(item.priority)}15` },
+                        styles.badge,
+                        { backgroundColor: `${getTodoPriorityColor(item.priority)}16` },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.priorityDot,
-                          { backgroundColor: getPriorityColor(item.priority) },
-                        ]}
-                      />
                       <Text
                         style={[
-                          styles.priorityText,
-                          { color: getPriorityColor(item.priority) },
+                          styles.badgeText,
+                          { color: getTodoPriorityColor(item.priority) },
                         ]}
                       >
-                        {item.priority}
+                        {item.priority.toUpperCase()}
                       </Text>
                     </View>
 
-                    {item.dueDate ? (
-                      <Text style={styles.dueDateText}>📅 Due: {item.dueDate}</Text>
-                    ) : null}
-
-                    {item.checklist && item.checklist.length > 0 ? (
-                      <Text style={styles.checklistCount}>
-                        ☑️ {item.checklist.filter((c) => c.completed).length}/
-                        {item.checklist.length}
+                    <View
+                      style={[
+                        styles.badge,
+                        { backgroundColor: `${cat?.color || '#4F46E5'}16` },
+                      ]}
+                    >
+                      <Text style={[styles.badgeText, { color: cat?.color || '#4F46E5' }]}>
+                        {cat?.name || item.tag}
                       </Text>
-                    ) : null}
-                  </View>
-                </View>
+                    </View>
 
-                <View style={styles.taskRight}>
-                  <Text style={styles.progressText}>{item.progress}%</Text>
+                    <Text style={[styles.metaSmall, overdue && { color: '#DC2626' }]}>
+                      📅 {item.dueDate}
+                      {overdue ? ' (Overdue)' : ''}
+                    </Text>
+
+                    {item.checklist.length > 0 && (
+                      <Text style={styles.metaSmall}>
+                        ☑️ {doneSubs}/{item.checklist.length}
+                      </Text>
+                    )}
+
+                    {item.comments.length > 0 && (
+                      <Text style={styles.metaSmall}>💬 {item.comments.length}</Text>
+                    )}
+                  </View>
+
+                  {/* Assignees + Progress Bar Footer */}
+                  <View style={styles.cardFooterRow}>
+                    <View style={styles.avatarStack}>
+                      {item.assignees.slice(0, 3).map((a) => (
+                        <View key={a.id} style={styles.miniAvatar}>
+                          <Text style={styles.miniAvatarText}>
+                            {a.name.substring(0, 2).toUpperCase()}
+                          </Text>
+                        </View>
+                      ))}
+                      {item.assignees.length > 3 && (
+                        <Text style={styles.metaSmall}>+{item.assignees.length - 3}</Text>
+                      )}
+                    </View>
+
+                    <View style={styles.progressMiniWrap}>
+                      <View style={styles.progressMiniTrack}>
+                        <View
+                          style={[
+                            styles.progressMiniFill,
+                            {
+                              width: `${item.progress}%`,
+                              backgroundColor: item.completed ? '#10B981' : '#4F46E5',
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.progressMiniLabel}>{item.progress}%</Text>
+                    </View>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -346,337 +527,179 @@ export const TodoListScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* Task Detail Modal */}
-      <Modal visible={!!selectedTodo} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {selectedTodo && (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle} numberOfLines={2}>
-                    {selectedTodo.title}
-                  </Text>
-                  <TouchableOpacity onPress={() => setSelectedTodo(null)}>
-                    <Text style={styles.modalCloseText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
+      {/* Shared Task Detail Drawer */}
+      <TodoTaskInspectorSheet
+        todo={selectedTodo}
+        categories={categories}
+        currentUserId={user?.id || ''}
+        isAdminPersona={isAdminPersona}
+        onClose={() => setSelectedTodo(null)}
+        onEditPress={(t) => {
+          setSelectedTodo(null);
+          setEditingTodo(t);
+          setFormVisible(true);
+        }}
+        onOpenCalendar={(dueDate) =>
+          navigation.navigate('CalendarMain', { focusDate: dueDate })
+        }
+        onMutated={(updated) => {
+          if (updated === null) {
+            setSelectedTodo(null);
+          } else if (updated) {
+            setSelectedTodo(updated);
+          }
+          invalidateTodoAndCalendar();
+        }}
+      />
 
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  {selectedTodo.description ? (
-                    <Text style={styles.detailDesc}>{selectedTodo.description}</Text>
-                  ) : null}
+      {/* Shared Create / Edit Task Modal */}
+      <TodoTaskFormModal
+        visible={formVisible}
+        editingTodo={editingTodo}
+        categories={categories}
+        assignees={assigneesQuery.data || []}
+        onClose={() => {
+          setFormVisible(false);
+          setEditingTodo(null);
+        }}
+        onOpenCategories={() => {
+          setFormVisible(false);
+          setCategoryModalVisible(true);
+        }}
+        onSaved={invalidateTodoAndCalendar}
+      />
 
-                  <View style={styles.detailMetaGrid}>
-                    <View style={styles.detailMetaItem}>
-                      <Text style={styles.detailMetaLabel}>Status</Text>
-                      <Text style={styles.detailMetaVal}>{selectedTodo.status}</Text>
-                    </View>
-                    <View style={styles.detailMetaItem}>
-                      <Text style={styles.detailMetaLabel}>Priority</Text>
-                      <Text
-                        style={[
-                          styles.detailMetaVal,
-                          { color: getPriorityColor(selectedTodo.priority) },
-                        ]}
-                      >
-                        {selectedTodo.priority}
-                      </Text>
-                    </View>
-                    <View style={styles.detailMetaItem}>
-                      <Text style={styles.detailMetaLabel}>Due Date</Text>
-                      <Text style={styles.detailMetaVal}>{selectedTodo.dueDate || 'None'}</Text>
-                    </View>
-                  </View>
-
-                  {/* Checklist Subtasks */}
-                  <Text style={styles.sectionHeader}>Checklist Subtasks</Text>
-                  {(selectedTodo.checklist || []).map((chk) => (
-                    <TouchableOpacity
-                      key={chk.id}
-                      style={styles.checkRow}
-                      onPress={() => handleToggleChecklist(chk.id, chk.completed)}
-                    >
-                      <View
-                        style={[
-                          styles.subCheckbox,
-                          chk.completed && styles.subCheckboxChecked,
-                        ]}
-                      >
-                        {chk.completed && <Text style={styles.checkIcon}>✓</Text>}
-                      </View>
-                      <Text
-                        style={[
-                          styles.checkText,
-                          chk.completed && styles.checkTextDone,
-                        ]}
-                      >
-                        {chk.text}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-
-                  <View style={styles.addChecklistRow}>
-                    <TextInput
-                      style={styles.addChecklistInput}
-                      placeholder="Add subtask item..."
-                      placeholderTextColor="#94A3B8"
-                      value={newChecklistText}
-                      onChangeText={setNewChecklistText}
-                    />
-                    <TouchableOpacity
-                      style={styles.addChecklistBtn}
-                      onPress={handleAddChecklist}
-                    >
-                      <Text style={styles.addChecklistBtnText}>Add</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Comments Stream */}
-                  <Text style={styles.sectionHeader}>Discussion & Comments</Text>
-                  {(selectedTodo.comments || []).map((comm) => (
-                    <View key={comm.id} style={styles.commentItem}>
-                      <Text style={styles.commentAuthor}>{comm.userName}</Text>
-                      <Text style={styles.commentText}>{comm.text}</Text>
-                    </View>
-                  ))}
-
-                  <View style={styles.addCommentRow}>
-                    <TextInput
-                      style={styles.addCommentInput}
-                      placeholder="Add a remark or update..."
-                      placeholderTextColor="#94A3B8"
-                      value={newCommentText}
-                      onChangeText={setNewCommentText}
-                    />
-                    <TouchableOpacity style={styles.addCommentBtn} onPress={handleAddComment}>
-                      <Text style={styles.addCommentBtnText}>Send</Text>
-                    </TouchableOpacity>
-                  </View>
-                </ScrollView>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Create Task Modal */}
-      <Modal visible={createModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Action Item</Text>
-              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.fieldLabel}>Task Title</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Prepare Monthly Tax Filing"
-                placeholderTextColor="#94A3B8"
-                value={newTitle}
-                onChangeText={setNewTitle}
-              />
-
-              <Text style={styles.fieldLabel}>Description</Text>
-              <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="Details, deliverable scope or acceptance criteria"
-                placeholderTextColor="#94A3B8"
-                value={newDesc}
-                onChangeText={setNewDesc}
-                multiline
-              />
-
-              <Text style={styles.fieldLabel}>Priority</Text>
-              <View style={styles.prioRow}>
-                {(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map((p) => (
-                  <TouchableOpacity
-                    key={p}
-                    style={[
-                      styles.prioPill,
-                      newPriority === p && styles.prioPillActive,
-                    ]}
-                    onPress={() => setNewPriority(p)}
-                  >
-                    <Text
-                      style={[
-                        styles.prioPillText,
-                        newPriority === p && styles.prioPillTextActive,
-                      ]}
-                    >
-                      {p}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.fieldLabel}>Due Date</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newDueDate}
-                onChangeText={setNewDueDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#94A3B8"
-              />
-
-              {assignees.length > 0 && (
-                <>
-                  <Text style={styles.fieldLabel}>Assign Team Members</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.assigneesScroll}
-                  >
-                    {assignees.map((a) => {
-                      const isSelected = selectedAssigneeIds.includes(a.id);
-                      return (
-                        <TouchableOpacity
-                          key={a.id}
-                          style={[styles.assigneeChip, isSelected && styles.assigneeChipActive]}
-                          onPress={() => {
-                            if (isSelected) {
-                              setSelectedAssigneeIds((prev) => prev.filter((id) => id !== a.id));
-                            } else {
-                              setSelectedAssigneeIds((prev) => [...prev, a.id]);
-                            }
-                          }}
-                        >
-                          <Text
-                            style={[
-                              styles.assigneeChipText,
-                              isSelected && styles.assigneeChipTextActive,
-                            ]}
-                          >
-                            {a.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </>
-              )}
-
-              <TouchableOpacity
-                style={styles.submitBtn}
-                onPress={handleCreateTodo}
-                disabled={creating}
-              >
-                {creating ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Create Task</Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      {/* Shared Category Manager Modal */}
+      <TodoCategoryManagerModal
+        visible={categoryModalVisible}
+        categories={categories}
+        onClose={() => setCategoryModalVisible(false)}
+        onChanged={() => {
+          void queryClient.invalidateQueries({
+            queryKey: createTenantQueryKey(['todos', 'categories']),
+          });
+          invalidateTodoAndCalendar();
+        }}
+      />
+    </WorkspaceModuleShell>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 5,
   },
-  ganttBtn: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
+  catBtn: {
+    minHeight: 36,
+    paddingHorizontal: 9,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    justifyContent: 'center',
   },
-  ganttBtnText: {
+  ganttSwitchBtn: {
+    minHeight: 36,
+    paddingHorizontal: 9,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    justifyContent: 'center',
+  },
+  catBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
-  addBtn: {
+  createBtn: {
+    minHeight: 36,
+    paddingHorizontal: 11,
+    borderRadius: 9,
     backgroundColor: '#4F46E5',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    justifyContent: 'center',
   },
-  addBtnText: {
+  createBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
-  searchSection: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
+  toolbar: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
   searchBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    flex: 1,
+    minHeight: 42,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    height: 44,
+    paddingHorizontal: 10,
   },
   searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
+    fontSize: 14,
+    marginRight: 6,
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: '#0F172A',
+  },
+  iconFilterBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconFilterBtnActive: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#F59E0B',
+  },
+  sortBtn: {
+    minHeight: 42,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
+  },
+  sortBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#334155',
   },
   statusTabs: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 8,
   },
   statusTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statusTabActive: {
-    backgroundColor: '#1E1B4B',
-    borderColor: '#1E1B4B',
+    backgroundColor: '#FFFFFF',
   },
   statusTabText: {
     fontSize: 11,
@@ -684,77 +707,110 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   statusTabTextActive: {
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontWeight: '700',
   },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
+  chipsScroll: {
+    gap: 6,
+    paddingVertical: 2,
   },
-  loader: {
-    marginTop: 40,
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginTop: 20,
+    marginRight: 5,
   },
-  emptyIcon: {
-    fontSize: 48,
+  chipActive: {
+    backgroundColor: '#1E1B4B',
+    borderColor: '#1E1B4B',
+  },
+  chipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  chipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  resetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#FEE2E2',
+  },
+  resetChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 12,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+  kpiCard: {
+    width: '23%',
+    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  kpiVal: {
+    fontSize: 16,
+    fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 6,
   },
-  emptySubtitle: {
-    fontSize: 13,
+  kpiLbl: {
+    fontSize: 10,
     color: '#64748B',
+    marginTop: 2,
     textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-  },
-  emptyBtn: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  emptyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
   },
   taskCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    overflow: 'hidden',
     marginBottom: 10,
   },
-  taskCardDone: {
-    opacity: 0.65,
-    backgroundColor: '#F8FAFC',
+  taskCardCompleted: {
+    opacity: 0.72,
+  },
+  accentBar: {
+    width: 5,
+  },
+  cardInner: {
+    flex: 1,
+    padding: 12,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: 10,
   },
   checkboxChecked: {
     backgroundColor: '#10B981',
@@ -762,17 +818,14 @@ const styles = StyleSheet.create({
   },
   checkIcon: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  taskInfo: {
-    flex: 1,
+    fontSize: 12,
+    fontWeight: '800',
   },
   taskTitle: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
-    marginBottom: 4,
   },
   taskTitleDone: {
     textDecorationLine: 'line-through',
@@ -781,320 +834,70 @@ const styles = StyleSheet.create({
   taskDesc: {
     fontSize: 12,
     color: '#64748B',
+    marginBottom: 6,
+  },
+  metaBadgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 8,
   },
-  taskMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  priorityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
+  badge: {
+    borderRadius: 7,
+    paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 8,
   },
-  priorityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-  priorityText: {
+  badgeText: {
     fontSize: 10,
     fontWeight: '700',
   },
-  dueDateText: {
+  metaSmall: {
     fontSize: 11,
     color: '#64748B',
   },
-  checklistCount: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  taskRight: {
-    marginLeft: 8,
-  },
-  progressText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4F46E5',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '85%',
-  },
-  modalHeader: {
+  cardFooterRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-    marginRight: 12,
-  },
-  modalCloseText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: 'bold',
-  },
-  detailDesc: {
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  detailMetaGrid: {
-    flexDirection: 'row',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
-  },
-  detailMetaItem: {
-    flex: 1,
-  },
-  detailMetaLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginBottom: 2,
-  },
-  detailMetaVal: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  sectionHeader: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  checkRow: {
+  avatarStack: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    gap: 4,
   },
-  subCheckbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
+  miniAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
   },
-  subCheckboxChecked: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  checkText: {
-    fontSize: 13,
-    color: '#334155',
-  },
-  checkTextDone: {
-    textDecorationLine: 'line-through',
-    color: '#94A3B8',
-  },
-  addChecklistRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 14,
-  },
-  addChecklistInput: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: '#0F172A',
-    marginRight: 8,
-  },
-  addChecklistBtn: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  addChecklistBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  commentItem: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 6,
-  },
-  commentAuthor: {
-    fontSize: 11,
-    fontWeight: '700',
+  miniAvatarText: {
+    fontSize: 9,
+    fontWeight: '800',
     color: '#4F46E5',
-    marginBottom: 2,
   },
-  commentText: {
-    fontSize: 12,
+  progressMiniWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  progressMiniTrack: {
+    width: 64,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  progressMiniFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressMiniLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#334155',
-  },
-  addCommentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 20,
-  },
-  addCommentInput: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: '#0F172A',
-    marginRight: 8,
-  },
-  addCommentBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  addCommentBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 8,
-    marginTop: 6,
-  },
-  modalInput: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#0F172A',
-    marginBottom: 14,
-  },
-  textArea: {
-    height: 70,
-    textAlignVertical: 'top',
-  },
-  prioRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  prioPill: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-  },
-  prioPillActive: {
-    backgroundColor: '#4F46E5',
-  },
-  prioPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  prioPillTextActive: {
-    color: '#FFFFFF',
-  },
-  submitBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  priorityFilterScroll: {
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 12,
-  },
-  priorityChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  priorityChipActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
-  },
-  priorityChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  priorityChipTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  assigneesScroll: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  assigneeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  assigneeChipActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#4F46E5',
-  },
-  assigneeChipText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  assigneeChipTextActive: {
-    color: '#4F46E5',
-    fontWeight: '700',
   },
 });

@@ -1,647 +1,2028 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   TextInput,
+  RefreshControl,
   ActivityIndicator,
   Modal,
   Alert,
   Switch,
 } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
-import { useNavigation } from '@react-navigation/native';
+import {
+  WorkspaceModuleShell,
+  WorkspaceLoadingBlock,
+  WorkspaceErrorBlock,
+  WorkspaceEmptyBlock,
+  useResponsiveLayout,
+} from '../../../components/workspace/WorkspaceModuleShell';
+import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { useAuthStore } from '../../../store/authStore';
+import { usePermission } from '../../../hooks/usePermission';
+import { realtimeManager } from '../../../core/realtime/realtimeManager';
 import {
   CalendarService,
   CalendarEvent,
   CalendarCategory,
-  MeetingRoom,
+  CalendarReminder,
+  CalendarEventUpsertPayload,
 } from '../../../core/services/calendarService';
+
+type CalendarViewMode = 'agenda' | 'month' | 'week' | 'day';
+
+const COLOR_SWATCHES = [
+  '#4F46E5',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#0EA5E9',
+  '#8B5CF6',
+  '#EC4899',
+  '#14B8A6',
+];
+
+const TIMEZONES = [
+  'Asia/Kolkata',
+  'UTC',
+  'America/New_York',
+  'Europe/London',
+  'Asia/Dubai',
+  'Asia/Singapore',
+];
+
+const REMINDER_MINUTES = [
+  { value: 5, label: '5 min before' },
+  { value: 15, label: '15 min before' },
+  { value: 30, label: '30 min before' },
+  { value: 60, label: '1 hour before' },
+  { value: 1440, label: '1 day before' },
+];
+
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseRruleFreq(rule?: string | null): 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' {
+  if (!rule) return 'NONE';
+  const match = rule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i);
+  return match ? (match[1].toUpperCase() as any) : 'NONE';
+}
+
+function buildRrule(
+  freq: 'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY',
+  untilYmd?: string
+): string | undefined {
+  if (freq === 'NONE') return undefined;
+  let rule = `FREQ=${freq}`;
+  if (untilYmd && /^\d{4}-\d{2}-\d{2}$/.test(untilYmd.trim())) {
+    const compact = untilYmd.trim().replace(/-/g, '');
+    rule += `;UNTIL=${compact}T235959Z`;
+  }
+  return rule;
+}
 
 export const CalendarMainScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const queryClient = useQueryClient();
+  const { isTablet } = useResponsiveLayout();
+  const user = useAuthStore((s) => s.user);
+  const { hasAnyPermission, activeRole } = usePermission();
 
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 10, 16)); // Nov 16, 2026
-  const [viewMode, setViewMode] = useState<'month' | 'agenda' | 'week'>('month');
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [categories, setCategories] = useState<CalendarCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [loading, setLoading] = useState(true);
-
-  // Selected event modal
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-
-  // New Event Modal state
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newCategory, setNewCategory] = useState('Meetings');
-  const [newStartDate, setNewStartDate] = useState('2026-11-16');
-  const [newEndDate, setNewEndDate] = useState('2026-11-16');
-  const [newStartTime, setNewStartTime] = useState('10:00');
-  const [newEndTime, setNewEndTime] = useState('11:00');
-  const [newAllDay, setNewAllDay] = useState(false);
-  const [newLocation, setNewLocation] = useState('');
-  const [newRoom, setNewRoom] = useState('');
-  const [rooms, setRooms] = useState<MeetingRoom[]>([]);
-  const [creating, setCreating] = useState(false);
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [evts, cats, rms] = await Promise.all([
-        CalendarService.getEvents(),
-        CalendarService.getCategories(),
-        CalendarService.getRooms(),
-      ]);
-      setEvents(evts);
-      setCategories(cats);
-      setRooms(rms);
-    } catch {
-      // Graceful fallback
-    } finally {
-      setLoading(false);
+  const initialDate = useMemo(() => {
+    if (route.params?.focusDate) {
+      const parsed = new Date(route.params.focusDate);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
     }
-  }, []);
+    return new Date();
+  }, [route.params?.focusDate]);
 
+  const [currentDate, setCurrentDate] = useState<Date>(initialDate);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    route.params?.initialView || (isTablet ? 'month' : 'agenda')
+  );
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Modals & Drawers
+  const [dateJumpOpen, setDateJumpOpen] = useState(false);
+  const [jumpDateInput, setJumpDateInput] = useState(toYmd(initialDate));
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatColor, setNewCatColor] = useState(COLOR_SWATCHES[0]);
+  const [editingCat, setEditingCat] = useState<CalendarCategory | null>(null);
+
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+
+  // Create / Edit Event Form Modal
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('Meetings');
+  const [startDateStr, setStartDateStr] = useState(toYmd(new Date()));
+  const [endDateStr, setEndDateStr] = useState(toYmd(new Date()));
+  const [startTimeStr, setStartTimeStr] = useState('10:00');
+  const [endTimeStr, setEndTimeStr] = useState('11:00');
+  const [allDay, setAllDay] = useState(false);
+  const [location, setLocation] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
+  const [roomId, setRoomId] = useState('');
+  const [timezone, setTimezone] = useState('Asia/Kolkata');
+  const [visibility, setVisibility] = useState<'private' | 'team' | 'organization'>('private');
+  const [recurrenceFreq, setRecurrenceFreq] = useState<
+    'NONE' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  >('NONE');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
+  const [sharedWith, setSharedWith] = useState<
+    Array<{ recipientId: string; name: string; permission: 'view' | 'edit' }>
+  >([]);
+  const [recipientQuery, setRecipientQuery] = useState('');
+  const [reminders, setReminders] = useState<CalendarReminder[]>([
+    { minutesBefore: 15, channel: 'in_app' },
+  ]);
+
+  // Conflict & Recurrence Scope Modals
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    conflicts: any[];
+    pendingPayload: CalendarEventUpsertPayload;
+  } | null>(null);
+
+  const [recurrencePrompt, setRecurrencePrompt] = useState<{
+    mode: 'edit' | 'cancel';
+    pendingPayload?: CalendarEventUpsertPayload;
+  } | null>(null);
+
+  // Live share input inside Event Details
+  const [detailShareQuery, setDetailShareQuery] = useState('');
+  const [detailSharePerm, setDetailSharePerm] = useState<'view' | 'edit'>('view');
+
+  // Determine composite projection scope from authoritative permissions (not role string guessing alone)
+  const useHrCompositeScope =
+    activeRole !== 'employee' &&
+    (hasAnyPermission(['hrm.dashboard.view', 'hrm.manage', '*']) ||
+      activeRole === 'hr_admin' ||
+      activeRole === 'tenant_admin');
+
+  const canOverrideConflicts =
+    hasAnyPermission(['hrm.dashboard.view', 'hrm.manage', '*']) ||
+    activeRole === 'hr_admin' ||
+    activeRole === 'tenant_admin' ||
+    activeRole === 'manager';
+
+  // 3-month rolling window around currentDate (matches UnifiedCalendarApp)
+  const dateWindow = useMemo(() => {
+    const start = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1, 0, 0, 0);
+    const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0, 23, 59, 59);
+    return {
+      startIso: start.toISOString(),
+      endIso: end.toISOString(),
+    };
+  }, [currentDate]);
+
+  // Queries
+  const categoriesQuery = useQuery({
+    queryKey: createTenantQueryKey(['calendar', 'categories']),
+    queryFn: () => CalendarService.getCategories(),
+  });
+
+  const roomsQuery = useQuery({
+    queryKey: createTenantQueryKey(['calendar', 'rooms']),
+    queryFn: () => CalendarService.getRooms(),
+  });
+
+  const eventsQuery = useQuery({
+    queryKey: createTenantQueryKey([
+      'calendar',
+      'events',
+      dateWindow.startIso,
+      dateWindow.endIso,
+      useHrCompositeScope ? 'hr' : 'me',
+    ]),
+    queryFn: () =>
+      CalendarService.getCompositeEvents({
+        startDate: dateWindow.startIso,
+        endDate: dateWindow.endIso,
+        scope: useHrCompositeScope ? 'hr' : 'me',
+      }),
+  });
+
+  const recipientsQuery = useQuery({
+    queryKey: createTenantQueryKey([
+      'calendar',
+      'recipients',
+      formModalOpen ? recipientQuery : detailShareQuery,
+    ]),
+    queryFn: () =>
+      CalendarService.getEligibleRecipients(
+        (formModalOpen ? recipientQuery : detailShareQuery).trim() || undefined
+      ),
+    enabled: formModalOpen || Boolean(selectedEvent && !selectedEvent.isReadOnly),
+  });
+
+  const auditLogsQuery = useQuery({
+    queryKey: createTenantQueryKey(['calendar', 'audit-logs', selectedEvent?.id || 'none']),
+    queryFn: () => CalendarService.getEventAuditLogs(selectedEvent!.id),
+    enabled: Boolean(auditModalOpen && selectedEvent && !selectedEvent.isReadOnly),
+  });
+
+  // Subscribe to realtime Pusher/Socket calendar events
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const refreshCalendar = () => {
+      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+    };
+    const unsubs = [
+      realtimeManager.subscribe('calendar:reminder-due', refreshCalendar),
+      realtimeManager.subscribe('calendar:event-shared', refreshCalendar),
+      realtimeManager.subscribe('calendar:event-updated', refreshCalendar),
+      realtimeManager.subscribe('calendar:event-cancelled', refreshCalendar),
+      realtimeManager.subscribe('calendar:event-deleted', refreshCalendar),
+      realtimeManager.subscribe('calendar:rsvp-updated', refreshCalendar),
+    ];
+    return () => unsubs.forEach((u) => u());
+  }, [queryClient]);
 
-  const handlePrev = () => {
-    const prev = new Date(currentDate);
-    prev.setMonth(prev.getMonth() - 1);
-    setCurrentDate(prev);
+  const categories = useMemo(() => {
+    const fetched = categoriesQuery.data || [];
+    if (fetched.length > 0) return fetched;
+    return [
+      { id: 'Meetings', name: 'Meetings', color: '#4F46E5', isSystem: true },
+      { id: 'Project', name: 'Project', color: '#10B981', isSystem: true },
+      { id: 'Holiday', name: 'Holiday', color: '#0EA5E9', isSystem: true },
+      { id: 'Training', name: 'Training', color: '#F59E0B', isSystem: true },
+    ];
+  }, [categoriesQuery.data]);
+
+  const categoryColorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of categories) {
+      map[c.name.toLowerCase()] = c.color;
+    }
+    return map;
+  }, [categories]);
+
+  const getEventColor = (evt: CalendarEvent) => {
+    if (evt.color) return evt.color;
+    return categoryColorMap[evt.category.toLowerCase()] || '#4F46E5';
   };
 
-  const handleNext = () => {
+  // Filtered events
+  const filteredEvents = useMemo(() => {
+    const all = eventsQuery.data || [];
+    const q = search.trim().toLowerCase();
+    return all.filter((e) => {
+      if (
+        selectedCategory !== 'all' &&
+        e.category.toLowerCase() !== selectedCategory.toLowerCase()
+      ) {
+        return false;
+      }
+      if (q) {
+        return (
+          e.title.toLowerCase().includes(q) ||
+          (e.description || '').toLowerCase().includes(q) ||
+          e.category.toLowerCase().includes(q) ||
+          (e.location || '').toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [eventsQuery.data, selectedCategory, search]);
+
+  // Navigation helpers
+  const shiftPeriod = (dir: -1 | 1) => {
     const next = new Date(currentDate);
-    next.setMonth(next.getMonth() + 1);
+    if (viewMode === 'day') {
+      next.setDate(next.getDate() + dir);
+    } else if (viewMode === 'week') {
+      next.setDate(next.getDate() + dir * 7);
+    } else {
+      next.setMonth(next.getMonth() + dir);
+    }
     setCurrentDate(next);
   };
 
   const handleToday = () => {
-    setCurrentDate(new Date(2026, 10, 16));
+    setCurrentDate(new Date());
   };
 
-  const handleCreateEvent = async () => {
-    if (!newTitle.trim()) {
-      Alert.alert('Required', 'Please enter an event title.');
+  // Open Create or Edit Event Modal
+  const openCreateModal = (prefillDate?: Date, prefillHour?: number) => {
+    const baseDate = prefillDate || new Date();
+    const todayFloor = new Date();
+    todayFloor.setHours(0, 0, 0, 0);
+    const safeDate = baseDate < todayFloor ? new Date() : baseDate;
+    const ymd = toYmd(safeDate);
+    const hr = prefillHour !== undefined ? prefillHour : 10;
+
+    setEditingEvent(null);
+    setTitle('');
+    setDescription('');
+    setCategory(categories[0]?.name || 'Meetings');
+    setStartDateStr(ymd);
+    setEndDateStr(ymd);
+    setStartTimeStr(`${String(hr).padStart(2, '0')}:00`);
+    setEndTimeStr(`${String(Math.min(23, hr + 1)).padStart(2, '0')}:00`);
+    setAllDay(false);
+    setLocation('');
+    setMeetingLink('');
+    setRoomId('');
+    setTimezone('Asia/Kolkata');
+    setVisibility('private');
+    setRecurrenceFreq('NONE');
+    setRecurrenceUntil('');
+    setSharedWith([]);
+    setReminders([{ minutesBefore: 15, channel: 'in_app' }]);
+    setFormModalOpen(true);
+  };
+
+  const openEditModal = (evt: CalendarEvent) => {
+    const st = new Date(evt.startDate);
+    const en = new Date(evt.endDate);
+    setSelectedEvent(null);
+    setEditingEvent(evt);
+    setTitle(evt.title);
+    setDescription(evt.description || '');
+    setCategory(evt.category || 'Meetings');
+    setStartDateStr(toYmd(st));
+    setEndDateStr(toYmd(en));
+    setStartTimeStr(
+      `${String(st.getHours()).padStart(2, '0')}:${String(st.getMinutes()).padStart(2, '0')}`
+    );
+    setEndTimeStr(
+      `${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`
+    );
+    setAllDay(evt.allDay);
+    setLocation(evt.location || '');
+    setMeetingLink(evt.meetingLink || '');
+    setRoomId(evt.roomId || '');
+    setTimezone(evt.timezone || 'Asia/Kolkata');
+    setVisibility(
+      evt.visibility === 'organization' || evt.visibility === 'team' ? evt.visibility : 'private'
+    );
+    setRecurrenceFreq(parseRruleFreq(evt.recurrenceRule));
+    setRecurrenceUntil('');
+    setSharedWith(
+      (evt.shares || []).map((s) => ({
+        recipientId: s.recipientId,
+        name: s.recipientName || s.recipientEmail || s.recipientId,
+        permission: s.permission,
+      }))
+    );
+    setReminders(
+      evt.reminders && evt.reminders.length > 0
+        ? evt.reminders
+        : [{ minutesBefore: 15, channel: 'in_app' }]
+    );
+    setFormModalOpen(true);
+  };
+
+  // Save Event Mutation
+  const saveEventMutation = useMutation({
+    mutationFn: async (payload: CalendarEventUpsertPayload) => {
+      if (editingEvent) {
+        return CalendarService.updateEvent(editingEvent.id, payload);
+      }
+      return CalendarService.createEvent(payload);
+    },
+    onSuccess: () => {
+      setFormModalOpen(false);
+      setConflictPrompt(null);
+      setRecurrencePrompt(null);
+      setEditingEvent(null);
+      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+    },
+    onError: (err: any, variables) => {
+      const conflicts = err?.data?.conflicts;
+      if (err?.status === 409 || Array.isArray(conflicts)) {
+        setConflictPrompt({
+          conflicts: Array.isArray(conflicts) ? conflicts : [{ title: err?.message }],
+          pendingPayload: variables,
+        });
+        return;
+      }
+      Alert.alert('Schedule Error', err?.message || 'Unable to save calendar event.');
+    },
+  });
+
+  const handleSubmitEventForm = () => {
+    if (!title.trim()) {
+      Alert.alert('Validation', 'Event title is required.');
       return;
     }
 
-    try {
-      setCreating(true);
-      // Room conflict check if a room is chosen
-      if (newRoom) {
-        const conflict = await CalendarService.checkConflicts(
-          newRoom,
-          `${newStartDate}T${newStartTime}`,
-          `${newEndDate}T${newEndTime}`
-        );
-        if (conflict.hasConflict) {
-          Alert.alert('Room Conflict', 'The selected meeting room is booked during this time.');
-          setCreating(false);
-          return;
-        }
-      }
+    const startIso = allDay
+      ? `${startDateStr}T00:00:00`
+      : `${startDateStr}T${startTimeStr}:00`;
+    const endIso = allDay
+      ? `${endDateStr}T23:59:59`
+      : `${endDateStr}T${endTimeStr}:00`;
 
-      const created = await CalendarService.createEvent({
-        title: newTitle.trim(),
-        description: newDescription.trim(),
-        category: newCategory,
-        startDate: newStartDate,
-        endDate: newEndDate,
-        startTime: newAllDay ? undefined : newStartTime,
-        endTime: newAllDay ? undefined : newEndTime,
-        allDay: newAllDay,
-        location: newLocation.trim(),
-        room: newRoom || undefined,
-      });
-
-      setCreateModalVisible(false);
-      setNewTitle('');
-      setNewDescription('');
-      loadData();
-      Alert.alert('Event Created', created ? 'Event scheduled successfully.' : 'Event saved.');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create event';
-      Alert.alert('Error', msg);
-    } finally {
-      setCreating(false);
+    const sDate = new Date(startIso);
+    const eDate = new Date(endIso);
+    if (Number.isNaN(sDate.getTime()) || Number.isNaN(eDate.getTime())) {
+      Alert.alert('Validation', 'Enter valid YYYY-MM-DD dates and HH:MM times.');
+      return;
     }
+    if (!allDay && eDate <= sDate) {
+      Alert.alert('Validation', 'End date/time must be after start date/time.');
+      return;
+    }
+
+    const payload: CalendarEventUpsertPayload = {
+      title: title.trim(),
+      description: description.trim() || undefined,
+      startDate: sDate.toISOString(),
+      endDate: eDate.toISOString(),
+      allDay,
+      category,
+      location: location.trim() || undefined,
+      meetingLink: meetingLink.trim() || undefined,
+      roomId: roomId || undefined,
+      timezone,
+      visibility,
+      recurrenceRule: buildRrule(recurrenceFreq, recurrenceUntil),
+      recurrenceUntil: recurrenceUntil.trim() || undefined,
+      sharedWith: sharedWith.map((s) => ({
+        recipientId: s.recipientId,
+        permission: s.permission,
+      })),
+      reminders: reminders.slice(0, 5),
+    };
+
+    if (editingEvent && (editingEvent.recurrenceRule || editingEvent.recurrenceParentId)) {
+      setRecurrencePrompt({ mode: 'edit', pendingPayload: payload });
+      return;
+    }
+
+    saveEventMutation.mutate(payload);
   };
 
-  const handleRsvp = async (status: 'accepted' | 'declined' | 'tentative') => {
-    if (!selectedEvent) return;
-    try {
-      await CalendarService.rsvpEvent(selectedEvent.id, status);
-      Alert.alert('RSVP Confirmed', `Marked as ${status}`);
+  // Cancel, Delete, RSVP, Share & Category Mutations
+  const cancelMutation = useMutation({
+    mutationFn: (params: {
+      id: string;
+      recurrenceScope?: 'this_occurrence' | 'all';
+      occurrenceDate?: string;
+    }) =>
+      CalendarService.cancelEvent(params.id, {
+        recurrenceScope: params.recurrenceScope,
+        occurrenceDate: params.occurrenceDate,
+      }),
+    onSuccess: () => {
+      setRecurrencePrompt(null);
       setSelectedEvent(null);
-      loadData();
-    } catch {
-      Alert.alert('Error', 'Failed to update RSVP');
+      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+    },
+    onError: (err: any) => {
+      Alert.alert('Cancel Failed', err?.message || 'Unable to cancel event.');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => CalendarService.deleteEvent(id),
+    onSuccess: () => {
+      setSelectedEvent(null);
+      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+    },
+    onError: (err: any) => {
+      Alert.alert('Delete Failed', err?.message || 'Unable to delete event.');
+    },
+  });
+
+  const rsvpMutation = useMutation({
+    mutationFn: (status: 'accepted' | 'tentative' | 'declined') =>
+      CalendarService.rsvpEvent(selectedEvent!.id, status),
+    onSuccess: (_res, status) => {
+      if (selectedEvent) {
+        setSelectedEvent({ ...selectedEvent, myRsvpStatus: status });
+      }
+      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
+    },
+    onError: (err: any) => {
+      Alert.alert('RSVP Error', err?.message || 'Unable to update RSVP.');
+    },
+  });
+
+  const saveCategoryMutation = useMutation({
+    mutationFn: () =>
+      editingCat
+        ? CalendarService.updateCategory(editingCat.id, {
+            name: newCatName.trim(),
+            color: newCatColor,
+          })
+        : CalendarService.createCategory({
+            name: newCatName.trim(),
+            color: newCatColor,
+          }),
+    onSuccess: () => {
+      setNewCatName('');
+      setEditingCat(null);
+      void queryClient.invalidateQueries({
+        queryKey: createTenantQueryKey(['calendar', 'categories']),
+      });
+    },
+    onError: (err: any) => {
+      Alert.alert('Category Error', err?.message || 'Unable to save category.');
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (id: string) => CalendarService.deleteCategory(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: createTenantQueryKey(['calendar', 'categories']),
+      });
+    },
+    onError: (err: any) => {
+      Alert.alert('Delete Category Error', err?.message || 'System categories cannot be deleted.');
+    },
+  });
+
+  // Real Month Grid Calculation (no fabricated dates)
+  const monthCells = useMemo(() => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDayWeekday = new Date(year, month, 1).getDay();
+    const daysCount = new Date(year, month + 1, 0).getDate();
+    const cells: Array<{ key: string; date: Date | null }> = [];
+    for (let i = 0; i < firstDayWeekday; i++) {
+      cells.push({ key: `pad-${i}`, date: null });
     }
-  };
+    for (let d = 1; d <= daysCount; d++) {
+      cells.push({ key: `day-${d}`, date: new Date(year, month, d) });
+    }
+    return cells;
+  }, [currentDate]);
 
-  const handleCancelEvent = async () => {
-    if (!selectedEvent) return;
-    Alert.alert('Cancel Event', 'Are you sure you want to cancel this event?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          await CalendarService.cancelEvent(selectedEvent.id, 'User cancelled');
-          setSelectedEvent(null);
-          loadData();
-        },
-      },
-    ]);
-  };
+  // Week Dates (Sun..Sat around currentDate)
+  const weekDates = useMemo(() => {
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - start.getDay());
+    start.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + idx);
+      return d;
+    });
+  }, [currentDate]);
 
-  const filteredEvents = events.filter((e) =>
-    selectedCategory === 'all' ? true : e.category.toLowerCase() === selectedCategory.toLowerCase()
+  // Agenda grouped by YYYY-MM-DD for current month (or matching search)
+  const agendaGroups = useMemo(() => {
+    const monthPrefix = `${currentDate.getFullYear()}-${String(
+      currentDate.getMonth() + 1
+    ).padStart(2, '0')}`;
+    const relevant = search.trim()
+      ? filteredEvents
+      : filteredEvents.filter((e) => toYmd(new Date(e.startDate)).startsWith(monthPrefix));
+
+    const grouped = new Map<string, CalendarEvent[]>();
+    for (const ev of relevant) {
+      const key = toYmd(new Date(ev.startDate));
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key)!.push(ev);
+    }
+    return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [filteredEvents, currentDate, search]);
+
+  // Selected Event Ownership & Permission Flags
+  const isSelectedOwnerOrAdmin = Boolean(
+    selectedEvent &&
+      !selectedEvent.isReadOnly &&
+      (selectedEvent.userId === user?.id ||
+        selectedEvent.userPermission === 'owner' ||
+        activeRole === 'tenant_admin' ||
+        activeRole === 'hr_admin')
   );
 
-  const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const canEditSelected = Boolean(
+    selectedEvent &&
+      !selectedEvent.isReadOnly &&
+      (isSelectedOwnerOrAdmin || selectedEvent.userPermission === 'edit')
+  );
 
-  // November 2026 calendar days
-  const daysInMonth = Array.from({ length: 30 }, (_, i) => i + 1);
+  const isSelectedInvitee = Boolean(
+    selectedEvent &&
+      !selectedEvent.isReadOnly &&
+      selectedEvent.shares?.some((s) => s.recipientId === user?.id)
+  );
+
+  const periodLabel =
+    viewMode === 'day'
+      ? currentDate.toLocaleDateString([], {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })
+      : currentDate.toLocaleDateString([], { month: 'long', year: 'numeric' });
+
+  const todayYmd = toYmd(new Date());
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backBtnText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Company Calendar</Text>
-        <TouchableOpacity
-          onPress={() => setCreateModalVisible(true)}
-          style={styles.addBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Add event"
-        >
-          <Text style={styles.addBtnText}>+ Event</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Date Navigation & View Mode Toggles */}
-      <View style={styles.topControlSection}>
-        <View style={styles.navRow}>
-          <TouchableOpacity onPress={handlePrev} style={styles.navBtn}>
-            <Text style={styles.navBtnText}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.monthTitle}>{monthName}</Text>
-          <TouchableOpacity onPress={handleNext} style={styles.navBtn}>
-            <Text style={styles.navBtnText}>›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleToday} style={styles.todayPill}>
-            <Text style={styles.todayText}>Today</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* View Switcher: Month / Agenda / Week */}
-        <View style={styles.viewTabs}>
-          {(['month', 'agenda', 'week'] as const).map((v) => (
-            <TouchableOpacity
-              key={v}
-              style={[styles.viewTab, viewMode === v && styles.viewTabActive]}
-              onPress={() => setViewMode(v)}
-            >
-              <Text style={[styles.viewTabText, viewMode === v && styles.viewTabTextActive]}>
-                {v.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Category Filter Chips */}
-      <View style={styles.categoryScrollContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+    <WorkspaceModuleShell
+      activeModule="calendar"
+      title="Workspace Calendar"
+      rightActions={
+        <View style={styles.headerRightRow}>
           <TouchableOpacity
-            style={[styles.catChip, selectedCategory === 'all' && styles.catChipActive]}
-            onPress={() => setSelectedCategory('all')}
+            style={styles.icsBtn}
+            onPress={() =>
+              CalendarService.exportCalendarIcs({
+                startDate: dateWindow.startIso,
+                endDate: dateWindow.endIso,
+                category: selectedCategory === 'all' ? undefined : selectedCategory,
+              }).catch((e) => Alert.alert('ICS Export', e.message))
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Export calendar ICS"
           >
-            <Text style={[styles.catChipText, selectedCategory === 'all' && styles.catChipTextActive]}>
-              All Categories
-            </Text>
+            <Text style={styles.icsBtnText}>ICS</Text>
           </TouchableOpacity>
-          {(categories.length > 0
-            ? categories.map((c) => c.name)
-            : ['Meetings', 'Project', 'Holiday', 'Training']
-          ).map((cat) => (
+          <TouchableOpacity
+            style={styles.createBtn}
+            onPress={() => openCreateModal(currentDate)}
+            accessibilityRole="button"
+            accessibilityLabel="Create calendar event"
+          >
+            <Text style={styles.createBtnText}>+ Event</Text>
+          </TouchableOpacity>
+        </View>
+      }
+      subHeader={
+        <View style={styles.controlsWrap}>
+          {/* Search Bar */}
+          <View style={styles.searchBar}>
+            <Text style={styles.searchIcon}>🔍</Text>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search schedules, rooms, categories..."
+              placeholderTextColor="#94A3B8"
+              value={search}
+              onChangeText={setSearch}
+            />
+          </View>
+
+          {/* Date Nav + Date Picker Trigger */}
+          <View style={styles.navRow}>
             <TouchableOpacity
-              key={cat}
-              style={[styles.catChip, selectedCategory === cat.toLowerCase() && styles.catChipActive]}
-              onPress={() => setSelectedCategory(cat.toLowerCase())}
+              onPress={() => shiftPeriod(-1)}
+              style={styles.chevronBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Previous period"
+            >
+              <Text style={styles.chevronText}>‹</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setJumpDateInput(toYmd(currentDate));
+                setDateJumpOpen(true);
+              }}
+              style={styles.periodTouch}
+              accessibilityRole="button"
+              accessibilityLabel="Pick date"
+            >
+              <Text style={styles.periodHeading}>{periodLabel} ▾</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => shiftPeriod(1)}
+              style={styles.chevronBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Next period"
+            >
+              <Text style={styles.chevronText}>›</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleToday} style={styles.todayBtn}>
+              <Text style={styles.todayBtnText}>Today</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* 4-View Switcher: Agenda | Month | Week | Day */}
+          <View style={styles.viewTabs}>
+            {(['agenda', 'month', 'week', 'day'] as const).map((mode) => (
+              <TouchableOpacity
+                key={mode}
+                style={[styles.viewTab, viewMode === mode && styles.viewTabActive]}
+                onPress={() => setViewMode(mode)}
+              >
+                <Text style={[styles.viewTabText, viewMode === mode && styles.viewTabTextActive]}>
+                  {mode === 'agenda' ? 'AGENDA' : mode.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Category Filter Chips + Custom Category Manager */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.catRow}
+          >
+            <TouchableOpacity
+              style={[styles.catChip, selectedCategory === 'all' && styles.catChipActive]}
+              onPress={() => setSelectedCategory('all')}
             >
               <Text
                 style={[
                   styles.catChipText,
-                  selectedCategory === cat.toLowerCase() && styles.catChipTextActive,
+                  selectedCategory === 'all' && styles.catChipTextActive,
                 ]}
               >
-                {cat}
+                All
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+            {categories.map((cat) => {
+              const active = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[styles.catChip, active && styles.catChipActive]}
+                  onPress={() => setSelectedCategory(cat.name)}
+                >
+                  <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
+                  <Text style={[styles.catChipText, active && styles.catChipTextActive]}>
+                    {cat.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity
+              style={styles.manageCatBtn}
+              onPress={() => setCategoryModalOpen(true)}
+            >
+              <Text style={styles.manageCatBtnText}>+ Categories</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      }
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={eventsQuery.isRefetching}
+            onRefresh={() => {
+              void eventsQuery.refetch();
+            }}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {eventsQuery.isLoading ? (
+          <WorkspaceLoadingBlock message="Loading calendar & workspace schedules..." />
+        ) : eventsQuery.isError ? (
+          <WorkspaceErrorBlock
+            message={(eventsQuery.error as any)?.message || 'Failed to load calendar events.'}
+            onRetry={() => eventsQuery.refetch()}
+          />
+        ) : (
+          <>
+            {/* VIEW 1: MONTH GRID */}
+            {viewMode === 'month' && (
+              <View style={styles.monthCard}>
+                <View style={styles.weekdayRow}>
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
+                    <Text key={idx} style={styles.weekdayLabel}>
+                      {d}
+                    </Text>
+                  ))}
+                </View>
+                <View style={styles.monthGrid}>
+                  {monthCells.map((cell) => {
+                    if (!cell.date) {
+                      return <View key={cell.key} style={styles.dayCell} />;
+                    }
+                    const ymd = toYmd(cell.date);
+                    const dayEvents = filteredEvents.filter(
+                      (ev) => toYmd(new Date(ev.startDate)) === ymd
+                    );
+                    const isToday = ymd === todayYmd;
+                    const isSelected = ymd === toYmd(currentDate);
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <ActivityIndicator color="#4F46E5" style={styles.loader} />
-        ) : viewMode === 'month' ? (
-          /* Month Grid View */
-          <View style={styles.monthCard}>
-            <View style={styles.weekHeaders}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                <Text key={i} style={styles.weekHeaderText}>
-                  {d}
-                </Text>
-              ))}
-            </View>
-            <View style={styles.daysGrid}>
-              {daysInMonth.map((day) => {
-                const dayDateStr = `2026-11-${day < 10 ? '0' : ''}${day}`;
-                const hasEvent = filteredEvents.some(
-                  (e) => e.startDate?.startsWith(dayDateStr) || e.endDate?.startsWith(dayDateStr)
-                );
-                const isToday = day === 16;
-                return (
-                  <TouchableOpacity
-                    key={day}
-                    style={[styles.dayCell, isToday && styles.todayCell]}
-                    onPress={() => setViewMode('agenda')}
-                  >
-                    <Text style={[styles.dayCellNum, isToday && styles.todayNum]}>{day}</Text>
-                    {hasEvent && <View style={styles.eventDot} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
+                    return (
+                      <TouchableOpacity
+                        key={cell.key}
+                        style={[
+                          styles.dayCell,
+                          isToday && styles.dayCellToday,
+                          isSelected && styles.dayCellSelected,
+                        ]}
+                        onPress={() => {
+                          setCurrentDate(cell.date!);
+                          setViewMode('day');
+                        }}
+                        onLongPress={() => openCreateModal(cell.date!)}
+                      >
+                        <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>
+                          {cell.date.getDate()}
+                        </Text>
+                        <View style={styles.dotsRow}>
+                          {dayEvents.slice(0, 3).map((ev) => (
+                            <View
+                              key={ev.id}
+                              style={[
+                                styles.eventDot,
+                                { backgroundColor: getEventColor(ev) },
+                              ]}
+                            />
+                          ))}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
 
-        {/* Agenda / Upcoming Events List */}
-        <View style={styles.eventsSection}>
-          <Text style={styles.sectionTitle}>
-            {viewMode === 'month' ? 'Upcoming Schedules' : 'Scheduled Events'} ({filteredEvents.length})
-          </Text>
-
-          {filteredEvents.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyIcon}>📅</Text>
-              <Text style={styles.emptyText}>No events scheduled for this period.</Text>
-            </View>
-          ) : (
-            filteredEvents.map((evt) => (
-              <TouchableOpacity
-                key={evt.id}
-                style={styles.eventCard}
-                onPress={() => setSelectedEvent(evt)}
-                accessibilityRole="button"
-                accessibilityLabel={evt.title}
-              >
-                <View
-                  style={[
-                    styles.eventColorBar,
-                    evt.category === 'Holiday'
-                      ? styles.barBlue
-                      : evt.category === 'Meetings'
-                      ? styles.barIndigo
-                      : styles.barGreen,
-                  ]}
-                />
-                <View style={styles.eventContent}>
-                  <View style={styles.eventTopRow}>
-                    <Text style={styles.eventTitle}>{evt.title}</Text>
-                    <View style={styles.catBadge}>
-                      <Text style={styles.catBadgeText}>{evt.category}</Text>
-                    </View>
+            {/* VIEW 2: WEEK 7-DAY TIMELINE */}
+            {viewMode === 'week' && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.weekBoard}>
+                  <View style={styles.weekHeaderRow}>
+                    <View style={styles.hourLabelCol} />
+                    {weekDates.map((wd) => {
+                      const isToday = toYmd(wd) === todayYmd;
+                      return (
+                        <TouchableOpacity
+                          key={toYmd(wd)}
+                          style={[styles.weekDayColHeader, isToday && styles.dayCellToday]}
+                          onPress={() => {
+                            setCurrentDate(wd);
+                            setViewMode('day');
+                          }}
+                        >
+                          <Text style={styles.weekDayShort}>
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][wd.getDay()]}
+                          </Text>
+                          <Text style={[styles.dayNum, isToday && styles.dayNumToday]}>
+                            {wd.getDate()}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
 
-                  <Text style={styles.eventTiming}>
-                    🕒 {evt.allDay ? 'All Day' : `${evt.startTime || '09:00'} – ${evt.endTime || '10:00'}`} •{' '}
-                    {evt.startDate}
-                  </Text>
-
-                  {evt.room && <Text style={styles.eventRoom}>🏢 Room: {evt.room}</Text>}
-                  {evt.location && <Text style={styles.eventLocation}>📍 {evt.location}</Text>}
+                  {Array.from({ length: 13 }, (_, i) => i + 8).map((hour) => (
+                    <View key={hour} style={styles.weekHourRow}>
+                      <View style={styles.hourLabelCol}>
+                        <Text style={styles.hourLabelText}>
+                          {String(hour).padStart(2, '0')}:00
+                        </Text>
+                      </View>
+                      {weekDates.map((wd) => {
+                        const ymd = toYmd(wd);
+                        const slotEvents = filteredEvents.filter((ev) => {
+                          const sd = new Date(ev.startDate);
+                          return toYmd(sd) === ymd && (ev.allDay ? hour === 8 : sd.getHours() === hour);
+                        });
+                        return (
+                          <TouchableOpacity
+                            key={`${ymd}-${hour}`}
+                            style={styles.weekSlotCell}
+                            onPress={() => openCreateModal(wd, hour)}
+                          >
+                            {slotEvents.map((ev) => (
+                              <TouchableOpacity
+                                key={ev.id}
+                                style={[
+                                  styles.miniSlotPill,
+                                  { backgroundColor: getEventColor(ev) },
+                                ]}
+                                onPress={() => setSelectedEvent(ev)}
+                              >
+                                <Text style={styles.miniSlotText} numberOfLines={1}>
+                                  {ev.title}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))}
                 </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+              </ScrollView>
+            )}
+
+            {/* VIEW 3: DAY 24-HOUR TIMELINE */}
+            {viewMode === 'day' && (
+              <View style={styles.dayTimelineCard}>
+                {Array.from({ length: 24 }, (_, hour) => {
+                  const ymd = toYmd(currentDate);
+                  const hourEvents = filteredEvents.filter((ev) => {
+                    const sd = new Date(ev.startDate);
+                    if (toYmd(sd) !== ymd) return false;
+                    if (ev.allDay) return hour === 0;
+                    return sd.getHours() === hour;
+                  });
+                  return (
+                    <TouchableOpacity
+                      key={hour}
+                      style={styles.dayHourRow}
+                      onPress={() => openCreateModal(currentDate, hour)}
+                    >
+                      <Text style={styles.dayHourLabel}>
+                        {hour === 0 && hourEvents.some((e) => e.allDay)
+                          ? 'ALL DAY'
+                          : `${String(hour).padStart(2, '0')}:00`}
+                      </Text>
+                      <View style={styles.dayHourEventsCol}>
+                        {hourEvents.map((ev) => (
+                          <TouchableOpacity
+                            key={ev.id}
+                            style={[
+                              styles.dayEventBlock,
+                              { borderLeftColor: getEventColor(ev) },
+                            ]}
+                            onPress={() => setSelectedEvent(ev)}
+                          >
+                            <Text
+                              style={[
+                                styles.eventTitleText,
+                                ev.status === 'cancelled' && styles.cancelledStrike,
+                              ]}
+                            >
+                              {ev.title}
+                            </Text>
+                            <Text style={styles.eventMetaSmall}>
+                              {ev.category}
+                              {ev.isReadOnly ? ' • Read-Only' : ''}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* VIEW 4 (PRIMARY MOBILE): AGENDA / UPCOMING LIST */}
+            {(viewMode === 'agenda' || viewMode === 'month') && (
+              <View style={styles.agendaWrap}>
+                <Text style={styles.sectionHeading}>
+                  {viewMode === 'month' ? 'Month Schedule' : 'Agenda Schedule'}
+                </Text>
+
+                {agendaGroups.length === 0 ? (
+                  <WorkspaceEmptyBlock
+                    icon="📅"
+                    title="No Events Found"
+                    description="No events or projections match this period or filter."
+                    actionLabel="Schedule Event"
+                    onAction={() => openCreateModal(currentDate)}
+                  />
+                ) : (
+                  agendaGroups.map(([ymd, dayList]) => (
+                    <View key={ymd} style={styles.agendaDayGroup}>
+                      <Text style={styles.agendaDateHeader}>
+                        {new Date(`${ymd}T00:00:00`).toLocaleDateString([], {
+                          weekday: 'long',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </Text>
+                      {dayList.map((evt) => {
+                        const st = new Date(evt.startDate);
+                        const en = new Date(evt.endDate);
+                        const isCancelled = evt.status === 'cancelled';
+                        return (
+                          <TouchableOpacity
+                            key={evt.id}
+                            style={styles.agendaCard}
+                            onPress={() => setSelectedEvent(evt)}
+                          >
+                            <View
+                              style={[
+                                styles.accentStrip,
+                                { backgroundColor: getEventColor(evt) },
+                              ]}
+                            />
+                            <View style={styles.agendaCardBody}>
+                              <View style={styles.agendaTopRow}>
+                                <Text
+                                  style={[
+                                    styles.eventTitleText,
+                                    isCancelled && styles.cancelledStrike,
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {evt.title}
+                                </Text>
+                                {evt.isReadOnly && (
+                                  <View style={styles.readOnlyBadge}>
+                                    <Text style={styles.readOnlyBadgeText}>Read-Only</Text>
+                                  </View>
+                                )}
+                                {isCancelled && (
+                                  <View style={styles.cancelledBadge}>
+                                    <Text style={styles.cancelledBadgeText}>Cancelled</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.eventMetaSmall}>
+                                🕒{' '}
+                                {evt.allDay
+                                  ? 'All Day'
+                                  : `${st.toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })} – ${en.toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}`}{' '}
+                                • {evt.category}
+                              </Text>
+                              {(evt.roomName || evt.location) && (
+                                <Text style={styles.eventMetaSmall} numberOfLines={1}>
+                                  📍 {evt.roomName ? `Room: ${evt.roomName}` : evt.location}
+                                </Text>
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
 
-      {/* Event Details Modal */}
-      <Modal visible={!!selectedEvent} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+      {/* Date Picker Jump Modal */}
+      <Modal visible={dateJumpOpen} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
+          onPress={() => setDateJumpOpen(false)}
+        >
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Jump to Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.input}
+              value={jumpDateInput}
+              onChangeText={setJumpDateInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#94A3B8"
+            />
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => {
+                const parsed = new Date(`${jumpDateInput.trim()}T12:00:00`);
+                if (Number.isNaN(parsed.getTime())) {
+                  Alert.alert('Invalid Date', 'Enter date in YYYY-MM-DD format.');
+                  return;
+                }
+                setCurrentDate(parsed);
+                setDateJumpOpen(false);
+              }}
+            >
+              <Text style={styles.primaryBtnText}>Go to Date</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Custom Category Manager Modal */}
+      <Modal visible={categoryModalOpen} animationType="slide" transparent>
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { maxHeight: '85%' }]}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Calendar Categories</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setCategoryModalOpen(false);
+                  setEditingCat(null);
+                  setNewCatName('');
+                }}
+              >
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.input}
+              placeholder={editingCat ? 'Rename category...' : 'New custom category name...'}
+              placeholderTextColor="#94A3B8"
+              value={newCatName}
+              onChangeText={setNewCatName}
+            />
+            <View style={styles.swatchesRow}>
+              {COLOR_SWATCHES.map((hex) => (
+                <TouchableOpacity
+                  key={hex}
+                  style={[
+                    styles.swatchCircle,
+                    { backgroundColor: hex },
+                    newCatColor === hex && styles.swatchSelected,
+                  ]}
+                  onPress={() => setNewCatColor(hex)}
+                />
+              ))}
+            </View>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              disabled={!newCatName.trim() || saveCategoryMutation.isPending}
+              onPress={() => saveCategoryMutation.mutate()}
+            >
+              <Text style={styles.primaryBtnText}>
+                {editingCat ? 'Update Category' : '+ Add Category'}
+              </Text>
+            </TouchableOpacity>
+
+            <ScrollView style={{ marginTop: 14, maxHeight: 240 }}>
+              {categories.map((cat) => (
+                <View key={cat.id} style={styles.catListRow}>
+                  <View style={[styles.catColorDot, { backgroundColor: cat.color }]} />
+                  <Text style={[styles.eventTitleText, { flex: 1 }]}>{cat.name}</Text>
+                  {!cat.isSystem && (
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setEditingCat(cat);
+                          setNewCatName(cat.name);
+                          setNewCatColor(cat.color);
+                        }}
+                      >
+                        <Text style={styles.linkText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => deleteCategoryMutation.mutate(cat.id)}
+                      >
+                        <Text style={[styles.linkText, { color: '#DC2626' }]}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Event Details Bottom Sheet */}
+      <Modal visible={!!selectedEvent && !auditModalOpen} animationType="slide" transparent>
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { maxHeight: '88%' }]}>
             {selectedEvent && (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{selectedEvent.title}</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>{selectedEvent.title}</Text>
                   <TouchableOpacity onPress={() => setSelectedEvent(null)}>
-                    <Text style={styles.modalCloseText}>✕</Text>
+                    <Text style={styles.closeText}>✕</Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Date & Time:</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedEvent.startDate} (
-                    {selectedEvent.allDay
-                      ? 'All Day'
-                      : `${selectedEvent.startTime || ''} - ${selectedEvent.endTime || ''}`}
-                    )
+                <Text style={styles.detailMeta}>
+                  Category: {selectedEvent.category}
+                  {selectedEvent.isReadOnly ? ' (Read-Only Projection)' : ''}
+                </Text>
+                <Text style={styles.detailMeta}>
+                  When: {new Date(selectedEvent.startDate).toLocaleString()} –{' '}
+                  {new Date(selectedEvent.endDate).toLocaleString()}
+                </Text>
+                {selectedEvent.recurrenceRule && (
+                  <Text style={styles.detailMeta}>
+                    🔁 Repeats: {selectedEvent.recurrenceRule}
                   </Text>
-                </View>
+                )}
+                {selectedEvent.roomName && (
+                  <Text style={styles.detailMeta}>🏢 Room: {selectedEvent.roomName}</Text>
+                )}
+                {selectedEvent.location ? (
+                  <Text style={styles.detailMeta}>📍 Location: {selectedEvent.location}</Text>
+                ) : null}
+                {selectedEvent.meetingLink ? (
+                  <Text style={styles.detailMeta}>🔗 Link: {selectedEvent.meetingLink}</Text>
+                ) : null}
+                {selectedEvent.description ? (
+                  <Text style={[styles.detailMeta, { marginTop: 6 }]}>
+                    {selectedEvent.description}
+                  </Text>
+                ) : null}
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Category:</Text>
-                  <Text style={styles.detailValue}>{selectedEvent.category}</Text>
-                </View>
-
-                {selectedEvent.room && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Conference Room:</Text>
-                    <Text style={styles.detailValue}>{selectedEvent.room}</Text>
+                {/* Read-Only Todo Task Projection Deep-Links */}
+                {selectedEvent.linkedTaskId && (
+                  <View style={styles.projectionActionsRow}>
+                    <TouchableOpacity
+                      style={styles.secondaryBtn}
+                      onPress={() => {
+                        const tid = selectedEvent.linkedTaskId;
+                        setSelectedEvent(null);
+                        navigation.navigate('TodoList', { taskId: tid });
+                      }}
+                    >
+                      <Text style={styles.secondaryBtnText}>📋 Open in Todo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.secondaryBtn}
+                      onPress={() => {
+                        const tid = selectedEvent.linkedTaskId;
+                        setSelectedEvent(null);
+                        navigation.navigate('GanttTimeline', { taskId: tid });
+                      }}
+                    >
+                      <Text style={styles.secondaryBtnText}>📊 View in Gantt</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
-                {selectedEvent.description && (
-                  <View style={styles.descBox}>
-                    <Text style={styles.descText}>{selectedEvent.description}</Text>
+                {/* Invitee RSVP Bar */}
+                {isSelectedInvitee && selectedEvent.status !== 'cancelled' && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.fieldLabel}>
+                      Your RSVP ({selectedEvent.myRsvpStatus || 'pending'})
+                    </Text>
+                    <View style={styles.rsvpRow}>
+                      {(['accepted', 'tentative', 'declined'] as const).map((st) => (
+                        <TouchableOpacity
+                          key={st}
+                          style={[
+                            styles.rsvpPill,
+                            selectedEvent.myRsvpStatus === st && styles.rsvpPillActive,
+                          ]}
+                          onPress={() => rsvpMutation.mutate(st)}
+                        >
+                          <Text
+                            style={[
+                              styles.rsvpPillText,
+                              selectedEvent.myRsvpStatus === st && { color: '#FFFFFF' },
+                            ]}
+                          >
+                            {st.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
                 )}
 
-                {/* RSVP Actions */}
-                <Text style={styles.fieldLabel}>Your RSVP Response</Text>
-                <View style={styles.rsvpRow}>
-                  <TouchableOpacity
-                    style={[styles.rsvpBtn, styles.rsvpBtnGreen]}
-                    onPress={() => handleRsvp('accepted')}
-                  >
-                    <Text style={styles.rsvpBtnText}>Accept</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.rsvpBtn, styles.rsvpBtnAmber]}
-                    onPress={() => handleRsvp('tentative')}
-                  >
-                    <Text style={styles.rsvpBtnText}>Tentative</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.rsvpBtn, styles.rsvpBtnRed]}
-                    onPress={() => handleRsvp('declined')}
-                  >
-                    <Text style={styles.rsvpBtnText}>Decline</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* Invited Attendees & Live Sharing */}
+                {!selectedEvent.isReadOnly && (
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={styles.fieldLabel}>
+                      Shared With ({(selectedEvent.shares || []).length})
+                    </Text>
+                    {(selectedEvent.shares || []).map((sh) => (
+                      <View key={sh.recipientId} style={styles.shareRow}>
+                        <Text style={styles.detailMeta}>
+                          {sh.recipientName || sh.recipientEmail || sh.recipientId} ({sh.permission} •{' '}
+                          {sh.rsvpStatus || 'pending'})
+                        </Text>
+                        {isSelectedOwnerOrAdmin && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              CalendarService.revokeEventShare(
+                                selectedEvent.id,
+                                sh.recipientId
+                              ).then(() => {
+                                setSelectedEvent({
+                                  ...selectedEvent,
+                                  shares: (selectedEvent.shares || []).filter(
+                                    (x) => x.recipientId !== sh.recipientId
+                                  ),
+                                });
+                                void queryClient.invalidateQueries({
+                                  queryKey: createTenantQueryKey(['calendar']),
+                                });
+                              })
+                            }
+                          >
+                            <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '700' }}>
+                              Revoke
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
 
-                <TouchableOpacity style={styles.cancelEvtBtn} onPress={handleCancelEvent}>
-                  <Text style={styles.cancelEvtText}>Cancel This Event</Text>
-                </TouchableOpacity>
-              </>
+                    {isSelectedOwnerOrAdmin && (
+                      <View style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          <TextInput
+                            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                            placeholder="Share with colleague..."
+                            placeholderTextColor="#94A3B8"
+                            value={detailShareQuery}
+                            onChangeText={setDetailShareQuery}
+                          />
+                          <TouchableOpacity
+                            style={styles.permToggleBtn}
+                            onPress={() =>
+                              setDetailSharePerm((p) => (p === 'view' ? 'edit' : 'view'))
+                            }
+                          >
+                            <Text style={styles.permToggleText}>
+                              Can {detailSharePerm}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                        {detailShareQuery.trim().length > 0 &&
+                          (recipientsQuery.data || []).slice(0, 4).map((rec) => (
+                            <TouchableOpacity
+                              key={rec.id}
+                              style={styles.recipientPickRow}
+                              onPress={() =>
+                                CalendarService.shareEvent(
+                                  selectedEvent.id,
+                                  rec.id,
+                                  detailSharePerm
+                                )
+                                  .then((shares) => {
+                                    setDetailShareQuery('');
+                                    setSelectedEvent({ ...selectedEvent, shares });
+                                    void queryClient.invalidateQueries({
+                                      queryKey: createTenantQueryKey(['calendar']),
+                                    });
+                                  })
+                                  .catch((e) => Alert.alert('Share Error', e.message))
+                              }
+                            >
+                              <Text style={styles.detailMeta}>
+                                + {rec.name} ({rec.email})
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Event Footer Actions */}
+                {!selectedEvent.isReadOnly && (
+                  <View style={styles.detailFooterActions}>
+                    <TouchableOpacity
+                      style={styles.secondaryBtn}
+                      onPress={() =>
+                        CalendarService.exportSingleEventIcs(
+                          selectedEvent.id,
+                          selectedEvent.title
+                        ).catch((e) => Alert.alert('Export .ICS', e.message))
+                      }
+                    >
+                      <Text style={styles.secondaryBtnText}>📤 Export .ICS</Text>
+                    </TouchableOpacity>
+
+                    {canEditSelected && (
+                      <TouchableOpacity
+                        style={styles.secondaryBtn}
+                        onPress={() => setAuditModalOpen(true)}
+                      >
+                        <Text style={styles.secondaryBtnText}>📜 Audit Trail</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {canEditSelected && selectedEvent.status !== 'cancelled' && (
+                      <TouchableOpacity
+                        style={styles.primaryBtnSmall}
+                        onPress={() => openEditModal(selectedEvent)}
+                      >
+                        <Text style={styles.primaryBtnText}>✏️ Edit</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {isSelectedOwnerOrAdmin && selectedEvent.status !== 'cancelled' && (
+                      <TouchableOpacity
+                        style={styles.warnBtnSmall}
+                        onPress={() => {
+                          if (selectedEvent.recurrenceRule || selectedEvent.recurrenceParentId) {
+                            setRecurrencePrompt({ mode: 'cancel' });
+                          } else {
+                            cancelMutation.mutate({ id: selectedEvent.id });
+                          }
+                        }}
+                      >
+                        <Text style={styles.warnBtnText}>Cancel Event</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {isSelectedOwnerOrAdmin && (
+                      <TouchableOpacity
+                        style={styles.dangerBtnSmall}
+                        onPress={() =>
+                          Alert.alert('Delete Event', 'Permanently delete this event?', [
+                            { text: 'No', style: 'cancel' },
+                            {
+                              text: 'Delete',
+                              style: 'destructive',
+                              onPress: () => deleteMutation.mutate(selectedEvent.id),
+                            },
+                          ])
+                        }
+                      >
+                        <Text style={styles.dangerBtnText}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </ScrollView>
             )}
           </View>
         </View>
       </Modal>
 
-      {/* Create Event Modal */}
-      <Modal visible={createModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule New Event</Text>
-              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
+      {/* Audit History Modal */}
+      <Modal visible={auditModalOpen} animationType="slide" transparent>
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { maxHeight: '80%' }]}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Event Audit History</Text>
+              <TouchableOpacity onPress={() => setAuditModalOpen(false)}>
+                <Text style={styles.closeText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            {auditLogsQuery.isLoading ? (
+              <ActivityIndicator color="#4F46E5" style={{ marginVertical: 20 }} />
+            ) : (auditLogsQuery.data || []).length === 0 ? (
+              <Text style={styles.detailMeta}>No audit history recorded for this event.</Text>
+            ) : (
+              <ScrollView>
+                {(auditLogsQuery.data || []).map((log) => (
+                  <View key={log.id} style={styles.auditRow}>
+                    <Text style={styles.eventTitleText}>{log.action}</Text>
+                    <Text style={styles.eventMetaSmall}>
+                      {new Date(log.createdAt).toLocaleString()} • {log.userEmail || log.userId || 'System'}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create / Edit Event Modal */}
+      <Modal visible={formModalOpen} animationType="slide" transparent>
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { maxHeight: '92%' }]}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>
+                {editingEvent ? 'Edit Event' : 'Create New Event'}
+              </Text>
+              <TouchableOpacity onPress={() => setFormModalOpen(false)}>
+                <Text style={styles.closeText}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.fieldLabel}>Event Title</Text>
+              <Text style={styles.fieldLabel}>Title *</Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Q4 Strategy Review"
+                style={styles.input}
+                placeholder="Event title..."
                 placeholderTextColor="#94A3B8"
-                value={newTitle}
-                onChangeText={setNewTitle}
+                value={title}
+                onChangeText={setTitle}
               />
 
-              {/* Date Inputs */}
-              <View style={styles.timeRow}>
-                <View style={styles.timeCol}>
-                  <Text style={styles.fieldLabel}>Start Date</Text>
+              <Text style={styles.fieldLabel}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                {categories.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.catChip, category === c.name && styles.catChipActive]}
+                    onPress={() => setCategory(c.name)}
+                  >
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        category === c.name && styles.catChipTextActive,
+                      ]}
+                    >
+                      {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View style={styles.twoColRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>Start Date (YYYY-MM-DD)</Text>
                   <TextInput
-                    style={styles.modalInput}
-                    value={newStartDate}
-                    onChangeText={setNewStartDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    value={startDateStr}
+                    onChangeText={setStartDateStr}
                   />
                 </View>
-                <View style={styles.timeCol}>
-                  <Text style={styles.fieldLabel}>End Date</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.fieldLabel}>End Date (YYYY-MM-DD)</Text>
                   <TextInput
-                    style={styles.modalInput}
-                    value={newEndDate}
-                    onChangeText={setNewEndDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
+                    style={styles.input}
+                    value={endDateStr}
+                    onChangeText={setEndDateStr}
                   />
                 </View>
               </View>
 
               <View style={styles.switchRow}>
                 <Text style={styles.fieldLabel}>All-Day Event</Text>
-                <Switch value={newAllDay} onValueChange={setNewAllDay} />
+                <Switch value={allDay} onValueChange={setAllDay} />
               </View>
 
-              {!newAllDay && (
-                <View style={styles.timeRow}>
-                  <View style={styles.timeCol}>
-                    <Text style={styles.fieldLabel}>Start Time</Text>
+              {!allDay && (
+                <View style={styles.twoColRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Start Time (HH:MM)</Text>
                     <TextInput
-                      style={styles.modalInput}
-                      value={newStartTime}
-                      onChangeText={setNewStartTime}
+                      style={styles.input}
+                      value={startTimeStr}
+                      onChangeText={setStartTimeStr}
                     />
                   </View>
-                  <View style={styles.timeCol}>
-                    <Text style={styles.fieldLabel}>End Time</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>End Time (HH:MM)</Text>
                     <TextInput
-                      style={styles.modalInput}
-                      value={newEndTime}
-                      onChangeText={setNewEndTime}
+                      style={styles.input}
+                      value={endTimeStr}
+                      onChangeText={setEndTimeStr}
                     />
                   </View>
                 </View>
               )}
 
-              <Text style={styles.fieldLabel}>Category</Text>
-              <View style={styles.catGrid}>
-                {['Meetings', 'Project', 'Holiday', 'Training'].map((c) => (
+              <Text style={styles.fieldLabel}>Meeting Room</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                <TouchableOpacity
+                  style={[styles.catChip, !roomId && styles.catChipActive]}
+                  onPress={() => setRoomId('')}
+                >
+                  <Text style={[styles.catChipText, !roomId && styles.catChipTextActive]}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+                {(roomsQuery.data || []).map((rm) => (
                   <TouchableOpacity
-                    key={c}
-                    style={[styles.catPickBtn, newCategory === c && styles.catPickBtnActive]}
-                    onPress={() => setNewCategory(c)}
+                    key={rm.id}
+                    style={[styles.catChip, roomId === rm.id && styles.catChipActive]}
+                    onPress={() => setRoomId(rm.id)}
                   >
-                    <Text style={[styles.catPickText, newCategory === c && styles.catPickTextActive]}>
-                      {c}
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        roomId === rm.id && styles.catChipTextActive,
+                      ]}
+                    >
+                      {rm.name} ({rm.capacity})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.fieldLabel}>Physical Location & Meeting URL</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Location (optional)"
+                placeholderTextColor="#94A3B8"
+                value={location}
+                onChangeText={setLocation}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Meeting URL (https://...)"
+                placeholderTextColor="#94A3B8"
+                value={meetingLink}
+                onChangeText={setMeetingLink}
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.fieldLabel}>Timezone</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                {TIMEZONES.map((tz) => (
+                  <TouchableOpacity
+                    key={tz}
+                    style={[styles.catChip, timezone === tz && styles.catChipActive]}
+                    onPress={() => setTimezone(tz)}
+                  >
+                    <Text style={[styles.catChipText, timezone === tz && styles.catChipTextActive]}>
+                      {tz}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.fieldLabel}>Recurrence</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                {(['NONE', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'] as const).map((rf) => (
+                  <TouchableOpacity
+                    key={rf}
+                    style={[styles.catChip, recurrenceFreq === rf && styles.catChipActive]}
+                    onPress={() => setRecurrenceFreq(rf)}
+                  >
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        recurrenceFreq === rf && styles.catChipTextActive,
+                      ]}
+                    >
+                      {rf}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              {recurrenceFreq !== 'NONE' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder="Repeat Until (YYYY-MM-DD, optional)"
+                  placeholderTextColor="#94A3B8"
+                  value={recurrenceUntil}
+                  onChangeText={setRecurrenceUntil}
+                />
+              )}
+
+              <Text style={styles.fieldLabel}>Visibility</Text>
+              <View style={styles.twoColRow}>
+                {(
+                  [
+                    { k: 'private', label: 'Private' },
+                    { k: 'team', label: 'Invitees' },
+                    { k: 'organization', label: 'Entire Org' },
+                  ] as const
+                ).map((vis) => (
+                  <TouchableOpacity
+                    key={vis.k}
+                    style={[styles.catChip, visibility === vis.k && styles.catChipActive]}
+                    onPress={() => setVisibility(vis.k)}
+                  >
+                    <Text
+                      style={[
+                        styles.catChipText,
+                        visibility === vis.k && styles.catChipTextActive,
+                      ]}
+                    >
+                      {vis.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={styles.fieldLabel}>Location (Optional)</Text>
+              {/* Organization Member Sharing Selector */}
+              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>
+                Invite & Share ({sharedWith.length})
+              </Text>
               <TextInput
-                style={styles.modalInput}
-                placeholder="e.g. Headquarters, 3rd Floor"
+                style={styles.input}
+                placeholder="Search organization members..."
                 placeholderTextColor="#94A3B8"
-                value={newLocation}
-                onChangeText={setNewLocation}
+                value={recipientQuery}
+                onChangeText={setRecipientQuery}
               />
+              {(recipientsQuery.data || [])
+                .filter((r) => !sharedWith.some((s) => s.recipientId === r.id))
+                .slice(0, 4)
+                .map((r) => (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={styles.recipientPickRow}
+                    onPress={() =>
+                      setSharedWith((prev) => [
+                        ...prev,
+                        { recipientId: r.id, name: r.name, permission: 'view' },
+                      ])
+                    }
+                  >
+                    <Text style={styles.detailMeta}>
+                      + {r.name} ({r.department || r.email})
+                    </Text>
+                  </TouchableOpacity>
+                ))}
 
-              <Text style={styles.fieldLabel}>Meeting Room (Optional)</Text>
-              {rooms.length > 0 && (
-                <View style={styles.catGrid}>
-                  {rooms.slice(0, 3).map((r) => (
+              {sharedWith.map((sw) => (
+                <View key={sw.recipientId} style={styles.shareRow}>
+                  <Text style={styles.detailMeta}>{sw.name}</Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
-                      key={r.id}
-                      style={[styles.catPickBtn, newRoom === r.id && styles.catPickBtnActive]}
-                      onPress={() => setNewRoom(r.id)}
+                      onPress={() =>
+                        setSharedWith((prev) =>
+                          prev.map((x) =>
+                            x.recipientId === sw.recipientId
+                              ? {
+                                  ...x,
+                                  permission: x.permission === 'view' ? 'edit' : 'view',
+                                }
+                              : x
+                          )
+                        )
+                      }
                     >
-                      <Text style={[styles.catPickText, newRoom === r.id && styles.catPickTextActive]}>
-                        {r.name}
-                      </Text>
+                      <Text style={styles.linkText}>Can {sw.permission}</Text>
                     </TouchableOpacity>
-                  ))}
+                    <TouchableOpacity
+                      onPress={() =>
+                        setSharedWith((prev) =>
+                          prev.filter((x) => x.recipientId !== sw.recipientId)
+                        )
+                      }
+                    >
+                      <Text style={{ color: '#DC2626', fontSize: 12 }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              ))}
+
+              {/* Reminders Configurator (up to 5) */}
+              <Text style={[styles.fieldLabel, { marginTop: 10 }]}>
+                Reminders ({reminders.length}/5)
+              </Text>
+              {reminders.map((rem, idx) => (
+                <View key={idx} style={styles.shareRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setReminders((prev) =>
+                        prev.map((r, i) => {
+                          if (i !== idx) return r;
+                          const currIdx = REMINDER_MINUTES.findIndex(
+                            (m) => m.value === r.minutesBefore
+                          );
+                          const nextOpt =
+                            REMINDER_MINUTES[(currIdx + 1) % REMINDER_MINUTES.length];
+                          return { ...r, minutesBefore: nextOpt.value };
+                        })
+                      )
+                    }
+                  >
+                    <Text style={styles.detailMeta}>
+                      🔔{' '}
+                      {REMINDER_MINUTES.find((m) => m.value === rem.minutesBefore)?.label ||
+                        `${rem.minutesBefore}m`}
+                    </Text>
+                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setReminders((prev) =>
+                          prev.map((r, i) =>
+                            i === idx
+                              ? {
+                                  ...r,
+                                  channel:
+                                    r.channel === 'in_app'
+                                      ? 'email'
+                                      : r.channel === 'email'
+                                      ? 'both'
+                                      : 'in_app',
+                                }
+                              : r
+                          )
+                        )
+                      }
+                    >
+                      <Text style={styles.linkText}>{rem.channel.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() =>
+                        setReminders((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                    >
+                      <Text style={{ color: '#DC2626' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              {reminders.length < 5 && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setReminders((prev) => [
+                      ...prev,
+                      { minutesBefore: 30, channel: 'in_app' },
+                    ])
+                  }
+                  style={{ marginBottom: 10 }}
+                >
+                  <Text style={styles.linkText}>+ Add Reminder</Text>
+                </TouchableOpacity>
               )}
-              <TextInput
-                style={styles.modalInput}
-                placeholder="Or type custom room name"
-                placeholderTextColor="#94A3B8"
-                value={newRoom}
-                onChangeText={setNewRoom}
-              />
 
               <Text style={styles.fieldLabel}>Description</Text>
               <TextInput
-                style={[styles.modalInput, styles.textArea]}
-                placeholder="Agenda, conference link, or notes"
+                style={[styles.input, { minHeight: 72 }]}
+                placeholder="Agenda or notes..."
                 placeholderTextColor="#94A3B8"
-                value={newDescription}
-                onChangeText={setNewDescription}
+                value={description}
+                onChangeText={setDescription}
                 multiline
               />
 
               <TouchableOpacity
-                style={styles.submitBtn}
-                onPress={handleCreateEvent}
-                disabled={creating}
+                style={styles.primaryBtn}
+                disabled={saveEventMutation.isPending}
+                onPress={handleSubmitEventForm}
               >
-                {creating ? (
+                {saveEventMutation.isPending ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.submitBtnText}>Confirm & Schedule</Text>
+                  <Text style={styles.primaryBtnText}>
+                    {editingEvent ? 'Save Changes' : 'Schedule Event'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
       </Modal>
-    </View>
+
+      {/* Scheduling Conflict Warning Modal */}
+      <Modal visible={!!conflictPrompt} animationType="fade" transparent>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>⚠️ Scheduling Conflict Detected</Text>
+            <Text style={styles.detailMeta}>
+              The selected meeting room or attendee has an overlapping commitment.
+            </Text>
+            {(conflictPrompt?.conflicts || []).slice(0, 3).map((c: any, idx: number) => (
+              <Text key={idx} style={styles.eventMetaSmall}>
+                • {c?.title || c?.roomName || 'Booked slot'}
+              </Text>
+            ))}
+            <View style={[styles.twoColRow, { marginTop: 14 }]}>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { flex: 1 }]}
+                onPress={() => setConflictPrompt(null)}
+              >
+                <Text style={styles.secondaryBtnText}>Change Time</Text>
+              </TouchableOpacity>
+              {canOverrideConflicts && conflictPrompt && (
+                <TouchableOpacity
+                  style={[styles.primaryBtnSmall, { flex: 1 }]}
+                  onPress={() =>
+                    saveEventMutation.mutate({
+                      ...conflictPrompt.pendingPayload,
+                      ignoreConflicts: true,
+                    })
+                  }
+                >
+                  <Text style={styles.primaryBtnText}>Save Anyway</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Recurrence Scope Prompt Modal */}
+      <Modal visible={!!recurrencePrompt} animationType="fade" transparent>
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Recurring Series Scope</Text>
+            <Text style={styles.detailMeta}>
+              Apply this change to only this occurrence or all events in the series?
+            </Text>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => {
+                if (recurrencePrompt?.mode === 'edit' && recurrencePrompt.pendingPayload) {
+                  saveEventMutation.mutate({
+                    ...recurrencePrompt.pendingPayload,
+                    recurrenceScope: 'this_occurrence',
+                    occurrenceDate: editingEvent?.startDate,
+                  });
+                } else if (selectedEvent) {
+                  cancelMutation.mutate({
+                    id: selectedEvent.id,
+                    recurrenceScope: 'this_occurrence',
+                    occurrenceDate: selectedEvent.startDate,
+                  });
+                }
+              }}
+            >
+              <Text style={styles.primaryBtnText}>This Occurrence Only</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { marginTop: 8 }]}
+              onPress={() => {
+                if (recurrencePrompt?.mode === 'edit' && recurrencePrompt.pendingPayload) {
+                  saveEventMutation.mutate({
+                    ...recurrencePrompt.pendingPayload,
+                    recurrenceScope: 'all',
+                  });
+                } else if (selectedEvent) {
+                  cancelMutation.mutate({
+                    id: selectedEvent.id,
+                    recurrenceScope: 'all',
+                  });
+                }
+              }}
+            >
+              <Text style={styles.secondaryBtnText}>All Events in Series</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ alignItems: 'center', marginTop: 10 }}
+              onPress={() => setRecurrencePrompt(null)}
+            >
+              <Text style={styles.eventMetaSmall}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </WorkspaceModuleShell>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
+  headerRightRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 6,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  icsBtn: {
+    minHeight: 38,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backBtnText: {
+  icsBtnText: {
     color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 11,
+    fontWeight: '800',
   },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  addBtn: {
-    backgroundColor: '#4F46E5',
+  createBtn: {
+    minHeight: 38,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 10,
+    backgroundColor: '#4F46E5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  addBtnText: {
+  createBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
-  topControlSection: {
+  controlsWrap: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
+  },
+  searchBar: {
+    minHeight: 42,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 8,
+  },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 6,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  navBtn: {
-    padding: 6,
+  chevronBtn: {
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  navBtnText: {
+  chevronText: {
     fontSize: 24,
+    fontWeight: '700',
     color: '#1E1B4B',
-    fontWeight: 'bold',
   },
-  monthTitle: {
-    fontSize: 17,
+  periodTouch: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  periodHeading: {
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
   },
-  todayPill: {
+  todayBtn: {
     backgroundColor: '#EEF2FF',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 10,
   },
-  todayText: {
+  todayBtnText: {
     color: '#4F46E5',
     fontSize: 12,
     fontWeight: '700',
@@ -649,14 +2030,16 @@ const styles = StyleSheet.create({
   viewTabs: {
     flexDirection: 'row',
     backgroundColor: '#F1F5F9',
-    borderRadius: 12,
+    borderRadius: 10,
     padding: 3,
+    marginBottom: 8,
   },
   viewTab: {
     flex: 1,
-    paddingVertical: 6,
+    minHeight: 34,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 8,
   },
   viewTabActive: {
     backgroundColor: '#FFFFFF',
@@ -669,347 +2052,486 @@ const styles = StyleSheet.create({
   viewTabTextActive: {
     color: '#1E1B4B',
   },
-  categoryScrollContainer: {
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  categoryScroll: {
-    paddingHorizontal: 16,
+  catRow: {
+    gap: 6,
+    paddingVertical: 2,
   },
   catChip: {
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginRight: 8,
+    marginRight: 6,
+    gap: 5,
   },
   catChipActive: {
     backgroundColor: '#1E1B4B',
     borderColor: '#1E1B4B',
   },
+  catColorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   catChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#475569',
   },
   catChipTextActive: {
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+  manageCatBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
   },
-  loader: {
-    marginTop: 40,
+  manageCatBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  scrollContent: {
+    padding: 14,
+    paddingBottom: 40,
   },
   monthCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 18,
+    padding: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 16,
+    marginBottom: 14,
   },
-  weekHeaders: {
+  weekdayRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 10,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    marginBottom: 6,
   },
-  weekHeaderText: {
-    fontSize: 12,
+  weekdayLabel: {
+    width: '14.28%',
+    textAlign: 'center',
+    fontSize: 11,
     fontWeight: '700',
     color: '#64748B',
-    width: 38,
-    textAlign: 'center',
   },
-  daysGrid: {
+  monthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
   dayCell: {
     width: '14.28%',
-    aspectRatio: 1,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 4,
-    borderRadius: 12,
+    borderRadius: 10,
+    paddingVertical: 4,
   },
-  todayCell: {
+  dayCellToday: {
     backgroundColor: '#EEF2FF',
+  },
+  dayCellSelected: {
     borderWidth: 1.5,
     borderColor: '#4F46E5',
   },
-  dayCellNum: {
-    fontSize: 14,
+  dayNum: {
+    fontSize: 13,
     fontWeight: '600',
     color: '#0F172A',
   },
-  todayNum: {
+  dayNumToday: {
     color: '#4F46E5',
     fontWeight: '800',
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 3,
+    marginTop: 3,
   },
   eventDot: {
     width: 5,
     height: 5,
     borderRadius: 2.5,
-    backgroundColor: '#4F46E5',
-    marginTop: 2,
   },
-  eventsSection: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  emptyCard: {
+  weekBoard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 30,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
   },
-  emptyIcon: {
-    fontSize: 36,
-    marginBottom: 8,
+  weekHeaderRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  emptyText: {
-    fontSize: 13,
+  hourLabelCol: {
+    width: 52,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#F1F5F9',
+  },
+  hourLabelText: {
+    fontSize: 10,
     color: '#64748B',
   },
-  eventCard: {
+  weekDayColHeader: {
+    width: 76,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#F1F5F9',
+  },
+  weekDayShort: {
+    fontSize: 10,
+    color: '#64748B',
+  },
+  weekHourRow: {
+    flexDirection: 'row',
+    minHeight: 44,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  weekSlotCell: {
+    width: 76,
+    padding: 2,
+    borderRightWidth: 1,
+    borderRightColor: '#F1F5F9',
+  },
+  miniSlotPill: {
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    marginBottom: 2,
+  },
+  miniSlotText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  dayTimelineCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  dayHourRow: {
+    flexDirection: 'row',
+    minHeight: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dayHourLabel: {
+    width: 62,
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  dayHourEventsCol: {
+    flex: 1,
+    gap: 4,
+  },
+  dayEventBlock: {
+    backgroundColor: '#F8FAFC',
+    borderLeftWidth: 4,
+    borderRadius: 8,
+    padding: 8,
+  },
+  agendaWrap: {
+    marginTop: 4,
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 10,
+  },
+  agendaDayGroup: {
+    marginBottom: 14,
+  },
+  agendaDateHeader: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+    marginBottom: 6,
+  },
+  agendaCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     flexDirection: 'row',
     overflow: 'hidden',
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  eventColorBar: {
-    width: 6,
+  accentStrip: {
+    width: 5,
   },
-  barIndigo: {
-    backgroundColor: '#4F46E5',
-  },
-  barBlue: {
-    backgroundColor: '#3B82F6',
-  },
-  barGreen: {
-    backgroundColor: '#10B981',
-  },
-  eventContent: {
+  agendaCardBody: {
     flex: 1,
-    padding: 14,
+    padding: 12,
   },
-  eventTopRow: {
+  agendaTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
     marginBottom: 4,
   },
-  eventTitle: {
+  eventTitleText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
     flex: 1,
   },
-  catBadge: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
+  cancelledStrike: {
+    textDecorationLine: 'line-through',
+    color: '#94A3B8',
   },
-  catBadgeText: {
-    fontSize: 10,
+  eventMetaSmall: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  readOnlyBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  readOnlyBadgeText: {
+    fontSize: 9,
     fontWeight: '700',
     color: '#475569',
   },
-  eventTiming: {
-    fontSize: 12,
-    color: '#64748B',
-    marginBottom: 2,
+  cancelledBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  eventRoom: {
-    fontSize: 11,
-    color: '#4F46E5',
-    fontWeight: '600',
+  cancelledBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#DC2626',
   },
-  eventLocation: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  modalOverlay: {
+  backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
+  sheet: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
-    maxHeight: '85%',
+    padding: 20,
   },
-  modalHeader: {
+  sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  modalTitle: {
-    fontSize: 18,
+  sheetTitle: {
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
+    flex: 1,
   },
-  modalCloseText: {
+  closeText: {
     fontSize: 18,
+    fontWeight: '700',
     color: '#64748B',
-    fontWeight: 'bold',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
-  },
-  detailLabel: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  detailValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  descBox: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    marginVertical: 12,
-  },
-  descText: {
-    fontSize: 13,
-    color: '#334155',
-    lineHeight: 18,
+    paddingHorizontal: 6,
   },
   fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 8,
-    marginTop: 6,
-  },
-  rsvpRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  rsvpBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  rsvpBtnGreen: {
-    backgroundColor: '#D1FAE5',
-  },
-  rsvpBtnAmber: {
-    backgroundColor: '#FEF3C7',
-  },
-  rsvpBtnRed: {
-    backgroundColor: '#FEE2E2',
-  },
-  rsvpBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#475569',
+    marginBottom: 6,
   },
-  cancelEvtBtn: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
-  },
-  cancelEvtText: {
-    color: '#DC2626',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  modalInput: {
+  input: {
+    minHeight: 44,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     fontSize: 14,
     color: '#0F172A',
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  twoColRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
   },
-  timeRow: {
+  swatchesRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
+    marginBottom: 12,
   },
-  timeCol: {
+  swatchCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+  swatchSelected: {
+    borderWidth: 3,
+    borderColor: '#0F172A',
+  },
+  catListRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  linkText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  detailMeta: {
+    fontSize: 13,
+    color: '#334155',
+    marginBottom: 4,
+  },
+  projectionActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  rsvpRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  rsvpPill: {
     flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  catGrid: {
+  rsvpPillActive: {
+    backgroundColor: '#4F46E5',
+  },
+  rsvpPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  shareRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  permToggleBtn: {
+    minHeight: 42,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+  },
+  permToggleText: {
+    color: '#4F46E5',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  recipientPickRow: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  detailFooterActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 14,
+    marginTop: 16,
   },
-  catPickBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-  },
-  catPickBtnActive: {
+  primaryBtn: {
+    minHeight: 46,
     backgroundColor: '#4F46E5',
-  },
-  catPickText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  catPickTextActive: {
-    color: '#FFFFFF',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  submitBtn: {
-    backgroundColor: '#10B981',
     borderRadius: 14,
-    paddingVertical: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
   },
-  submitBtnText: {
+  primaryBtnSmall: {
+    minHeight: 40,
+    paddingHorizontal: 14,
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
+  },
+  secondaryBtn: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  secondaryBtnText: {
+    color: '#4F46E5',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  warnBtnSmall: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  warnBtnText: {
+    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  dangerBtnSmall: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dangerBtnText: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  auditRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
 });

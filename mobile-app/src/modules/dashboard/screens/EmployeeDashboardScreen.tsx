@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -15,8 +15,25 @@ import { usePermission } from '../../../hooks/usePermission';
 import { AttendanceService, DashboardSummaryResponse } from '../../../core/services/attendanceService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { Config } from '../../../config/environment';
 
 const logoSource = require('../../../assets/images/logo.webp');
+
+const normalizeAvatarUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  let normalized = url.trim();
+  if (!normalized) return null;
+  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
+    normalized = normalized.replace('/svg?', '/png?');
+  }
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized;
+  }
+  if (normalized.startsWith('/')) {
+    return `${Config.API_BASE_URL}${normalized}`;
+  }
+  return normalized;
+};
 
 export const EmployeeDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeHome'>>();
@@ -48,6 +65,16 @@ export const EmployeeDashboardScreen: React.FC = () => {
     loadSummary();
   }, [loadSummary]);
 
+  const [avatarError, setAvatarError] = useState(false);
+  const avatarUri = useMemo(
+    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
+    [user?.profile?.avatarUrl]
+  );
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [avatarUri]);
+
   const employeeName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Employee';
 
   const isCheckedIn = !!summary.todayAttendance?.checkIn && !summary.todayAttendance?.checkOut;
@@ -77,7 +104,16 @@ export const EmployeeDashboardScreen: React.FC = () => {
               accessibilityRole="button"
               accessibilityLabel="View Profile"
             >
-              <Text style={styles.profileBtnText}>👤</Text>
+              {avatarUri && !avatarError ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <Text style={styles.profileBtnText}>👤</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -359,6 +395,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
   },
   profileBtnText: {
     fontSize: 16,

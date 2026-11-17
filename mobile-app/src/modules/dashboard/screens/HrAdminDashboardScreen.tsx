@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,9 +17,26 @@ import { HrService, DailyAttendanceReport, EmployeeSummary } from '../../../core
 import { LeaveRequest } from '../../../core/services/leaveService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { Config } from '../../../config/environment';
 
 const logoSource = require('../../../assets/images/logo.webp');
 const { width } = Dimensions.get('window');
+
+const normalizeAvatarUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  let normalized = url.trim();
+  if (!normalized) return null;
+  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
+    normalized = normalized.replace('/svg?', '/png?');
+  }
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized;
+  }
+  if (normalized.startsWith('/')) {
+    return `${Config.API_BASE_URL}${normalized}`;
+  }
+  return normalized;
+};
 
 interface ChartDay {
   day: string;
@@ -118,14 +135,36 @@ export const HrAdminDashboardScreen: React.FC = () => {
   const lateCount = attendanceReport.lateArrivals > 0 ? attendanceReport.lateArrivals : 6;
   const pendingCount = pendingLeaves.length > 0 ? pendingLeaves.length : 8;
 
+  const [avatarError, setAvatarError] = useState(false);
+  const avatarUri = useMemo(
+    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
+    [user?.profile?.avatarUrl]
+  );
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [avatarUri]);
+
   const tenantName = currentTenant?.name || 'Alpha Corporation';
-  const adminFullName = user?.profile?.fullName || 'HR Admin';
-  const adminInitials = adminFullName
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .substring(0, 2)
-    .toUpperCase() || 'HA';
+  const adminFullName =
+    user?.profile?.fullName ||
+    [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean).join(' ') ||
+    user?.email?.split('@')[0] ||
+    'HR Admin';
+  const adminInitials =
+    adminFullName
+      .split(' ')
+      .map((n) => n[0])
+      .filter(Boolean)
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || 'HA';
+  const adminDesignation =
+    user?.profile?.designation ||
+    user?.profile?.position ||
+    user?.designation ||
+    user?.workspaceRole?.name ||
+    'HR Operations';
 
   return (
     <View style={styles.container}>
@@ -156,9 +195,18 @@ export const HrAdminDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="User Profile"
           >
-            <View style={styles.avatarInner}>
-              <Text style={styles.avatarInitials}>{adminInitials}</Text>
-            </View>
+            {avatarUri && !avatarError ? (
+              <Image
+                source={{ uri: avatarUri }}
+                style={styles.avatarImage}
+                resizeMode="cover"
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              <View style={styles.avatarInner}>
+                <Text style={styles.avatarInitials}>{adminInitials}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -192,8 +240,8 @@ export const HrAdminDashboardScreen: React.FC = () => {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroTextCol}>
               <Text style={styles.heroGreeting}>Welcome back,</Text>
-              <Text style={styles.heroTitle}>HR Admin 👋</Text>
-              <Text style={styles.heroSubtitle}>Human Resources Management</Text>
+              <Text style={styles.heroTitle}>{adminFullName} 👋</Text>
+              <Text style={styles.heroSubtitle}>{adminDesignation}</Text>
             </View>
 
             {/* Persona Switcher Pill */}
@@ -780,6 +828,12 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#4F46E5',
     overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
   },
   avatarInner: {
     flex: 1,

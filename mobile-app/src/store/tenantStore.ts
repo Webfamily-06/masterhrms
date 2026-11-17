@@ -3,6 +3,8 @@ import { TenantResolveResponse } from '../types/tenant.types';
 import { secureStorage } from '../core/storage/secureStorage';
 import { STORAGE_KEYS } from '../config/constants';
 import { configureInterceptorDependencies } from '../core/api/interceptors';
+import { purgeQueryCache } from '../app/providers/QueryProvider';
+import { realtimeManager } from '../core/realtime/realtimeManager';
 import { useAuthStore } from './authStore';
 
 interface TenantState {
@@ -18,13 +20,25 @@ interface TenantState {
   setError: (error: string | null) => void;
 }
 
-export const useTenantStore = create<TenantState>((set) => ({
+export const useTenantStore = create<TenantState>((set, get) => ({
   currentTenant: null,
   isResolved: false,
   isLoading: false,
   error: null,
 
   setTenant: async (tenant: TenantResolveResponse) => {
+    const previousTenantId = get().currentTenant?.id;
+    const isTenantSwitch = Boolean(previousTenantId && tenant.id && previousTenantId !== tenant.id);
+
+    if (isTenantSwitch) {
+      realtimeManager.disconnectAll();
+      try {
+        await purgeQueryCache();
+      } catch {
+        // Ignore in mock/unit test environments
+      }
+    }
+
     if (tenant.id) {
       await secureStorage.setItem(STORAGE_KEYS.TENANT_ID, tenant.id);
     }
@@ -41,6 +55,13 @@ export const useTenantStore = create<TenantState>((set) => ({
   },
 
   clearTenant: async () => {
+    realtimeManager.disconnectAll();
+    try {
+      await purgeQueryCache();
+    } catch {
+      // Ignore in mock/unit test environments
+    }
+
     await secureStorage.removeItem(STORAGE_KEYS.TENANT_ID);
     await secureStorage.removeItem(STORAGE_KEYS.TENANT_SLUG);
 

@@ -4,7 +4,6 @@ import { EmployeeNavigator } from './EmployeeNavigator';
 import { ManagerNavigator } from './ManagerNavigator';
 import { HrAdminNavigator } from './HrAdminNavigator';
 import { TenantAdminNavigator } from './TenantAdminNavigator';
-import { SuperAdminNavigator } from './SuperAdminNavigator';
 import { AccessDeniedView } from '../../components/guards/AccessDeniedView';
 
 export const AppNavigator: React.FC = () => {
@@ -17,8 +16,6 @@ export const AppNavigator: React.FC = () => {
   }
 
   switch (activeRole) {
-    case 'super_admin':
-      return <SuperAdminNavigator />;
     case 'tenant_admin':
       return <TenantAdminNavigator />;
     case 'hr_admin':

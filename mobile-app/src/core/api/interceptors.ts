@@ -66,6 +66,8 @@ export function setupInterceptors(axiosInstance: AxiosInstance): void {
         config.headers['x-forwarded-host'] = 'localhost';
       }
 
+      config.headers['x-client-platform'] = 'mobile';
+      config.headers['x-mobile-app'] = 'true';
       config.headers['User-Agent'] = `${Config.APP_NAME}-Mobile/${Config.APP_VERSION}`;
       return config;
     },

@@ -26,7 +26,10 @@ export class AuthService {
     turnstileToken?: string;
   }): Promise<LoginResult> {
     try {
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {
+        'x-client-platform': 'mobile',
+        'x-mobile-app': 'true',
+      };
       if (credentials.workspaceSlug) {
         headers['x-tenant-slug'] = credentials.workspaceSlug;
       }
@@ -61,6 +64,18 @@ export class AuthService {
 
       // Handle Direct Login (when 2FA is disabled)
       const successData = data as LoginResponseSuccess;
+
+      // Strict enforcement: Super Administrator accounts are forbidden from mobile application access
+      const userRoles = successData.roles || successData.user?.roles || [];
+      const hasSuperAdmin = userRoles.some(
+        (r: any) => String(r).toLowerCase() === 'super_admin' || String(r).toLowerCase() === 'superadmin'
+      );
+      if (hasSuperAdmin) {
+        throw new Error(
+          'Access denied. Super Administrator accounts cannot log in to the mobile application. This mobile app is exclusively for Employees, HR, and Tenant Administrators.'
+        );
+      }
+
       await useAuthStore.getState().setSession({
         token: successData.token,
         user: successData.user,
@@ -102,6 +117,18 @@ export class AuthService {
       );
 
       const data = response.data;
+
+      // Strict enforcement: Super Administrator accounts are forbidden from mobile application access
+      const userRoles = data.roles || data.user?.roles || [];
+      const hasSuperAdmin = userRoles.some(
+        (r: any) => String(r).toLowerCase() === 'super_admin' || String(r).toLowerCase() === 'superadmin'
+      );
+      if (hasSuperAdmin) {
+        throw new Error(
+          'Access denied. Super Administrator accounts cannot log in to the mobile application. This mobile app is exclusively for Employees, HR, and Tenant Administrators.'
+        );
+      }
+
       await useAuthStore.getState().setSession({
         token: data.token,
         user: data.user,

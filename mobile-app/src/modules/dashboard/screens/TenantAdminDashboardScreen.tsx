@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,8 +16,25 @@ import { ERP_MODULE_REGISTRY, ErpModuleKey } from '../../../types/modules.types'
 import { TenantAdminService, SeatUtilization } from '../../../core/services/tenantAdminService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { Config } from '../../../config/environment';
 
 const logoSource = require('../../../assets/images/logo.webp');
+
+const normalizeAvatarUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  let normalized = url.trim();
+  if (!normalized) return null;
+  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
+    normalized = normalized.replace('/svg?', '/png?');
+  }
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized;
+  }
+  if (normalized.startsWith('/')) {
+    return `${Config.API_BASE_URL}${normalized}`;
+  }
+  return normalized;
+};
 
 export const TenantAdminDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'TenantAdminHome'>>();
@@ -54,6 +71,16 @@ export const TenantAdminDashboardScreen: React.FC = () => {
     loadData();
   }, [loadData]);
 
+  const [avatarError, setAvatarError] = useState(false);
+  const avatarUri = useMemo(
+    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
+    [user?.profile?.avatarUrl]
+  );
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [avatarUri]);
+
   const adminName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Administrator';
 
   return (
@@ -72,7 +99,16 @@ export const TenantAdminDashboardScreen: React.FC = () => {
               style={styles.profileBtn}
               accessibilityRole="button"
             >
-              <Text style={styles.profileBtnText}>👤</Text>
+              {avatarUri && !avatarError ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <Text style={styles.profileBtnText}>👤</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -188,6 +224,55 @@ export const TenantAdminDashboardScreen: React.FC = () => {
           </View>
         </TouchableOpacity>
 
+        {/* Workspace Collaboration Applications (Shared UI) */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Workspace Collaboration</Text>
+          </View>
+          <View style={styles.collabGrid}>
+            <TouchableOpacity
+              style={styles.collabBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('ChatConversations')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Chat"
+            >
+              <Text style={styles.collabIcon}>💬</Text>
+              <Text style={styles.collabLabel}>Chat</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.collabBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('CalendarMain')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Calendar"
+            >
+              <Text style={styles.collabIcon}>🗓️</Text>
+              <Text style={styles.collabLabel}>Calendar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.collabBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('TodoList')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Todo"
+            >
+              <Text style={styles.collabIcon}>📋</Text>
+              <Text style={styles.collabLabel}>Todo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.collabBtn}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('GanttTimeline')}
+              accessibilityRole="button"
+              accessibilityLabel="Open Gantt Timeline"
+            >
+              <Text style={styles.collabIcon}>📊</Text>
+              <Text style={styles.collabLabel}>Gantt</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.85}>
           <Text style={styles.logoutText}>Sign Out from Workspace</Text>
@@ -250,6 +335,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
   },
   profileBtnText: {
     fontSize: 16,
@@ -399,6 +492,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#334155',
+  },
+  collabGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  collabBtn: {
+    width: '47%',
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+  },
+  collabIcon: {
+    fontSize: 18,
+  },
+  collabLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   logoutButton: {
     marginTop: 8,

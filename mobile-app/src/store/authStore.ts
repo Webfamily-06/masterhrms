@@ -9,6 +9,7 @@ import { secureStorage } from '../core/storage/secureStorage';
 import { STORAGE_KEYS } from '../config/constants';
 import { configureInterceptorDependencies } from '../core/api/interceptors';
 import { purgeQueryCache } from '../app/providers/QueryProvider';
+import { realtimeManager } from '../core/realtime/realtimeManager';
 
 interface AuthState {
   token: string | null;
@@ -73,7 +74,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ? currentActive
         : resolvePrimaryRole(canonicalRoles);
 
-    const isSuperAdmin = canonicalRoles.includes('super_admin');
+    const isSuperAdmin = rawRoles.some(
+      (r) => String(r).toLowerCase() === 'super_admin'
+    );
 
     set({
       user,
@@ -101,9 +104,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     await secureStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
 
-    const canonicalRoles = normalizeToCanonicalRoles(roles || user.roles || []);
+    const sessionRawRoles = roles || user.roles || [];
+    const canonicalRoles = normalizeToCanonicalRoles(sessionRawRoles);
     const activeRole = resolvePrimaryRole(canonicalRoles);
-    const isSuperAdmin = canonicalRoles.includes('super_admin');
+    const isSuperAdmin = sessionRawRoles.some(
+      (r) => String(r).toLowerCase() === 'super_admin'
+    );
 
     set({
       token,
@@ -138,6 +144,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }),
 
   logout: async () => {
+    realtimeManager.disconnectAll();
     // Purge query cache to completely isolate former tenant session
     try {
       await purgeQueryCache();

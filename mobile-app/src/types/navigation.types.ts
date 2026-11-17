@@ -13,7 +13,53 @@ export type AuthStackParamList = {
   FaceIdAuth: undefined;
 };
 
-export type EmployeeStackParamList = {
+export type SharedCollaborationModuleParamList = {
+  ChatConversations:
+    | {
+        initialTab?: 'chats' | 'groups' | 'contacts' | 'calls';
+        joinGroupToken?: string;
+      }
+    | undefined;
+  ChatConversationDetail: {
+    threadId: string;
+    title: string;
+    type?: 'direct' | 'group' | 'announcement';
+    groupId?: string;
+    otherParticipantId?: string;
+    avatarUrl?: string;
+    isAnnouncementOnly?: boolean;
+  };
+  ChatCall: {
+    callId?: string;
+    receiverId?: string;
+    receiverName: string;
+    receiverAvatar?: string;
+    callType: 'audio' | 'video';
+    threadId?: string;
+    groupId?: string;
+    groupName?: string;
+    isGroupMeeting?: boolean;
+    isIncoming?: boolean;
+  };
+  CalendarMain:
+    | {
+        initialView?: 'agenda' | 'month' | 'week' | 'day';
+        focusDate?: string;
+      }
+    | undefined;
+  TodoList:
+    | {
+        taskId?: string;
+      }
+    | undefined;
+  GanttTimeline:
+    | {
+        taskId?: string;
+      }
+    | undefined;
+};
+
+export type EmployeeStackParamList = SharedCollaborationModuleParamList & {
   EmployeeHome: undefined;
   AttendanceDetail: undefined;
   LeaveDetail: undefined;
@@ -33,38 +79,26 @@ export type EmployeeStackParamList = {
   Notifications: undefined;
   FingerprintAuth: undefined;
   FaceIdAuth: undefined;
-  ChatConversations: undefined;
-  ChatConversationDetail: { threadId: string; title: string; type?: 'direct' | 'group' };
-  ChatCall: { callId?: string; receiverId?: string; receiverName: string; callType: 'audio' | 'video' };
-  CalendarMain: undefined;
-  TodoList: undefined;
-  GanttTimeline: undefined;
   EmployeeDirectory: undefined;
   Performance: undefined;
   DocumentsVault: undefined;
   Settings: undefined;
 };
 
-export type ManagerStackParamList = {
+export type ManagerStackParamList = SharedCollaborationModuleParamList & {
   ManagerHome: undefined;
   TeamAttendance: undefined;
   TeamApprovals: undefined;
   TeamProjects: undefined;
   Profile: undefined;
   EditProfile: undefined;
-  ChatConversations: undefined;
-  ChatConversationDetail: { threadId: string; title: string; type?: 'direct' | 'group' };
-  ChatCall: { callId?: string; receiverId?: string; receiverName: string; callType: 'audio' | 'video' };
-  CalendarMain: undefined;
-  TodoList: undefined;
-  GanttTimeline: undefined;
   EmployeeDirectory: undefined;
   Performance: undefined;
   DocumentsVault: undefined;
   Settings: undefined;
 };
 
-export type HrAdminStackParamList = {
+export type HrAdminStackParamList = SharedCollaborationModuleParamList & {
   HrAdminHome: undefined;
   EmployeeDirectory: undefined;
   OrgAttendance: undefined;
@@ -73,18 +107,12 @@ export type HrAdminStackParamList = {
   Notifications: undefined;
   Profile: undefined;
   EditProfile: undefined;
-  ChatConversations: undefined;
-  ChatConversationDetail: { threadId: string; title: string; type?: 'direct' | 'group' };
-  ChatCall: { callId?: string; receiverId?: string; receiverName: string; callType: 'audio' | 'video' };
-  CalendarMain: undefined;
-  TodoList: undefined;
-  GanttTimeline: undefined;
   Performance: undefined;
   DocumentsVault: undefined;
   Settings: undefined;
 };
 
-export type TenantAdminStackParamList = {
+export type TenantAdminStackParamList = SharedCollaborationModuleParamList & {
   TenantAdminHome: undefined;
   UserAccess: undefined;
   WorkspaceSettings: undefined;
@@ -92,12 +120,6 @@ export type TenantAdminStackParamList = {
   ModulesOverview: undefined;
   Profile: undefined;
   EditProfile: undefined;
-  ChatConversations: undefined;
-  ChatConversationDetail: { threadId: string; title: string; type?: 'direct' | 'group' };
-  ChatCall: { callId?: string; receiverId?: string; receiverName: string; callType: 'audio' | 'video' };
-  CalendarMain: undefined;
-  TodoList: undefined;
-  GanttTimeline: undefined;
   EmployeeDirectory: undefined;
   Performance: undefined;
   DocumentsVault: undefined;
