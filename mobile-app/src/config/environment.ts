@@ -16,7 +16,7 @@ const getDevApiHost = (): string => {
   try {
     const scriptURL = NativeModules.SourceCode?.scriptURL;
     if (scriptURL && typeof scriptURL === 'string') {
-      const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
+      const match = scriptURL.match(/^(?:https?|exp|exps):\/\/([^:/]+)/i);
       if (match && match[1]) {
         const host = match[1];
         if (host === 'localhost' || host === '127.0.0.1') {
@@ -30,7 +30,10 @@ const getDevApiHost = (): string => {
   }
 
   // Active host machine Wi-Fi IP and backend port 4000
-  return '192.168.1.176:4000';
+  if (Platform.OS === 'android') {
+    return '10.0.2.2:4000';
+  }
+  return '10.215.212.209:4000';
 };
 
 const DEV_API_HOST = getDevApiHost();

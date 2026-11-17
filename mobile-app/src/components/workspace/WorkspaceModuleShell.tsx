@@ -33,6 +33,7 @@ import {
   Video,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../common/AppBottomNav';
+import { Config } from '../../config/environment';
 
 const logoSource = require('../../assets/images/logo.webp');
 
@@ -120,6 +121,22 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
 
   const [incomingCall, setIncomingCall] = useState<IncomingCallSignal | null>(null);
   const [answeringCall, setAnsweringCall] = useState(false);
+
+  const incomingCallerAvatar = React.useMemo(() => {
+    if (!incomingCall) return null;
+    const raw = incomingCall.callerAvatar;
+    if (raw) {
+      let trimmed = raw.trim();
+      if (trimmed.includes('api.dicebear.com') && trimmed.includes('/svg?')) {
+        trimmed = trimmed.replace('/svg?', '/png?');
+      }
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+      if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
+      if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
+    }
+    const seed = encodeURIComponent(incomingCall.callerName || 'caller');
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=00d287`;
+  }, [incomingCall]);
 
   const effectiveTenantId = currentTenant?.id || user?.profile?.tenantId || '';
   const workspaceTitle = currentTenant?.name || 'Workspace';
@@ -412,10 +429,11 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
             <View style={styles.incomingRingingPulseWrap}>
               <View style={styles.incomingRingingOuterRing}>
                 <View style={styles.incomingRingingMidRing}>
-                  {incomingCall?.callerAvatar ? (
+                  {incomingCallerAvatar ? (
                     <Image
-                      source={{ uri: incomingCall.callerAvatar }}
+                      source={{ uri: incomingCallerAvatar }}
                       style={styles.incomingModalAvatar}
+                      resizeMode="cover"
                     />
                   ) : (
                     <View style={styles.incomingModalAvatarPlaceholder}>

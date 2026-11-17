@@ -31,6 +31,7 @@ import { usePermission } from '../../../hooks/usePermission';
 import { realtimeManager } from '../../../core/realtime/realtimeManager';
 import { ChatService } from '../../../core/services/chatService';
 import { requestAppMediaPermissions } from '../../../core/services/permissionService';
+import { Config } from '../../../config/environment';
 
 type CallLifecycleState =
   | 'DIALING'
@@ -58,6 +59,8 @@ export const ChatCallScreen: React.FC = () => {
     callId: initialCallId,
     receiverId,
     receiverName = 'Colleague',
+    receiverAvatar,
+    callerAvatar,
     callType = 'audio',
     threadId,
     groupId,
@@ -65,6 +68,36 @@ export const ChatCallScreen: React.FC = () => {
     isGroupMeeting = false,
     isIncoming = false,
   } = route.params || {};
+
+  const displayAvatar = React.useMemo(() => {
+    const raw = receiverAvatar || callerAvatar;
+    if (raw) {
+      let trimmed = raw.trim();
+      if (trimmed.includes('api.dicebear.com') && trimmed.includes('/svg?')) {
+        trimmed = trimmed.replace('/svg?', '/png?');
+      }
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+      if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
+      if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
+    }
+    const seed = encodeURIComponent(receiverName || 'colleague');
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=00d287`;
+  }, [receiverAvatar, callerAvatar, receiverName]);
+
+  const selfAvatar = React.useMemo(() => {
+    const raw = user?.profile?.avatarUrl;
+    if (raw) {
+      let trimmed = raw.trim();
+      if (trimmed.includes('api.dicebear.com') && trimmed.includes('/svg?')) {
+        trimmed = trimmed.replace('/svg?', '/png?');
+      }
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+      if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
+      if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
+    }
+    const seed = encodeURIComponent(user?.profile?.fullName || user?.email || 'me');
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=4f46e5`;
+  }, [user]);
 
   const hasNativeWebRtc = typeof (globalThis as any).RTCPeerConnection === 'function';
 
@@ -532,9 +565,11 @@ export const ChatCallScreen: React.FC = () => {
           {/* Peer Video Surface */}
           <View style={styles.peerVideoSurface}>
             <View style={styles.avatarBig}>
-              <Text style={styles.avatarBigText}>
-                {receiverName.substring(0, 2).toUpperCase()}
-              </Text>
+              <Image
+                source={{ uri: displayAvatar }}
+                style={styles.avatarBigImage}
+                resizeMode="cover"
+              />
             </View>
             <Text style={styles.videoPeerName}>{receiverName}</Text>
           </View>
@@ -542,9 +577,11 @@ export const ChatCallScreen: React.FC = () => {
           {/* Picture-In-Picture PIP Self Camera (Matches 26_Light_Video Call Room.png) */}
           <View style={styles.pipVideoBox}>
             <View style={styles.pipInnerCamera}>
-              <Text style={styles.pipInitials}>
-                {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
-              </Text>
+              <Image
+                source={{ uri: selfAvatar }}
+                style={styles.pipAvatarImage}
+                resizeMode="cover"
+              />
               {isMuted && (
                 <View style={styles.pipMuteBadge}>
                   <MicOff size={10} color="#FFFFFF" />
@@ -557,9 +594,11 @@ export const ChatCallScreen: React.FC = () => {
         <View style={styles.centerStage}>
           <View style={styles.outerPulse}>
             <View style={styles.avatarBig}>
-              <Text style={styles.avatarBigText}>
-                {receiverName.substring(0, 2).toUpperCase()}
-              </Text>
+              <Image
+                source={{ uri: displayAvatar }}
+                style={styles.avatarBigImage}
+                resizeMode="cover"
+              />
             </View>
           </View>
         </View>
@@ -795,6 +834,12 @@ const styles = StyleSheet.create({
     shadowColor: '#00D287',
     shadowOpacity: 0.3,
     shadowRadius: 10,
+    overflow: 'hidden',
+  },
+  avatarBigImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 70,
   },
   avatarBigText: {
     color: '#FFFFFF',
@@ -1023,6 +1068,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  pipAvatarImage: {
+    width: '100%',
+    height: '100%',
   },
   pipInitials: {
     color: '#FFFFFF',

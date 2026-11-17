@@ -1,4 +1,6 @@
 import { Linking, Share } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
 import { Config } from '../../config/environment';
 import { apiClient } from '../api/apiClient';
 
@@ -143,7 +145,7 @@ export function classifyAttachmentKind(
 }
 
 /**
- * Safely opens or shares an attachment URL after validating protocol safety.
+ * Safely opens or shares an attachment URL natively using Expo Sharing / FileSystem.
  */
 export async function openOrShareAttachment(params: {
   url?: string | null;
@@ -151,6 +153,7 @@ export async function openOrShareAttachment(params: {
   fileName?: string;
 }): Promise<boolean> {
   const targetUrl =
+    params.url ||
     resolveSafeBackendUrl(params.url) ||
     (params.mediaId ? buildChatAttachmentDownloadUrl(params.mediaId, false) : null);
 
@@ -158,21 +161,53 @@ export async function openOrShareAttachment(params: {
     throw new Error('Attachment URL is invalid or blocked by security policy.');
   }
 
-  // Use system share sheet to view/save without launching foreign browser whenever possible
   try {
-    await Share.share({
-      title: params.fileName || 'MasterHRMS Attachment',
-      message: targetUrl,
-      url: targetUrl,
-    });
-    return true;
-  } catch {
+    // 1. If it's a local file URI (e.g. from camera/document picker)
+    if (targetUrl.startsWith('file://') || targetUrl.startsWith('content://')) {
+      const isSharingAvailable = await Sharing.isAvailableAsync().catch(() => false);
+      if (isSharingAvailable) {
+        await Sharing.shareAsync(targetUrl, {
+          dialogTitle: params.fileName || 'MasterHRMS Attachment',
+        });
+        return true;
+      }
+    }
+
+    // 2. If it's a remote URL (http:// or https://), download to cache directory, then share/preview!
+    if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+      const safeName = (params.fileName || `file_${Date.now()}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const targetFile = new File(Paths.cache, safeName);
+      const downloaded = await File.downloadFileAsync(targetUrl, targetFile, { idempotent: true });
+
+      const canPreview = await File.canPreview(downloaded).catch(() => false);
+      if (canPreview) {
+        await File.preview(downloaded);
+        return true;
+      }
+
+      const isSharingAvailable = await Sharing.isAvailableAsync().catch(() => false);
+      if (isSharingAvailable) {
+        await Sharing.shareAsync(downloaded.uri, {
+          dialogTitle: params.fileName || 'MasterHRMS Attachment',
+        });
+        return true;
+      }
+    }
+
     const canOpen = await Linking.canOpenURL(targetUrl).catch(() => false);
     if (canOpen) {
       await Linking.openURL(targetUrl);
       return true;
     }
+  } catch (err) {
+    console.warn('[AttachmentHelper] Native open/share failed, falling back to Share.share', err);
   }
+
+  await Share.share({
+    title: params.fileName || 'MasterHRMS Attachment',
+    message: targetUrl,
+    url: targetUrl,
+  });
   return true;
 }
 
@@ -184,20 +219,7 @@ export async function downloadOrSaveMedia(params: {
   mediaId?: string | null;
   fileName?: string;
 }): Promise<boolean> {
-  const targetUrl =
-    resolveSafeBackendUrl(params.url) ||
-    (params.mediaId ? buildChatAttachmentDownloadUrl(params.mediaId, false) : null);
-
-  if (!targetUrl) {
-    throw new Error('Media URL is invalid or blocked by security policy.');
-  }
-
-  await Share.share({
-    title: params.fileName || 'MasterHRMS Media Download',
-    message: `Save file: ${params.fileName || 'Attachment'}\n${targetUrl}`,
-    url: targetUrl,
-  });
-  return true;
+  return openOrShareAttachment(params);
 }
 
 /**

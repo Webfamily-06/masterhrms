@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '../../config/constants';
 import { AuthService } from '../../core/auth/authService';
 import { BiometricService } from '../../core/auth/biometricService';
 import { requestAppMediaPermissions } from '../../core/services/permissionService';
+import { PushNotificationService } from '../../core/services/pushNotificationService';
 import { LoadingView } from '../../components/common/LoadingView';
 import { Text } from '../../components/common/Text';
 import { Button } from '../../components/common/Button';
@@ -29,6 +30,8 @@ export const AppBootstrap: React.FC = () => {
       await AuthService.refreshToken();
       await AuthService.getCurrentUser();
       setIsBiometricLocked(false);
+      void PushNotificationService.registerForPushNotifications();
+      PushNotificationService.initListeners();
     } catch {
       // If refresh fails due to revocation / expiration / server offline:
       await secureStorage.clear().catch(() => {});

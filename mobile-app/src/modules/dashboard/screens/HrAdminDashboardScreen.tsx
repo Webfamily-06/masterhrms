@@ -23,8 +23,12 @@ import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
+import { AuthService } from '../../../core/auth/authService';
 import { HrService, DailyAttendanceReport, EmployeeSummary } from '../../../core/services/hrService';
 import { LeaveRequest } from '../../../core/services/leaveService';
+import { CalendarService, CalendarEvent } from '../../../core/services/calendarService';
+import { TodoService } from '../../../core/services/todoService';
+import { NotificationService, AppNotification } from '../../../core/services/notificationService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { Config } from '../../../config/environment';
@@ -79,6 +83,8 @@ export const HrAdminDashboardScreen: React.FC = () => {
     { id: '2', title: 'Finalize April payroll', completed: false },
     { id: '3', title: 'Update leave policy draft', completed: false },
   ]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<AppNotification[]>([]);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -86,14 +92,31 @@ export const HrAdminDashboardScreen: React.FC = () => {
 
   const loadData = useCallback(async () => {
     try {
-      const [empData, repData, leavesData] = await Promise.all([
+      const [empData, repData, leavesData, , calEvents, todoList, notifs] = await Promise.all([
         HrService.getEmployees({ limit: 10 }).catch(() => []),
         HrService.getDailyAttendanceReport().catch(() => null),
         HrService.getAllLeaveRequests('PENDING').catch(() => []),
+        AuthService.getCurrentUser().catch(() => null),
+        CalendarService.getEvents().catch(() => []),
+        TodoService.getTodos().catch(() => []),
+        NotificationService.getNotifications().catch(() => []),
       ]);
       if (empData && empData.length > 0) setEmployees(empData);
       if (repData) setAttendanceReport(repData);
       if (leavesData) setPendingLeaves(leavesData);
+      if (calEvents && calEvents.length > 0) setEvents(calEvents.slice(0, 3));
+      if (todoList && todoList.length > 0) {
+        setTasks(
+          todoList.slice(0, 3).map((t) => ({
+            id: t.id,
+            title: t.title,
+            completed: Boolean(t.completed),
+          }))
+        );
+      }
+      if (notifs && notifs.length > 0) {
+        setRecentNotifs(notifs.slice(0, 3));
+      }
     } catch {
       // Graceful fallback to rich defaults
     } finally {
@@ -145,36 +168,61 @@ export const HrAdminDashboardScreen: React.FC = () => {
   const lateCount = attendanceReport.lateArrivals > 0 ? attendanceReport.lateArrivals : 6;
   const pendingCount = pendingLeaves.length > 0 ? pendingLeaves.length : 8;
 
+  const tenantName = currentTenant?.name || 'MasterHRMS';
+
+  const adminFullName = useMemo(() => {
+    if (user?.profile?.fullName) return user.profile.fullName;
+    const nameParts = [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean);
+    if (nameParts.length > 0) return nameParts.join(' ');
+    if ((user as any)?.name) return (user as any).name;
+    if ((user as any)?.fullName) return (user as any).fullName;
+    if (user?.email) return user.email.split('@')[0];
+    return 'HR Director';
+  }, [user]);
+
   const [avatarError, setAvatarError] = useState(false);
-  const avatarUri = useMemo(
-    () => normalizeAvatarUrl(user?.profile?.avatarUrl),
-    [user?.profile?.avatarUrl]
-  );
 
-  useEffect(() => {
-    setAvatarError(false);
-  }, [avatarUri]);
+  const adminInitials = useMemo(() => {
+    return (
+      adminFullName
+        .split(' ')
+        .map((n: string) => n[0])
+        .filter(Boolean)
+        .join('')
+        .substring(0, 2)
+        .toUpperCase() || 'HR'
+    );
+  }, [adminFullName]);
 
-  const tenantName = currentTenant?.name || 'Alpha Corporation';
-  const adminFullName =
-    user?.profile?.fullName ||
-    [user?.profile?.firstName, user?.profile?.lastName].filter(Boolean).join(' ') ||
-    user?.email?.split('@')[0] ||
-    'HR Admin';
-  const adminInitials =
-    adminFullName
-      .split(' ')
-      .map((n) => n[0])
-      .filter(Boolean)
-      .join('')
-      .substring(0, 2)
-      .toUpperCase() || 'HA';
-  const adminDesignation =
-    user?.profile?.designation ||
-    user?.profile?.position ||
-    user?.designation ||
-    user?.workspaceRole?.name ||
-    'HR Operations';
+  const adminDesignation = useMemo(() => {
+    const rawDesig =
+      user?.designation ||
+      user?.profile?.designation ||
+      user?.profile?.position ||
+      user?.workspaceRole?.name;
+    if (typeof rawDesig === 'object' && rawDesig !== null) {
+      return (rawDesig as any).name || (rawDesig as any).title || 'HR Operations Director';
+    }
+    if (typeof rawDesig === 'string' && rawDesig.trim().length > 0) {
+      return rawDesig;
+    }
+    return 'HR Operations Director';
+  }, [user]);
+
+  const avatarUri = useMemo(() => {
+    const raw =
+      user?.profile?.avatarUrl ||
+      (user?.profile as any)?.avatar ||
+      (user as any)?.avatarUrl ||
+      (user as any)?.avatar;
+    if (raw) {
+      const normalized = normalizeAvatarUrl(raw);
+      if (normalized) return normalized;
+    }
+    // High-resolution Dicebear avatar guaranteed to render
+    const seed = encodeURIComponent(adminFullName || user?.email || 'hr');
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=4f46e5`;
+  }, [user, adminFullName]);
 
   return (
     <View style={styles.container}>
@@ -557,57 +605,50 @@ export const HrAdminDashboardScreen: React.FC = () => {
           </View>
 
           <View style={styles.listCard}>
-            {/* Event 1 */}
-            <TouchableOpacity
-              style={styles.eventRow}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('CalendarMain')}
-            >
-              <View style={styles.dateBox}>
-                <Text style={styles.dateBoxMonth}>APR</Text>
-                <Text style={styles.dateBoxDay}>24</Text>
-              </View>
-              <View style={styles.eventDetails}>
-                <Text style={styles.eventTitle}>HR Policy Review Meeting</Text>
-                <Text style={styles.eventMeta}>10:00 AM – 11:00 AM  •  Online</Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.rowDivider} />
-
-            {/* Event 2 */}
-            <TouchableOpacity
-              style={styles.eventRow}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('CalendarMain')}
-            >
-              <View style={styles.dateBox}>
-                <Text style={styles.dateBoxMonth}>APR</Text>
-                <Text style={styles.dateBoxDay}>26</Text>
-              </View>
-              <View style={styles.eventDetails}>
-                <Text style={styles.eventTitle}>Employee Engagement Program</Text>
-                <Text style={styles.eventMeta}>2:00 PM – 4:00 PM  •  Conference Hall</Text>
-              </View>
-            </TouchableOpacity>
-
-            <View style={styles.rowDivider} />
-
-            {/* Event 3 */}
-            <TouchableOpacity
-              style={styles.eventRow}
-              activeOpacity={0.7}
-              onPress={() => navigation.navigate('CalendarMain')}
-            >
-              <View style={styles.dateBox}>
-                <Text style={styles.dateBoxMonth}>APR</Text>
-                <Text style={styles.dateBoxDay}>30</Text>
-              </View>
-              <View style={styles.eventDetails}>
-                <Text style={styles.eventTitle}>Payroll Processing – April</Text>
-                <Text style={styles.eventMeta}>All Day</Text>
-              </View>
-            </TouchableOpacity>
+            {events.length > 0 ? (
+              events.map((evt, idx) => {
+                const d = evt.startDate ? new Date(evt.startDate) : new Date();
+                const m = d.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                const day = d.getDate();
+                const timeStr = evt.allDay
+                  ? 'All Day'
+                  : `${new Date(evt.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • ${evt.location || 'Online'}`;
+                return (
+                  <React.Fragment key={evt.id || idx}>
+                    <TouchableOpacity
+                      style={styles.eventRow}
+                      activeOpacity={0.7}
+                      onPress={() => navigation.navigate('CalendarMain')}
+                    >
+                      <View style={styles.dateBox}>
+                        <Text style={styles.dateBoxMonth}>{m}</Text>
+                        <Text style={styles.dateBoxDay}>{day}</Text>
+                      </View>
+                      <View style={styles.eventDetails}>
+                        <Text style={styles.eventTitle}>{evt.title}</Text>
+                        <Text style={styles.eventMeta}>{timeStr}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    {idx < events.length - 1 && <View style={styles.rowDivider} />}
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              <TouchableOpacity
+                style={styles.eventRow}
+                activeOpacity={0.7}
+                onPress={() => navigation.navigate('CalendarMain')}
+              >
+                <View style={styles.dateBox}>
+                  <Text style={styles.dateBoxMonth}>TODAY</Text>
+                  <Text style={styles.dateBoxDay}>{new Date().getDate()}</Text>
+                </View>
+                <View style={styles.eventDetails}>
+                  <Text style={styles.eventTitle}>No upcoming events scheduled</Text>
+                  <Text style={styles.eventMeta}>Tap to add or view calendar</Text>
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -662,37 +703,53 @@ export const HrAdminDashboardScreen: React.FC = () => {
           </View>
 
           <View style={styles.listCard}>
-            <View style={styles.notifRow}>
-              <View style={[styles.notifIconCircle, styles.bgBlueLight]}>
-                <Users size={16} color="#3B82F6" strokeWidth={2.2} />
-              </View>
-              <View style={styles.notifDetails}>
-                <View style={styles.notifTopRow}>
-                  <Text style={styles.notifTitle}>New employee joined</Text>
-                  <Text style={styles.notifTime}>10 min ago</Text>
+            {recentNotifs.length > 0 ? (
+              recentNotifs.map((notif, idx) => {
+                const timeStr = notif.createdAt
+                  ? new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Recent';
+                return (
+                  <React.Fragment key={notif.id || idx}>
+                    <TouchableOpacity
+                      style={styles.notifRow}
+                      onPress={() => navigation.navigate('Notifications')}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.notifIconCircle, styles.bgBlueLight]}>
+                        <Users size={16} color="#3B82F6" strokeWidth={2.2} />
+                      </View>
+                      <View style={styles.notifDetails}>
+                        <View style={styles.notifTopRow}>
+                          <Text style={styles.notifTitle}>{notif.title}</Text>
+                          <Text style={styles.notifTime}>{timeStr}</Text>
+                        </View>
+                        <Text style={styles.notifBody}>{notif.message}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    {idx < recentNotifs.length - 1 && <View style={styles.rowDivider} />}
+                  </React.Fragment>
+                );
+              })
+            ) : (
+              <TouchableOpacity
+                style={styles.notifRow}
+                onPress={() => navigation.navigate('Notifications')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.notifIconCircle, styles.bgBlueLight]}>
+                  <Users size={16} color="#3B82F6" strokeWidth={2.2} />
                 </View>
-                <Text style={styles.notifBody}>
-                  Rohit Sharma has joined as Software Engineer.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.rowDivider} />
-
-            <View style={styles.notifRow}>
-              <View style={[styles.notifIconCircle, styles.bgAmberLight]}>
-                <Calendar size={16} color="#D97706" strokeWidth={2.2} />
-              </View>
-              <View style={styles.notifDetails}>
-                <View style={styles.notifTopRow}>
-                  <Text style={styles.notifTitle}>Policy update</Text>
-                  <Text style={styles.notifTime}>45 min ago</Text>
+                <View style={styles.notifDetails}>
+                  <View style={styles.notifTopRow}>
+                    <Text style={styles.notifTitle}>All caught up!</Text>
+                    <Text style={styles.notifTime}>Now</Text>
+                  </View>
+                  <Text style={styles.notifBody}>
+                    No unread notifications at this time.
+                  </Text>
                 </View>
-                <Text style={styles.notifBody}>
-                  Leave policy has been updated. Please review.
-                </Text>
-              </View>
-            </View>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

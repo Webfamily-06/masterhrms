@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from '../../config/constants';
 import { useAuthStore } from '../../store/authStore';
 import { useTenantStore } from '../../store/tenantStore';
 import { queryClient } from '../../app/providers/QueryProvider';
+import { PushNotificationService } from '../services/pushNotificationService';
 import {
   LoginResult,
   LoginResponseSuccess,
@@ -96,6 +97,9 @@ export class AuthService {
         });
       }
 
+      void PushNotificationService.registerForPushNotifications();
+      PushNotificationService.initListeners();
+
       return successData;
     } catch (error: any) {
       throw ApiError.fromAxiosError(error);
@@ -148,6 +152,9 @@ export class AuthService {
           slug: tenantSlug || 'default',
         });
       }
+
+      void PushNotificationService.registerForPushNotifications();
+      PushNotificationService.initListeners();
 
       return data;
     } catch (error: any) {

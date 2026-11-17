@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -17,6 +18,7 @@ import {
 import { Text } from '../../../components/common/Text';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { realtimeManager } from '../../../core/realtime/realtimeManager';
+import { NotificationService, AppNotification } from '../../../core/services/notificationService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -35,54 +37,53 @@ export const NotificationsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Notifications'>>();
   const [filter, setFilter] = useState<'ALL' | 'APPROVAL' | 'PAYROLL' | 'GENERAL'>('ALL');
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>([
-    {
-      id: 'n-1',
-      type: 'APPROVAL',
-      title: 'Leave Approved',
-      message: 'Your Casual Leave for Nov 24, 2026 has been approved by your Manager.',
-      time: '10m ago',
-      read: false,
-      targetRoute: 'LeaveDetail',
-      targetParams: { id: 'leave-101' },
-    },
-    {
-      id: 'n-2',
-      type: 'PAYROLL',
-      title: 'October Payslip Available',
-      message: 'Your monthly salary statement for Oct 2026 has been generated and disbursed.',
-      time: '2h ago',
-      read: false,
-      targetRoute: 'Payslips',
-    },
-    {
-      id: 'n-3',
-      type: 'ATTENDANCE',
-      title: 'Geofence Punch Recorded',
-      message: 'Office check-in verified at 09:14 AM at BKC Headquarters.',
-      time: 'Today',
-      read: true,
-      targetRoute: 'Attendance',
-    },
-    {
-      id: 'n-4',
-      type: 'CHAT',
-      title: 'New Team Message',
-      message: 'Alex Mercer mentioned you in Project Sprint Alpha.',
-      time: 'Today',
-      read: false,
-      targetRoute: 'ChatConversations',
-    },
-    {
-      id: 'n-5',
-      type: 'GENERAL',
-      title: 'Townhall Announcement',
-      message: 'Annual MasterHRMS All-Hands scheduled for Thursday at 04:00 PM IST.',
-      time: 'Yesterday',
-      read: true,
-      targetRoute: 'TodoList',
-    },
-  ]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const data = await NotificationService.getNotifications();
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped: NotificationItem[] = data.map((n: AppNotification) => {
+          let itemType: NotificationItem['type'] = 'GENERAL';
+          const t = (n.type || '').toUpperCase();
+          if (t.includes('APPROVAL') || t.includes('LEAVE')) itemType = 'APPROVAL';
+          else if (t.includes('PAYROLL') || t.includes('SALARY')) itemType = 'PAYROLL';
+          else if (t.includes('ATTENDANCE') || t.includes('PUNCH')) itemType = 'ATTENDANCE';
+          else if (t.includes('CHAT') || t.includes('MESSAGE')) itemType = 'CHAT';
+
+          const timeStr = n.createdAt
+            ? new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'Today';
+
+          return {
+            id: n.id,
+            type: itemType,
+            title: n.title || 'Notification',
+            message: n.message || '',
+            time: timeStr,
+            read: Boolean(n.read),
+            targetRoute: n.data?.targetRoute || (n.data?.threadId ? 'ChatConversations' : undefined),
+            targetParams: n.data?.targetParams || (n.data?.threadId ? { threadId: n.data.threadId } : undefined),
+          };
+        });
+        setNotifications(mapped);
+      }
+    } catch {
+      // Keep empty or current list
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchNotifications();
+  };
 
   // Subscribe to live incoming notifications via Pusher / Realtime socket
   useEffect(() => {
@@ -167,7 +168,18 @@ export const NotificationsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#4F46E5"
+            colors={['#4F46E5']}
+          />
+        }
+      >
         {/* Filter Tabs */}
         <View style={styles.filterRow}>
           {(['ALL', 'APPROVAL', 'PAYROLL', 'GENERAL'] as const).map((tab) => (

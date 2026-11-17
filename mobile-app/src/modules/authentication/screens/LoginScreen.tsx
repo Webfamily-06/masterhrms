@@ -224,6 +224,17 @@ export const LoginScreen: React.FC = () => {
                 <TouchableOpacity
                   style={styles.quickFillChip}
                   onPress={() => {
+                    setEmail('tenantadmin@masterhrms.com');
+                    setPassword('admin123');
+                    if (error) setError(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickFillChipText}>Tenant Admin</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickFillChip}
+                  onPress={() => {
                     setEmail('hr@masterhrms.com');
                     setPassword('admin123');
                     if (error) setError(null);

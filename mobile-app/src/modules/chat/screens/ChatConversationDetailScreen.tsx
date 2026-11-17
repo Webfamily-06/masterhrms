@@ -71,10 +71,7 @@ import {
   downloadOrSaveMedia,
 } from '../../../core/storage/attachmentHelper';
 import {
-  requestCameraPermission,
   requestMicrophonePermission,
-  requestStoragePermission,
-  requestLocationPermission,
 } from '../../../core/services/permissionService';
 import {
   ChatService,
@@ -82,6 +79,9 @@ import {
   ChatParticipant,
   UploadableFileDescriptor,
 } from '../../../core/services/chatService';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
 
@@ -365,23 +365,55 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   const handleCameraCapture = async () => {
     setComposerMenuOpen(false);
-    const granted = await requestCameraPermission();
-    if (!granted) {
-      Alert.alert('Camera Permission Required', 'Camera access is required to take photos.');
-      return;
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Camera Permission Required', 'Camera access is required to take photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      const photoFile: UploadableFileDescriptor = {
+        uri: asset.uri,
+        name: asset.fileName || `camera_${Date.now()}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+        size: asset.fileSize || 300000,
+      };
+
+      setSending(true);
+      const uploadedAttachments = await ChatService.uploadAttachments([photoFile], threadId);
+      const sent = await ChatService.sendMessage({
+        threadId,
+        content: '',
+        attachments: uploadedAttachments,
+        clientTempId: `mob_cam_${Date.now()}`,
+      });
+      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+
+      setSentFilePreview({
+        name: photoFile.name,
+        size: photoFile.size,
+        type: photoFile.type,
+        url: photoFile.uri,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+        recipient: title || 'User',
+      });
+    } catch (err: any) {
+      Alert.alert('Camera Error', err?.message || 'Could not take photo.');
+    } finally {
+      setSending(false);
     }
-    setCapturedPhotoUri(null);
-    setCameraModalOpen(true);
   };
 
   const handleShutterSnap = () => {
-    const cameraSamples = [
-      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=800&q=80',
-    ];
-    const picked = cameraSamples[Math.floor(Math.random() * cameraSamples.length)];
-    setCapturedPhotoUri(picked);
+    // Kept for interactive viewfinder modal if opened directly
+    handleCameraCapture();
   };
 
   const handleConfirmSendCapturedPhoto = async () => {
@@ -425,41 +457,48 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   const handleGalleryPick = async () => {
     setComposerMenuOpen(false);
-    const granted = await requestStoragePermission();
-    if (!granted) {
-      Alert.alert('Storage Permission', 'Storage access is required to choose photos.');
-      return;
-    }
-    const photoId = Date.now();
-    const newImage: UploadableFileDescriptor = {
-      uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
-      name: `gallery_photo_${photoId}.png`,
-      type: 'image/png',
-      size: 320000,
-    };
     try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Gallery Permission Required', 'Photo library access is required to choose photos.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        quality: 0.85,
+        allowsMultipleSelection: true,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const newFiles: UploadableFileDescriptor[] = result.assets.map((asset, i) => ({
+        uri: asset.uri,
+        name: asset.fileName || `photo_${Date.now()}_${i}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+        size: asset.fileSize || 250000,
+      }));
+
       setSending(true);
-      const uploaded = await ChatService.uploadAttachments([newImage], threadId);
+      const uploaded = await ChatService.uploadAttachments(newFiles, threadId);
       const sent = await ChatService.sendMessage({
         threadId,
         content: '',
         attachments: uploaded,
-        clientTempId: `mob_gal_${photoId}`,
+        clientTempId: `mob_gal_${Date.now()}`,
       });
       setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
 
-      // Trigger File Preview Panel
+      const primary = newFiles[0];
       setSentFilePreview({
-        name: newImage.name,
-        size: newImage.size,
-        type: newImage.type,
-        url: newImage.uri,
+        name: primary.name,
+        size: primary.size,
+        type: primary.type,
+        url: primary.uri,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
         recipient: title || 'User',
       });
     } catch (err: any) {
-      Alert.alert('Send Failed', err?.message || 'Could not send photo.');
+      Alert.alert('Gallery Error', err?.message || 'Could not select photo.');
     } finally {
       setSending(false);
     }
@@ -467,49 +506,32 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   const handleDocumentPick = async () => {
     setComposerMenuOpen(false);
-    const granted = await requestStoragePermission();
-    if (!granted) {
-      Alert.alert('Storage Permission Required', 'Storage access is required to select documents.');
-      return;
-    }
-    setSelectedDocIds([]);
-    setDocPickerOpen(true);
-  };
-
-  const handleToggleSelectDoc = (docId: string) => {
-    setSelectedDocIds((prev) =>
-      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
-    );
-  };
-
-  const handleConfirmAttachDocuments = async () => {
-    if (selectedDocIds.length === 0) {
-      Alert.alert('No Documents Selected', 'Please select at least one document to attach.');
-      return;
-    }
-    const docsToAttach = DEVICE_DOCUMENTS_MOCK.filter((d) => selectedDocIds.includes(d.id));
-    const newFiles: UploadableFileDescriptor[] = docsToAttach.map((d) => ({
-      uri: d.uri,
-      name: d.name,
-      type: d.type,
-      size: d.size,
-    }));
-    setDocPickerOpen(false);
-    setSelectedDocIds([]);
-
     try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: true,
+      });
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const newFiles: UploadableFileDescriptor[] = result.assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType || 'application/octet-stream',
+        size: asset.size || 0,
+      }));
+
       setSending(true);
       const uploadedAttachments = await ChatService.uploadAttachments(newFiles, threadId);
       const sent = await ChatService.sendMessage({
         threadId,
-        content: `Attached ${newFiles.length} document${newFiles.length > 1 ? 's' : ''}`,
+        content: `Attached ${newFiles.length} file${newFiles.length > 1 ? 's' : ''}`,
         attachments: uploadedAttachments,
         clientTempId: `mob_doc_${Date.now()}`,
       });
       setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
 
-      // Trigger File Preview Panel for the first document
       const primaryDoc = newFiles[0];
       setSentFilePreview({
         name: primaryDoc.name,
@@ -520,41 +542,60 @@ export const ChatConversationDetailScreen: React.FC = () => {
         recipient: title || 'User',
       });
     } catch (err: any) {
-      Alert.alert('Document Send Failed', err?.message || 'Could not send document.');
+      Alert.alert('Document Pick Failed', err?.message || 'Could not select document.');
     } finally {
       setSending(false);
     }
   };
 
+  const handleToggleSelectDoc = (docId: string) => {
+    setSelectedDocIds((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    );
+  };
+
+  const handleConfirmAttachDocuments = async () => {
+    handleDocumentPick();
+  };
+
   const handleLocationPick = async () => {
     setComposerMenuOpen(false);
-    // Check if permission already granted before requesting again
-    const { PermissionsAndroid, Platform } = require('react-native');
-    let granted = true;
-    if (Platform.OS === 'android') {
-      const already = await PermissionsAndroid.check('android.permission.ACCESS_FINE_LOCATION').catch(() => false);
-      if (!already) {
-        granted = await requestLocationPermission();
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location Permission Required', 'Location access is required to share current or live location.');
+        return;
       }
-    } else {
-      granted = await requestLocationPermission();
+      setLocationModalOpen(true);
+    } catch {
+      Alert.alert('Location Error', 'Unable to request location permissions.');
     }
-    if (!granted) {
-      Alert.alert('Location Permission Required', 'Location access is required to share current or live location.');
-      return;
-    }
-    setLocationModalOpen(true);
   };
 
   const handleSendLocation = async () => {
     setLocationModalOpen(false);
-    const locText =
-      locationType === 'current'
-        ? '📍 Location: MasterHRMS Tech Park, Chennai (13.0827° N, 80.2707° E)'
-        : `🔴 Live Location (${liveDuration === 'custom' ? liveDurationCustomMin + 'min' : liveDuration}): MasterHRMS Campus, Chennai (13.0827° N, 80.2707° E)`;
-
     try {
       setSending(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location Permission Required', 'Location access is required.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const geocode = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      }).catch(() => []);
+      const addr = geocode[0];
+      const placeName = addr
+        ? [addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(', ')
+        : 'Current Location';
+
+      const locText =
+        locationType === 'current'
+          ? `📍 Location: ${placeName} (${loc.coords.latitude.toFixed(4)}° N, ${loc.coords.longitude.toFixed(4)}° E)`
+          : `🔴 Live Location (${liveDuration === 'custom' ? liveDurationCustomMin + 'min' : liveDuration}): ${placeName} (${loc.coords.latitude.toFixed(4)}° N, ${loc.coords.longitude.toFixed(4)}° E)`;
+
       const sent = await ChatService.sendMessage({
         threadId,
         content: locText,

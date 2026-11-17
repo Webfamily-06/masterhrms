@@ -27,3 +27,68 @@ jest.mock('lucide-react-native', () => {
     }
   );
 });
+
+// Mock expo native modules
+jest.mock('expo-sharing', () => ({
+  isAvailableAsync: jest.fn().mockResolvedValue(true),
+  shareAsync: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('expo-file-system', () => {
+  class MockFile {
+    constructor(parent, name) {
+      this.uri = `file:///mock/${name}`;
+    }
+    static downloadFileAsync = jest.fn().mockResolvedValue({ uri: 'file:///mock/downloaded' });
+    static canPreview = jest.fn().mockResolvedValue(true);
+    static preview = jest.fn().mockResolvedValue(true);
+  }
+  return {
+    File: MockFile,
+    Paths: {
+      cache: { uri: 'file:///mock/cache' },
+      document: { uri: 'file:///mock/document' },
+    },
+    cacheDirectory: 'file:///mock/cache/',
+    downloadAsync: jest.fn().mockResolvedValue({ uri: 'file:///mock/downloaded' }),
+  };
+});
+
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[mock-token]' }),
+  getDevicePushTokenAsync: jest.fn().mockResolvedValue({ data: 'mock-device-token' }),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
+  addNotificationReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+  addNotificationResponseReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+  AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3 },
+}));
+
+jest.mock('expo-device', () => ({
+  isDevice: true,
+  modelName: 'MockDevice',
+}));
+
+jest.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ granted: true }),
+  launchCameraAsync: jest.fn().mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///mock/camera.jpg' }] }),
+  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: false, assets: [{ uri: 'file:///mock/gallery.jpg' }] }),
+  MediaTypeOptions: { Images: 'Images', All: 'All' },
+}));
+
+jest.mock('expo-document-picker', () => ({
+  getDocumentAsync: jest.fn().mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: 'file:///mock/doc.pdf', name: 'doc.pdf', mimeType: 'application/pdf', size: 1024 }],
+  }),
+}));
+
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getCurrentPositionAsync: jest.fn().mockResolvedValue({ coords: { latitude: 13.0827, longitude: 80.2707 } }),
+  reverseGeocodeAsync: jest.fn().mockResolvedValue([{ street: 'Mount Road', city: 'Chennai', region: 'Tamil Nadu' }]),
+  Accuracy: { Balanced: 3, High: 4 },
+}));
