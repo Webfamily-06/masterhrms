@@ -11,6 +11,16 @@ import {
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
+  Star,
+  X,
+  Check,
+  Edit,
+  CheckSquare,
+  Square,
+  Calendar,
+  Trash2,
+} from 'lucide-react-native';
+import {
   TodoItem,
   TodoCategory,
   TodoAssignee,
@@ -226,10 +236,14 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
               <Text style={styles.sheetTitle}>{todo.title}</Text>
             </View>
             <TouchableOpacity onPress={handleToggleStar} style={styles.starBtn}>
-              <Text style={{ fontSize: 20 }}>{todo.starred ? '⭐' : '☆'}</Text>
+              <Star
+                size={20}
+                color={todo.starred ? '#F59E0B' : '#94A3B8'}
+                fill={todo.starred ? '#F59E0B' : 'transparent'}
+              />
             </TouchableOpacity>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color="#64748B" strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
 
@@ -244,9 +258,12 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
                 onPress={handleToggleComplete}
                 disabled={busy}
               >
-                <Text style={styles.completeToggleText}>
-                  {todo.completed ? '✓ Completed' : 'Mark Completed'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  {todo.completed && <Check size={14} color="#FFFFFF" strokeWidth={2.6} style={{ marginRight: 4 }} />}
+                  <Text style={styles.completeToggleText}>
+                    {todo.completed ? 'Completed' : 'Mark Completed'}
+                  </Text>
+                </View>
               </TouchableOpacity>
 
               {canEditMetadata && (
@@ -254,7 +271,10 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
                   style={styles.editActionBtn}
                   onPress={() => onEditPress(todo)}
                 >
-                  <Text style={styles.editActionText}>✏️ Edit / Reschedule</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Edit size={14} color="#4F46E5" strokeWidth={2.2} style={{ marginRight: 4 }} />
+                    <Text style={styles.editActionText}>Edit / Reschedule</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -383,9 +403,13 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
                         style={styles.checklistTouch}
                         onPress={() => handleToggleSubtask(chk.id, chk.done)}
                       >
-                        <Text style={{ fontSize: 16, marginRight: 8 }}>
-                          {chk.done ? '☑️' : '⬜'}
-                        </Text>
+                        <View style={{ marginRight: 8, justifyContent: 'center' }}>
+                          {chk.done ? (
+                            <CheckSquare size={18} color="#4F46E5" strokeWidth={2.2} />
+                          ) : (
+                            <Square size={18} color="#94A3B8" strokeWidth={1.8} />
+                          )}
+                        </View>
                         <Text
                           style={[
                             styles.checklistLabel,
@@ -398,8 +422,9 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
                       <TouchableOpacity
                         onPress={() => handleDeleteSubtask(chk.id)}
                         style={styles.removeSubBtn}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       >
-                        <Text style={{ color: '#DC2626', fontWeight: '700' }}>✕</Text>
+                        <X size={14} color="#DC2626" strokeWidth={2.4} />
                       </TouchableOpacity>
                     </View>
                   ))
@@ -491,13 +516,19 @@ export const TodoTaskInspectorSheet: React.FC<TodoTaskInspectorSheetProps> = ({
                     onOpenCalendar(d);
                   }}
                 >
-                  <Text style={styles.calendarSyncText}>🗓️ View in Calendar</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Calendar size={14} color="#4F46E5" strokeWidth={2} style={{ marginRight: 6 }} />
+                    <Text style={styles.calendarSyncText}>View in Calendar</Text>
+                  </View>
                 </TouchableOpacity>
               )}
 
               {canDelete && (
                 <TouchableOpacity style={styles.deleteTaskBtn} onPress={handleDeleteTask}>
-                  <Text style={styles.deleteTaskText}>🗑️ Delete Task</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Trash2 size={14} color="#DC2626" strokeWidth={2} style={{ marginRight: 6 }} />
+                    <Text style={styles.deleteTaskText}>Delete Task</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -638,8 +669,8 @@ export const TodoTaskFormModal: React.FC<TodoTaskFormModalProps> = ({
             <Text style={styles.sheetTitle}>
               {editingTodo ? 'Edit / Reschedule Task' : 'Create New Task'}
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color="#64748B" strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
 
@@ -783,7 +814,11 @@ export const TodoTaskFormModal: React.FC<TodoTaskFormModalProps> = ({
                         {a.department || a.role || a.email}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 15 }}>{selected ? '☑️' : '⬜'}</Text>
+                    {selected ? (
+                      <CheckSquare size={18} color="#4F46E5" strokeWidth={2.2} />
+                    ) : (
+                      <Square size={18} color="#94A3B8" strokeWidth={1.8} />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -864,8 +899,8 @@ export const TodoCategoryManagerModal: React.FC<TodoCategoryManagerModalProps> =
         <View style={[styles.sheet, { maxHeight: '85%' }]}>
           <View style={styles.headerRow}>
             <Text style={styles.sheetTitle}>Manage Task Categories</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={20} color="#64748B" strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
 

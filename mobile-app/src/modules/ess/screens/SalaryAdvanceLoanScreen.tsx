@@ -4,157 +4,180 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  ArrowLeft,
+  ChevronDown,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
 export const SalaryAdvanceLoanScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'SalaryAdvanceLoan'>>();
-  const [selectedAmount, setSelectedAmount] = useState<number>(50000);
-  const [tenureMonths, setTenureMonths] = useState<number>(6);
 
-  const monthlyEmi = Math.round(selectedAmount / tenureMonths);
+  const [loanAmount, setLoanAmount] = useState('50,000');
+  const [loanType, setLoanType] = useState('Personal / Medical Emergency');
+  const [loanTypeDropdownOpen, setLoanTypeDropdownOpen] = useState(false);
 
-  const handleApply = () => {
+  const [paymentPeriod, setPaymentPeriod] = useState('6 Months');
+  const [paymentPeriodDropdownOpen, setPaymentPeriodDropdownOpen] = useState(false);
+
+  const [reason, setReason] = useState('');
+
+  const loanTypeOptions = [
+    'Personal / Medical Emergency',
+    'Salary Advance',
+    'Education Assistance',
+    'Home Relocation Advance',
+  ];
+
+  const paymentPeriodOptions = [
+    '3 Months',
+    '6 Months',
+    '9 Months',
+    '12 Months',
+  ];
+
+  const handleSubmit = () => {
+    if (!reason.trim()) {
+      Alert.alert('Validation Error', 'Please briefly explain why you need the loan.');
+      return;
+    }
+
     Alert.alert(
-      'Confirm Loan Application',
-      `Submit advance request for ₹${selectedAmount.toLocaleString()} over ${tenureMonths} months (EMI: ₹${monthlyEmi.toLocaleString()}/mo)?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Confirm',
-          onPress: () => {
-            Alert.alert('Application Submitted', 'Your salary advance request has been routed to HR for verification.');
-          },
-        },
-      ]
+      'Application Submitted',
+      `Your loan application for ₹${loanAmount} (${paymentPeriod}) has been routed to HR for verification.`,
+      [{ text: 'OK', onPress: () => navigation.goBack() }]
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Top Header */}
+      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backBtn}
+          style={styles.backCircleBtn}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={18} color="#0F172A" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Salary Advance & Loans</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>Loan Application</Text>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Limit Eligibility Card */}
-        <View style={styles.limitCard}>
-          <Text style={styles.limitSubtitle}>APPROVED ELIGIBILITY LIMIT</Text>
-          <Text style={styles.limitAmount}>₹1,50,000</Text>
-          <Text style={styles.limitDesc}>Based on 3x Monthly Net Take-Home Salary</Text>
+        {/* Main Form Card (Matches 37_Loan Application.png) */}
+        <View style={styles.mainCard}>
+          {/* Loan Amount Input */}
+          <TextInput
+            style={styles.textInputBox}
+            value={loanAmount}
+            onChangeText={setLoanAmount}
+            placeholder="Loan amount"
+            placeholderTextColor="#94A3B8"
+            keyboardType="numeric"
+          />
 
-          <View style={styles.benefitRow}>
-            <View style={styles.benefitBadge}>
-              <Text style={styles.benefitText}>0% Interest</Text>
+          {/* Loan Type Dropdown */}
+          <TouchableOpacity
+            style={styles.dropdownBtn}
+            onPress={() => {
+              setLoanTypeDropdownOpen(!loanTypeDropdownOpen);
+              setPaymentPeriodDropdownOpen(false);
+            }}
+          >
+            <Text style={styles.dropdownText}>{loanType}</Text>
+            <ChevronDown size={18} color="#64748B" />
+          </TouchableOpacity>
+
+          {loanTypeDropdownOpen && (
+            <View style={styles.dropdownMenu}>
+              {loanTypeOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.dropdownMenuItem}
+                  onPress={() => {
+                    setLoanType(opt);
+                    setLoanTypeDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.dropdownMenuItemText, opt === loanType && { color: '#2563EB', fontWeight: '700' }]}>
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <View style={styles.benefitBadge}>
-              <Text style={styles.benefitText}>Direct Payroll EMI</Text>
+          )}
+
+          {/* Payment Period Dropdown */}
+          <TouchableOpacity
+            style={styles.dropdownBtn}
+            onPress={() => {
+              setPaymentPeriodDropdownOpen(!paymentPeriodDropdownOpen);
+              setLoanTypeDropdownOpen(false);
+            }}
+          >
+            <Text style={styles.dropdownText}>{paymentPeriod}</Text>
+            <ChevronDown size={18} color="#64748B" />
+          </TouchableOpacity>
+
+          {paymentPeriodDropdownOpen && (
+            <View style={styles.dropdownMenu}>
+              {paymentPeriodOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt}
+                  style={styles.dropdownMenuItem}
+                  onPress={() => {
+                    setPaymentPeriod(opt);
+                    setPaymentPeriodDropdownOpen(false);
+                  }}
+                >
+                  <Text style={[styles.dropdownMenuItemText, opt === paymentPeriod && { color: '#2563EB', fontWeight: '700' }]}>
+                    {opt}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <View style={styles.benefitBadge}>
-              <Text style={styles.benefitText}>Zero Collateral</Text>
-            </View>
-          </View>
+          )}
+
+          {/* Reason Textarea */}
+          <TextInput
+            style={styles.textAreaBox}
+            value={reason}
+            onChangeText={setReason}
+            placeholder="Briefly explain why do you need the loan"
+            placeholderTextColor="#94A3B8"
+            multiline
+          />
         </View>
 
-        {/* Loan Calculator */}
-        <View style={styles.calcCard}>
-          <Text style={styles.cardTitle}>Calculate Advance</Text>
+        {/* Bottom Double Actions: Cancel | Submit */}
+        <View style={styles.bottomButtonsRow}>
+          <TouchableOpacity
+            style={styles.whiteBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.whiteBtnText}>Cancel</Text>
+          </TouchableOpacity>
 
-          <Text style={styles.label}>Select Amount</Text>
-          <View style={styles.amountsRow}>
-            {[25000, 50000, 75000, 100000].map((amt) => (
-              <TouchableOpacity
-                key={amt}
-                style={[
-                  styles.amtPill,
-                  selectedAmount === amt && styles.amtPillActive,
-                ]}
-                onPress={() => setSelectedAmount(amt)}
-              >
-                <Text
-                  style={[
-                    styles.amtPillText,
-                    selectedAmount === amt && styles.amtPillTextActive,
-                  ]}
-                >
-                  ₹{(amt / 1000)}k
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>Repayment Tenure</Text>
-          <View style={styles.tenureRow}>
-            {[3, 6, 9, 12].map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[
-                  styles.tenurePill,
-                  tenureMonths === m && styles.tenurePillActive,
-                ]}
-                onPress={() => setTenureMonths(m)}
-              >
-                <Text
-                  style={[
-                    styles.tenurePillText,
-                    tenureMonths === m && styles.tenurePillTextActive,
-                  ]}
-                >
-                  {m} Months
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.summaryBox}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Monthly Deduction</Text>
-              <Text style={styles.summaryValHighlight}>₹{monthlyEmi.toLocaleString()}</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Total Repayable</Text>
-              <Text style={styles.summaryVal}>₹{selectedAmount.toLocaleString()}</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.applyBtn} onPress={handleApply}>
-            <Text style={styles.applyBtnText}>Apply for Salary Advance</Text>
+          <TouchableOpacity
+            style={styles.blueBtn}
+            onPress={handleSubmit}
+          >
+            <Text style={styles.blueBtnText}>Submit</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Existing Active Loans */}
-        <View style={styles.historyCard}>
-          <Text style={styles.cardTitle}>Active Loan Account</Text>
-
-          <View style={styles.loanItem}>
-            <View style={styles.loanIconBox}>
-              <Text style={styles.loanIcon}>🏦</Text>
-            </View>
-            <View style={styles.loanInfo}>
-              <Text style={styles.loanTitle}>Emergency Festival Advance</Text>
-              <Text style={styles.loanSub}>Deduction: ₹5,000/mo • 2 of 5 paid</Text>
-            </View>
-            <View style={styles.loanRight}>
-              <Text style={styles.loanBalance}>₹15,000</Text>
-              <Text style={styles.loanStatus}>ACTIVE</Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
+
+      {/* Persistent Bottom Nav */}
+      <AppBottomNav activeRoute="EmployeeHome" />
     </View>
   );
 };
@@ -162,251 +185,141 @@ export const SalaryAdvanceLoanScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#E0F2FE', // Sky blue backdrop
   },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+
+  /* Header */
   header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 36,
+    paddingBottom: 14,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerTitle: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+    color: '#0F172A',
   },
-  placeholder: {
-    width: 40,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  limitCard: {
-    backgroundColor: '#1E1B4B',
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  limitSubtitle: {
-    color: '#A5B4FC',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    marginBottom: 6,
-  },
-  limitAmount: {
-    color: '#FFFFFF',
-    fontSize: 34,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  limitDesc: {
-    color: '#CBD5E1',
-    fontSize: 12,
-    marginBottom: 16,
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-  },
-  benefitBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginHorizontal: 4,
-  },
-  benefitText: {
-    color: '#E0E7FF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  calcCard: {
+
+  /* Main Card (Matches 37_Loan Application.png) */
+  mainCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 24,
+    marginHorizontal: 16,
     padding: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  textInputBox: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 14,
     color: '#0F172A',
     marginBottom: 14,
   },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 8,
-    marginTop: 6,
-  },
-  amountsRow: {
+  dropdownBtn: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  amtPill: {
-    flex: 1,
-    paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginHorizontal: 3,
-    backgroundColor: '#F8FAFC',
-  },
-  amtPillActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
-  },
-  amtPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  amtPillTextActive: {
-    color: '#FFFFFF',
-  },
-  tenureRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  tenurePill: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginHorizontal: 3,
-    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 14,
   },
-  tenurePillActive: {
-    backgroundColor: '#4F46E5',
-    borderColor: '#4F46E5',
-  },
-  tenurePillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  tenurePillTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  summaryBox: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  summaryDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#CBD5E1',
-  },
-  summaryLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  summaryVal: {
-    fontSize: 16,
-    fontWeight: '700',
+  dropdownText: {
+    fontSize: 14,
     color: '#0F172A',
   },
-  summaryValHighlight: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#4F46E5',
-  },
-  applyBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  applyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  historyCard: {
+  dropdownMenu: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-  },
-  loanItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  loanIconBox: {
-    width: 44,
-    height: 44,
     borderRadius: 12,
-    backgroundColor: '#EEF2FF',
+    marginTop: -8,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  dropdownMenuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F8FAFC',
+  },
+  dropdownMenuItemText: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  textAreaBox: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 14,
+    color: '#0F172A',
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+
+  /* Bottom Buttons */
+  bottomButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+  },
+  whiteBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  loanIcon: {
-    fontSize: 22,
-  },
-  loanInfo: {
-    flex: 1,
-  },
-  loanTitle: {
+  whiteBtnText: {
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
-  loanSub: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
+  blueBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  loanRight: {
-    alignItems: 'flex-end',
-  },
-  loanBalance: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  loanStatus: {
-    fontSize: 10,
+  blueBtnText: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#10B981',
-    marginTop: 2,
+    color: '#FFFFFF',
   },
 });

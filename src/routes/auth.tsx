@@ -89,6 +89,7 @@ function AuthPage() {
 
   // OTP Verification state (Forgot password / Verify email)
   const [otpCode, setOtpCode] = useState("");
+  const [otpVerified, setOtpVerified] = useState(isResetFlow && Boolean(searchToken));
   const [resendCountdown, setResendCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const [maskedEmail, setMaskedEmail] = useState("");
@@ -339,38 +340,69 @@ function AuthPage() {
   // Forgot password submit
   async function handleForgotPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       toast.error("Please enter your account email address.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await api.post("/auth/forgot-password", { email });
-      setMaskedEmail(res.maskedEmail || email);
-      toast.success(res.message || "Password reset instructions dispatched to your email.");
+      const res = await api.post("/auth/forgot-password", { email: cleanEmail });
+      setMaskedEmail(res.maskedEmail || cleanEmail);
+      toast.success(res.message || "6-digit verification code sent to your email.");
+      setOtpVerified(false);
+      setOtpCode("");
+      setResendCountdown(60);
+      setCanResend(false);
       setMode("reset");
     } catch (err: any) {
-      toast.error(err.message || "Unable to send password reset code.");
+      toast.error(err.message || "No account found with this email address. Please check your email.");
     } finally {
       setLoading(false);
     }
   }
 
-  // Reset password submit
+  // Verify Reset OTP submit (Step 1 of reset)
+  async function handleVerifyResetOtp(e: React.FormEvent) {
+    e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return toast.error("Please enter your work email.");
+    if (!otpCode || otpCode.trim().length < 6) {
+      return toast.error("Please enter the complete 6-digit verification code.");
+    }
+
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/verify-reset-otp", {
+        email: cleanEmail,
+        code: otpCode.trim(),
+      });
+      if (res.resetToken) {
+        setResetToken(res.resetToken);
+      }
+      setOtpVerified(true);
+      toast.success(res.message || "Verification code confirmed! Please set your new password.");
+    } catch (err: any) {
+      toast.error(err.message || "Invalid or expired verification code. Please check and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Reset password submit (Step 2 of reset)
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return toast.error("Please enter your work email.");
-    if (!resetToken && (!otpCode || otpCode.length < 6)) {
-      return toast.error("Please enter the 6-digit verification code or click a valid reset link.");
-    }
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return toast.error("Please enter your work email.");
+    if (!password) return toast.error("Please enter a new password.");
     if (password.length < 8) return toast.error("Password must be at least 8 characters long.");
-    if (password !== confirmPassword) return toast.error("Passwords do not match.");
+    if (password !== confirmPassword) return toast.error("New Password and Confirm Password do not match.");
 
     setLoading(true);
     try {
       const res = await api.post("/auth/reset-password", {
-        email,
+        email: cleanEmail,
         token: resetToken || undefined,
         code: !resetToken ? otpCode : undefined,
         newPassword: password,
@@ -381,10 +413,11 @@ function AuthPage() {
       setConfirmPassword("");
       setOtpCode("");
       setResetToken("");
-      navigate({ to: "/auth", search: { mode: "signin", email } });
+      setOtpVerified(false);
+      navigate({ to: "/auth", search: { mode: "signin", email: cleanEmail } });
       setMode("signin");
     } catch (err: any) {
-      toast.error(err.message || "Failed to reset password. Please check your reset link or code.");
+      toast.error(err.message || "Failed to update password. Please check your reset link or code.");
     } finally {
       setLoading(false);
     }
@@ -622,94 +655,135 @@ function AuthPage() {
             </form>
           </div>
         ) : mode === "reset" ? (
-          /* RESET PASSWORD MODE */
+          /* RESET PASSWORD MODE: STEP 1 (OTP ENTER) OR STEP 2 (NEW PASSWORD SET) */
           <div className="space-y-4">
             <button
               type="button"
               onClick={() => {
-                setResetToken("");
-                setMode("signin");
+                if (otpVerified && !resetToken) {
+                  setOtpVerified(false);
+                } else {
+                  setResetToken("");
+                  setMode("signin");
+                }
               }}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <ArrowLeft className="size-3.5" />
-              <span>Return to sign in</span>
+              <span>{otpVerified && !resetToken ? "Back to verification code" : "Return to sign in"}</span>
             </button>
 
             {resetToken ? (
               <div className="rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 p-3 flex items-start gap-2.5">
                 <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div className="text-xs">
-                  <p className="font-semibold text-emerald-900 dark:text-emerald-200">One-Time Reset Link Verified</p>
+                  <p className="font-semibold text-emerald-900 dark:text-emerald-200">Reset Session Authenticated</p>
                   <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
-                    Your secure reset link is authenticated. Choose a new password below.
+                    Your verification is confirmed. Please set your new password below.
                   </p>
                 </div>
               </div>
             ) : null}
 
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Work Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  readOnly={Boolean(resetToken)}
-                  className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0 disabled:opacity-75"
-                  required
-                />
-              </div>
+            {!otpVerified && !resetToken ? (
+              /* STEP 1: OTP ENTER SCREEN ONLY */
+              <form onSubmit={handleVerifyResetOtp} className="space-y-4">
+                <div className="text-center pb-1">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Enter 6-Digit Code</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter the verification code sent to <span className="font-semibold text-foreground">{maskedEmail || email}</span>
+                  </p>
+                </div>
 
-              {!resetToken && (
                 <div>
-                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">6-Digit Code</label>
                   <input
                     type="text"
                     maxLength={6}
-                    placeholder="123456"
+                    placeholder="• • • • • •"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full px-3 py-2.5 text-center font-mono font-bold tracking-widest text-base border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
+                    className="w-full px-3 py-3 text-center font-mono font-extrabold tracking-[0.5em] text-xl border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-2 focus:ring-primary"
                     required
+                    autoFocus
                   />
                 </div>
-              )}
 
-              <div>
-                <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">New Password</label>
-                <input
-                  type="password"
-                  placeholder="At least 8 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
-                  required
-                  autoFocus={Boolean(resetToken)}
-                />
-              </div>
+                <div className="flex items-center justify-between text-xs pt-1">
+                  {canResend ? (
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-primary hover:underline font-semibold cursor-pointer"
+                    >
+                      Resend Verification Code
+                    </button>
+                  ) : (
+                    <span className="text-muted-foreground">
+                      Resend code in <strong className="text-foreground">{resendCountdown}s</strong>
+                    </span>
+                  )}
+                  <span className="text-muted-foreground font-mono">Step 1 of 2</span>
+                </div>
 
-              <div>
-                <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Confirm Password</label>
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-0"
-                  required
-                />
-              </div>
+                <button
+                  type="submit"
+                  disabled={loading || otpCode.length < 6}
+                  className="w-full bg-primary text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+                  Verify Code & Continue →
+                </button>
+              </form>
+            ) : (
+              /* STEP 2: NEW PASSWORD SET OPTION */
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="text-center pb-1">
+                  <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Set New Password</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter your new secure password for <span className="font-semibold text-foreground">{email}</span>
+                  </p>
+                </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-dark text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary-hover cursor-pointer transition-colors flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
-                {resetToken ? "Update Password & Sign In" : "Save Password & Sign In"}
-              </button>
-            </form>
+                <div>
+                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">New Password</label>
+                  <input
+                    type="password"
+                    placeholder="At least 8 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-1 focus:ring-primary"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 block">Confirm Password</label>
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-border-color rounded-md bg-white dark:bg-slate-800 text-title focus:outline-none focus:ring-1 focus:ring-primary"
+                    required
+                  />
+                  {password && confirmPassword ? (
+                    <p className={`text-xs mt-1.5 font-medium ${password === confirmPassword ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                      {password === confirmPassword ? "✓ Passwords match" : "✕ Passwords do not match"}
+                    </p>
+                  ) : null}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || password.length < 8 || password !== confirmPassword}
+                  className="w-full bg-primary text-white py-2.5 rounded-md text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer transition-colors flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="size-4 animate-spin" /> : <Lock className="size-4" />}
+                  Save New Password & Sign In
+                </button>
+              </form>
+            )}
           </div>
         ) : mode === "verify" ? (
           /* VERIFY EMAIL MODE */

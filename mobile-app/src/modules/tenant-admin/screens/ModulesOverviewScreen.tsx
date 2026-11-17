@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { usePermission } from '../../../hooks/usePermission';
 import { useNavigation } from '@react-navigation/native';
 
@@ -33,7 +35,7 @@ export const ModulesOverviewScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={18} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>ERP Subscribed Modules</Text>
         <View style={styles.placeholder} />
@@ -66,6 +68,7 @@ export const ModulesOverviewScreen: React.FC = () => {
           );
         })}
       </ScrollView>
+      <AppBottomNav activeRoute="TenantAdminHome" />
     </View>
   );
 };

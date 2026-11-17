@@ -8,6 +8,8 @@ import {
   Image,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { User, Shield } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { SuperAdminService, PlatformStats } from '../../../core/services/superAdminService';
@@ -66,7 +68,7 @@ export const SuperAdminDashboardScreen: React.FC = () => {
               style={styles.profileBtn}
               accessibilityRole="button"
             >
-              <Text style={styles.profileBtnText}>👤</Text>
+              <User size={18} color="#0F172A" strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
         </View>
@@ -87,7 +89,10 @@ export const SuperAdminDashboardScreen: React.FC = () => {
       >
         {/* Architecture Isolation Notice */}
         <View style={styles.noticeCard}>
-          <Text style={styles.noticeTitle}>🛡️ Super Administrator Security Notice</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+            <Shield size={16} color="#DC2626" strokeWidth={2.4} style={{ marginRight: 6 }} />
+            <Text style={styles.noticeTitle}>Super Administrator Security Notice</Text>
+          </View>
           <Text style={styles.noticeBody}>
             You are logged in as a Global Platform Administrator. Tenant-scoped business records
             (payroll runs, biometric records, employee documents) are strictly isolated behind their
@@ -152,6 +157,9 @@ export const SuperAdminDashboardScreen: React.FC = () => {
           <Text style={styles.logoutText}>Sign Out from Platform Console</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="SuperAdminHome" />
     </View>
   );
 };

@@ -420,16 +420,28 @@ class RealtimeManager {
     if (typeof WebSocket === 'undefined') return;
 
     try {
-      const cfgRes = await apiClient.get('/api/pusher/config');
-      const cfg = cfgRes.data?.data || cfgRes.data;
-      if (!cfg?.enabled || !cfg?.key || !cfg?.cluster) {
+      let key = Config.PUSHER?.KEY || '';
+      let cluster = Config.PUSHER?.CLUSTER || 'ap2';
+      let enabled = Config.PUSHER?.ENABLED ?? true;
+
+      try {
+        const cfgRes = await apiClient.get('/api/pusher/config');
+        const cfg = cfgRes.data?.data || cfgRes.data;
+        if (cfg?.key) key = cfg.key;
+        if (cfg?.cluster) cluster = cfg.cluster;
+        if (cfg?.enabled !== undefined) enabled = cfg.enabled;
+      } catch {
+        // Fall back to configured environment credentials
+      }
+
+      if (!enabled || !key || !cluster) {
         return;
       }
       if (this.manuallyStopped || this.activeUserId !== userId || this.activeTenantId !== tenantId) {
         return;
       }
 
-      const pusherUrl = `wss://ws-${cfg.cluster}.pusher.com:443/app/${cfg.key}?protocol=7&client=masterhrms-mobile&version=1.0.0&flash=false`;
+      const pusherUrl = `wss://ws-${cluster}.pusher.com:443/app/${key}?protocol=7&client=masterhrms-mobile&version=1.0.0&flash=false`;
       const ws = new WebSocket(pusherUrl);
       this.pusherWs = ws;
 

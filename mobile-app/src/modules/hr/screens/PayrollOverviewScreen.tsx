@@ -8,6 +8,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { HrService, PayrollRun } from '../../../core/services/hrService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -53,7 +55,7 @@ export const PayrollOverviewScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payroll Batches</Text>
         <View style={styles.placeholder} />
@@ -101,6 +103,7 @@ export const PayrollOverviewScreen: React.FC = () => {
           )}
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="HrAdminHome" />
     </View>
   );
 };

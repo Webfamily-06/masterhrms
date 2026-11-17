@@ -11,6 +11,8 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { ManagerService, TeamApprovals } from '../../../core/services/managerService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -108,7 +110,7 @@ export const TeamApprovalsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Team Approvals</Text>
         <View style={styles.placeholder} />
@@ -270,6 +272,7 @@ export const TeamApprovalsScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+      <AppBottomNav activeRoute="ManagerHome" />
     </View>
   );
 };

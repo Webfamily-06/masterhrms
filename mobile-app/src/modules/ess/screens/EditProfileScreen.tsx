@@ -7,13 +7,37 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
+  Image,
   Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  ArrowLeft,
+  User,
+  Phone,
+  ShieldCheck,
+  ChevronDown,
+} from 'lucide-react-native';
 import { EmployeeService } from '../../../core/services/employeeService';
 import { useAuthStore } from '../../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
+import { Config } from '../../../config/environment';
+
+const normalizeAvatarUrl = (url?: string | null): string | null => {
+  if (!url) return null;
+  let normalized = url.trim();
+  if (!normalized) return null;
+  if (normalized.includes('api.dicebear.com') && normalized.includes('/svg?')) {
+    normalized = normalized.replace('/svg?', '/png?');
+  }
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    return normalized;
+  }
+  if (normalized.startsWith('/')) {
+    return `${Config.API_BASE_URL}${normalized}`;
+  }
+  return normalized;
+};
 
 export const EditProfileScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -22,30 +46,34 @@ export const EditProfileScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('');
-  const [emergencyRelation, setEmergencyRelation] = useState('');
-  const [address, setAddress] = useState('');
+  const [fullName, setFullName] = useState('Sarah Miller');
+  const [dateOfBirth, setDateOfBirth] = useState('14 Oct 1992');
+  const [gender, setGender] = useState('Male');
+
+  const [phone, setPhone] = useState('(555) 123-4567');
+  const [email, setEmail] = useState('sarah@karajo.app');
+  const [address, setAddress] = useState('42 Innovation Drive, Apt 304\nSan Francisco, CA 94107');
+
+  const [emergencyName, setEmergencyName] = useState('Hanna Jenkins');
+  const [emergencyRelation, setEmergencyRelation] = useState('Spouse');
+  const [emergencyPhone, setEmergencyPhone] = useState('(555) 987-6543');
 
   useEffect(() => {
     async function fetchCurrent() {
       try {
         const data = await EmployeeService.getMyProfile();
         if (data) {
-          setFirstName(data.firstName || '');
-          setLastName(data.lastName || '');
-          setPhone(data.phone || '');
-          setEmergencyName(data.emergencyContactName || '');
-          setEmergencyPhone(data.emergencyContactPhone || '');
-          setEmergencyRelation(data.emergencyContactRelation || '');
-          setAddress(data.address || '');
+          const fn = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+          if (fn) setFullName(fn);
+          if (data.dateOfBirth) setDateOfBirth(data.dateOfBirth);
+          if (data.phone) setPhone(data.phone);
+          if (data.email) setEmail(data.email);
+          if (data.address) setAddress(data.address);
+          if (data.emergencyContactName) setEmergencyName(data.emergencyContactName);
+          if (data.emergencyContactRelation) setEmergencyRelation(data.emergencyContactRelation);
+          if (data.emergencyContactPhone) setEmergencyPhone(data.emergencyContactPhone);
         } else if (user?.profile?.fullName) {
-          const parts = user.profile.fullName.split(' ');
-          setFirstName(parts[0] || '');
-          setLastName(parts.slice(1).join(' ') || '');
+          setFullName(user.profile.fullName);
         }
       } catch {
         // Fallback
@@ -56,179 +84,219 @@ export const EditProfileScreen: React.FC = () => {
     fetchCurrent();
   }, [user]);
 
-  const handleSave = async () => {
-    if (!firstName.trim()) {
-      Alert.alert('Validation Error', 'First name is required.');
-      return;
-    }
+  const avatarUri = normalizeAvatarUrl(user?.profile?.avatarUrl);
 
+  const handleSave = async () => {
     setSaving(true);
     try {
+      const parts = fullName.trim().split(' ');
+      const fName = parts[0] || 'Employee';
+      const lName = parts.slice(1).join(' ') || '';
+
       await EmployeeService.updateMyProfile({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        firstName: fName,
+        lastName: lName,
         phone: phone.trim() || undefined,
+        address: address.trim() || undefined,
         emergencyContactName: emergencyName.trim() || undefined,
         emergencyContactPhone: emergencyPhone.trim() || undefined,
         emergencyContactRelation: emergencyRelation.trim() || undefined,
-        address: address.trim() || undefined,
       });
 
       Alert.alert('Profile Updated', 'Your profile details have been saved successfully.', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err: any) {
-      Alert.alert('Update Failed', err?.message || 'Unable to update profile. Please try again.');
+      Alert.alert('Update Failed', err?.message || 'Unable to update profile.');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4F46E5" />
-      </View>
-    );
-  }
-
-  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || 'EM';
-
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity
-          onPress={handleSave}
-          disabled={saving}
-          style={styles.saveHeaderBtn}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveHeaderText}>Save</Text>
-          )}
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Edit Personal Information</Text>
+        <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Avatar Section */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarInitials}>{initials}</Text>
-            <View style={styles.editBadge}>
-              <Text style={styles.editBadgeIcon}>📷</Text>
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#2563EB" />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* ─────────────────────────────────────────────────────────── */}
+          {/* Basic Information Card (Matches 83)                         */}
+          {/* ─────────────────────────────────────────────────────────── */}
+          <View style={styles.card}>
+            <View style={styles.cardHeaderRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <User size={18} color="#2563EB" />
+                <Text style={styles.cardTitle}>Basic Information</Text>
+              </View>
+              <View style={styles.readOnlyBadge}>
+                <Text style={styles.readOnlyBadgeText}>Read-only</Text>
+              </View>
+            </View>
+
+            <View style={styles.avatarRow}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+              ) : (
+                <View style={[styles.avatarImg, styles.avatarFallback]}>
+                  <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 18 }}>
+                    {fullName.substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={{ marginLeft: 16 }}
+                onPress={() => Alert.alert('Upload Photo', 'Select image from gallery or camera.')}
+              >
+                <Text style={styles.uploadPhotoLink}>↑ Upload Photo</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.fieldLabel}>Full Name</Text>
+            <TextInput
+              style={[styles.inputBox, styles.readOnlyInput]}
+              value={fullName}
+              editable={false}
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Date of Birth</Text>
+                <TextInput
+                  style={[styles.inputBox, styles.readOnlyInput]}
+                  value={dateOfBirth}
+                  editable={false}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.fieldLabel}>Gender</Text>
+                <TextInput
+                  style={[styles.inputBox, styles.readOnlyInput]}
+                  value={gender}
+                  onChangeText={setGender}
+                  editable={false}
+                />
+              </View>
             </View>
           </View>
-          <Text style={styles.avatarSubtext}>Tap to change profile picture</Text>
-        </View>
 
-        {/* Section: Basic Information */}
-        <Text style={styles.sectionHeader}>Basic Information</Text>
-        <View style={styles.card}>
-          <Text style={styles.fieldLabel}>First Name</Text>
-          <TextInput
-            style={styles.input}
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="First Name"
-            placeholderTextColor="#94A3B8"
-          />
+          {/* ─────────────────────────────────────────────────────────── */}
+          {/* Contact Information Card (Matches 83)                       */}
+          {/* ─────────────────────────────────────────────────────────── */}
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <Phone size={18} color="#2563EB" />
+              <Text style={styles.cardTitle}>Contact Information</Text>
+            </View>
 
-          <Text style={styles.fieldLabel}>Last Name</Text>
-          <TextInput
-            style={styles.input}
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="Last Name"
-            placeholderTextColor="#94A3B8"
-          />
+            <Text style={styles.fieldLabel}>Phone Number</Text>
+            <View style={styles.phoneInputRow}>
+              <View style={styles.countryCodeBadge}>
+                <Text style={styles.countryFlagText}>🇺🇸 +1</Text>
+                <ChevronDown size={14} color="#64748B" />
+              </View>
+              <TextInput
+                style={styles.phoneTextInput}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="(555) 123-4567"
+              />
+            </View>
 
-          <Text style={styles.fieldLabel}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+1 (555) 000-0000"
-            placeholderTextColor="#94A3B8"
-            keyboardType="phone-pad"
-          />
-        </View>
+            <Text style={styles.fieldLabel}>Personal Email</Text>
+            <TextInput
+              style={styles.inputBox}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
 
-        {/* Section: Emergency Contact */}
-        <Text style={styles.sectionHeader}>Emergency Contact</Text>
-        <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Contact Name</Text>
-          <TextInput
-            style={styles.input}
-            value={emergencyName}
-            onChangeText={setEmergencyName}
-            placeholder="Full Name"
-            placeholderTextColor="#94A3B8"
-          />
+            <Text style={styles.fieldLabel}>Residential Address</Text>
+            <TextInput
+              style={styles.textAreaBox}
+              value={address}
+              onChangeText={setAddress}
+              multiline
+              maxLength={200}
+            />
+            <Text style={styles.charCountText}>{address.length}/200</Text>
+          </View>
 
-          <Text style={styles.fieldLabel}>Relationship</Text>
-          <TextInput
-            style={styles.input}
-            value={emergencyRelation}
-            onChangeText={setEmergencyRelation}
-            placeholder="Spouse / Parent / Sibling"
-            placeholderTextColor="#94A3B8"
-          />
+          {/* ─────────────────────────────────────────────────────────── */}
+          {/* Emergency Contact Card (Matches 83)                         */}
+          {/* ─────────────────────────────────────────────────────────── */}
+          <View style={styles.card}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <ShieldCheck size={18} color="#2563EB" />
+              <Text style={styles.cardTitle}>Emergency Contact</Text>
+            </View>
 
-          <Text style={styles.fieldLabel}>Contact Phone</Text>
-          <TextInput
-            style={styles.input}
-            value={emergencyPhone}
-            onChangeText={setEmergencyPhone}
-            placeholder="+1 (555) 000-0000"
-            placeholderTextColor="#94A3B8"
-            keyboardType="phone-pad"
-          />
-        </View>
+            <Text style={styles.fieldLabel}>Contact Name</Text>
+            <TextInput
+              style={styles.inputBox}
+              value={emergencyName}
+              onChangeText={setEmergencyName}
+            />
 
-        {/* Section: Residential Address */}
-        <Text style={styles.sectionHeader}>Residential Address</Text>
-        <View style={styles.card}>
-          <Text style={styles.fieldLabel}>Street Address, City, Postal Code</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            value={address}
-            onChangeText={setAddress}
-            placeholder="123 Tech Park Ave, Suite 400..."
-            placeholderTextColor="#94A3B8"
-            multiline
-            numberOfLines={3}
-          />
-        </View>
+            <Text style={styles.fieldLabel}>Relationship</Text>
+            <View style={styles.dropdownPickerBox}>
+              <Text style={styles.dropdownPickerText}>{emergencyRelation}</Text>
+              <ChevronDown size={16} color="#64748B" />
+            </View>
 
-        {/* Bottom Save Button */}
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-          activeOpacity={0.85}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Changes</Text>
-          )}
-        </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Text style={styles.fieldLabel}>Phone Number</Text>
+            <View style={styles.phoneInputRow}>
+              <View style={styles.countryCodeBadge}>
+                <Text style={styles.countryFlagText}>🇺🇸 +1</Text>
+                <ChevronDown size={14} color="#64748B" />
+              </View>
+              <TextInput
+                style={styles.phoneTextInput}
+                value={emergencyPhone}
+                onChangeText={setEmergencyPhone}
+                placeholder="(555) 987-6543"
+              />
+            </View>
+          </View>
+
+          {/* Bottom Buttons: Save Changes & Cancel */}
+          <TouchableOpacity
+            style={styles.saveChangesBtn}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveChangesBtnText}>Save Changes</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+    </View>
   );
 };
 
@@ -237,156 +305,210 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8FAFC',
   },
-  centerContainer: {
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
   },
+
+  /* Header */
   header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 36,
+    paddingBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  saveHeaderBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#4F46E5',
-  },
-  saveHeaderText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  avatarCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  avatarInitials: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  editBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#22C55E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  editBadgeIcon: {
-    fontSize: 13,
-  },
-  avatarSubtext: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#64748B',
-  },
-  sectionHeader: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#475569',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 4,
+    color: '#0F172A',
   },
+
+  /* Card */
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#F1F5F9',
+    marginBottom: 16,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  readOnlyBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  readOnlyBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatarImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  avatarFallback: {
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadPhotoLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
     marginBottom: 6,
-    marginTop: 4,
   },
-  input: {
-    backgroundColor: '#F8FAFC',
+  inputBox: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 14,
-    color: '#1E293B',
-    marginBottom: 12,
+    color: '#0F172A',
+    marginBottom: 14,
   },
-  textArea: {
-    height: 80,
+  readOnlyInput: {
+    backgroundColor: '#F8FAFC',
+    color: '#475569',
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 14,
+  },
+  countryCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRightWidth: 1,
+    borderRightColor: '#E2E8F0',
+    paddingRight: 10,
+    marginRight: 10,
+    paddingVertical: 10,
+  },
+  countryFlagText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  phoneTextInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0F172A',
+    paddingVertical: 10,
+  },
+  textAreaBox: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    minHeight: 80,
     textAlignVertical: 'top',
   },
-  saveButton: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 16,
-    height: 52,
+  charCountText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'right',
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  dropdownPickerBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 14,
+  },
+  dropdownPickerText: {
+    fontSize: 14,
+    color: '#0F172A',
+    fontWeight: '500',
+  },
+
+  /* Buttons */
+  saveChangesBtn: {
+    backgroundColor: '#2563EB',
+    height: 50,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 4,
+    marginBottom: 10,
   },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
+  saveChangesBtnText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cancelBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    height: 50,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    color: '#0F172A',
+    fontSize: 15,
     fontWeight: '700',
   },
 });

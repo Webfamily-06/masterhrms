@@ -158,15 +158,43 @@ export async function openOrShareAttachment(params: {
     throw new Error('Attachment URL is invalid or blocked by security policy.');
   }
 
-  const canOpen = await Linking.canOpenURL(targetUrl).catch(() => false);
-  if (canOpen) {
-    await Linking.openURL(targetUrl);
+  // Use system share sheet to view/save without launching foreign browser whenever possible
+  try {
+    await Share.share({
+      title: params.fileName || 'MasterHRMS Attachment',
+      message: targetUrl,
+      url: targetUrl,
+    });
     return true;
+  } catch {
+    const canOpen = await Linking.canOpenURL(targetUrl).catch(() => false);
+    if (canOpen) {
+      await Linking.openURL(targetUrl);
+      return true;
+    }
+  }
+  return true;
+}
+
+/**
+ * Downloads or saves media attachment locally via the platform's native share/save sheet.
+ */
+export async function downloadOrSaveMedia(params: {
+  url?: string | null;
+  mediaId?: string | null;
+  fileName?: string;
+}): Promise<boolean> {
+  const targetUrl =
+    resolveSafeBackendUrl(params.url) ||
+    (params.mediaId ? buildChatAttachmentDownloadUrl(params.mediaId, false) : null);
+
+  if (!targetUrl) {
+    throw new Error('Media URL is invalid or blocked by security policy.');
   }
 
   await Share.share({
-    title: params.fileName || 'MasterHRMS Attachment',
-    message: targetUrl,
+    title: params.fileName || 'MasterHRMS Media Download',
+    message: `Save file: ${params.fileName || 'Attachment'}\n${targetUrl}`,
     url: targetUrl,
   });
   return true;

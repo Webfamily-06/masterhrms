@@ -8,6 +8,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, Shield } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { SuperAdminService, SystemTelemetry } from '../../../core/services/superAdminService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -57,7 +59,7 @@ export const SystemDiagnosticsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>System Diagnostics</Text>
         <View style={styles.placeholder} />
@@ -101,13 +103,17 @@ export const SystemDiagnosticsScreen: React.FC = () => {
 
           {/* Strict Tenant Isolation Notice */}
           <View style={styles.noticeCard}>
-            <Text style={styles.noticeTitle}>🛡 Strict Multi-Tenant Isolation</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <Shield size={16} color="#059669" />
+              <Text style={styles.noticeTitle}>Strict Multi-Tenant Isolation</Text>
+            </View>
             <Text style={styles.noticeDesc}>
               Super Admin navigation operates in global platform scope. All tenant boundaries are strictly preserved by backend Prisma client extensions. No tenant-scoped data queries are executed in this view.
             </Text>
           </View>
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="SuperAdminHome" />
     </View>
   );
 };

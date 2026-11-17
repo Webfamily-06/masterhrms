@@ -16,6 +16,26 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
 import {
+  Search,
+  X,
+  Archive,
+  Pin,
+  Paperclip,
+  MessageSquare,
+  Users,
+  Megaphone,
+  Phone,
+  Video,
+  Bell,
+  BellOff,
+  Mail,
+  Check,
+  CheckSquare,
+  Square,
+  ArrowUpRight,
+  ArrowDownLeft,
+} from 'lucide-react-native';
+import {
   WorkspaceModuleShell,
   WorkspaceLoadingBlock,
   WorkspaceErrorBlock,
@@ -486,7 +506,7 @@ export const ChatConversationsScreen: React.FC = () => {
           {/* Search + Archive Filter Row */}
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Search size={15} color="#94A3B8" style={{ marginRight: 6 }} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={
@@ -502,7 +522,7 @@ export const ChatConversationsScreen: React.FC = () => {
               />
               {search.length > 0 && (
                 <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
-                  <Text style={styles.clearSearchText}>✕</Text>
+                  <X size={14} color="#64748B" />
                 </TouchableOpacity>
               )}
             </View>
@@ -514,14 +534,7 @@ export const ChatConversationsScreen: React.FC = () => {
                 accessibilityRole="button"
                 accessibilityLabel="Toggle archived conversations"
               >
-                <Text
-                  style={[
-                    styles.archiveToggleText,
-                    showArchived && styles.archiveToggleTextActive,
-                  ]}
-                >
-                  🗄️
-                </Text>
+                <Archive size={16} color={showArchived ? '#4F46E5' : '#64748B'} />
               </TouchableOpacity>
             )}
           </View>
@@ -572,7 +585,10 @@ export const ChatConversationsScreen: React.FC = () => {
           !debouncedSearch &&
           pinnedConversations.length > 0 && (
             <View style={styles.pinnedSection}>
-              <Text style={styles.sectionMiniLabel}>📌 PINNED</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                <Pin size={12} color="#4F46E5" />
+                <Text style={styles.sectionMiniLabel}>PINNED</Text>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {pinnedConversations.map((pin) => (
                   <TouchableOpacity
@@ -636,9 +652,12 @@ export const ChatConversationsScreen: React.FC = () => {
                   }).catch((e) => Alert.alert('Attachment', e.message))
                 }
               >
-                <Text style={styles.convName} numberOfLines={1}>
-                  📎 {file.name}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Paperclip size={14} color="#6366F1" />
+                  <Text style={styles.convName} numberOfLines={1}>
+                    {file.name}
+                  </Text>
+                </View>
                 <Text style={styles.convSnippet}>Tap to preview or download shared file</Text>
               </TouchableOpacity>
             ))}
@@ -657,7 +676,6 @@ export const ChatConversationsScreen: React.FC = () => {
               />
             ) : visibleConversations.length === 0 ? (
               <WorkspaceEmptyBlock
-                icon="💬"
                 title={showArchived ? 'No Archived Chats' : 'No Direct Conversations'}
                 description="Start a private conversation with any colleague in your organization workspace."
                 actionLabel="Start New Chat"
@@ -696,11 +714,13 @@ export const ChatConversationsScreen: React.FC = () => {
 
                     <View style={styles.convDetails}>
                       <View style={styles.convTopRow}>
-                        <Text style={styles.convName} numberOfLines={1}>
-                          {conv.isPinned ? '📌 ' : ''}
-                          {conv.isMuted ? '🔕 ' : ''}
-                          {conv.name}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                          {conv.isPinned && <Pin size={12} color="#4F46E5" />}
+                          {conv.isMuted && <BellOff size={12} color="#94A3B8" />}
+                          <Text style={styles.convName} numberOfLines={1}>
+                            {conv.name}
+                          </Text>
+                        </View>
                         <Text style={styles.convTime}>{formatTimestamp(conv.lastMessageTime)}</Text>
                       </View>
                       <View style={styles.convBottomRow}>
@@ -737,7 +757,6 @@ export const ChatConversationsScreen: React.FC = () => {
                   : true
               ).length === 0 ? (
               <WorkspaceEmptyBlock
-                icon="👥"
                 title="No Groups Found"
                 description="Create a project group or sync a department channel to collaborate with your team."
                 actionLabel="Create Group"
@@ -766,20 +785,24 @@ export const ChatConversationsScreen: React.FC = () => {
                         <Image source={{ uri: grp.avatar }} style={styles.avatarImg} />
                       ) : (
                         <View style={[styles.avatarCircle, styles.groupAvatarBg]}>
-                          <Text style={styles.avatarInitials}>
-                            {grp.isAnnouncementOnly ? '📢' : '👥'}
-                          </Text>
+                          {grp.isAnnouncementOnly ? (
+                            <Megaphone size={16} color="#FFFFFF" />
+                          ) : (
+                            <Users size={16} color="#FFFFFF" />
+                          )}
                         </View>
                       )}
                     </View>
 
                     <View style={styles.convDetails}>
                       <View style={styles.convTopRow}>
-                        <Text style={styles.convName} numberOfLines={1}>
-                          {grp.isPinned ? '📌 ' : ''}
-                          {grp.isMuted ? '🔕 ' : ''}
-                          {grp.name}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                          {grp.isPinned && <Pin size={12} color="#4F46E5" />}
+                          {grp.isMuted && <BellOff size={12} color="#94A3B8" />}
+                          <Text style={styles.convName} numberOfLines={1}>
+                            {grp.name}
+                          </Text>
+                        </View>
                         {grp.isAnnouncementOnly && (
                           <View style={styles.announcementBadge}>
                             <Text style={styles.announcementBadgeText}>Announcement</Text>
@@ -816,7 +839,6 @@ export const ChatConversationsScreen: React.FC = () => {
               />
             ) : filteredContacts.length === 0 ? (
               <WorkspaceEmptyBlock
-                icon="📇"
                 title="No Matching Colleagues"
                 description="No organization members match your current search filter."
               />
@@ -858,7 +880,7 @@ export const ChatConversationsScreen: React.FC = () => {
                         accessibilityRole="button"
                         accessibilityLabel={`Message ${contact.name}`}
                       >
-                        <Text style={styles.quickActionIcon}>💬</Text>
+                        <MessageSquare size={16} color="#4F46E5" />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.quickActionCircle}
@@ -868,7 +890,7 @@ export const ChatConversationsScreen: React.FC = () => {
                         accessibilityRole="button"
                         accessibilityLabel={`Audio call ${contact.name}`}
                       >
-                        <Text style={styles.quickActionIcon}>📞</Text>
+                        <Phone size={16} color="#10B981" />
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.quickActionCircle}
@@ -878,7 +900,7 @@ export const ChatConversationsScreen: React.FC = () => {
                         accessibilityRole="button"
                         accessibilityLabel={`Video call ${contact.name}`}
                       >
-                        <Text style={styles.quickActionIcon}>📹</Text>
+                        <Video size={16} color="#6366F1" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -925,14 +947,22 @@ export const ChatConversationsScreen: React.FC = () => {
                   style={[styles.filterPill, callTypeFilter === ct && styles.filterPillActive]}
                   onPress={() => setCallTypeFilter(ct)}
                 >
-                  <Text
-                    style={[
-                      styles.filterPillText,
-                      callTypeFilter === ct && styles.filterPillTextActive,
-                    ]}
-                  >
-                    {ct === 'all' ? 'All Types' : ct === 'audio' ? '📞 Audio' : '📹 Video'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    {ct === 'audio' && (
+                      <Phone size={12} color={callTypeFilter === ct ? '#FFFFFF' : '#64748B'} />
+                    )}
+                    {ct === 'video' && (
+                      <Video size={12} color={callTypeFilter === ct ? '#FFFFFF' : '#64748B'} />
+                    )}
+                    <Text
+                      style={[
+                        styles.filterPillText,
+                        callTypeFilter === ct && styles.filterPillTextActive,
+                      ]}
+                    >
+                      {ct === 'all' ? 'All Types' : ct === 'audio' ? 'Audio' : 'Video'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))}
               {(['all', 'COMPLETED', 'MISSED'] as const).map((st) => (
@@ -962,7 +992,6 @@ export const ChatConversationsScreen: React.FC = () => {
               />
             ) : callRecords.length === 0 ? (
               <WorkspaceEmptyBlock
-                icon="📞"
                 title="No Call History Found"
                 description="Audio and video calls made within your workspace will appear here."
               />
@@ -980,19 +1009,27 @@ export const ChatConversationsScreen: React.FC = () => {
                     onPress={() => setSelectedCallDetail(call)}
                   >
                     <View style={styles.avatarCircle}>
-                      <Text style={styles.avatarInitials}>
-                        {call.callType === 'video' ? '📹' : '📞'}
-                      </Text>
+                      {call.callType === 'video' ? (
+                        <Video size={16} color="#6366F1" />
+                      ) : (
+                        <Phone size={16} color="#10B981" />
+                      )}
                     </View>
                     <View style={styles.convDetails}>
                       <View style={styles.convTopRow}>
-                        <Text
-                          style={[styles.convName, isMissed && { color: '#DC2626' }]}
-                          numberOfLines={1}
-                        >
-                          {isOutgoing ? '↗ ' : '↙ '}
-                          {peerName}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
+                          {isOutgoing ? (
+                            <ArrowUpRight size={14} color="#64748B" />
+                          ) : (
+                            <ArrowDownLeft size={14} color={isMissed ? '#DC2626' : '#10B981'} />
+                          )}
+                          <Text
+                            style={[styles.convName, isMissed && { color: '#DC2626' }]}
+                            numberOfLines={1}
+                          >
+                            {peerName}
+                          </Text>
+                        </View>
                         <Text style={styles.convTime}>{formatTimestamp(call.createdAt)}</Text>
                       </View>
                       <Text style={styles.convSnippet}>
@@ -1007,9 +1044,11 @@ export const ChatConversationsScreen: React.FC = () => {
                         accessibilityRole="button"
                         accessibilityLabel={`Call back ${peerName}`}
                       >
-                        <Text style={styles.quickActionIcon}>
-                          {call.callType === 'video' ? '📹' : '📞'}
-                        </Text>
+                        {call.callType === 'video' ? (
+                          <Video size={16} color="#6366F1" />
+                        ) : (
+                          <Phone size={16} color="#10B981" />
+                        )}
                       </TouchableOpacity>
                     )}
                   </TouchableOpacity>
@@ -1035,9 +1074,12 @@ export const ChatConversationsScreen: React.FC = () => {
                   style={styles.sheetActionRow}
                   onPress={() => pinConvMutation.mutate(contextConv.threadId)}
                 >
-                  <Text style={styles.sheetActionText}>
-                    {contextConv.isPinned ? '📌 Unpin Conversation' : '📌 Pin Conversation'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Pin size={16} color="#4F46E5" />
+                    <Text style={styles.sheetActionText}>
+                      {contextConv.isPinned ? 'Unpin Conversation' : 'Pin Conversation'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sheetActionRow}
@@ -1048,9 +1090,16 @@ export const ChatConversationsScreen: React.FC = () => {
                     })
                   }
                 >
-                  <Text style={styles.sheetActionText}>
-                    {contextConv.isMuted ? '🔔 Unmute Notifications' : '🔕 Mute Notifications'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {contextConv.isMuted ? (
+                      <Bell size={16} color="#4F46E5" />
+                    ) : (
+                      <BellOff size={16} color="#64748B" />
+                    )}
+                    <Text style={styles.sheetActionText}>
+                      {contextConv.isMuted ? 'Unmute Notifications' : 'Mute Notifications'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sheetActionRow}
@@ -1061,9 +1110,12 @@ export const ChatConversationsScreen: React.FC = () => {
                     })
                   }
                 >
-                  <Text style={styles.sheetActionText}>
-                    {contextConv.markedUnread ? '✉️ Clear Unread Mark' : '✉️ Mark as Unread'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Mail size={16} color="#4F46E5" />
+                    <Text style={styles.sheetActionText}>
+                      {contextConv.markedUnread ? 'Clear Unread Mark' : 'Mark as Unread'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sheetActionRow}
@@ -1074,9 +1126,12 @@ export const ChatConversationsScreen: React.FC = () => {
                     })
                   }
                 >
-                  <Text style={styles.sheetActionText}>
-                    {contextConv.isArchived ? '📤 Unarchive Chat' : '🗄️ Archive Chat'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Archive size={16} color="#4F46E5" />
+                    <Text style={styles.sheetActionText}>
+                      {contextConv.isArchived ? 'Unarchive Chat' : 'Archive Chat'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               </>
             )}
@@ -1093,7 +1148,7 @@ export const ChatConversationsScreen: React.FC = () => {
                 <View style={styles.modalHeader}>
                   <Text style={styles.sheetTitle}>Call Record Details</Text>
                   <TouchableOpacity onPress={() => setSelectedCallDetail(null)}>
-                    <Text style={styles.closeBtnText}>✕</Text>
+                    <X size={18} color="#64748B" />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.detailLine}>
@@ -1131,7 +1186,10 @@ export const ChatConversationsScreen: React.FC = () => {
                             dialColleague(peerId, peerName, 'audio', selectedCallDetail.threadId);
                           }}
                         >
-                          <Text style={styles.primaryActionText}>📞 Audio Call</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Phone size={14} color="#FFFFFF" />
+                            <Text style={styles.primaryActionText}>Audio Call</Text>
+                          </View>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.primaryActionBtn}
@@ -1140,7 +1198,10 @@ export const ChatConversationsScreen: React.FC = () => {
                             dialColleague(peerId, peerName, 'video', selectedCallDetail.threadId);
                           }}
                         >
-                          <Text style={styles.primaryActionText}>📹 Video Call</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Video size={14} color="#FFFFFF" />
+                            <Text style={styles.primaryActionText}>Video Call</Text>
+                          </View>
                         </TouchableOpacity>
                       </>
                     ) : null;
@@ -1165,7 +1226,7 @@ export const ChatConversationsScreen: React.FC = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.sheetTitle}>Start Collaboration</Text>
               <TouchableOpacity onPress={() => setNewModalVisible(false)}>
-                <Text style={styles.closeBtnText}>✕</Text>
+                <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -1242,7 +1303,7 @@ export const ChatConversationsScreen: React.FC = () => {
                             {tpl.memberCount !== undefined ? ` • ${tpl.memberCount} members` : ''}
                           </Text>
                         </View>
-                        {active && <Text style={styles.checkMark}>✓</Text>}
+                        {active && <Check size={16} color="#4F46E5" />}
                       </TouchableOpacity>
                     );
                   })
@@ -1348,7 +1409,11 @@ export const ChatConversationsScreen: React.FC = () => {
                             </Text>
                           </View>
                           {newModalMode === 'custom_group' && (
-                            <Text style={styles.checkMark}>{chosen ? '☑️' : '⬜'}</Text>
+                            chosen ? (
+                              <CheckSquare size={18} color="#4F46E5" />
+                            ) : (
+                              <Square size={18} color="#94A3B8" />
+                            )
                           )}
                         </TouchableOpacity>
                       );
@@ -1384,6 +1449,20 @@ export const ChatConversationsScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Floating Action Button (Matches Light UI Chats List) */}
+      <TouchableOpacity
+        style={styles.fabBtn}
+        onPress={() => {
+          setNewModalMode(activeTab === 'groups' ? 'custom_group' : 'direct');
+          setNewModalVisible(true);
+        }}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="New Chat or Group"
+      >
+        <MessageSquare size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </WorkspaceModuleShell>
   );
 };
@@ -1483,7 +1562,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   modeChipActive: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#E8F8F0',
+    borderWidth: 1,
+    borderColor: '#00D287',
   },
   modeChipText: {
     fontSize: 12,
@@ -1491,14 +1572,17 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   modeChipTextActive: {
-    color: '#FFFFFF',
+    color: '#00A86B',
     fontWeight: '700',
   },
   modeUnreadPill: {
-    backgroundColor: '#EF4444',
-    borderRadius: 8,
+    backgroundColor: '#00D287',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: 5,
-    paddingVertical: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modeUnreadText: {
     color: '#FFFFFF',
@@ -1635,14 +1719,17 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   unreadBadge: {
-    backgroundColor: '#4F46E5',
-    borderRadius: 10,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
+    backgroundColor: '#00D287',
+    borderRadius: 12,
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   unreadBadgeText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '800',
   },
   announcementBadge: {
@@ -1905,5 +1992,21 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  fabBtn: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 6,
+    shadowColor: '#00D287',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
   },
 });

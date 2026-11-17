@@ -7,36 +7,59 @@ import {
   Modal,
   TextInput,
   Alert,
+  Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  ArrowLeft,
+  Calendar,
+  Pencil,
+  X,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
 export const TimesheetScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Timesheet'>>();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [project, setProject] = useState('MasterHRMS Mobile');
-  const [taskName, setTaskName] = useState('');
-  const [hours, setHours] = useState('8.0');
 
-  const daysLog = [
-    { day: 'Mon, Nov 16', hours: 8.5, task: 'Biometrics & Navigation Architecture', project: 'MasterHRMS Mobile' },
-    { day: 'Tue, Nov 17', hours: 8.0, task: 'Live Geofence Map Punch Module', project: 'MasterHRMS Mobile' },
-    { day: 'Wed, Nov 18', hours: 7.5, task: 'Salary Advances & Expense Workflows', project: 'Enterprise ERP' },
-    { day: 'Thu, Nov 19', hours: 8.0, task: 'Interactive Leave Calendar Integration', project: 'MasterHRMS Mobile' },
-    { day: 'Fri, Nov 20', hours: 6.0, task: 'Sprint Review & QA Automation', project: 'MasterHRMS Core' },
-  ];
+  const [payPeriodMode, setPayPeriodMode] = useState<'weekly' | 'biweekly'>('biweekly');
 
-  const totalHours = daysLog.reduce((acc, curr) => acc + curr.hours, 0);
+  // Daily entries
+  const [entries, setEntries] = useState([
+    { id: '1', day: 'Monday', date: '15 September, 2025', regularHours: '08.00', overtimeHours: '01.50' },
+    { id: '2', day: 'Tuesday', date: '16 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
+    { id: '3', day: 'Wednesday', date: '17 September, 2025', regularHours: '08.00', overtimeHours: '01.50' },
+    { id: '4', day: 'Thursday', date: '18 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
+    { id: '5', day: 'Friday', date: '19 September, 2025', regularHours: '08.00', overtimeHours: '02.00' },
+    { id: '6', day: 'Saturday', date: '20 September, 2025', regularHours: '08.00', overtimeHours: '00.00' },
+  ]);
 
-  const handleLogHours = () => {
-    if (!taskName.trim()) {
-      Alert.alert('Required', 'Please describe the task or milestone completed.');
-      return;
-    }
-    setModalVisible(false);
-    setTaskName('');
-    Alert.alert('Timesheet Saved', `${hours} hours logged successfully for ${project}.`);
+  // Edit Time Entry Modal (Matches 39_Edit Time Entry.png)
+  const [editingEntry, setEditingEntry] = useState<any | null>(null);
+  const [editRegular, setEditRegular] = useState('08.00');
+  const [editOvertime, setEditOvertime] = useState('01.50');
+
+  const handleOpenEdit = (entry: any) => {
+    setEditingEntry(entry);
+    setEditRegular(entry.regularHours);
+    setEditOvertime(entry.overtimeHours);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingEntry) return;
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === editingEntry.id
+          ? { ...e, regularHours: editRegular, overtimeHours: editOvertime }
+          : e
+      )
+    );
+    setEditingEntry(null);
+  };
+
+  const handleSubmitTimesheet = () => {
+    Alert.alert('Timesheet Submitted', 'Your timesheet has been submitted to your supervisor for review.');
   };
 
   return (
@@ -45,128 +68,169 @@ export const TimesheetScreen: React.FC = () => {
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backBtn}
+          style={styles.backCircleBtn}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={18} color="#0F172A" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Timesheets</Text>
-        <TouchableOpacity
-          onPress={() => setModalVisible(true)}
-          style={styles.addBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Log hours"
-        >
-          <Text style={styles.addBtnText}>+ Log</Text>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Timesheet</Text>
+        <View style={{ width: 36 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Total Hours Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryTag}>WEEKLY HOURS LOGGED</Text>
-          <Text style={styles.summaryHours}>{totalHours.toFixed(1)} / 40.0 hrs</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${Math.min(100, (totalHours / 40) * 100)}%` }]} />
+        {/* Card: Pay Period (Matches 38_Timesheet.png) */}
+        <View style={styles.mainCard}>
+          <Text style={styles.cardSectionTitle}>Pay Period</Text>
+
+          {/* Weekly / Bi-Weekly Switcher */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, payPeriodMode === 'weekly' && styles.toggleBtnActive]}
+              onPress={() => setPayPeriodMode('weekly')}
+            >
+              <Text style={[styles.toggleBtnText, payPeriodMode === 'weekly' && styles.toggleBtnTextActive]}>
+                Weekly
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toggleBtn, payPeriodMode === 'biweekly' && styles.toggleBtnActive]}
+              onPress={() => setPayPeriodMode('biweekly')}
+            >
+              <Text style={[styles.toggleBtnText, payPeriodMode === 'biweekly' && styles.toggleBtnTextActive]}>
+                Bi-Weekly
+              </Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.progressText}>95% of standard 40h weekly quota completed</Text>
+
+          {/* Week Info & Status */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12 }}>
+            <Text style={styles.weekRangeText}>Week on July 14- June 19</Text>
+            <Text style={styles.pendingApprovalText}>(Pending Approval)</Text>
+          </View>
+
+          {/* 4 Stats Boxes */}
+          <View style={styles.fourStatsGrid}>
+            <View style={[styles.statBox, { backgroundColor: '#E0F2FE' }]}>
+              <Text style={styles.statVal}>40.0</Text>
+              <Text style={styles.statLabel}>Regular</Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: '#FEF3C7' }]}>
+              <Text style={styles.statVal}>09.0</Text>
+              <Text style={styles.statLabel}>Overtime</Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: '#F3E8FF' }]}>
+              <Text style={styles.statVal}>00.0</Text>
+              <Text style={styles.statLabel}>Leave</Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: '#DCFCE7' }]}>
+              <Text style={styles.statVal}>49.0</Text>
+              <Text style={styles.statLabel}>Total Hours</Text>
+            </View>
+          </View>
         </View>
 
-        {/* Project Allocation Breakdown */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Project Allocation</Text>
+        {/* Card: Daily Breakdown (Matches 38_Timesheet.png) */}
+        <View style={styles.mainCard}>
+          <Text style={styles.cardSectionTitle}>Daily Breakdown</Text>
 
-          <View style={styles.projRow}>
-            <View style={styles.projLeft}>
-              <View style={[styles.projDot, styles.dotIndigo]} />
-              <Text style={styles.projName}>MasterHRMS Mobile</Text>
-            </View>
-            <Text style={styles.projPercent}>65% (24.5h)</Text>
-          </View>
-          <View style={styles.projRow}>
-            <View style={styles.projLeft}>
-              <View style={[styles.projDot, styles.dotGreen]} />
-              <Text style={styles.projName}>Enterprise ERP</Text>
-            </View>
-            <Text style={styles.projPercent}>20% (7.5h)</Text>
-          </View>
-          <View style={styles.projRow}>
-            <View style={styles.projLeft}>
-              <View style={[styles.projDot, styles.dotAmber]} />
-              <Text style={styles.projName}>MasterHRMS Core</Text>
-            </View>
-            <Text style={styles.projPercent}>15% (6.0h)</Text>
-          </View>
-        </View>
+          <View style={styles.entriesList}>
+            {entries.map((item) => (
+              <View key={item.id} style={styles.entryRowCard}>
+                <View style={[styles.entryIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <Calendar size={18} color="#0284C7" />
+                </View>
 
-        {/* Daily Timesheet Logs */}
-        <Text style={styles.sectionTitle}>Daily Time Entries</Text>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.entryDayTitle}>{item.day}</Text>
+                  <Text style={styles.entryDateSub}>{item.date}</Text>
+                </View>
 
-        {daysLog.map((item, idx) => (
-          <View key={idx} style={styles.entryCard}>
-            <View style={styles.entryHeader}>
-              <Text style={styles.entryDay}>{item.day}</Text>
-              <View style={styles.hoursBadge}>
-                <Text style={styles.hoursText}>{item.hours.toFixed(1)} hrs</Text>
+                <Text style={styles.entryHoursText}>{item.regularHours} Hrs</Text>
+
+                <TouchableOpacity
+                  style={styles.pencilEditBtn}
+                  onPress={() => handleOpenEdit(item)}
+                >
+                  <Pencil size={16} color="#64748B" />
+                </TouchableOpacity>
               </View>
-            </View>
-            <Text style={styles.entryTask}>{item.task}</Text>
-            <Text style={styles.entryProject}>📁 {item.project}</Text>
+            ))}
           </View>
-        ))}
+        </View>
+
+        {/* Bottom Double Actions: Cancel | Submit */}
+        <View style={styles.bottomButtonsRow}>
+          <TouchableOpacity
+            style={styles.whiteBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.whiteBtnText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.blueBtn}
+            onPress={handleSubmitTimesheet}
+          >
+            <Text style={styles.blueBtnText}>Submit</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Log Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Log Work Hours</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
+      {/* ───────────────────────────────────────────────────────────────── */}
+      {/* 39_Edit Time Entry Modal                                          */}
+      {/* ───────────────────────────────────────────────────────────────── */}
+      <Modal visible={Boolean(editingEntry)} animationType="slide" transparent onRequestClose={() => setEditingEntry(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.editModalSheet}>
+            <TouchableOpacity onPress={() => setEditingEntry(null)} style={styles.floatingCloseBtn}>
+              <X size={18} color="#0F172A" />
+            </TouchableOpacity>
+
+            <Text style={styles.editModalTitle}>Edit Time Entry</Text>
+            <View style={styles.dividerThin} />
+
+            <TextInput
+              style={styles.inputOutline}
+              value={editRegular}
+              onChangeText={setEditRegular}
+              placeholder="Regulars time"
+              keyboardType="numeric"
+            />
+
+            <TextInput
+              style={styles.inputOutline}
+              value={editOvertime}
+              onChangeText={setEditOvertime}
+              placeholder="Over time"
+              keyboardType="numeric"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+              <TouchableOpacity
+                style={styles.whiteBtn}
+                onPress={() => setEditingEntry(null)}
+              >
+                <Text style={styles.whiteBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.blueBtn}
+                onPress={handleSaveEdit}
+              >
+                <Text style={styles.blueBtnText}>Save</Text>
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.fieldLabel}>Project</Text>
-            <View style={styles.projectPicker}>
-              {['MasterHRMS Mobile', 'Enterprise ERP', 'MasterHRMS Core'].map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[styles.projPill, project === p && styles.projPillActive]}
-                  onPress={() => setProject(p)}
-                >
-                  <Text style={[styles.projPillText, project === p && styles.projPillTextActive]}>
-                    {p}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.fieldLabel}>Task Description</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={taskName}
-              onChangeText={setTaskName}
-              placeholder="e.g. Geofence Punch UI & Tests"
-              placeholderTextColor="#94A3B8"
-            />
-
-            <Text style={styles.fieldLabel}>Hours Worked</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={hours}
-              onChangeText={setHours}
-              keyboardType="numeric"
-              placeholderTextColor="#94A3B8"
-            />
-
-            <TouchableOpacity style={styles.submitBtn} onPress={handleLogHours}>
-              <Text style={styles.submitBtnText}>Save Time Entry</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Persistent Bottom Nav */}
+      <AppBottomNav activeRoute="EmployeeHome" />
     </View>
   );
 };
@@ -174,233 +238,239 @@ export const TimesheetScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#E0F2FE', // Sky blue backdrop matching screenshot
   },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+
+  /* Header */
   header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 36,
+    paddingBottom: 14,
   },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  backCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  /* Main Card */
+  mainCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 20,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  cardSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 14,
+  },
+
+  /* Toggle Row */
+  toggleRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    padding: 4,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  toggleBtnActive: {
+    backgroundColor: '#2563EB',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  toggleBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  toggleBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+
+  weekRangeText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  pendingApprovalText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#D97706',
+  },
+
+  /* 4 Stats Grid */
+  fourStatsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statBox: {
+    width: '48%',
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statVal: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+
+  /* Entries List */
+  entriesList: {
+    gap: 10,
+  },
+  entryRowCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 14,
+    padding: 12,
+  },
+  entryIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  addBtn: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  addBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  summaryCard: {
-    backgroundColor: '#1E1B4B',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
-  },
-  summaryTag: {
-    color: '#A5B4FC',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  summaryHours: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 12,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-  },
-  progressText: {
-    color: '#CBD5E1',
-    fontSize: 11,
-  },
-  sectionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 12,
-  },
-  projRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  projLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  projDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 8,
-  },
-  dotIndigo: {
-    backgroundColor: '#4F46E5',
-  },
-  dotGreen: {
-    backgroundColor: '#10B981',
-  },
-  dotAmber: {
-    backgroundColor: '#F59E0B',
-  },
-  projName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  projPercent: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  entryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-  },
-  entryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  entryDay: {
+  entryDayTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
-  hoursBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  hoursText: {
-    color: '#4F46E5',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  entryTask: {
-    fontSize: 13,
-    color: '#334155',
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-  entryProject: {
+  entryDateSub: {
     fontSize: 11,
     color: '#64748B',
+    marginTop: 1,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+  entryHoursText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+    marginRight: 10,
   },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
+  pencilEditBtn: {
+    padding: 6,
   },
-  modalHeader: {
+
+  /* Bottom Buttons */
+  bottomButtonsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+  whiteBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  whiteBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#0F172A',
   },
-  modalCloseText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: 'bold',
+  blueBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#475569',
-    marginBottom: 8,
-  },
-  projectPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 14,
-  },
-  projPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: '#F1F5F9',
-    marginRight: 6,
-    marginBottom: 6,
-  },
-  projPillActive: {
-    backgroundColor: '#4F46E5',
-  },
-  projPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  projPillTextActive: {
+  blueBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  modalInput: {
-    backgroundColor: '#F8FAFC',
+
+  /* Edit Modal */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  editModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    position: 'relative',
+  },
+  floatingCloseBtn: {
+    position: 'absolute',
+    top: -46,
+    alignSelf: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  dividerThin: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  inputOutline: {
     borderWidth: 1,
     borderColor: '#E2E8F0',
     borderRadius: 12,
@@ -408,18 +478,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: '#0F172A',
-    marginBottom: 16,
-  },
-  submitBtn: {
-    backgroundColor: '#10B981',
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    marginBottom: 12,
   },
 });

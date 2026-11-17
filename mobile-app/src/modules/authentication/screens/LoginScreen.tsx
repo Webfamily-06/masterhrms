@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { AlertCircle } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
@@ -117,7 +118,7 @@ export const LoginScreen: React.FC = () => {
         {/* Error Notification */}
         {error ? (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorIcon}>⚠️</Text>
+            <AlertCircle size={15} color="#DC2626" style={{ marginRight: 6 }} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -183,10 +184,12 @@ export const LoginScreen: React.FC = () => {
           {/* Forgot Password Link */}
           <View style={styles.forgotPasswordRow}>
             <TouchableOpacity
+              style={styles.forgotPasswordTouch}
               onPress={() => navigation.navigate('ForgotPassword', { email })}
               accessibilityRole="button"
+              activeOpacity={0.7}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password</Text>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
 
@@ -212,6 +215,37 @@ export const LoginScreen: React.FC = () => {
               Please contact your Organization Administrator to obtain your login credentials.
             </Text>
           </View>
+
+          {/* Quick Demo Fill (Dev) */}
+          {__DEV__ && (
+            <View style={styles.quickFillContainer}>
+              <Text style={styles.quickFillLabel}>Quick Fill (Dev):</Text>
+              <View style={styles.quickFillRow}>
+                <TouchableOpacity
+                  style={styles.quickFillChip}
+                  onPress={() => {
+                    setEmail('hr@masterhrms.com');
+                    setPassword('admin123');
+                    if (error) setError(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickFillChipText}>HR Admin</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickFillChip}
+                  onPress={() => {
+                    setEmail('employee@masterhrms.com');
+                    setPassword('admin123');
+                    if (error) setError(null);
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickFillChipText}>Employee</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* New Workspace Registration */}
           <TouchableOpacity
@@ -408,15 +442,23 @@ const styles = StyleSheet.create({
     tintColor: '#64748B',
   },
   forgotPasswordRow: {
-    alignItems: 'flex-end',
-    marginTop: 2,
-    marginBottom: 20,
-    paddingRight: 4,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 18,
+    paddingRight: 2,
+  },
+  forgotPasswordTouch: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
   },
   forgotPasswordText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#EF4444',
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0D9488',
+    lineHeight: 18,
   },
   loginButton: {
     height: 52,
@@ -516,5 +558,32 @@ const styles = StyleSheet.create({
   footerLink: {
     color: '#64748B',
     fontWeight: '500',
+  },
+  quickFillContainer: {
+    marginTop: 10,
+    alignItems: 'center',
+  },
+  quickFillLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  quickFillRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  quickFillChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickFillChipText: {
+    fontSize: 12,
+    color: '#334155',
+    fontWeight: '600',
   },
 });

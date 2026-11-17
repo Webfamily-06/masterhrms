@@ -284,11 +284,33 @@ export class AuthService {
   /**
    * Initiates forgot-password workflow via POST /api/v1/auth/forgot-password
    */
-  public static async forgotPassword(email: string): Promise<{ success: boolean; message: string; maskedEmail?: string }> {
+  public static async forgotPassword(email: string): Promise<{ success: boolean; message: string; maskedEmail?: string; previewCode?: string }> {
     try {
       const response = await apiClient.post(
         '/api/v1/auth/forgot-password',
         { email: email.trim().toLowerCase() },
+        { skipAuth: true } as any
+      );
+      return response.data;
+    } catch (error: any) {
+      throw ApiError.fromAxiosError(error);
+    }
+  }
+
+  /**
+   * Verifies 6-digit password reset OTP via POST /api/v1/auth/verify-reset-otp
+   */
+  public static async verifyResetOtp(payload: {
+    email: string;
+    code: string;
+  }): Promise<{ success: boolean; valid: boolean; resetToken: string; message: string }> {
+    try {
+      const response = await apiClient.post(
+        '/api/v1/auth/verify-reset-otp',
+        {
+          email: payload.email.trim().toLowerCase(),
+          code: payload.code.trim(),
+        },
         { skipAuth: true } as any
       );
       return response.data;

@@ -8,6 +8,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { ManagerService, TeamMember } from '../../../core/services/managerService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -54,7 +56,7 @@ export const TeamAttendanceScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Team Attendance Status</Text>
         <View style={styles.placeholder} />
@@ -113,6 +115,7 @@ export const TeamAttendanceScreen: React.FC = () => {
           )}
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="ManagerHome" />
     </View>
   );
 };

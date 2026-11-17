@@ -8,6 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, Building2, CheckCircle2, Square } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { AttendanceService, AttendanceRecord } from '../../../core/services/attendanceService';
@@ -89,7 +91,7 @@ export const GeofenceMapPunchScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Office Geofence Punch</Text>
         <View style={styles.placeholder} />
@@ -118,7 +120,7 @@ export const GeofenceMapPunchScreen: React.FC = () => {
               <View style={styles.midRing}>
                 <View style={styles.innerRing}>
                   <View style={styles.hqPin}>
-                    <Text style={styles.hqPinIcon}>🏢</Text>
+                    <Building2 size={24} color="#FFFFFF" strokeWidth={2.2} />
                   </View>
                 </View>
               </View>
@@ -159,7 +161,13 @@ export const GeofenceMapPunchScreen: React.FC = () => {
               <ActivityIndicator color="#FFFFFF" size="large" />
             ) : (
               <>
-                <Text style={styles.punchBtnIcon}>{isCheckedIn ? '🛑' : '👆'}</Text>
+                <View style={{ marginBottom: 4 }}>
+                  {isCheckedIn ? (
+                    <Square size={26} color="#FFFFFF" strokeWidth={2.4} />
+                  ) : (
+                    <CheckCircle2 size={26} color="#FFFFFF" strokeWidth={2.4} />
+                  )}
+                </View>
                 <Text style={styles.punchBtnText}>{isCheckedIn ? 'CHECK OUT' : 'CHECK IN'}</Text>
                 <Text style={styles.punchBtnSub}>
                   {isCheckedIn ? 'Tap to end your shift' : 'Tap to mark your arrival'}
@@ -202,6 +210,9 @@ export const GeofenceMapPunchScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="GeofenceMapPunch" />
     </View>
   );
 };

@@ -9,6 +9,16 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  ArrowLeft,
+  Plane,
+  Utensils,
+  Briefcase,
+  Smartphone,
+  Receipt,
+  X,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -88,13 +98,18 @@ export const ExpenseClaimsScreen: React.FC = () => {
     Alert.alert('Claim Submitted', 'Your expense claim has been routed to your Manager for review.');
   };
 
-  const getCategoryIcon = (cat: string) => {
+  const renderCategoryIcon = (cat: string) => {
     switch (cat) {
-      case 'TRAVEL': return '✈️';
-      case 'MEALS': return '🍔';
-      case 'OFFICE': return '📎';
-      case 'TELECOM': return '📱';
-      default: return '🧾';
+      case 'TRAVEL':
+        return <Plane size={18} color="#2563EB" strokeWidth={2.2} />;
+      case 'MEALS':
+        return <Utensils size={18} color="#EA580C" strokeWidth={2.2} />;
+      case 'OFFICE':
+        return <Briefcase size={18} color="#7C3AED" strokeWidth={2.2} />;
+      case 'TELECOM':
+        return <Smartphone size={18} color="#059669" strokeWidth={2.2} />;
+      default:
+        return <Receipt size={18} color="#4F46E5" strokeWidth={2.2} />;
     }
   };
 
@@ -108,7 +123,7 @@ export const ExpenseClaimsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Expense Claims</Text>
         <TouchableOpacity
@@ -167,7 +182,7 @@ export const ExpenseClaimsScreen: React.FC = () => {
           {filteredExpenses.map((item) => (
             <View key={item.id} style={styles.claimCard}>
               <View style={styles.claimIconBox}>
-                <Text style={styles.claimIcon}>{getCategoryIcon(item.category)}</Text>
+                {renderCategoryIcon(item.category)}
               </View>
 
               <View style={styles.claimDetails}>
@@ -206,8 +221,8 @@ export const ExpenseClaimsScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Submit Expense Claim</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color="#64748B" strokeWidth={2.4} />
               </TouchableOpacity>
             </View>
 
@@ -259,6 +274,9 @@ export const ExpenseClaimsScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="ExpenseClaims" />
     </View>
   );
 };

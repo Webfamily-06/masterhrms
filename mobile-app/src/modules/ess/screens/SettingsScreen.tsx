@@ -8,6 +8,17 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  ArrowLeft,
+  Shield,
+  KeyRound,
+  Bell,
+  Mail,
+  Moon,
+  HelpCircle,
+  Info,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { BiometricService } from '../../../core/auth/biometricService';
 import { AuthService } from '../../../core/auth/authService';
@@ -84,7 +95,7 @@ export const SettingsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
         <View style={styles.headerPlaceholder} />
@@ -114,7 +125,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>🛡️</Text>
+              <Shield size={18} color="#059669" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Biometric Unlock</Text>
@@ -135,7 +146,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => Alert.alert('Two-Factor Authentication', '2FA is enforced by your workspace administrator.')}
           >
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>🔐</Text>
+              <KeyRound size={18} color="#4F46E5" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Two-Factor Authentication</Text>
@@ -152,7 +163,7 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>🔔</Text>
+              <Bell size={18} color="#D97706" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Push Notifications</Text>
@@ -170,7 +181,7 @@ export const SettingsScreen: React.FC = () => {
 
           <View style={styles.row}>
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>✉️</Text>
+              <Mail size={18} color="#2563EB" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Email Digests</Text>
@@ -188,7 +199,7 @@ export const SettingsScreen: React.FC = () => {
 
           <View style={styles.row}>
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>🌙</Text>
+              <Moon size={18} color="#7C3AED" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Dark Mode</Text>
@@ -211,7 +222,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => Alert.alert('Help & Support', 'Reach out to support@masterhrms.com or your internal HR helpdesk.')}
           >
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>💬</Text>
+              <HelpCircle size={18} color="#0D9488" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>Help & Support Desk</Text>
@@ -227,7 +238,7 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => Alert.alert('MasterHRMS', 'MasterHRMS Unified Mobile App\nVersion: 2.4.0 (Build 20261116)\nProtected by Enterprise Encryption')}
           >
             <View style={styles.rowIconCircle}>
-              <Text style={styles.rowIcon}>ℹ️</Text>
+              <Info size={18} color="#475569" strokeWidth={2.2} />
             </View>
             <View style={styles.rowTextCol}>
               <Text style={styles.rowTitle}>About Application</Text>
@@ -242,6 +253,9 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.signOutBtnText}>Log Out of Workspace</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="Settings" />
     </View>
   );
 };

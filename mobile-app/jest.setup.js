@@ -13,3 +13,17 @@ jest.mock('react-native-keychain', () => ({
     WHEN_PASSCODE_SET_THIS_DEVICE_ONLY: 'AccessibleWhenPasscodeSetThisDeviceOnly',
   },
 }));
+
+// Mock lucide-react-native icons for Jest
+jest.mock('lucide-react-native', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return new Proxy(
+    {},
+    {
+      get: (_target, prop) => {
+        return (props) => React.createElement(View, { ...props, testID: `icon-${String(prop)}` });
+      },
+    }
+  );
+});

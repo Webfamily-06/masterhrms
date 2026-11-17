@@ -9,6 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { HrService } from '../../../core/services/hrService';
 import { LeaveRequest } from '../../../core/services/leaveService';
 import { useNavigation } from '@react-navigation/native';
@@ -73,7 +75,7 @@ export const PendingApprovalsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Leave Approvals Queue</Text>
         <View style={styles.placeholder} />
@@ -134,6 +136,7 @@ export const PendingApprovalsScreen: React.FC = () => {
           )}
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="HrAdminHome" />
     </View>
   );
 };

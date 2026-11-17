@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { ArrowLeft, Fingerprint } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
 
@@ -44,7 +45,7 @@ export const FingerprintAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#1E293B" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Touch ID</Text>
         <View style={styles.placeholder} />
@@ -69,7 +70,7 @@ export const FingerprintAuthScreen: React.FC = () => {
               {scanning ? (
                 <ActivityIndicator color="#4F46E5" size="large" />
               ) : (
-                <Text style={styles.fingerprintIcon}>👆</Text>
+                <Fingerprint size={52} color="#4F46E5" strokeWidth={1.8} />
               )}
             </View>
           </View>

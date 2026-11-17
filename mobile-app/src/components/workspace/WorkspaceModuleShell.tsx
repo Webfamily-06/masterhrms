@@ -7,6 +7,7 @@ import {
   Platform,
   Image,
   useWindowDimensions,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Text } from '../common/Text';
@@ -18,6 +19,20 @@ import { useTenantStore } from '../../store/tenantStore';
 import { usePermission } from '../../hooks/usePermission';
 import { realtimeManager, IncomingCallSignal } from '../../core/realtime/realtimeManager';
 import { apiClient } from '../../core/api/apiClient';
+import {
+  MessageSquare,
+  Calendar,
+  CheckSquare,
+  BarChart2,
+  ArrowLeft,
+  AlertTriangle,
+  FolderOpen,
+  PhoneCall,
+  PhoneOff,
+  Phone,
+  Video,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../common/AppBottomNav';
 
 const logoSource = require('../../assets/images/logo.webp');
 
@@ -27,7 +42,7 @@ interface ModuleNavItem {
   key: CollaborationModuleKey;
   label: string;
   route: 'ChatConversations' | 'CalendarMain' | 'TodoList' | 'GanttTimeline';
-  icon: string;
+  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   negativeOverridePerm?: string;
 }
 
@@ -36,26 +51,26 @@ const COLLABORATION_MODULES: ModuleNavItem[] = [
     key: 'chat',
     label: 'Chat',
     route: 'ChatConversations',
-    icon: '💬',
+    icon: MessageSquare,
     negativeOverridePerm: '-!chat.view',
   },
   {
     key: 'calendar',
     label: 'Calendar',
     route: 'CalendarMain',
-    icon: '🗓️',
+    icon: Calendar,
   },
   {
     key: 'todo',
     label: 'Todo',
     route: 'TodoList',
-    icon: '📋',
+    icon: CheckSquare,
   },
   {
     key: 'gantt',
     label: 'Gantt',
     route: 'GanttTimeline',
-    icon: '📊',
+    icon: BarChart2,
   },
 ];
 
@@ -156,6 +171,9 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
 
   useEffect(() => {
     void checkPendingCalls();
+    const pollInterval = setInterval(() => {
+      void checkPendingCalls();
+    }, 3500);
 
     const unsubDirect = realtimeManager.subscribe('call:incoming', (data) => {
       if (!data?.callId || data?.callerId === user?.id) return;
@@ -211,6 +229,7 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
     const unsubGrpEnded = realtimeManager.subscribe('group-call:ended', clearIfMatches);
 
     return () => {
+      clearInterval(pollInterval);
       unsubDirect();
       unsubInvited();
       unsubGroup();
@@ -312,7 +331,7 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
               accessibilityLabel="Go back"
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.backBtnIcon}>←</Text>
+              <ArrowLeft size={18} color="#FFFFFF" strokeWidth={2.4} />
             </TouchableOpacity>
 
             <Image source={logoSource} style={styles.brandLogo} resizeMode="contain" />
@@ -341,11 +360,14 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       {incomingCall && (
         <View style={styles.incomingCallBanner} accessibilityRole="alert">
           <View style={styles.incomingCallInfo}>
-            <Text style={styles.incomingCallBadge}>
-              {incomingCall.isGroupCall
-                ? `📞 GROUP ${incomingCall.callType.toUpperCase()} MEETING`
-                : `📲 INCOMING ${incomingCall.callType.toUpperCase()} CALL`}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <PhoneCall size={13} color="#FFFFFF" />
+              <Text style={styles.incomingCallBadge}>
+                {incomingCall.isGroupCall
+                  ? `GROUP ${incomingCall.callType.toUpperCase()} MEETING`
+                  : `INCOMING ${incomingCall.callType.toUpperCase()} CALL`}
+              </Text>
+            </View>
             <Text style={styles.incomingCallerName} numberOfLines={1}>
               {incomingCall.isGroupCall
                 ? `${incomingCall.groupName || 'Group'} (${incomingCall.callerName})`
@@ -378,6 +400,75 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
         </View>
       )}
 
+      {/* Fullscreen Light Incoming Call Modal (Matches 23_Light_Voice Call Ringing.png & 25_Light_Video Call Ringing.png) */}
+      <Modal
+        visible={Boolean(incomingCall)}
+        animationType="slide"
+        transparent
+        onRequestClose={handleDeclineIncoming}
+      >
+        <View style={styles.incomingModalBackdrop}>
+          <View style={styles.incomingModalContainer}>
+            <View style={styles.incomingRingingPulseWrap}>
+              <View style={styles.incomingRingingOuterRing}>
+                <View style={styles.incomingRingingMidRing}>
+                  {incomingCall?.callerAvatar ? (
+                    <Image
+                      source={{ uri: incomingCall.callerAvatar }}
+                      style={styles.incomingModalAvatar}
+                    />
+                  ) : (
+                    <View style={styles.incomingModalAvatarPlaceholder}>
+                      <Text style={styles.incomingModalAvatarText}>
+                        {(incomingCall?.callerName || 'C').substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <Text style={styles.incomingModalName} numberOfLines={1}>
+              {incomingCall?.isGroupCall
+                ? incomingCall?.groupName || 'Group Meeting'
+                : incomingCall?.callerName}
+            </Text>
+            <Text style={styles.incomingModalType}>
+              {incomingCall?.isGroupCall
+                ? `Group ${incomingCall?.callType === 'video' ? 'Video' : 'Voice'} Call Ringing...`
+                : `Incoming ${incomingCall?.callType === 'video' ? 'Video' : 'Voice'} Call...`}
+            </Text>
+
+            <View style={styles.incomingModalControls}>
+              <TouchableOpacity
+                style={styles.incomingDeclineBtnRound}
+                onPress={handleDeclineIncoming}
+                accessibilityRole="button"
+                accessibilityLabel="Decline call"
+              >
+                <PhoneOff size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.incomingAcceptBtnRound}
+                onPress={handleAcceptIncoming}
+                disabled={answeringCall}
+                accessibilityRole="button"
+                accessibilityLabel="Accept call"
+              >
+                {answeringCall ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : incomingCall?.callType === 'video' ? (
+                  <Video size={28} color="#FFFFFF" />
+                ) : (
+                  <Phone size={28} color="#FFFFFF" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Shared 4-Module Switcher Bar */}
       {!hideModuleTabs && visibleTabs.length > 1 && (
         <View style={styles.moduleBarOuter}>
@@ -389,6 +480,7 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
           >
             {visibleTabs.map((item) => {
               const isActive = item.key === activeModule;
+              const IconComp = item.icon;
               return (
                 <TouchableOpacity
                   key={item.key}
@@ -402,7 +494,11 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
                   accessibilityState={{ selected: isActive }}
                   accessibilityLabel={`${item.label} module`}
                 >
-                  <Text style={styles.moduleTabIcon}>{item.icon}</Text>
+                  <IconComp
+                    size={16}
+                    color={isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.7)'}
+                    strokeWidth={2}
+                  />
                   <Text style={[styles.moduleTabLabel, isActive && styles.moduleTabLabelActive]}>
                     {item.label}
                   </Text>
@@ -424,6 +520,9 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       >
         {children}
       </View>
+
+      {/* Pinned Bottom Navigation Footer */}
+      <AppBottomNav activeRoute={COLLABORATION_MODULES.find((m) => m.key === activeModule)?.route} />
     </View>
   );
 };
@@ -443,7 +542,7 @@ export const WorkspaceErrorBlock: React.FC<{
   onRetry?: () => void;
 }> = ({ title = 'Unable to Load Data', message, onRetry }) => (
   <View style={styles.stateCard}>
-    <Text style={styles.stateIcon}>⚠️</Text>
+    <AlertTriangle size={32} color="#EF4444" strokeWidth={2.2} style={{ marginBottom: 10 }} />
     <Text style={styles.stateTitle}>{title}</Text>
     <Text style={styles.stateSubtitle}>{message}</Text>
     {onRetry && (
@@ -459,14 +558,14 @@ export const WorkspaceErrorBlock: React.FC<{
 );
 
 export const WorkspaceEmptyBlock: React.FC<{
-  icon?: string;
+  icon?: React.ReactNode;
   title: string;
   description: string;
   actionLabel?: string;
   onAction?: () => void;
-}> = ({ icon = '📂', title, description, actionLabel, onAction }) => (
+}> = ({ icon, title, description, actionLabel, onAction }) => (
   <View style={styles.stateCard}>
-    <Text style={styles.stateIcon}>{icon}</Text>
+    {icon || <FolderOpen size={32} color="#64748B" strokeWidth={2} style={{ marginBottom: 10 }} />}
     <Text style={styles.stateTitle}>{title}</Text>
     <Text style={styles.stateSubtitle}>{description}</Text>
     {actionLabel && onAction && (
@@ -676,5 +775,114 @@ const styles = StyleSheet.create({
   stateActionBtn: {
     marginTop: 16,
     minHeight: 44,
+  },
+  incomingModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  incomingModalContainer: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  incomingRingingPulseWrap: {
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  incomingRingingOuterRing: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(0, 210, 135, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  incomingRingingMidRing: {
+    width: 116,
+    height: 116,
+    borderRadius: 58,
+    backgroundColor: 'rgba(0, 210, 135, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  incomingModalAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3,
+    borderColor: '#00D287',
+  },
+  incomingModalAvatarPlaceholder: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  incomingModalAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  incomingModalName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  incomingModalType: {
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  incomingModalControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 48,
+    width: '100%',
+  },
+  incomingDeclineBtnRound: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  incomingAcceptBtnRound: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#00D287',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
 });

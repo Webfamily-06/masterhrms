@@ -8,6 +8,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { SuperAdminService, PlatformTenant } from '../../../core/services/superAdminService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -48,7 +50,7 @@ export const PlatformTenantsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Global Tenants Directory</Text>
         <View style={styles.placeholder} />
@@ -95,6 +97,7 @@ export const PlatformTenantsScreen: React.FC = () => {
           )}
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="SuperAdminHome" />
     </View>
   );
 };

@@ -35,7 +35,13 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>MasterHRMS requires access to your location to share your current or live location in chat.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>MasterHRMS requires access to your camera for video calls and profile photo uploads.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MasterHRMS requires access to your microphone for voice and video calls.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MasterHRMS requires access to your photo library to select and upload photos and group avatars.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

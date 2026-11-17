@@ -10,6 +10,16 @@ import {
   Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  Bell,
+  Users,
+  Calendar,
+  CalendarCheck,
+  User,
+  Check,
+  FileText,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
@@ -185,7 +195,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Notifications"
           >
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Bell size={18} color="#0F172A" strokeWidth={2.2} />
             <View style={styles.unreadDot} />
           </TouchableOpacity>
 
@@ -240,7 +250,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
           <View style={styles.heroHeaderRow}>
             <View style={styles.heroTextCol}>
               <Text style={styles.heroGreeting}>Welcome back,</Text>
-              <Text style={styles.heroTitle}>{adminFullName} 👋</Text>
+              <Text style={styles.heroTitle}>{adminFullName}</Text>
               <Text style={styles.heroSubtitle}>{adminDesignation}</Text>
             </View>
 
@@ -261,7 +271,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
           >
             <View style={styles.statTopRow}>
               <View style={[styles.statIconCircle, styles.statIconPurple]}>
-                <Text style={styles.statEmoji}>👥</Text>
+                <Users size={18} color="#6366F1" strokeWidth={2.2} />
               </View>
               <View style={styles.statTrendGreen}>
                 <Text style={styles.statTrendGreenText}>↑ +4.2%</Text>
@@ -279,7 +289,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
           >
             <View style={styles.statTopRow}>
               <View style={[styles.statIconCircle, styles.statIconGreen]}>
-                <Text style={styles.statEmoji}>🗓️</Text>
+                <Calendar size={18} color="#10B981" strokeWidth={2.2} />
               </View>
               <View style={styles.statTrendGreen}>
                 <Text style={styles.statTrendGreenText}>↑ 85.5%</Text>
@@ -297,7 +307,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
           >
             <View style={styles.statTopRow}>
               <View style={[styles.statIconCircle, styles.statIconRed]}>
-                <Text style={styles.statEmoji}>☂️</Text>
+                <CalendarCheck size={18} color="#EF4444" strokeWidth={2.2} />
               </View>
               <View style={styles.statTrendRed}>
                 <Text style={styles.statTrendRedText}>↓ -8.3%</Text>
@@ -490,7 +500,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate('PendingApprovals')}
             >
               <View style={[styles.approvalIconCircle, styles.bgBlueLight]}>
-                <Text style={styles.emoji16}>👤</Text>
+                <User size={16} color="#3B82F6" strokeWidth={2.2} />
               </View>
               <Text style={styles.approvalTitle}>Leave Requests</Text>
               <View style={styles.pendingBadge}>
@@ -508,7 +518,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate('OrgAttendance')}
             >
               <View style={[styles.approvalIconCircle, styles.bgSkyLight]}>
-                <Text style={styles.emoji16}>✓</Text>
+                <Check size={16} color="#0284C7" strokeWidth={2.4} />
               </View>
               <Text style={styles.approvalTitle}>Attendance Regularizations</Text>
               <View style={styles.pendingBadge}>
@@ -526,7 +536,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               onPress={() => navigation.navigate('DocumentsVault')}
             >
               <View style={[styles.approvalIconCircle, styles.bgPurpleLight]}>
-                <Text style={styles.emoji16}>📄</Text>
+                <FileText size={16} color="#8B5CF6" strokeWidth={2.2} />
               </View>
               <Text style={styles.approvalTitle}>Document Requests</Text>
               <View style={styles.pendingBadge}>
@@ -559,7 +569,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               </View>
               <View style={styles.eventDetails}>
                 <Text style={styles.eventTitle}>HR Policy Review Meeting</Text>
-                <Text style={styles.eventMeta}>🕒 10:00 AM – 11:00 AM  •  📍 Online</Text>
+                <Text style={styles.eventMeta}>10:00 AM – 11:00 AM  •  Online</Text>
               </View>
             </TouchableOpacity>
 
@@ -577,7 +587,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               </View>
               <View style={styles.eventDetails}>
                 <Text style={styles.eventTitle}>Employee Engagement Program</Text>
-                <Text style={styles.eventMeta}>🕒 2:00 PM – 4:00 PM  •  📍 Conference Hall</Text>
+                <Text style={styles.eventMeta}>2:00 PM – 4:00 PM  •  Conference Hall</Text>
               </View>
             </TouchableOpacity>
 
@@ -595,7 +605,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
               </View>
               <View style={styles.eventDetails}>
                 <Text style={styles.eventTitle}>Payroll Processing – April</Text>
-                <Text style={styles.eventMeta}>🗓️ All Day</Text>
+                <Text style={styles.eventMeta}>All Day</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -624,7 +634,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
                       task.completed && styles.taskCheckboxActive,
                     ]}
                   >
-                    {task.completed && <Text style={styles.taskCheckmark}>✓</Text>}
+                    {task.completed && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text
                     style={[
@@ -654,7 +664,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
           <View style={styles.listCard}>
             <View style={styles.notifRow}>
               <View style={[styles.notifIconCircle, styles.bgBlueLight]}>
-                <Text style={styles.emoji16}>👥</Text>
+                <Users size={16} color="#3B82F6" strokeWidth={2.2} />
               </View>
               <View style={styles.notifDetails}>
                 <View style={styles.notifTopRow}>
@@ -671,7 +681,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
 
             <View style={styles.notifRow}>
               <View style={[styles.notifIconCircle, styles.bgAmberLight]}>
-                <Text style={styles.emoji16}>🗓️</Text>
+                <Calendar size={16} color="#D97706" strokeWidth={2.2} />
               </View>
               <View style={styles.notifDetails}>
                 <View style={styles.notifTopRow}>
@@ -691,63 +701,7 @@ export const HrAdminDashboardScreen: React.FC = () => {
       </Animated.ScrollView>
 
       {/* Persistent Bottom Tab Bar (Pinned) */}
-      <View style={styles.bottomTabBar}>
-        <TouchableOpacity style={styles.tabItem} activeOpacity={0.8}>
-          <Text style={[styles.tabIcon, styles.tabIconActive]}>🏠</Text>
-          <Text style={[styles.tabText, styles.tabTextActive]}>Dashboard</Text>
-          <View style={styles.activeTabIndicator} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('ChatConversations')}
-        >
-          <Text style={styles.tabIcon}>💬</Text>
-          <Text style={styles.tabText}>Chat</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('EmployeeDirectory')}
-        >
-          <Text style={styles.tabIcon}>👥</Text>
-          <Text style={styles.tabText}>Employees</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('PendingApprovals')}
-        >
-          <View style={styles.tabIconWrapper}>
-            <Text style={styles.tabIcon}>📋</Text>
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>15</Text>
-            </View>
-          </View>
-          <Text style={styles.tabText}>Approvals</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('PayrollOverview')}
-        >
-          <Text style={styles.tabIcon}>📊</Text>
-          <Text style={styles.tabText}>Reports</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          <Text style={styles.tabIcon}>☰</Text>
-          <Text style={styles.tabText}>More</Text>
-        </TouchableOpacity>
-      </View>
+      <AppBottomNav activeRoute="HrAdminHome" />
     </View>
   );
 };

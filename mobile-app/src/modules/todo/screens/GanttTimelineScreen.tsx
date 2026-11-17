@@ -10,6 +10,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
+import { Search } from 'lucide-react-native';
 import {
   WorkspaceModuleShell,
   WorkspaceLoadingBlock,
@@ -188,7 +189,7 @@ export const GanttTimelineScreen: React.FC = () => {
           {/* Search + Status Row */}
           <View style={styles.topFilterRow}>
             <View style={styles.searchBox}>
-              <Text style={{ fontSize: 13, marginRight: 6 }}>🔍</Text>
+              <Search size={14} color="#94A3B8" strokeWidth={2.2} style={{ marginRight: 6 }} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Filter timeline tasks..."
@@ -289,7 +290,6 @@ export const GanttTimelineScreen: React.FC = () => {
           />
         ) : filteredTodos.length === 0 ? (
           <WorkspaceEmptyBlock
-            icon="📊"
             title="No Tasks Found"
             description="Create a task with start and due dates to visualize it on the Gantt timeline."
             actionLabel="Create Task"

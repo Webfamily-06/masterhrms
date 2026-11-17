@@ -9,8 +9,10 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { AlertCircle } from 'lucide-react-native';
 import { useTheme } from '../../../app/providers/ThemeProvider';
 import { AuthService } from '../../../core/auth/authService';
 import { NavigationProp, RouteProps } from '../../../types/navigation.types';
@@ -33,6 +35,7 @@ export const ForgotPasswordScreen: React.FC = () => {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
       setError('Please enter your work email address.');
+      Alert.alert('Required Field', 'Please enter your work email address to continue.');
       return;
     }
 
@@ -49,13 +52,28 @@ export const ForgotPasswordScreen: React.FC = () => {
         }
       }
 
-      navigation.navigate('ResetPassword', {
-        email: cleanEmail,
-        token: tokenFromUrl,
-        code: (response as any).previewCode,
-      });
+      Alert.alert(
+        'Verification Code Sent',
+        `A 6-digit verification code has been dispatched to ${cleanEmail}. Please enter the code to reset your password.`,
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              navigation.navigate('ResetPassword', {
+                email: cleanEmail,
+                token: tokenFromUrl,
+                code: (response as any).previewCode,
+              });
+            },
+          },
+        ]
+      );
     } catch (err: any) {
-      setError(err?.message || 'Failed to dispatch password reset request.');
+      const errorMsg =
+        err?.message ||
+        'No account found with this email address. Please enter a valid registered work email or contact your administrator.';
+      setError(errorMsg);
+      Alert.alert('Account Not Found', errorMsg);
     } finally {
       setLoading(false);
     }
@@ -107,7 +125,7 @@ export const ForgotPasswordScreen: React.FC = () => {
         {/* Error Banner */}
         {error ? (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorIcon}>⚠️</Text>
+            <AlertCircle size={15} color="#DC2626" style={{ marginRight: 6 }} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : null}
@@ -162,10 +180,18 @@ export const ForgotPasswordScreen: React.FC = () => {
           {/* Back to sign in link */}
           <View style={styles.backToLoginRow}>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Login', {})}
+              style={styles.backToLoginTouch}
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('Login', {});
+                }
+              }}
+              activeOpacity={0.7}
               accessibilityRole="button"
             >
-              <Text style={styles.backToLoginText}>Remember password? Sign In</Text>
+              <Text style={styles.backToLoginText}>← Remember password? Sign In</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -341,24 +367,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   orgGuidanceContainer: {
-    marginTop: 20,
-    paddingHorizontal: 12,
-    alignItems: 'center',
+    marginTop: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    width: '100%',
   },
   orgGuidanceText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 17,
   },
   backToLoginRow: {
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 20,
+  },
+  backToLoginTouch: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
   backToLoginText: {
     fontSize: 13.5,
-    fontWeight: '600',
-    color: '#0F172A',
+    fontWeight: '700',
+    color: '#0F766E',
   },
   footer: {
     alignItems: 'center',

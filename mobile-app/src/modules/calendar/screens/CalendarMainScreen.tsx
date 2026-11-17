@@ -15,6 +15,23 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
 import {
+  Search,
+  Clock,
+  MapPin,
+  X,
+  Repeat,
+  Building2,
+  Link,
+  CheckSquare,
+  BarChart2,
+  Download,
+  FileText,
+  Edit,
+  Bell,
+  AlertTriangle,
+  ChevronDown,
+} from 'lucide-react-native';
+import {
   WorkspaceModuleShell,
   WorkspaceLoadingBlock,
   WorkspaceErrorBlock,
@@ -662,7 +679,7 @@ export const CalendarMainScreen: React.FC = () => {
         <View style={styles.controlsWrap}>
           {/* Search Bar */}
           <View style={styles.searchBar}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <Search size={15} color="#94A3B8" style={{ marginRight: 6 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search schedules, rooms, categories..."
@@ -692,7 +709,10 @@ export const CalendarMainScreen: React.FC = () => {
               accessibilityRole="button"
               accessibilityLabel="Pick date"
             >
-              <Text style={styles.periodHeading}>{periodLabel} ▾</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.periodHeading}>{periodLabel}</Text>
+                <ChevronDown size={14} color="#0F172A" />
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -978,7 +998,6 @@ export const CalendarMainScreen: React.FC = () => {
 
                 {agendaGroups.length === 0 ? (
                   <WorkspaceEmptyBlock
-                    icon="📅"
                     title="No Events Found"
                     description="No events or projections match this period or filter."
                     actionLabel="Schedule Event"
@@ -1032,23 +1051,28 @@ export const CalendarMainScreen: React.FC = () => {
                                   </View>
                                 )}
                               </View>
-                              <Text style={styles.eventMetaSmall}>
-                                🕒{' '}
-                                {evt.allDay
-                                  ? 'All Day'
-                                  : `${st.toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })} – ${en.toLocaleTimeString([], {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}`}{' '}
-                                • {evt.category}
-                              </Text>
-                              {(evt.roomName || evt.location) && (
-                                <Text style={styles.eventMetaSmall} numberOfLines={1}>
-                                  📍 {evt.roomName ? `Room: ${evt.roomName}` : evt.location}
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                <Clock size={11} color="#64748B" />
+                                <Text style={styles.eventMetaSmall}>
+                                  {evt.allDay
+                                    ? 'All Day'
+                                    : `${st.toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })} – ${en.toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}`}{' '}
+                                  • {evt.category}
                                 </Text>
+                              </View>
+                              {(evt.roomName || evt.location) && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                  <MapPin size={11} color="#64748B" />
+                                  <Text style={styles.eventMetaSmall} numberOfLines={1}>
+                                    {evt.roomName ? `Room: ${evt.roomName}` : evt.location}
+                                  </Text>
+                                </View>
                               )}
                             </View>
                           </TouchableOpacity>
@@ -1110,7 +1134,7 @@ export const CalendarMainScreen: React.FC = () => {
                   setNewCatName('');
                 }}
               >
-                <Text style={styles.closeText}>✕</Text>
+                <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -1183,7 +1207,7 @@ export const CalendarMainScreen: React.FC = () => {
                 <View style={styles.sheetHeader}>
                   <Text style={styles.sheetTitle}>{selectedEvent.title}</Text>
                   <TouchableOpacity onPress={() => setSelectedEvent(null)}>
-                    <Text style={styles.closeText}>✕</Text>
+                    <X size={18} color="#64748B" />
                   </TouchableOpacity>
                 </View>
 
@@ -1196,18 +1220,30 @@ export const CalendarMainScreen: React.FC = () => {
                   {new Date(selectedEvent.endDate).toLocaleString()}
                 </Text>
                 {selectedEvent.recurrenceRule && (
-                  <Text style={styles.detailMeta}>
-                    🔁 Repeats: {selectedEvent.recurrenceRule}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Repeat size={12} color="#64748B" />
+                    <Text style={styles.detailMeta}>
+                      Repeats: {selectedEvent.recurrenceRule}
+                    </Text>
+                  </View>
                 )}
                 {selectedEvent.roomName && (
-                  <Text style={styles.detailMeta}>🏢 Room: {selectedEvent.roomName}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Building2 size={12} color="#64748B" />
+                    <Text style={styles.detailMeta}>Room: {selectedEvent.roomName}</Text>
+                  </View>
                 )}
                 {selectedEvent.location ? (
-                  <Text style={styles.detailMeta}>📍 Location: {selectedEvent.location}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <MapPin size={12} color="#64748B" />
+                    <Text style={styles.detailMeta}>Location: {selectedEvent.location}</Text>
+                  </View>
                 ) : null}
                 {selectedEvent.meetingLink ? (
-                  <Text style={styles.detailMeta}>🔗 Link: {selectedEvent.meetingLink}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                    <Link size={12} color="#64748B" />
+                    <Text style={styles.detailMeta}>Link: {selectedEvent.meetingLink}</Text>
+                  </View>
                 ) : null}
                 {selectedEvent.description ? (
                   <Text style={[styles.detailMeta, { marginTop: 6 }]}>
@@ -1226,7 +1262,10 @@ export const CalendarMainScreen: React.FC = () => {
                         navigation.navigate('TodoList', { taskId: tid });
                       }}
                     >
-                      <Text style={styles.secondaryBtnText}>📋 Open in Todo</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <CheckSquare size={14} color="#0F172A" />
+                        <Text style={styles.secondaryBtnText}>Open in Todo</Text>
+                      </View>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.secondaryBtn}
@@ -1236,7 +1275,10 @@ export const CalendarMainScreen: React.FC = () => {
                         navigation.navigate('GanttTimeline', { taskId: tid });
                       }}
                     >
-                      <Text style={styles.secondaryBtnText}>📊 View in Gantt</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <BarChart2 size={14} color="#0F172A" />
+                        <Text style={styles.secondaryBtnText}>View in Gantt</Text>
+                      </View>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -1374,7 +1416,10 @@ export const CalendarMainScreen: React.FC = () => {
                         ).catch((e) => Alert.alert('Export .ICS', e.message))
                       }
                     >
-                      <Text style={styles.secondaryBtnText}>📤 Export .ICS</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Download size={14} color="#0F172A" />
+                        <Text style={styles.secondaryBtnText}>Export .ICS</Text>
+                      </View>
                     </TouchableOpacity>
 
                     {canEditSelected && (
@@ -1382,7 +1427,10 @@ export const CalendarMainScreen: React.FC = () => {
                         style={styles.secondaryBtn}
                         onPress={() => setAuditModalOpen(true)}
                       >
-                        <Text style={styles.secondaryBtnText}>📜 Audit Trail</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <FileText size={14} color="#0F172A" />
+                          <Text style={styles.secondaryBtnText}>Audit Trail</Text>
+                        </View>
                       </TouchableOpacity>
                     )}
 
@@ -1391,7 +1439,10 @@ export const CalendarMainScreen: React.FC = () => {
                         style={styles.primaryBtnSmall}
                         onPress={() => openEditModal(selectedEvent)}
                       >
-                        <Text style={styles.primaryBtnText}>✏️ Edit</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Edit size={14} color="#FFFFFF" />
+                          <Text style={styles.primaryBtnText}>Edit</Text>
+                        </View>
                       </TouchableOpacity>
                     )}
 
@@ -1442,7 +1493,7 @@ export const CalendarMainScreen: React.FC = () => {
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Event Audit History</Text>
               <TouchableOpacity onPress={() => setAuditModalOpen(false)}>
-                <Text style={styles.closeText}>✕</Text>
+                <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
             {auditLogsQuery.isLoading ? (
@@ -1474,7 +1525,7 @@ export const CalendarMainScreen: React.FC = () => {
                 {editingEvent ? 'Edit Event' : 'Create New Event'}
               </Text>
               <TouchableOpacity onPress={() => setFormModalOpen(false)}>
-                <Text style={styles.closeText}>✕</Text>
+                <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -1702,7 +1753,7 @@ export const CalendarMainScreen: React.FC = () => {
               {sharedWith.map((sw) => (
                 <View key={sw.recipientId} style={styles.shareRow}>
                   <Text style={styles.detailMeta}>{sw.name}</Text>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                     <TouchableOpacity
                       onPress={() =>
                         setSharedWith((prev) =>
@@ -1726,7 +1777,7 @@ export const CalendarMainScreen: React.FC = () => {
                         )
                       }
                     >
-                      <Text style={{ color: '#DC2626', fontSize: 12 }}>✕</Text>
+                      <X size={14} color="#DC2626" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1753,13 +1804,15 @@ export const CalendarMainScreen: React.FC = () => {
                       )
                     }
                   >
-                    <Text style={styles.detailMeta}>
-                      🔔{' '}
-                      {REMINDER_MINUTES.find((m) => m.value === rem.minutesBefore)?.label ||
-                        `${rem.minutesBefore}m`}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Bell size={12} color="#64748B" />
+                      <Text style={styles.detailMeta}>
+                        {REMINDER_MINUTES.find((m) => m.value === rem.minutesBefore)?.label ||
+                          `${rem.minutesBefore}m`}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
                     <TouchableOpacity
                       onPress={() =>
                         setReminders((prev) =>
@@ -1786,7 +1839,7 @@ export const CalendarMainScreen: React.FC = () => {
                         setReminders((prev) => prev.filter((_, i) => i !== idx))
                       }
                     >
-                      <Text style={{ color: '#DC2626' }}>✕</Text>
+                      <X size={14} color="#DC2626" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -1837,7 +1890,10 @@ export const CalendarMainScreen: React.FC = () => {
       <Modal visible={!!conflictPrompt} animationType="fade" transparent>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
-            <Text style={styles.sheetTitle}>⚠️ Scheduling Conflict Detected</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <AlertTriangle size={18} color="#D97706" />
+              <Text style={styles.sheetTitle}>Scheduling Conflict Detected</Text>
+            </View>
             <Text style={styles.detailMeta}>
               The selected meeting room or attendee has an overlapping commitment.
             </Text>

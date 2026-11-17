@@ -9,6 +9,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, Search } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { HrService, EmployeeSummary, Department } from '../../../core/services/hrService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -71,16 +73,17 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Employee Directory</Text>
         <View style={styles.placeholder} />
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchBar}>
+      <View style={[styles.searchBar, { flexDirection: 'row', alignItems: 'center' }]}>
+        <Search size={16} color="#94A3B8" style={{ marginRight: 8 }} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { flex: 1 }]}
           placeholder="Search by name or employee code..."
           placeholderTextColor="#94A3B8"
           value={search}
@@ -173,6 +176,7 @@ export const EmployeeDirectoryScreen: React.FC = () => {
           )}
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="HrAdminHome" />
     </View>
   );
 };

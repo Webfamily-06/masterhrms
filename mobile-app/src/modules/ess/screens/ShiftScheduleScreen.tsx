@@ -9,6 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, X } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -49,7 +51,7 @@ export const ShiftScheduleScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Shift Roster</Text>
         <TouchableOpacity
@@ -121,8 +123,8 @@ export const ShiftScheduleScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Request Shift Swap</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCloseText}>✕</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={20} color="#64748B" strokeWidth={2.4} />
               </TouchableOpacity>
             </View>
 
@@ -151,6 +153,9 @@ export const ShiftScheduleScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="ShiftSchedule" />
     </View>
   );
 };

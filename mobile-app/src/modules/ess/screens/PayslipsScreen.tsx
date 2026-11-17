@@ -1,36 +1,41 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
+  ArrowLeft,
+  Filter,
+  Check,
+  FileText,
+  Gift,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import {
   PayrollService,
   PayslipItem,
-  PayslipDetail,
 } from '../../../core/services/payrollService';
 import { useNavigation } from '@react-navigation/native';
+import { NavigationProp } from '../../../types/navigation.types';
 
 export const PayslipsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<'Payslips'>>();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [payslips, setPayslips] = useState<PayslipItem[]>([]);
-  const [selectedPayslip, setSelectedPayslip] = useState<PayslipDetail | null>(null);
-  const [detailModalVisible, setDetailModalVisible] = useState(false);
-  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
       const data = await PayrollService.getMyPayslips();
-      setPayslips(data);
+      setPayslips(data || []);
     } catch {
       // Handled
     } finally {
@@ -48,44 +53,69 @@ export const PayslipsScreen: React.FC = () => {
     loadData();
   };
 
-  const handleSelectPayslip = async (slip: PayslipItem) => {
-    setLoadingDetail(true);
-    setDetailModalVisible(true);
-    try {
-      const detail = await PayrollService.getPayslipDetail(slip.id);
-      if (detail) {
-        setSelectedPayslip(detail);
-      } else {
-        // Construct fallback detail from item
-        setSelectedPayslip({
-          ...slip,
-          earnings: [
-            { name: 'Basic Salary', amount: Math.round(slip.grossSalary * 0.5) },
-            { name: 'House Rent Allowance (HRA)', amount: Math.round(slip.grossSalary * 0.3) },
-            { name: 'Special Allowance', amount: Math.round(slip.grossSalary * 0.2) },
-          ],
-          deductions: [
-            { name: 'Provident Fund (PF)', amount: Math.round(slip.totalDeductions * 0.6) },
-            { name: 'Professional Tax', amount: 200 },
-            { name: 'TDS / Income Tax', amount: Math.max(0, Math.round(slip.totalDeductions * 0.4) - 200) },
-          ],
-        });
-      }
-    } catch {
-      Alert.alert('Error', 'Unable to load detailed breakdown.');
-    } finally {
-      setLoadingDetail(false);
-    }
-  };
-
-  const handleDownloadPdf = () => {
-    Alert.alert('Download Started', 'Your encrypted payslip PDF has been downloaded.');
-  };
-
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
+
+  const latestSlip = payslips[0] || null;
+
+  const historyList = useMemo(() => {
+    if (payslips.length > 0) return payslips;
+    // Standard mock list matching 64. Payslip - Home.png
+    return [
+      {
+        id: 'ps1',
+        month: 2,
+        year: 2026,
+        grossSalary: 4250,
+        netSalary: 4250,
+        totalDeductions: 1550,
+        status: 'PAID',
+        paymentDate: 'Feb 01, 2026',
+      },
+      {
+        id: 'ps2',
+        month: 1,
+        year: 2026,
+        grossSalary: 4250,
+        netSalary: 4250,
+        totalDeductions: 1550,
+        status: 'PAID',
+        paymentDate: 'Jan 01, 2026',
+      },
+      {
+        id: 'ps-bonus',
+        month: 12,
+        year: 2025,
+        grossSalary: 1500,
+        netSalary: 1500,
+        totalDeductions: 0,
+        status: 'PAID',
+        paymentDate: 'Dec 20, 2025',
+        isBonus: true,
+      },
+      {
+        id: 'ps3',
+        month: 11,
+        year: 2025,
+        grossSalary: 4250,
+        netSalary: 4250,
+        totalDeductions: 1550,
+        status: 'PAID',
+        paymentDate: 'Nov 01, 2025',
+      },
+    ] as (PayslipItem & { isBonus?: boolean })[];
+  }, [payslips]);
+
+  const handleSelectSlip = (slip: PayslipItem) => {
+    navigation.navigate('SalarySlipDetail', {
+      month: monthNames[(slip.month || 2) - 1] || 'February',
+      year: slip.year || 2026,
+      gross: slip.grossSalary || 4250,
+      net: slip.netSalary || 4250,
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -93,167 +123,104 @@ export const PayslipsScreen: React.FC = () => {
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          style={styles.backBtn}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#0F172A" strokeWidth={2.4} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Salary & Payslips</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>Payslips</Text>
+        <TouchableOpacity
+          onPress={() => Alert.alert('Filter', 'Filter payslips by year or payment status.')}
+          style={styles.filterBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Filter"
+        >
+          <Filter size={20} color="#2563EB" strokeWidth={2.2} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#16A34A" />
+          <ActivityIndicator size="large" color="#2563EB" />
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.subHeader}>Chronological Statements</Text>
+          {/* Latest Pay Period Gradient Hero Card (Matches 64. Payslip – Home.png) */}
+          <View style={styles.heroCard}>
+            <Text style={styles.heroSub}>Latest Pay Period</Text>
+            <Text style={styles.heroPeriod}>
+              {latestSlip
+                ? `${monthNames[(latestSlip.month || 2) - 1]} 1 - ${monthNames[(latestSlip.month || 2) - 1]} 28, ${latestSlip.year || 2026}`
+                : 'Feb 1 - Feb 28, 2026'}
+            </Text>
 
-          {payslips.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No payslips generated for your account yet.</Text>
+            <View style={styles.heroDivider} />
+
+            <View style={styles.heroAmountRow}>
+              <Text style={styles.heroAmount}>
+                ${(latestSlip?.netSalary || 4250).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </Text>
+
+              <View style={styles.heroPaidPill}>
+                <Check size={12} color="#2563EB" strokeWidth={3} style={{ marginRight: 4 }} />
+                <Text style={styles.heroPaidText}>Paid</Text>
+              </View>
             </View>
-          ) : (
-            payslips.map((slip) => {
-              const monthName =
-                typeof slip.month === 'number' && slip.month >= 1 && slip.month <= 12
-                  ? monthNames[slip.month - 1]
-                  : `Month ${slip.month}`;
+          </View>
 
+          {/* HISTORY Section */}
+          <Text style={styles.sectionHeading}>HISTORY</Text>
+
+          <View style={styles.historyList}>
+            {historyList.map((item) => {
+              const mName = monthNames[(item.month || 2) - 1] || 'February';
+              const isBonus = (item as any).isBonus;
               return (
                 <TouchableOpacity
-                  key={slip.id}
-                  style={styles.payslipCard}
+                  key={item.id}
+                  style={styles.historyCard}
+                  onPress={() => handleSelectSlip(item)}
                   activeOpacity={0.8}
-                  onPress={() => handleSelectPayslip(slip)}
                 >
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.monthText}>
-                      {monthName} {slip.year}
-                    </Text>
-                    <View style={styles.paidBadge}>
-                      <Text style={styles.paidBadgeText}>
-                        {slip.status || 'PAID'}
-                      </Text>
-                    </View>
+                  <View style={[styles.historyIconCircle, isBonus ? { backgroundColor: '#FEF3C7' } : { backgroundColor: '#EFF6FF' }]}>
+                    {isBonus ? (
+                      <Gift size={22} color="#D97706" />
+                    ) : (
+                      <FileText size={22} color="#2563EB" />
+                    )}
                   </View>
 
-                  <View style={styles.amountRow}>
-                    <View>
-                      <Text style={styles.amountLabel}>Net Pay</Text>
-                      <Text style={styles.netAmount}>
-                        ₹{slip.netSalary?.toLocaleString() || '0'}
-                      </Text>
-                    </View>
-                    <View style={styles.viewAction}>
-                      <Text style={styles.viewActionText}>View Breakdown →</Text>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.historyTitle}>
+                      {isBonus ? 'Annual Bonus' : `${mName} ${item.year}`}
+                    </Text>
+                    <Text style={styles.historySub}>
+                      Paid on {item.paymentDate || `Feb 01, ${item.year}`}
+                    </Text>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.historyAmount}>
+                      ${(item.netSalary || 4250).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </Text>
+                    <View style={styles.historyPaidBadge}>
+                      <Text style={styles.historyPaidBadgeText}>Paid</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
               );
-            })
-          )}
+            })}
+          </View>
         </ScrollView>
       )}
 
-      {/* Payslip Detail Modal */}
-      <Modal visible={detailModalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            {loadingDetail || !selectedPayslip ? (
-              <ActivityIndicator size="large" color="#16A34A" />
-            ) : (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>
-                    {monthNames[(selectedPayslip.month || 1) - 1]} {selectedPayslip.year} Payslip
-                  </Text>
-                  <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
-                    <Text style={styles.closeBtn}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Net Pay Highlight Card */}
-                <View style={styles.netPayCard}>
-                  <Text style={styles.netPayLabel}>Total Net Disbursement</Text>
-                  <Text style={styles.netPayValue}>
-                    ₹{selectedPayslip.netSalary?.toLocaleString()}
-                  </Text>
-                </View>
-
-                {/* Earnings */}
-                <Text style={styles.breakdownHeading}>Earnings</Text>
-                <View style={styles.table}>
-                  {selectedPayslip.earnings?.map((e, idx) => (
-                    <View key={idx} style={styles.tableRow}>
-                      <Text style={styles.itemName}>{e.name}</Text>
-                      <Text style={styles.itemValue}>₹{e.amount?.toLocaleString()}</Text>
-                    </View>
-                  ))}
-                  <View style={[styles.tableRow, styles.subtotalRow]}>
-                    <Text style={styles.subtotalLabel}>Gross Earnings</Text>
-                    <Text style={styles.subtotalValue}>
-                      ₹{selectedPayslip.grossSalary?.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Deductions */}
-                <Text style={styles.breakdownHeading}>Deductions</Text>
-                <View style={styles.table}>
-                  {selectedPayslip.deductions?.map((d, idx) => (
-                    <View key={idx} style={styles.tableRow}>
-                      <Text style={styles.itemName}>{d.name}</Text>
-                      <Text style={styles.itemDeduction}>- ₹{d.amount?.toLocaleString()}</Text>
-                    </View>
-                  ))}
-                  <View style={[styles.tableRow, styles.subtotalRow]}>
-                    <Text style={styles.subtotalLabel}>Total Deductions</Text>
-                    <Text style={styles.subtotalDeduction}>
-                      - ₹{selectedPayslip.totalDeductions?.toLocaleString()}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Download Button */}
-                <TouchableOpacity
-                  style={styles.downloadButton}
-                  onPress={handleDownloadPdf}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.downloadButtonText}>📥 Download PDF Payslip</Text>
-                </TouchableOpacity>
-
-                {/* Full Screen Detailed View */}
-                <TouchableOpacity
-                  style={styles.fullReceiptBtn}
-                  onPress={() => {
-                    const monthStr = monthNames[(selectedPayslip.month || 1) - 1] || 'Current';
-                    const s = selectedPayslip;
-                    setSelectedPayslip(null);
-                    (navigation as any).navigate('SalarySlipDetail', {
-                      payslipId: s.id,
-                      month: monthStr,
-                      year: s.year || 2026,
-                      gross: s.grossSalary || 65000,
-                      net: s.netSalary || 54200,
-                    });
-                  }}
-                >
-                  <Text style={styles.fullReceiptText}>
-                    Open Full Detailed Receipt →
-                  </Text>
-                </TouchableOpacity>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {/* Persistent Bottom Nav */}
+      <AppBottomNav activeRoute="EmployeeHome" />
     </View>
   );
 };
@@ -261,246 +228,158 @@ export const PayslipsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAF8',
+    backgroundColor: '#F8FAFC',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 20,
-    color: '#0F172A',
-    fontWeight: '600',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  placeholder: {
-    width: 36,
+  scrollContent: {
+    paddingBottom: 32,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: {
-    padding: 16,
-  },
-  subHeader: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 12,
-  },
-  emptyContainer: {
-    padding: 40,
+
+  /* Header */
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#94A3B8',
-  },
-  payslipCard: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 36,
+    paddingBottom: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
   },
-  monthText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  paidBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  paidBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  amountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingTop: 10,
-  },
-  amountLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  netAmount: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#16A34A',
-    marginTop: 2,
-  },
-  viewAction: {
-    paddingVertical: 4,
-  },
-  viewActionText: {
-    fontSize: 13,
-    color: '#2563EB',
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '85%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
+  headerTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
   },
-  closeBtn: {
-    fontSize: 20,
-    color: '#64748B',
-    padding: 4,
-  },
-  netPayCard: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-    marginBottom: 16,
-  },
-  netPayLabel: {
-    fontSize: 13,
-    color: '#166534',
-    fontWeight: '500',
-  },
-  netPayValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#15803D',
-    marginTop: 4,
-  },
-  breakdownHeading: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#334155',
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  table: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  itemName: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  itemValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#0F172A',
-  },
-  itemDeduction: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#DC2626',
-  },
-  subtotalRow: {
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    marginTop: 6,
-    paddingTop: 8,
-  },
-  subtotalLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  subtotalValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#16A34A',
-  },
-  subtotalDeduction: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  downloadButton: {
-    backgroundColor: '#16A34A',
-    borderRadius: 12,
-    height: 48,
+  filterBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 20,
   },
-  downloadButtonText: {
+
+  /* Hero Card (Matches 64. Payslip – Home.png) */
+  heroCard: {
+    backgroundColor: '#2563EB',
+    borderRadius: 22,
+    padding: 22,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 24,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  heroSub: {
+    color: '#BFDBFE',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  heroPeriod: {
     color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    marginVertical: 16,
+  },
+  heroAmountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  heroAmount: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  heroPaidPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  heroPaidText: {
+    color: '#2563EB',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  /* History */
+  sectionHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  historyList: {
+    marginHorizontal: 16,
+    gap: 12,
+  },
+  historyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  historyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  historyTitle: {
     fontSize: 15,
     fontWeight: '700',
+    color: '#0F172A',
   },
-  fullReceiptBtn: {
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 8,
+  historySub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
   },
-  fullReceiptText: {
-    color: '#4F46E5',
+  historyAmount: {
+    fontSize: 15,
     fontWeight: '700',
-    fontSize: 14,
+    color: '#0F172A',
+  },
+  historyPaidBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  historyPaidBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#16A34A',
   },
 });

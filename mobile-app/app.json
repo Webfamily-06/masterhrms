@@ -10,10 +10,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.masterhrms.app",
+      "googleServicesFile": "./ios/MasterHRMS/GoogleService-Info.plist"
     },
     "android": {
-      "package": "com.masterhrms.app"
+      "package": "com.masterhrms.app",
+      "googleServicesFile": "./android/app/google-services.json"
     }
   }
 }

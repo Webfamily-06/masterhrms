@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, CreditCard, DollarSign } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useAuthStore } from '../../../store/authStore';
@@ -25,7 +27,7 @@ export const PaymentCardsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cards & Banking</Text>
         <TouchableOpacity
@@ -43,7 +45,7 @@ export const PaymentCardsScreen: React.FC = () => {
         <View style={styles.cardWidget}>
           <View style={styles.cardTopRow}>
             <Text style={styles.cardType}>MASTERHRMS CORPORATE</Text>
-            <Text style={styles.cardLogo}>💳</Text>
+            <CreditCard size={22} color="#FFFFFF" strokeWidth={2} />
           </View>
 
           {/* Chip */}
@@ -116,7 +118,7 @@ export const PaymentCardsScreen: React.FC = () => {
 
           <View style={styles.payoutItem}>
             <View style={styles.payoutIconBox}>
-              <Text style={styles.payoutIcon}>💰</Text>
+              <DollarSign size={18} color="#059669" strokeWidth={2.4} />
             </View>
             <View style={styles.payoutInfo}>
               <Text style={styles.payoutMonth}>October 2026 Salary</Text>
@@ -130,7 +132,7 @@ export const PaymentCardsScreen: React.FC = () => {
 
           <View style={styles.payoutItem}>
             <View style={styles.payoutIconBox}>
-              <Text style={styles.payoutIcon}>💰</Text>
+              <DollarSign size={18} color="#059669" strokeWidth={2.4} />
             </View>
             <View style={styles.payoutInfo}>
               <Text style={styles.payoutMonth}>September 2026 Salary</Text>
@@ -143,6 +145,9 @@ export const PaymentCardsScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="PaymentCards" />
     </View>
   );
 };

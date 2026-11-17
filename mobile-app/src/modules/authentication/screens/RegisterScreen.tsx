@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { User, Building2 } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
@@ -120,7 +121,7 @@ export const RegisterScreen: React.FC = () => {
           {/* Full Name */}
           <View style={styles.inputContainer}>
             <View style={styles.inputIconContainer}>
-              <Text style={styles.inputEmojiIcon}>👤</Text>
+              <User size={18} color="#64748B" strokeWidth={2} />
             </View>
             <TextInput
               style={styles.input}
@@ -158,7 +159,7 @@ export const RegisterScreen: React.FC = () => {
           {/* Company Name */}
           <View style={styles.inputContainer}>
             <View style={styles.inputIconContainer}>
-              <Text style={styles.inputEmojiIcon}>🏢</Text>
+              <Building2 size={18} color="#64748B" strokeWidth={2} />
             </View>
             <TextInput
               style={styles.input}

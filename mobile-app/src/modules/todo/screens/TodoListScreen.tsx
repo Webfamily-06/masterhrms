@@ -12,6 +12,16 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
 import {
+  Tag,
+  BarChart2,
+  Search,
+  Star,
+  Check,
+  Calendar,
+  CheckSquare,
+  MessageSquare,
+} from 'lucide-react-native';
+import {
   WorkspaceModuleShell,
   WorkspaceLoadingBlock,
   WorkspaceErrorBlock,
@@ -198,7 +208,10 @@ export const TodoListScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Manage task categories"
           >
-            <Text style={styles.catBtnText}>🏷️ Tags</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Tag size={12} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 4 }} />
+              <Text style={styles.catBtnText}>Tags</Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.ganttSwitchBtn}
@@ -206,7 +219,10 @@ export const TodoListScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Switch to Gantt timeline"
           >
-            <Text style={styles.catBtnText}>📊 Gantt</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <BarChart2 size={12} color="#FFFFFF" strokeWidth={2.2} style={{ marginRight: 4 }} />
+              <Text style={styles.catBtnText}>Gantt</Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.createBtn}
@@ -226,7 +242,7 @@ export const TodoListScreen: React.FC = () => {
           {/* Search + Starred + Sort Row */}
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
-              <Text style={styles.searchIcon}>🔍</Text>
+              <Search size={15} color="#94A3B8" strokeWidth={2.2} style={{ marginLeft: 8, marginRight: 6 }} />
               <TextInput
                 style={styles.searchInput}
                 placeholder="Search tasks, descriptions, assignees..."
@@ -242,7 +258,11 @@ export const TodoListScreen: React.FC = () => {
               accessibilityRole="button"
               accessibilityLabel="Filter starred tasks"
             >
-              <Text style={{ fontSize: 16 }}>{starredOnly ? '⭐' : '☆'}</Text>
+              <Star
+                size={16}
+                color={starredOnly ? '#F59E0B' : '#94A3B8'}
+                fill={starredOnly ? '#F59E0B' : 'transparent'}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -380,7 +400,6 @@ export const TodoListScreen: React.FC = () => {
           />
         ) : filteredTodos.length === 0 ? (
           <WorkspaceEmptyBlock
-            icon="📋"
             title="No Tasks Match Criteria"
             description="Adjust your search or filters, or create a new deliverable."
             actionLabel="Create Task"
@@ -419,7 +438,7 @@ export const TodoListScreen: React.FC = () => {
                       ]}
                       onPress={() => handleToggleComplete(item)}
                     >
-                      {item.completed && <Text style={styles.checkIcon}>✓</Text>}
+                      {item.completed && <Check size={14} color="#FFFFFF" strokeWidth={2.6} />}
                     </TouchableOpacity>
 
                     <Text
@@ -436,7 +455,11 @@ export const TodoListScreen: React.FC = () => {
                       onPress={() => handleToggleStar(item)}
                       style={{ paddingHorizontal: 4 }}
                     >
-                      <Text style={{ fontSize: 16 }}>{item.starred ? '⭐' : '☆'}</Text>
+                      <Star
+                        size={16}
+                        color={item.starred ? '#F59E0B' : '#94A3B8'}
+                        fill={item.starred ? '#F59E0B' : 'transparent'}
+                      />
                     </TouchableOpacity>
                   </View>
 
@@ -474,19 +497,28 @@ export const TodoListScreen: React.FC = () => {
                       </Text>
                     </View>
 
-                    <Text style={[styles.metaSmall, overdue && { color: '#DC2626' }]}>
-                      📅 {item.dueDate}
-                      {overdue ? ' (Overdue)' : ''}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Calendar size={11} color={overdue ? '#DC2626' : '#64748B'} strokeWidth={2} style={{ marginRight: 3 }} />
+                      <Text style={[styles.metaSmall, overdue && { color: '#DC2626' }]}>
+                        {item.dueDate}
+                        {overdue ? ' (Overdue)' : ''}
+                      </Text>
+                    </View>
 
                     {item.checklist.length > 0 && (
-                      <Text style={styles.metaSmall}>
-                        ☑️ {doneSubs}/{item.checklist.length}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <CheckSquare size={11} color="#64748B" strokeWidth={2} style={{ marginRight: 3 }} />
+                        <Text style={styles.metaSmall}>
+                          {doneSubs}/{item.checklist.length}
+                        </Text>
+                      </View>
                     )}
 
                     {item.comments.length > 0 && (
-                      <Text style={styles.metaSmall}>💬 {item.comments.length}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <MessageSquare size={11} color="#64748B" strokeWidth={2} style={{ marginRight: 3 }} />
+                        <Text style={styles.metaSmall}>{item.comments.length}</Text>
+                      </View>
                     )}
                   </View>
 

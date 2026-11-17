@@ -905,10 +905,9 @@ authRouter.post("/forgot-password", async (req, res) => {
     });
 
     if (!user) {
-      return res.json({
-        success: true,
-        message: "If an account exists with this email, a password reset link has been dispatched.",
-        maskedEmail: maskEmail(normalizedEmail),
+      return res.status(404).json({
+        error: "No account found with this email address. Please enter a valid registered work email or contact your administrator.",
+        code: "USER_NOT_FOUND",
       });
     }
 
@@ -957,25 +956,24 @@ authRouter.post("/forgot-password", async (req, res) => {
     const resetBasePath = isSuperPortal ? "/super06" : "/auth";
     const resetUrl = `${origin}${resetBasePath}?mode=reset&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
 
-    // Dispatch email loading PASSWORD_RESET template from /super/email-templates (CMS system-email-templates)
+    // Dispatch email loading PASSWORD_RESET template with OTP & reset link
     const emailResult = await sendPasswordResetEmail({
       toEmail: user.email,
       userName: user.profile?.fullName || user.email.split("@")[0],
       resetUrl,
+      otp,
       expiryMinutes,
       tenantId: user.profile?.tenantId ?? undefined,
       companyName: tenantName,
       scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
     });
 
-    console.log(`ðŸ”— [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
-    if (!emailResult.success) {
-      console.log(`ðŸ”‘ [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
-    }
+    console.log(`[PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
+    console.log(`[PASSWORD RESET CODE] OTP for ${user.email}: [${otp}]`);
 
     return res.json({
       success: true,
-      message: "Password reset link sent to your registered email.",
+      message: "6-digit verification code has been dispatched to your email.",
       maskedEmail: maskEmail(user.email),
       resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
       previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
@@ -985,6 +983,67 @@ authRouter.post("/forgot-password", async (req, res) => {
       return res.status(400).json({ error: err.errors[0].message });
     }
     return res.status(500).json({ error: err.message || "Failed to process forgot password request." });
+  }
+});
+
+const verifyResetOtpSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4).max(10),
+});
+
+// POST /api/auth/verify-reset-otp
+authRouter.post("/verify-reset-otp", async (req, res) => {
+  try {
+    const { email, code } = verifyResetOtpSchema.parse(req.body);
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: "No account found with this email address.",
+        code: "USER_NOT_FOUND",
+      });
+    }
+
+    const verification = await verifyOtpCode(user.id, code);
+    if (!verification.valid) {
+      return res.status(400).json({
+        error: verification.error || "Invalid or expired verification code. Please check and try again.",
+        code: "INVALID_OTP",
+      });
+    }
+
+    // Generate verified one-time reset token valid for 15 minutes
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const tokenId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    try {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+        tokenId,
+        user.id,
+        tokenHash,
+        expiresAt
+      );
+    } catch (err: any) {
+      console.error("Failed to insert verified reset token:", err);
+    }
+
+    return res.json({
+      success: true,
+      valid: true,
+      resetToken: rawToken,
+      message: "Verification code verified successfully. Please set your new password.",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: err.errors[0].message });
+    }
+    return res.status(500).json({ error: err.message || "Failed to verify reset code." });
   }
 });
 
@@ -1162,7 +1221,6 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
             department: { select: { id: true, name: true } },
           },
         },
-        employees: { select: { id: true, tenantId: true, status: true } },
         workspaceRoleAssignments: true,
       },
     });

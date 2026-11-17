@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
+import { WifiOff } from 'lucide-react-native';
 import { Text } from './Text';
 
 export const OfflineBanner: React.FC = () => {
@@ -32,7 +33,8 @@ export const OfflineBanner: React.FC = () => {
 
   return (
     <View style={styles.banner}>
-      <Text style={styles.text}>⚠️ Offline Mode — Showing cached records</Text>
+      <WifiOff size={14} color="#92400E" strokeWidth={2.2} style={styles.icon} />
+      <Text style={styles.text}>Offline Mode — Showing cached records</Text>
     </View>
   );
 };
@@ -44,6 +46,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F59E0B',
     paddingVertical: 6,
     paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
@@ -51,6 +54,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 9999,
+  },
+  icon: {
+    marginRight: 6,
   },
   text: {
     color: '#92400E',

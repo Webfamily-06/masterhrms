@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Lock } from 'lucide-react-native';
 import { Text } from '../common/Text';
 import { useAuthStore } from '../../store/authStore';
 import { useNavigation } from '@react-navigation/native';
@@ -49,7 +50,7 @@ export const AccessDeniedView: React.FC<AccessDeniedViewProps> = ({
         <Image source={logoSource} style={styles.logo} resizeMode="contain" />
 
         <View style={styles.iconCircle}>
-          <Text style={styles.iconText}>🔒</Text>
+          <Lock size={32} color="#DC2626" strokeWidth={2.2} />
         </View>
 
         <Text style={styles.title}>{title}</Text>

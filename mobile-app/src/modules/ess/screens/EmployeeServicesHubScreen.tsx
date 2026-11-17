@@ -5,7 +5,30 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import {
+  MessageSquare,
+  Calendar,
+  CheckSquare,
+  BarChart2,
+  MapPin,
+  CalendarDays,
+  Palmtree,
+  FileSignature,
+  FileText,
+  CreditCard,
+  Receipt,
+  DollarSign,
+  Users,
+  Target,
+  Folder,
+  Clock,
+  TrendingUp,
+  Settings,
+  ArrowLeft,
+  Bell,
+} from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -13,24 +36,24 @@ export const EmployeeServicesHubScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeServicesHub'>>();
 
   const services = [
-    { title: 'Chat & Messages', icon: '💬', route: 'ChatConversations' as const, desc: 'Direct messages & groups' },
-    { title: 'Company Calendar', icon: '🗓️', route: 'CalendarMain' as const, desc: 'Events, schedules & rooms' },
-    { title: 'Tasks & Todo', icon: '📋', route: 'TodoList' as const, desc: 'Checklists & action items' },
-    { title: 'Gantt Timeline', icon: '📊', route: 'GanttTimeline' as const, desc: 'Visual project scheduling' },
-    { title: 'Geofence Punch', icon: '📍', route: 'GeofenceMapPunch' as const, desc: 'GPS attendance check-in' },
-    { title: 'Leave Planner', icon: '📅', route: 'CalendarLeavePlanner' as const, desc: 'Interactive monthly calendar' },
-    { title: 'My Leaves', icon: '🏖️', route: 'LeaveDetail' as const, desc: 'Balances & history' },
-    { title: 'Apply Leave', icon: '✍️', route: 'ApplyLeave' as const, desc: 'Submit new time-off request' },
-    { title: 'Payslips', icon: '📄', route: 'Payslips' as const, desc: 'Salary statements & tax' },
-    { title: 'Banking & Cards', icon: '💳', route: 'PaymentCards' as const, desc: 'Corporate card & accounts' },
-    { title: 'Expense Claims', icon: '🧾', route: 'ExpenseClaims' as const, desc: 'Reimbursement requests' },
-    { title: 'Salary Advances', icon: '💰', route: 'SalaryAdvanceLoan' as const, desc: '0% company loans & EMI' },
-    { title: 'Team Directory', icon: '👥', route: 'EmployeeDirectory' as const, desc: 'Colleagues & departments' },
-    { title: 'Performance & OKRs', icon: '🎯', route: 'Performance' as const, desc: 'Goals & reviews' },
-    { title: 'Document Vault', icon: '📁', route: 'DocumentsVault' as const, desc: 'Policies, contracts & letters' },
-    { title: 'Shift Schedule', icon: '⏱️', route: 'ShiftSchedule' as const, desc: 'Work rosters & shift swap' },
-    { title: 'Timesheets', icon: '📈', route: 'Timesheet' as const, desc: 'Project work hours log' },
-    { title: 'App Settings', icon: '⚙️', route: 'Settings' as const, desc: 'Security & preferences' },
+    { title: 'Chat & Messages', icon: MessageSquare, color: '#4F46E5', route: 'ChatConversations' as const, desc: 'Direct messages & groups' },
+    { title: 'Company Calendar', icon: Calendar, color: '#D97706', route: 'CalendarMain' as const, desc: 'Events, schedules & rooms' },
+    { title: 'Tasks & Todo', icon: CheckSquare, color: '#059669', route: 'TodoList' as const, desc: 'Checklists & action items' },
+    { title: 'Gantt Timeline', icon: BarChart2, color: '#2563EB', route: 'GanttTimeline' as const, desc: 'Visual project scheduling' },
+    { title: 'Geofence Punch', icon: MapPin, color: '#4F46E5', route: 'GeofenceMapPunch' as const, desc: 'GPS attendance check-in' },
+    { title: 'Leave Planner', icon: CalendarDays, color: '#D97706', route: 'CalendarLeavePlanner' as const, desc: 'Interactive monthly calendar' },
+    { title: 'My Leaves', icon: Palmtree, color: '#059669', route: 'LeaveDetail' as const, desc: 'Balances & history' },
+    { title: 'Apply Leave', icon: FileSignature, color: '#2563EB', route: 'ApplyLeave' as const, desc: 'Submit new time-off request' },
+    { title: 'Payslips', icon: FileText, color: '#0D9488', route: 'Payslips' as const, desc: 'Salary statements & tax' },
+    { title: 'Banking & Cards', icon: CreditCard, color: '#2563EB', route: 'PaymentCards' as const, desc: 'Corporate card & accounts' },
+    { title: 'Expense Claims', icon: Receipt, color: '#059669', route: 'ExpenseClaims' as const, desc: 'Reimbursement requests' },
+    { title: 'Salary Advances', icon: DollarSign, color: '#DC2626', route: 'SalaryAdvanceLoan' as const, desc: '0% company loans & EMI' },
+    { title: 'Team Directory', icon: Users, color: '#6366F1', route: 'EmployeeDirectory' as const, desc: 'Colleagues & departments' },
+    { title: 'Performance & OKRs', icon: Target, color: '#EA580C', route: 'Performance' as const, desc: 'Goals & reviews' },
+    { title: 'Document Vault', icon: Folder, color: '#7C3AED', route: 'DocumentsVault' as const, desc: 'Policies, contracts & letters' },
+    { title: 'Shift Schedule', icon: Clock, color: '#D97706', route: 'ShiftSchedule' as const, desc: 'Work rosters & shift swap' },
+    { title: 'Timesheets', icon: TrendingUp, color: '#0284C7', route: 'Timesheet' as const, desc: 'Project work hours log' },
+    { title: 'App Settings', icon: Settings, color: '#475569', route: 'Settings' as const, desc: 'Security & preferences' },
   ];
 
   return (
@@ -43,7 +66,7 @@ export const EmployeeServicesHubScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Employee Services</Text>
         <TouchableOpacity
@@ -52,7 +75,7 @@ export const EmployeeServicesHubScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="View notifications"
         >
-          <Text style={styles.bellBtnText}>🔔</Text>
+          <Bell size={18} color="#FFFFFF" strokeWidth={2.2} />
         </TouchableOpacity>
       </View>
 
@@ -60,23 +83,30 @@ export const EmployeeServicesHubScreen: React.FC = () => {
         <Text style={styles.sectionSubtitle}>Select a service to get started</Text>
 
         <View style={styles.servicesGrid}>
-          {services.map((item, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={styles.serviceCard}
-              onPress={() => navigation.navigate(item.route)}
-              accessibilityRole="button"
-              accessibilityLabel={item.title}
-            >
-              <View style={styles.iconCircle}>
-                <Text style={styles.serviceIcon}>{item.icon}</Text>
-              </View>
-              <Text style={styles.serviceTitle}>{item.title}</Text>
-              <Text style={styles.serviceDesc}>{item.desc}</Text>
-            </TouchableOpacity>
-          ))}
+          {services.map((item, idx) => {
+            const IconComp = item.icon;
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={styles.serviceCard}
+                onPress={() => navigation.navigate(item.route)}
+                accessibilityRole="button"
+                accessibilityLabel={item.title}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: `${item.color}15` }]}>
+                  <IconComp size={22} color={item.color} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.serviceTitle}>{item.title}</Text>
+                <Text style={styles.serviceDesc}>{item.desc}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="EmployeeServicesHub" />
     </View>
   );
 };
@@ -84,84 +114,75 @@ export const EmployeeServicesHubScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F8FAF8',
   },
   header: {
-    backgroundColor: '#1E1B4B',
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 48,
+    paddingBottom: 16,
+    backgroundColor: '#1E1B4B',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backBtnText: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
   },
   headerTitle: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
   bellBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  bellBtnText: {
-    fontSize: 18,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
   sectionSubtitle: {
     fontSize: 13,
     color: '#64748B',
     marginBottom: 16,
-    paddingHorizontal: 4,
   },
   servicesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   serviceCard: {
     width: '48%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
+    borderRadius: 14,
+    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  serviceIcon: {
-    fontSize: 24,
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   serviceTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 4,

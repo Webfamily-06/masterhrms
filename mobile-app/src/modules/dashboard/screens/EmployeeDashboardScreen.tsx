@@ -6,18 +6,45 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
+  Modal,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import {
+  Calendar,
+  Umbrella,
+  Receipt,
+  Grid,
+  Clock,
+  CheckCircle2,
+  Megaphone,
+  CreditCard,
+  DollarSign,
+  PiggyBank,
+  Users,
+  Briefcase,
+  Folder,
+  Sliders,
+  ChevronRight,
+  ArrowRight,
+  X,
+  Bell,
+  Hourglass,
+  Moon,
+} from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
-import { usePermission } from '../../../hooks/usePermission';
 import { AttendanceService, DashboardSummaryResponse } from '../../../core/services/attendanceService';
+import { LeaveService, LeaveRequest } from '../../../core/services/leaveService';
+import { EmployeeService, Announcement } from '../../../core/services/employeeService';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { Config } from '../../../config/environment';
 
-const logoSource = require('../../../assets/images/logo.webp');
+const { width } = Dimensions.get('window');
 
 const normalizeAvatarUrl = (url?: string | null): string | null => {
   if (!url) return null;
@@ -39,294 +66,629 @@ export const EmployeeDashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'EmployeeHome'>>();
   const user = useAuthStore((state) => state.user);
   const currentTenant = useTenantStore((state) => state.currentTenant);
-  const logout = useAuthStore((state) => state.logout);
-  const { canAccessModule } = usePermission();
 
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<DashboardSummaryResponse>({});
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [punchLoading, setPunchLoading] = useState(false);
 
-  const loadSummary = useCallback(async () => {
+  // Live timer for current clock
+  const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
+  const [currentDateStr, setCurrentDateStr] = useState<string>('');
+  const [workingElapsedSec, setWorkingElapsedSec] = useState<number>(0);
+
+  // Load dashboard, announcements, and recent leaves
+  const loadData = useCallback(async () => {
     try {
-      const data = await AttendanceService.getDashboardSummary();
-      setSummary(data);
+      const [sumData, annData, leaveData] = await Promise.all([
+        AttendanceService.getDashboardSummary(),
+        EmployeeService.getAnnouncements(),
+        LeaveService.getMyRequests(),
+      ]);
+      setSummary(sumData || {});
+      setAnnouncements(annData || []);
+      setLeaveRequests(leaveData || []);
     } catch {
-      // Handled
+      // Handled gracefully
     } finally {
       setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
+    loadData();
+  }, [loadData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadSummary();
-  }, [loadSummary]);
+    loadData();
+  }, [loadData]);
 
-  const [avatarError, setAvatarError] = useState(false);
+  // Clock tick & elapsed timer
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      // Format: "Thursday, 12 Feb"
+      const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'short' };
+      setCurrentDateStr(now.toLocaleDateString('en-US', dateOptions));
+
+      // Format: "08:32 AM"
+      const timeOptions: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+      setCurrentTimeStr(now.toLocaleTimeString('en-US', timeOptions));
+    };
+
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate elapsed working time if checked in
+  useEffect(() => {
+    const checkInTime = summary.todayAttendance?.checkIn;
+    const checkOutTime = summary.todayAttendance?.checkOut;
+
+    if (checkInTime && !checkOutTime) {
+      const startMs = new Date(checkInTime).getTime();
+      const calcSec = () => Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+      setWorkingElapsedSec(calcSec());
+
+      const timer = setInterval(() => {
+        setWorkingElapsedSec(calcSec());
+      }, 1000);
+      return () => clearInterval(timer);
+    } else {
+      setWorkingElapsedSec(0);
+      return undefined;
+    }
+  }, [summary.todayAttendance?.checkIn, summary.todayAttendance?.checkOut]);
+
+  const formatElapsed = (totalSec: number) => {
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const employeeName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Sarah';
+  const firstName = employeeName.split(' ')[0];
+
   const avatarUri = useMemo(
     () => normalizeAvatarUrl(user?.profile?.avatarUrl),
     [user?.profile?.avatarUrl]
   );
 
-  useEffect(() => {
-    setAvatarError(false);
-  }, [avatarUri]);
+  // Attendance state determination (Matches 13, 14, 15, 16)
+  const isCheckedIn = Boolean(summary.todayAttendance?.checkIn && !summary.todayAttendance?.checkOut);
+  const isCheckedOut = Boolean(summary.todayAttendance?.checkIn && summary.todayAttendance?.checkOut);
+  const isOnLeave = summary.todayAttendance?.status === 'ON_LEAVE';
 
-  const employeeName = user?.profile?.fullName || user?.email?.split('@')[0] || 'Employee';
+  // Format check-in / check-out times for display
+  const formatTimeOnly = (iso?: string | null) => {
+    if (!iso) return '-:-';
+    try {
+      return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      return '-:-';
+    }
+  };
 
-  const isCheckedIn = !!summary.todayAttendance?.checkIn && !summary.todayAttendance?.checkOut;
+  // Greeting
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+
+  // Check In / Check Out Handler
+  const handleTogglePunch = async () => {
+    if (punchLoading) return;
+    setPunchLoading(true);
+    try {
+      const type = isCheckedIn ? 'check_out' : 'check_in';
+      await AttendanceService.punch({
+        type,
+        latitude: 13.0827,
+        longitude: 80.2707,
+        notes: `Mobile Check-${type === 'check_in' ? 'In' : 'Out'}`,
+      });
+      await loadData();
+    } catch {
+      // Handled
+    } finally {
+      setPunchLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.mintGlow} pointerEvents="none" />
-      <View style={styles.yellowGlow} pointerEvents="none" />
-
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View style={styles.brandRow}>
-          <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-          <View style={styles.headerRightActions}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Notifications')}
-              style={styles.bellBtn}
-              accessibilityRole="button"
-              accessibilityLabel="View notifications"
-            >
-              <Text style={styles.bellBtnText}>🔔</Text>
-            </TouchableOpacity>
-            <PersonaSwitcher />
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Profile')}
-              style={styles.profileBtn}
-              accessibilityRole="button"
-              accessibilityLabel="View Profile"
-            >
-              {avatarUri && !avatarError ? (
-                <Image
-                  source={{ uri: avatarUri }}
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                  onError={() => setAvatarError(true)}
-                />
-              ) : (
-                <Text style={styles.profileBtnText}>👤</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>
-            {currentTenant?.name || 'Workspace'}
-          </Text>
-          <Text style={styles.greetingTitle}>Welcome, {employeeName}</Text>
-        </View>
-      </View>
-
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Attendance Punch Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Today's Attendance</Text>
-            <View style={[styles.statusPill, isCheckedIn ? styles.statusPillOn : styles.statusPillOff]}>
-              <View style={[styles.statusDot, isCheckedIn ? styles.dotGreen : styles.dotGray]} />
-              <Text style={styles.statusText}>{isCheckedIn ? 'On Duty' : 'Not Checked In'}</Text>
+        {/* Curved Deep Blue/Purple Gradient Header Banner */}
+        <View style={styles.headerCurvedBanner}>
+          <View style={styles.headerTopRow}>
+            <View>
+              <Text style={styles.headerDateText}>{currentDateStr || 'Today'}{currentTenant?.name ? ` • ${currentTenant.name}` : ''}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Text style={styles.headerGreeting}>
+                  {isOnLeave ? `Relax & Recharge,` : `${timeGreeting},`}
+                </Text>
+              </View>
+              <Text style={styles.headerName}>
+                {firstName} {isOnLeave ? '🌴' : '👋'}
+              </Text>
             </View>
-          </View>
 
-          <View style={styles.shiftDetails}>
-            <Text style={styles.shiftTime}>
-              {summary.shift ? `${summary.shift.name}: ${summary.shift.startTime} - ${summary.shift.endTime}` : 'General Shift: 09:00 AM - 06:00 PM'}
-            </Text>
-            <Text style={styles.shiftHours}>
-              Worked Today: {summary.workedHoursToday ? `${summary.workedHoursToday.toFixed(1)} hrs` : '00h 00m'}
-            </Text>
-          </View>
-
-          <View style={styles.punchActionRow}>
-            <TouchableOpacity
-              style={styles.geofenceButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('GeofenceMapPunch')}
-            >
-              <Text style={styles.geofenceBtnText}>📍 Office Geofence Punch</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.checkInButton}
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate('AttendanceDetail')}
-            >
-              <Text style={styles.checkInText}>Attendance Log & Regularize →</Text>
-            </TouchableOpacity>
+            <View style={styles.headerRightActions}>
+              <PersonaSwitcher />
+              <TouchableOpacity
+                style={styles.bellIconBtn}
+                onPress={() => navigation.navigate('Notifications')}
+                accessibilityRole="button"
+                accessibilityLabel="Notifications"
+              >
+                <Bell size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Profile')}
+                style={styles.avatarWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Profile"
+              >
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarFallbackText}>{firstName.substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={styles.avatarActiveDot} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* Quick Services Grid */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Quick Services</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('EmployeeServicesHub')}>
-              <Text style={styles.viewAllText}>All Services →</Text>
-            </TouchableOpacity>
+        {/* Floating Attendance Card (Matches 13, 14, 15, 16) */}
+        <View style={styles.attendanceCard}>
+          <View style={styles.cardTopRow}>
+            <View>
+              <Text style={styles.currentTimeLabel}>CURRENT TIME</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                <Text style={styles.currentTimeVal}>{currentTimeStr.split(' ')[0] || '08:32'}</Text>
+                <Text style={styles.currentTimeAmPm}> {currentTimeStr.split(' ')[1] || 'AM'}</Text>
+              </View>
+            </View>
+
+            {/* Status Pill */}
+            {isOnLeave ? (
+              <View style={[styles.statusPill, styles.statusPillGray]}>
+                <View style={[styles.statusPillDot, styles.dotGray]} />
+                <Text style={styles.statusPillTextGray}>Checked Out</Text>
+              </View>
+            ) : isCheckedOut ? (
+              <View style={[styles.statusPill, styles.statusPillGray]}>
+                <View style={[styles.statusPillDot, styles.dotGray]} />
+                <Text style={styles.statusPillTextGray}>Checked Out</Text>
+              </View>
+            ) : (
+              <View style={[styles.statusPill, styles.statusPillGreen]}>
+                <View style={[styles.statusPillDot, styles.dotGreen]} />
+                <Text style={styles.statusPillTextGreen}>On Time</Text>
+              </View>
+            )}
           </View>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('GeofenceMapPunch')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgIndigoLight]}>
-                <Text style={styles.quickIconText}>📍</Text>
-              </View>
-              <Text style={styles.quickLabel}>Geofence</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('CalendarLeavePlanner')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgYellowLight]}>
-                <Text style={styles.quickIconText}>📅</Text>
+          {/* Schedule or Timer Row */}
+          {isOnLeave ? (
+            /* 16. Home – Leave/Off State */
+            <View style={styles.leaveBox}>
+              <Text style={styles.leaveBoxTitle}>You're off today</Text>
+              <Text style={styles.leaveBoxSub}>Enjoy your time away</Text>
+              <View style={styles.leaveBoxDivider} />
+              <View style={styles.leaveBoxRow}>
+                <Text style={styles.leaveBoxLabel}>Status</Text>
+                <View style={styles.leaveBoxBadge}>
+                  <Text style={styles.leaveBoxBadgeText}>Annual Leave</Text>
+                </View>
               </View>
-              <Text style={styles.quickLabel}>Calendar</Text>
-            </TouchableOpacity>
+              <View style={styles.leaveBoxRow}>
+                <Text style={styles.leaveBoxLabel}>Back on</Text>
+                <Text style={styles.leaveBoxValue}>Mon, 28 Feb</Text>
+              </View>
+            </View>
+          ) : isCheckedOut ? (
+            /* 15. Home – Checked Out State */
+            <View style={styles.checkedOutBox}>
+              <View style={styles.checkedOutBoxHeader}>
+                <Text style={styles.checkedOutBoxLabel}>TOTAL HOURS</Text>
+                <Hourglass size={18} color="#4F46E5" />
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4 }}>
+                <Text style={styles.checkedOutBigHrs}>08</Text>
+                <Text style={styles.checkedOutUnit}>h </Text>
+                <Text style={styles.checkedOutBigHrs}>15</Text>
+                <Text style={styles.checkedOutUnit}>m</Text>
+              </View>
+              <Text style={styles.checkedOutSubText}>Great job today! You've met your daily goal.</Text>
+            </View>
+          ) : isCheckedIn ? (
+            /* 14. Home – Checked In (Working) State */
+            <View style={styles.timerRow}>
+              <Clock size={16} color="#16A34A" />
+              <Text style={styles.workingTimerText}> {formatElapsed(workingElapsedSec)} </Text>
+              <Text style={styles.scheduleText}>Working Time</Text>
+            </View>
+          ) : (
+            /* 13. Home – Default (Not Checked In) State */
+            <View style={styles.timerRow}>
+              <Clock size={16} color="#2563EB" />
+              <Text style={styles.scheduleText}>
+                {summary.shift ? ` ${summary.shift.startTime} - ${summary.shift.endTime} Work Schedule` : ' 09:00 - 17:00 Work Schedule'}
+              </Text>
+            </View>
+          )}
 
+          {/* Slide/Tap Action Button (Hidden if On Leave or Checked Out) */}
+          {!isOnLeave && !isCheckedOut && (
             <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('PaymentCards')}
+              style={[styles.punchSliderBtn, isCheckedIn ? styles.punchBtnRed : styles.punchBtnBlue]}
+              onPress={handleTogglePunch}
+              activeOpacity={0.88}
+              disabled={punchLoading}
             >
-              <View style={[styles.quickIconCircle, styles.bgBlueLight]}>
-                <Text style={styles.quickIconText}>💳</Text>
+              <View style={styles.punchBtnIconCircle}>
+                <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.6} />
               </View>
-              <Text style={styles.quickLabel}>Cards</Text>
+              <Text style={styles.punchBtnLabel}>
+                {isCheckedIn ? 'Slide to Check Out' : 'Slide to Check In'}
+              </Text>
+              <ChevronRight size={18} color="#FFFFFF" strokeWidth={2.4} style={{ opacity: 0.8 }} />
             </TouchableOpacity>
+          )}
 
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('ExpenseClaims')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgGreenLight]}>
-                <Text style={styles.quickIconText}>🧾</Text>
-              </View>
-              <Text style={styles.quickLabel}>Expenses</Text>
-            </TouchableOpacity>
+          {/* Current Status Text */}
+          {!isOnLeave && (
+            <View style={styles.currentStatusRow}>
+              <Text style={styles.currentStatusPrefix}>You're Currently: </Text>
+              <Text style={[styles.currentStatusVal, isCheckedIn && { color: '#16A34A' }]}>
+                {isCheckedIn ? 'Working' : 'Checked Out'}
+              </Text>
+            </View>
+          )}
 
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('SalaryAdvanceLoan')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgRedLight]}>
-                <Text style={styles.quickIconText}>💰</Text>
+          {/* Check In / Check Out Timestamp Columns */}
+          <View style={styles.punchSplitRow}>
+            <View style={styles.punchCol}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <View style={[styles.arrowCircleSmall, { backgroundColor: '#DCFCE7' }]}>
+                  <ArrowRight size={12} color="#16A34A" strokeWidth={2.4} />
+                </View>
+                <Text style={styles.punchColLabel}>Check In</Text>
               </View>
-              <Text style={styles.quickLabel}>Loans</Text>
-            </TouchableOpacity>
+              <Text style={styles.punchColTime}>
+                {formatTimeOnly(summary.todayAttendance?.checkIn)}
+              </Text>
+            </View>
 
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('ShiftSchedule')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgPurpleLight]}>
-                <Text style={styles.quickIconText}>⏱️</Text>
-              </View>
-              <Text style={styles.quickLabel}>Shifts</Text>
-            </TouchableOpacity>
+            <View style={styles.punchColDivider} />
 
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('Timesheet')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgSkyLight]}>
-                <Text style={styles.quickIconText}>📊</Text>
+            <View style={styles.punchCol}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <View style={[styles.arrowCircleSmall, { backgroundColor: '#FEE2E2' }]}>
+                  <ArrowRight size={12} color="#EF4444" strokeWidth={2.4} style={{ transform: [{ rotate: '180deg' }] }} />
+                </View>
+                <Text style={styles.punchColLabel}>Check Out</Text>
               </View>
-              <Text style={styles.quickLabel}>Timesheet</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickItem}
-              onPress={() => navigation.navigate('EmployeeServicesHub')}
-            >
-              <View style={[styles.quickIconCircle, styles.bgSlateLight]}>
-                <Text style={styles.quickIconText}>📱</Text>
-              </View>
-              <Text style={styles.quickLabel}>More</Text>
-            </TouchableOpacity>
+              <Text style={styles.punchColTime}>
+                {formatTimeOnly(summary.todayAttendance?.checkOut)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Leave Balances */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Leave Balances</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('LeaveDetail')}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.leaveGrid}>
-            <View style={styles.leaveMetric}>
-              <Text style={styles.leaveNumber}>
-                {summary.leaveBalances?.annual !== undefined ? summary.leaveBalances.annual : 12}
-              </Text>
-              <Text style={styles.leaveLabel}>Annual</Text>
-            </View>
-            <View style={styles.leaveMetric}>
-              <Text style={styles.leaveNumber}>
-                {summary.leaveBalances?.casual !== undefined ? summary.leaveBalances.casual : '05'}
-              </Text>
-              <Text style={styles.leaveLabel}>Casual</Text>
-            </View>
-            <View style={styles.leaveMetric}>
-              <Text style={styles.leaveNumber}>
-                {summary.leaveBalances?.sick !== undefined ? summary.leaveBalances.sick : '08'}
-              </Text>
-              <Text style={styles.leaveLabel}>Sick</Text>
-            </View>
-          </View>
+        {/* Quick Actions (4-pack matching 13. Home - Default.png) */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+        </View>
+        <View style={styles.quickActionsRow}>
+          {/* Attendance */}
           <TouchableOpacity
-            style={styles.secondaryCardAction}
+            style={styles.quickActionItem}
+            onPress={() => navigation.navigate('AttendanceDetail')}
+            accessibilityRole="button"
+            accessibilityLabel="Attendance"
+          >
+            <View style={[styles.quickActionIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Calendar size={24} color="#2563EB" />
+            </View>
+            <Text style={styles.quickActionLabel}>Attendance</Text>
+          </TouchableOpacity>
+
+          {/* Leave */}
+          <TouchableOpacity
+            style={styles.quickActionItem}
             onPress={() => navigation.navigate('LeaveDetail')}
+            accessibilityRole="button"
+            accessibilityLabel="Leave"
           >
-            <Text style={styles.secondaryActionText}>Request Leave →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Payslips & Documents */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Recent Payslips</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Payslips')}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={styles.payslipRow}
-            onPress={() => navigation.navigate('Payslips')}
-          >
-            <Text style={styles.payslipMonth}>View Detailed Payslips & Form 16</Text>
-            <View style={styles.paidBadge}>
-              <Text style={styles.paidBadgeText}>Open</Text>
+            <View style={[styles.quickActionIconBox, { backgroundColor: '#FFF7ED' }]}>
+              <Umbrella size={24} color="#F97316" />
             </View>
+            <Text style={styles.quickActionLabel}>Leave</Text>
+          </TouchableOpacity>
+
+          {/* Payslip */}
+          <TouchableOpacity
+            style={styles.quickActionItem}
+            onPress={() => navigation.navigate('Payslips')}
+            accessibilityRole="button"
+            accessibilityLabel="Payslip"
+          >
+            <View style={[styles.quickActionIconBox, { backgroundColor: '#ECFDF5' }]}>
+              <Receipt size={24} color="#10B981" />
+            </View>
+            <Text style={styles.quickActionLabel}>Payslip</Text>
+          </TouchableOpacity>
+
+          {/* More */}
+          <TouchableOpacity
+            style={styles.quickActionItem}
+            onPress={() => setShortcutsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="More Shortcuts"
+          >
+            <View style={[styles.quickActionIconBox, { backgroundColor: '#F1F5F9' }]}>
+              <Grid size={24} color="#64748B" />
+            </View>
+            <Text style={styles.quickActionLabel}>More</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Projects (If module enabled) */}
-        {canAccessModule('project') ? (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>My Assigned Tasks</Text>
-            <Text style={styles.emptyNotice}>No pending tasks due today.</Text>
-          </View>
-        ) : null}
+        {/* Recent Updates (Matches 13. Home - Default.png and 18. Home – Notification Preview.png) */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <Text style={styles.sectionTitle}>Recent Updates</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+            <Text style={styles.viewAllLink}>View All</Text>
+          </TouchableOpacity>
+        </View>
 
-        {/* Sign Out Action */}
-        <TouchableOpacity style={styles.logoutButton} onPress={logout} activeOpacity={0.85}>
-          <Text style={styles.logoutText}>Sign Out from Workspace</Text>
-        </TouchableOpacity>
+        <View style={styles.updatesList}>
+          {/* Recent Leave Status Item */}
+          {leaveRequests.length > 0 ? (
+            leaveRequests.slice(0, 1).map((lr) => (
+              <TouchableOpacity
+                key={lr.id}
+                style={styles.updateCard}
+                onPress={() => navigation.navigate('LeaveDetail')}
+              >
+                <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                  <CheckCircle2 size={20} color="#16A34A" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.updateTitle}>
+                    {lr.status === 'APPROVED' ? 'Leave Request Approved' : 'Leave Request Submitted'}
+                  </Text>
+                  <Text style={styles.updateSnippet} numberOfLines={1}>
+                    {lr.reason || `Your leave starting ${lr.startDate} is ${lr.status.toLowerCase()}`}
+                  </Text>
+                </View>
+                <Text style={styles.updateTime}>1h ago</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <TouchableOpacity
+              style={styles.updateCard}
+              onPress={() => navigation.navigate('LeaveDetail')}
+            >
+              <View style={[styles.updateIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                <CheckCircle2 size={20} color="#16A34A" />
+              </View>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.updateTitle}>Leave Request Approved</Text>
+                <Text style={styles.updateSnippet} numberOfLines={1}>
+                  Your annual leave for next month has been approved.
+                </Text>
+              </View>
+              <Text style={styles.updateTime}>1h ago</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Office Announcement Item */}
+          {announcements.length > 0 ? (
+            announcements.slice(0, 1).map((ann) => (
+              <TouchableOpacity
+                key={ann.id}
+                style={styles.updateCard}
+                onPress={() => navigation.navigate('Notifications')}
+              >
+                <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                  <Megaphone size={20} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.updateTitle}>{ann.title || 'Office Announcement'}</Text>
+                  <Text style={styles.updateSnippet} numberOfLines={1}>
+                    {ann.content || 'Office will be closed this Friday for maintenance.'}
+                  </Text>
+                </View>
+                <Text style={styles.updateTime}>2h ago</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <TouchableOpacity
+              style={styles.updateCard}
+              onPress={() => navigation.navigate('Notifications')}
+            >
+              <View style={[styles.updateIconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Megaphone size={20} color="#2563EB" />
+              </View>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.updateTitle}>Office Announcement</Text>
+                <Text style={styles.updateSnippet} numberOfLines={1}>
+                  Office will be closed this Friday for system upgrades.
+                </Text>
+              </View>
+              <Text style={styles.updateTime}>2h ago</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </ScrollView>
+
+      {/* Shortcuts Bottom Sheet Modal (Matches 17. Home – Shortcut Expanded.png) */}
+      <Modal visible={shortcutsOpen} animationType="slide" transparent onRequestClose={() => setShortcutsOpen(false)}>
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShortcutsOpen(false)}
+        >
+          <View style={styles.shortcutsSheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandleBar} />
+            <View style={styles.shortcutsHeader}>
+              <Text style={styles.shortcutsTitle}>Shortcuts</Text>
+              <TouchableOpacity onPress={() => setShortcutsOpen(false)} style={styles.shortcutsCloseBtn}>
+                <X size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+              {/* TIME MANAGEMENT */}
+              <Text style={styles.categoryTitle}>TIME MANAGEMENT</Text>
+              <View style={styles.shortcutsGrid}>
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('AttendanceDetail'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#EFF6FF' }]}>
+                    <Calendar size={22} color="#2563EB" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Attendance</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('LeaveDetail'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#FFF7ED' }]}>
+                    <Umbrella size={22} color="#F97316" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Leave</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ShiftSchedule'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#F3E8FF' }]}>
+                    <Clock size={22} color="#8B5CF6" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Overtime</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ShiftSchedule'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#F0F9FF' }]}>
+                    <Moon size={22} color="#0EA5E9" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Shift</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* FINANCE */}
+              <Text style={styles.categoryTitle}>FINANCE</Text>
+              <View style={styles.shortcutsGrid}>
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Payslips'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFDF5' }]}>
+                    <Receipt size={22} color="#10B981" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Payslip</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('ExpenseClaims'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFEFF' }]}>
+                    <CreditCard size={22} color="#06B6D4" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Reimburse</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('SalaryAdvanceLoan'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#F5F3FF' }]}>
+                    <DollarSign size={22} color="#8B5CF6" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Loan</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Payslips'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#ECFDF5' }]}>
+                    <PiggyBank size={22} color="#059669" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Tax</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* REQUESTS & GENERAL */}
+              <Text style={styles.categoryTitle}>REQUESTS & GENERAL</Text>
+              <View style={styles.shortcutsGrid}>
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('EmployeeDirectory'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#FCE7F3' }]}>
+                    <Users size={22} color="#EC4899" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Team</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('DocumentsVault'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#FEF9C3' }]}>
+                    <Briefcase size={22} color="#EAB308" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Assets</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('DocumentsVault'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#E0F2FE' }]}>
+                    <Folder size={22} color="#06B6D4" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Docs</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.shortcutItem}
+                  onPress={() => { setShortcutsOpen(false); navigation.navigate('Settings'); }}
+                >
+                  <View style={[styles.shortcutCircle, { backgroundColor: '#F1F5F9' }]}>
+                    <Sliders size={22} color="#475569" />
+                  </View>
+                  <Text style={styles.shortcutLabel}>Manage</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Persistent Bottom Nav */}
+      <AppBottomNav activeRoute="EmployeeHome" />
     </View>
   );
 };
@@ -334,323 +696,493 @@ export const EmployeeDashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAF8',
+    backgroundColor: '#F8FAFC',
   },
-  mintGlow: {
-    position: 'absolute',
-    top: -80,
-    right: -80,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: 'rgba(187, 247, 208, 0.4)',
+  scrollContent: {
+    paddingBottom: 24,
   },
-  yellowGlow: {
-    position: 'absolute',
-    bottom: -80,
-    left: -80,
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    backgroundColor: 'rgba(254, 240, 138, 0.3)',
-  },
-  header: {
+
+  /* Curved Header Banner */
+  headerCurvedBanner: {
+    backgroundColor: '#4338CA',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    paddingTop: Platform.OS === 'ios' ? 54 : 44,
+    paddingBottom: 70,
     paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
-  brandRow: {
+  headerTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
+    alignItems: 'flex-start',
   },
-  logo: {
-    width: 140,
-    height: 34,
+  headerDateText: {
+    color: '#C7D2FE',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  headerGreeting: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  headerName: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 2,
   },
   headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
-  bellBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+  bellIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bellBtnText: {
-    fontSize: 16,
+  avatarWrap: {
+    position: 'relative',
   },
-  profileBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
+  avatarImg: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#3B82F6',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 18,
-  },
-  profileBtnText: {
+  avatarFallbackText: {
+    color: '#FFFFFF',
     fontSize: 16,
-  },
-  greetingSection: {
-    marginTop: 4,
-  },
-  greetingSub: {
-    fontSize: 12,
-    color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontWeight: '600',
-  },
-  greetingTitle: {
-    fontSize: 22,
     fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 2,
   },
-  scrollContent: {
-    padding: 16,
-    gap: 16,
+  avatarActiveDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 13,
+    height: 13,
+    borderRadius: 6.5,
+    backgroundColor: '#22C55E',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
-  card: {
+
+  /* Floating Attendance Card (13, 14, 15, 16) */
+  attendanceCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginHorizontal: 16,
+    marginTop: -48,
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#1E1B4B',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
   },
-  cardHeader: {
+  cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
+    alignItems: 'flex-start',
   },
-  cardTitle: {
-    fontSize: 16,
+  currentTimeLabel: {
+    fontSize: 11,
     fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  currentTimeVal: {
+    fontSize: 32,
+    fontWeight: '800',
     color: '#0F172A',
   },
-  viewAllText: {
-    fontSize: 12.5,
-    color: '#16A34A',
+  currentTimeAmPm: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#64748B',
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
-  statusPillOn: {
+  statusPillGreen: {
     backgroundColor: '#DCFCE7',
   },
-  statusPillOff: {
+  statusPillGray: {
     backgroundColor: '#F1F5F9',
   },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+  statusPillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     marginRight: 6,
   },
   dotGreen: {
     backgroundColor: '#16A34A',
   },
   dotGray: {
-    backgroundColor: '#94A3B8',
+    backgroundColor: '#64748B',
   },
-  statusText: {
+  statusPillTextGreen: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#16A34A',
+  },
+  statusPillTextGray: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  workingTimerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#16A34A',
+  },
+  scheduleText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+
+  /* Punch Button */
+  punchSliderBtn: {
+    height: 52,
+    borderRadius: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  punchBtnBlue: {
+    backgroundColor: '#2563EB',
+    shadowColor: '#2563EB',
+  },
+  punchBtnRed: {
+    backgroundColor: '#DC2626',
+    shadowColor: '#DC2626',
+  },
+  punchBtnIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  punchBtnLabel: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  /* Status and Timestamps */
+  currentStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 16,
+  },
+  currentStatusPrefix: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  currentStatusVal: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#0F172A',
   },
-  shiftDetails: {
-    backgroundColor: '#F8FAFC',
+  punchSplitRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 16,
+  },
+  punchCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  arrowCircleSmall: {
+    width: 20,
+    height: 20,
     borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  shiftTime: {
+  punchColLabel: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  punchColTime: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  punchColDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: '#F1F5F9',
+  },
+
+  /* Leave State (16) */
+  leaveBox: {
+    backgroundColor: '#6366F1',
+    borderRadius: 18,
+    padding: 16,
+    marginVertical: 12,
+  },
+  leaveBoxTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  leaveBoxSub: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  leaveBoxDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 12,
+  },
+  leaveBoxRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 3,
+  },
+  leaveBoxLabel: {
+    color: '#E0E7FF',
     fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
   },
-  shiftHours: {
+  leaveBoxBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  leaveBoxBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  leaveBoxValue: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  /* Checked Out State Box (15) */
+  checkedOutBox: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 18,
+    padding: 16,
+    marginVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+  },
+  checkedOutBoxHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  checkedOutBoxLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4F46E5',
+    letterSpacing: 0.5,
+  },
+  checkedOutBigHrs: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  checkedOutUnit: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#64748B',
+    marginRight: 6,
+  },
+  checkedOutSubText: {
     fontSize: 12,
     color: '#64748B',
     marginTop: 4,
   },
-  punchActionRow: {
-    marginTop: 4,
-    gap: 8,
+
+  /* Quick Actions (4-pack) */
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 12,
   },
-  geofenceButton: {
-    backgroundColor: '#1E1B4B',
-    borderRadius: 12,
-    height: 46,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  viewAllLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563EB',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  quickActionItem: {
+    alignItems: 'center',
+    width: (width - 40 - 36) / 4,
+  },
+  quickActionIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  geofenceBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+  quickActionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
   },
-  checkInButton: {
-    backgroundColor: '#16A34A',
-    borderRadius: 12,
-    height: 46,
+
+  /* Updates List (13 & 18) */
+  updatesList: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  updateCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  updateIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
-  checkInText: {
-    color: '#FFFFFF',
+  updateTitle: {
     fontSize: 14,
     fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
   },
-  quickGrid: {
+  updateSnippet: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  updateTime: {
+    fontSize: 11,
+    color: '#94A3B8',
+  },
+
+  /* Shortcuts Sheet Modal (17) */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  shortcutsSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+  },
+  sheetHandleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  shortcutsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  shortcutsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  shortcutsCloseBtn: {
+    padding: 4,
+  },
+  categoryTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  shortcutsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 6,
+    gap: 14,
   },
-  quickItem: {
-    width: '23%',
+  shortcutItem: {
+    width: (width - 40 - 42) / 4,
     alignItems: 'center',
     marginBottom: 12,
   },
-  quickIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  shortcutCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
   },
-  quickIconText: {
-    fontSize: 20,
-  },
-  quickLabel: {
+  shortcutLabel: {
     fontSize: 11,
     fontWeight: '600',
     color: '#475569',
     textAlign: 'center',
-  },
-  bgIndigoLight: {
-    backgroundColor: '#EEF2FF',
-  },
-  bgYellowLight: {
-    backgroundColor: '#FEF3C7',
-  },
-  bgBlueLight: {
-    backgroundColor: '#E0E7FF',
-  },
-  bgGreenLight: {
-    backgroundColor: '#D1FAE5',
-  },
-  bgRedLight: {
-    backgroundColor: '#FEE2E2',
-  },
-  bgPurpleLight: {
-    backgroundColor: '#F3E8FF',
-  },
-  bgSkyLight: {
-    backgroundColor: '#E0F2FE',
-  },
-  bgSlateLight: {
-    backgroundColor: '#F1F5F9',
-  },
-  leaveGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 14,
-  },
-  leaveMetric: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 12,
-    alignItems: 'center',
-  },
-  leaveNumber: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#16A34A',
-  },
-  leaveLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  secondaryCardAction: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  secondaryActionText: {
-    fontSize: 13,
-    color: '#16A34A',
-    fontWeight: '600',
-  },
-  payslipRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  payslipMonth: {
-    fontSize: 14,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  paidBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  paidBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#15803D',
-  },
-  emptyNotice: {
-    fontSize: 13,
-    color: '#94A3B8',
-    marginTop: 6,
-  },
-  logoutButton: {
-    marginTop: 8,
-    marginBottom: 24,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoutText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#DC2626',
   },
 });

@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { ArrowLeft, ScanFace } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
 
@@ -44,7 +45,7 @@ export const FaceIdAuthScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#1E293B" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Face ID</Text>
         <View style={styles.placeholder} />
@@ -73,7 +74,7 @@ export const FaceIdAuthScreen: React.FC = () => {
             {scanning ? (
               <ActivityIndicator color="#4F46E5" size="large" />
             ) : (
-              <Text style={styles.faceIcon}>👤</Text>
+              <ScanFace size={54} color="#4F46E5" strokeWidth={1.8} />
             )}
           </View>
         </TouchableOpacity>

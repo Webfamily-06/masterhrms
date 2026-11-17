@@ -8,6 +8,8 @@ import {
   Image,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { User } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
@@ -77,7 +79,7 @@ export const ManagerDashboardScreen: React.FC = () => {
               style={styles.profileBtn}
               accessibilityRole="button"
             >
-              <Text style={styles.profileBtnText}>👤</Text>
+              <User size={18} color="#0F172A" strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
         </View>
@@ -190,6 +192,9 @@ export const ManagerDashboardScreen: React.FC = () => {
           <Text style={styles.logoutText}>Sign Out from Workspace</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="ManagerHome" />
     </View>
   );
 };

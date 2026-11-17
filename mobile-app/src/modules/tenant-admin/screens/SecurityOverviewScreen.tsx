@@ -7,7 +7,9 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { TenantAdminService, SecurityPolicy } from '../../../core/services/tenantAdminService';
 import { useNavigation } from '@react-navigation/native';
 
@@ -54,7 +56,7 @@ export const SecurityOverviewScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={18} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Security & 2FA Governance</Text>
         <View style={styles.placeholder} />
@@ -112,6 +114,7 @@ export const SecurityOverviewScreen: React.FC = () => {
           </View>
         </ScrollView>
       )}
+      <AppBottomNav activeRoute="TenantAdminHome" />
     </View>
   );
 };

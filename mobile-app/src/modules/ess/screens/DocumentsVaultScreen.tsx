@@ -11,6 +11,8 @@ import {
   Alert,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft, FileText, FileSignature, FolderOpen, Download } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import {
   EmployeeService,
   EmployeeDocument,
@@ -103,7 +105,7 @@ export const DocumentsVaultScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
-          <Text style={styles.backButtonText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Document Vault</Text>
         <TouchableOpacity
@@ -174,7 +176,7 @@ export const DocumentsVaultScreen: React.FC = () => {
           <View>
             {contracts.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyIcon}>📜</Text>
+                <FileSignature size={32} color="#94A3B8" style={{ marginBottom: 10 }} />
                 <Text style={styles.emptyTitle}>No Employment Contracts Found</Text>
                 <Text style={styles.emptyDesc}>
                   Your digital offer letters and employment agreements will appear here once executed.
@@ -184,7 +186,7 @@ export const DocumentsVaultScreen: React.FC = () => {
               contracts.map((c, idx) => (
                 <View key={c.id || idx} style={styles.docCard}>
                   <View style={styles.docIconBox}>
-                    <Text style={styles.docIcon}>📜</Text>
+                    <FileSignature size={20} color="#4F46E5" />
                   </View>
                   <View style={styles.docDetails}>
                     <Text style={styles.docName}>{c.title}</Text>
@@ -199,7 +201,7 @@ export const DocumentsVaultScreen: React.FC = () => {
                     style={styles.downloadBtn}
                     onPress={() => handleDownload(c.title)}
                   >
-                    <Text style={styles.downloadBtnText}>⬇️</Text>
+                    <Download size={18} color="#4F46E5" />
                   </TouchableOpacity>
                 </View>
               ))
@@ -209,7 +211,7 @@ export const DocumentsVaultScreen: React.FC = () => {
           <View>
             {filteredDocs.length === 0 ? (
               <View style={styles.emptyCard}>
-                <Text style={styles.emptyIcon}>📁</Text>
+                <FolderOpen size={32} color="#94A3B8" style={{ marginBottom: 10 }} />
                 <Text style={styles.emptyTitle}>No Documents in this Category</Text>
                 <Text style={styles.emptyDesc}>
                   Need an official certificate or letter? Tap "+ Request" above to request one from HR.
@@ -219,7 +221,7 @@ export const DocumentsVaultScreen: React.FC = () => {
               filteredDocs.map((d, idx) => (
                 <View key={d.id || idx} style={styles.docCard}>
                   <View style={styles.docIconBox}>
-                    <Text style={styles.docIcon}>📄</Text>
+                    <FileText size={20} color="#4F46E5" />
                   </View>
                   <View style={styles.docDetails}>
                     <Text style={styles.docName}>{d.name}</Text>
@@ -234,7 +236,7 @@ export const DocumentsVaultScreen: React.FC = () => {
                     style={styles.downloadBtn}
                     onPress={() => handleDownload(d.name)}
                   >
-                    <Text style={styles.downloadBtnText}>⬇️</Text>
+                    <Download size={18} color="#4F46E5" />
                   </TouchableOpacity>
                 </View>
               ))
@@ -299,6 +301,7 @@ export const DocumentsVaultScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+      <AppBottomNav activeRoute="DocumentsVault" />
     </View>
   );
 };

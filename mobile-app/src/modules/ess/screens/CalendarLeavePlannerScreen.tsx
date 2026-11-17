@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
+import { ArrowLeft } from 'lucide-react-native';
+import { AppBottomNav } from '../../../components/common';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
@@ -39,7 +41,7 @@ export const CalendarLeavePlannerScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Calendar & Leave Planner</Text>
         <TouchableOpacity
@@ -179,6 +181,7 @@ export const CalendarLeavePlannerScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+      <AppBottomNav activeRoute="CalendarLeavePlanner" />
     </View>
   );
 };

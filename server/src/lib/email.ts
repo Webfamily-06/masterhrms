@@ -642,8 +642,13 @@ export const LIFECYCLE_EMAIL_TEMPLATES: Record<string, { subject: string; htmlBo
         <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
           We received a request to reset the password associated with your account on <strong>{{company_name}}</strong>.
         </p>
+        <div style="background: #f1f5f9; border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+          <p style="font-size: 13px; color: #475569; margin: 0 0 8px 0; font-weight: 600;">Your 6-Digit Password Reset Code:</p>
+          <div style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f172a; font-family: monospace;">{{otp}}</div>
+          <p style="font-size: 11px; color: #94a3b8; margin: 6px 0 0 0;">Enter this code in the app to set a new password. Valid for 10 minutes.</p>
+        </div>
         <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-          Click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
+          Alternatively, click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
         </p>
         <div style="text-align: center; margin-bottom: 28px;">
           <a href="{{reset_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Reset Password →</a>
@@ -678,8 +683,13 @@ export const LIFECYCLE_EMAIL_TEMPLATES: Record<string, { subject: string; htmlBo
         <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
           We received a request to reset the password associated with your account on <strong>{{company_name}}</strong>.
         </p>
+        <div style="background: #f1f5f9; border: 1.5px dashed #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+          <p style="font-size: 13px; color: #475569; margin: 0 0 8px 0; font-weight: 600;">Your 6-Digit Password Reset Code:</p>
+          <div style="font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0f172a; font-family: monospace;">{{otp}}</div>
+          <p style="font-size: 11px; color: #94a3b8; margin: 6px 0 0 0;">Enter this code in the app to set a new password. Valid for 10 minutes.</p>
+        </div>
         <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-          Click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
+          Alternatively, click the secure button below to set a new password. This link is single-use and will expire in <strong>{{expiry_minutes}} minutes</strong>.
         </p>
         <div style="text-align: center; margin-bottom: 28px;">
           <a href="{{reset_url}}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block;">Reset Password →</a>
@@ -819,12 +829,13 @@ export async function sendPasswordResetEmail(options: {
   toEmail: string;
   userName: string;
   resetUrl: string;
+  otp?: string;
   expiryMinutes?: number;
   tenantId?: string | null;
   companyName?: string;
   scope?: "PLATFORM" | "TENANT";
 }): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  const { toEmail, userName, resetUrl, expiryMinutes = 60, tenantId, companyName, scope } = options;
+  const { toEmail, userName, resetUrl, otp = "", expiryMinutes = 60, tenantId, companyName, scope } = options;
   const resolvedScope = scope || (tenantId ? "TENANT" : "PLATFORM");
   const config = await getDynamicEmailConfig({ scope: resolvedScope, tenantId });
   const appName = companyName || config.appName || "Master HRMS";
@@ -835,6 +846,9 @@ export async function sendPasswordResetEmail(options: {
     company_name: appName,
     reset_url: resetUrl,
     resetUrl: resetUrl,
+    otp,
+    code: otp,
+    verification_code: otp,
     expiry_minutes: String(expiryMinutes),
     support_email: supportEmail,
     app_name: appName,

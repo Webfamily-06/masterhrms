@@ -1,21 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  DollarSign,
+  MapPin,
+  Megaphone,
+  MessageSquare,
+  ChevronRight,
+} from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
+import { AppBottomNav } from '../../../components/common/AppBottomNav';
+import { realtimeManager } from '../../../core/realtime/realtimeManager';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 
 interface NotificationItem {
   id: string;
-  type: 'APPROVAL' | 'PAYROLL' | 'ATTENDANCE' | 'GENERAL';
+  type: 'APPROVAL' | 'PAYROLL' | 'ATTENDANCE' | 'GENERAL' | 'CHAT';
   title: string;
   message: string;
   time: string;
   read: boolean;
+  targetRoute?: string;
+  targetParams?: any;
 }
 
 export const NotificationsScreen: React.FC = () => {
@@ -30,6 +43,8 @@ export const NotificationsScreen: React.FC = () => {
       message: 'Your Casual Leave for Nov 24, 2026 has been approved by your Manager.',
       time: '10m ago',
       read: false,
+      targetRoute: 'LeaveDetail',
+      targetParams: { id: 'leave-101' },
     },
     {
       id: 'n-2',
@@ -38,6 +53,7 @@ export const NotificationsScreen: React.FC = () => {
       message: 'Your monthly salary statement for Oct 2026 has been generated and disbursed.',
       time: '2h ago',
       read: false,
+      targetRoute: 'Payslips',
     },
     {
       id: 'n-3',
@@ -46,16 +62,64 @@ export const NotificationsScreen: React.FC = () => {
       message: 'Office check-in verified at 09:14 AM at BKC Headquarters.',
       time: 'Today',
       read: true,
+      targetRoute: 'Attendance',
     },
     {
       id: 'n-4',
+      type: 'CHAT',
+      title: 'New Team Message',
+      message: 'Alex Mercer mentioned you in Project Sprint Alpha.',
+      time: 'Today',
+      read: false,
+      targetRoute: 'ChatConversations',
+    },
+    {
+      id: 'n-5',
       type: 'GENERAL',
       title: 'Townhall Announcement',
       message: 'Annual MasterHRMS All-Hands scheduled for Thursday at 04:00 PM IST.',
       time: 'Yesterday',
       read: true,
+      targetRoute: 'TodoList',
     },
   ]);
+
+  // Subscribe to live incoming notifications via Pusher / Realtime socket
+  useEffect(() => {
+    const unsub = realtimeManager.subscribe('notification:new', (payload: any) => {
+      if (payload) {
+        const newItem: NotificationItem = {
+          id: payload.id || `live-${Date.now()}`,
+          type: payload.type || 'GENERAL',
+          title: payload.title || 'New Notification',
+          message: payload.message || payload.body || '',
+          time: 'Just now',
+          read: false,
+          targetRoute: payload.targetRoute || (payload.threadId ? 'ChatConversations' : undefined),
+          targetParams: payload.targetParams || (payload.threadId ? { threadId: payload.threadId } : undefined),
+        };
+        setNotifications((prev) => [newItem, ...prev]);
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  const handleNotificationPress = (item: NotificationItem) => {
+    // Immediately mark as read to eliminate unread dot and badge
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+    );
+
+    // Deep-link / navigate directly to the target destination
+    if (item.targetRoute) {
+      try {
+        (navigation as any).navigate(item.targetRoute, item.targetParams);
+      } catch (err) {
+        console.warn('[Notification navigation failed]:', err);
+      }
+    }
+  };
 
   const markAllRead = () => {
     setNotifications(notifications.map((n) => ({ ...n, read: true })));
@@ -65,12 +129,18 @@ export const NotificationsScreen: React.FC = () => {
     filter === 'ALL' ? true : n.type === filter
   );
 
-  const getIcon = (t: string) => {
+  const renderIcon = (t: string) => {
     switch (t) {
-      case 'APPROVAL': return '✅';
-      case 'PAYROLL': return '💰';
-      case 'ATTENDANCE': return '📍';
-      default: return '📢';
+      case 'APPROVAL':
+        return <CheckCircle2 size={20} color="#059669" strokeWidth={2.2} />;
+      case 'PAYROLL':
+        return <DollarSign size={20} color="#2563EB" strokeWidth={2.2} />;
+      case 'ATTENDANCE':
+        return <MapPin size={20} color="#D97706" strokeWidth={2.2} />;
+      case 'CHAT':
+        return <MessageSquare size={20} color="#10B981" strokeWidth={2.2} />;
+      default:
+        return <Megaphone size={20} color="#7C3AED" strokeWidth={2.2} />;
     }
   };
 
@@ -84,7 +154,7 @@ export const NotificationsScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backBtnText}>←</Text>
+          <ArrowLeft size={20} color="#FFFFFF" strokeWidth={2.4} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <TouchableOpacity
@@ -115,9 +185,16 @@ export const NotificationsScreen: React.FC = () => {
 
         {/* Notifications List */}
         {filtered.map((item) => (
-          <View key={item.id} style={[styles.itemCard, !item.read && styles.itemCardUnread]}>
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.itemCard, !item.read && styles.itemCardUnread]}
+            onPress={() => handleNotificationPress(item)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`Notification: ${item.title}`}
+          >
             <View style={styles.iconCircle}>
-              <Text style={styles.icon}>{getIcon(item.type)}</Text>
+              {renderIcon(item.type)}
             </View>
 
             <View style={styles.infoCol}>
@@ -126,11 +203,22 @@ export const NotificationsScreen: React.FC = () => {
                 {!item.read && <View style={styles.unreadDot} />}
               </View>
               <Text style={styles.message}>{item.message}</Text>
-              <Text style={styles.timeText}>{item.time}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                <Text style={styles.timeText}>{item.time}</Text>
+                {item.targetRoute && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Text style={styles.viewLinkText}>View</Text>
+                    <ChevronRight size={13} color="#2563EB" />
+                  </View>
+                )}
+              </View>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
+
+      {/* Pinned Bottom Navigation */}
+      <AppBottomNav activeRoute="Notifications" />
     </View>
   );
 };
@@ -263,5 +351,10 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 11,
     color: '#94A3B8',
+  },
+  viewLinkText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563EB',
   },
 });
