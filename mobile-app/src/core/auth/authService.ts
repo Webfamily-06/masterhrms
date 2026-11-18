@@ -102,6 +102,12 @@ export class AuthService {
 
       return successData;
     } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof Error && !('response' in error)) {
+        throw new ApiError(400, error.message, 'CLIENT_VALIDATION_ERROR');
+      }
       throw ApiError.fromAxiosError(error);
     }
   }
@@ -158,6 +164,12 @@ export class AuthService {
 
       return data;
     } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof Error && !('response' in error)) {
+        throw new ApiError(400, error.message, 'CLIENT_VALIDATION_ERROR');
+      }
       throw ApiError.fromAxiosError(error);
     }
   }

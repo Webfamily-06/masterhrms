@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
+import * as Device from 'expo-device';
 
 export type Environment = 'development' | 'staging' | 'production';
 
@@ -12,7 +13,7 @@ const currentEnv: Environment = __DEV__ ? 'development' : 'production';
  * - Android Emulators (10.0.2.2)
  * - iOS Simulators (localhost)
  */
-const getDevApiHost = (): string => {
+export const getDevApiHost = (): string => {
   try {
     const scriptURL = NativeModules.SourceCode?.scriptURL;
     if (scriptURL && typeof scriptURL === 'string') {
@@ -30,24 +31,31 @@ const getDevApiHost = (): string => {
   }
 
   // Active host machine Wi-Fi IP and backend port 4000
+  const isPhysical = typeof Device?.isDevice === 'boolean' ? Device.isDevice : false;
+  if (isPhysical) {
+    return '10.215.212.209:4000';
+  }
+
   if (Platform.OS === 'android') {
     return '10.0.2.2:4000';
   }
-  return '10.215.212.209:4000';
+  return 'localhost:4000';
 };
 
-const DEV_API_HOST = getDevApiHost();
-
 const API_BASE_URLS: Record<Environment, string> = {
-  // Use host machine Wi-Fi IP so physical devices on Wi-Fi (Expo Go) and emulators can reach the backend
-  development: `http://${DEV_API_HOST}`,
+  development: `http://${getDevApiHost()}`,
   staging: 'https://staging-api.masterhrms.com',
   production: 'https://api.masterhrms.com',
 };
 
 export const Config = {
   ENV: currentEnv,
-  API_BASE_URL: API_BASE_URLS[currentEnv],
+  get API_BASE_URL(): string {
+    if (currentEnv === 'development') {
+      return `http://${getDevApiHost()}`;
+    }
+    return API_BASE_URLS[currentEnv];
+  },
   API_TIMEOUT_MS: 30000,
   APP_NAME: 'MasterHRMS',
   APP_VERSION: '1.0.0',

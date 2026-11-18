@@ -3,7 +3,7 @@ import { ApiError } from './apiErrors';
 import { CustomRequestConfig } from './types';
 import { secureStorage } from '../storage/secureStorage';
 import { STORAGE_KEYS } from '../../config/constants';
-import { Config } from '../../config/environment';
+import { Config, getDevApiHost } from '../../config/environment';
 
 // Forward reference store accessors to prevent circular imports
 let getAccessToken: () => string | null = () => null;
@@ -45,6 +45,13 @@ export function setupInterceptors(axiosInstance: AxiosInstance): void {
   // Request Interceptor: Attach Bearer JWT, Tenant Context, and User-Agent
   axiosInstance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
+      if (__DEV__) {
+        const dynamicHost = getDevApiHost();
+        if (dynamicHost) {
+          config.baseURL = `http://${dynamicHost}`;
+        }
+      }
+
       const customConfig = config as CustomRequestConfig;
       if (!customConfig.skipAuth) {
         const token = getAccessToken();

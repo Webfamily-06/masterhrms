@@ -496,4 +496,14 @@ describe('Phase 2: Authentication & Multi-Tenant Engine Tests', () => {
       expect(netErr.isNetworkError).toBe(true);
     });
   });
+
+  describe('9. Dynamic Development Host & Configuration', () => {
+    it('provides valid dev API host and dynamic API_BASE_URL', () => {
+      const { getDevApiHost, Config } = require('../src/config/environment');
+      const host = getDevApiHost();
+      expect(typeof host).toBe('string');
+      expect(host).toContain(':4000');
+      expect(Config.API_BASE_URL).toContain(':4000');
+    });
+  });
 });

@@ -13,6 +13,7 @@ import {
 import { Text } from '../../../components/common/Text';
 import { AlertCircle } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
+import { Config, getDevApiHost } from '../../../config/environment';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
 
@@ -62,7 +63,17 @@ export const LoginScreen: React.FC = () => {
       }
       // Direct login triggers RootNavigator session switch
     } catch (err: any) {
-      setError(err?.message || 'Invalid email or password.');
+      if (err?.code === 'SUPER_ADMIN_MOBILE_ACCESS_DENIED') {
+        setError(
+          'Super Administrator accounts cannot log in to the mobile application. Please use the Web Super Admin portal.'
+        );
+      } else if (err?.isNetworkError || err?.message?.toLowerCase().includes('network')) {
+        setError(
+          `Unable to reach backend server (${getDevApiHost()}). Please ensure backend is running on port 4000 and device is on the same network.`
+        );
+      } else {
+        setError(err?.message || 'Invalid email or password.');
+      }
     } finally {
       setLoading(false);
     }
@@ -254,6 +265,9 @@ export const LoginScreen: React.FC = () => {
                 >
                   <Text style={styles.quickFillChipText}>Employee</Text>
                 </TouchableOpacity>
+              </View>
+              <View style={styles.devApiBadge}>
+                <Text style={styles.devApiBadgeText}>Backend: {Config.API_BASE_URL}</Text>
               </View>
             </View>
           )}
@@ -596,5 +610,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#334155',
     fontWeight: '600',
+  },
+  devApiBadge: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+  },
+  devApiBadgeText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 });
