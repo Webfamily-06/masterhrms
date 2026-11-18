@@ -16,7 +16,9 @@ import {
   Linking,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Audio } from 'expo-av';
 import { Text } from '../../../components/common/Text';
 import {
   Search,
@@ -57,7 +59,6 @@ import {
   CornerUpLeft,
   Navigation,
   Radio,
-  RotateCcw,
   Eye,
 } from 'lucide-react-native';
 import { WorkspaceModuleShell } from '../../../components/workspace/WorkspaceModuleShell';
@@ -81,8 +82,24 @@ import {
 } from '../../../core/services/chatService';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system';
+
+export const format12HourTime = (dateInput?: string | Date | number): string => {
+  if (!dateInput) return '';
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 becomes 12
+    const minutesStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+    return `${hours}:${minutesStr} ${ampm}`;
+  } catch {
+    return '';
+  }
+};
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
 
@@ -106,6 +123,12 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const queryClient = useQueryClient();
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Fallback if rendered outside SafeAreaProvider
+  }
 
   const {
     threadId = '',
@@ -203,9 +226,24 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
-  // Camera Viewfinder & Photo Capture Modal State
-  const [cameraModalOpen, setCameraModalOpen] = useState(false);
-  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
+  // Pre-Send Media Preview State (WhatsApp style: Select -> Preview -> Send)
+  const [pendingSendMedia, setPendingSendMedia] = useState<{
+    files: UploadableFileDescriptor[];
+    kind: 'image' | 'document' | 'camera';
+  } | null>(null);
+  const [mediaCaptionText, setMediaCaptionText] = useState('');
+
+  // Audio Playback Sound Instance via expo-av
+  const activeSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (activeSoundRef.current) {
+        activeSoundRef.current.unloadAsync().catch(() => {});
+      }
+      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+    };
+  }, []);
 
   // Sent File Preview Panel State (displayed after sending file to User-B)
   const [sentFilePreview, setSentFilePreview] = useState<{
@@ -217,32 +255,65 @@ export const ChatConversationDetailScreen: React.FC = () => {
     recipient: string;
   } | null>(null);
 
-  // Location Sharing Modal State
-  const [locationModalOpen, setLocationModalOpen] = useState(false);
-  const [currentLocationPreview, setCurrentLocationPreview] = useState<{
-    latitude: number;
-    longitude: number;
-    address: string;
-    accuracy?: number;
-  } | null>(null);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-
-  // Swipe Left to Reply State
+  // Swipe Right to Reply State
   const [swipingMsgId, setSwipingMsgId] = useState<string | null>(null);
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
 
-  // Toggle audio note playback with smooth progress
-  const togglePlayAudio = (msgId: string, durationSec = 20) => {
+  // Toggle audio note playback with real sound via expo-av
+  const togglePlayAudio = async (msgId: string, durationSec = 20, audioUrl?: string) => {
     if (playingAudioId === msgId) {
       if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+      if (activeSoundRef.current) {
+        await activeSoundRef.current.stopAsync().catch(() => {});
+        await activeSoundRef.current.unloadAsync().catch(() => {});
+        activeSoundRef.current = null;
+      }
       setPlayingAudioId(null);
       setAudioPlaybackProgress(0);
       return;
     }
 
     if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+    if (activeSoundRef.current) {
+      await activeSoundRef.current.stopAsync().catch(() => {});
+      await activeSoundRef.current.unloadAsync().catch(() => {});
+      activeSoundRef.current = null;
+    }
+
     setPlayingAudioId(msgId);
     setAudioPlaybackProgress(0);
+
+    if (audioUrl) {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        }).catch(() => {});
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUrl },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded) {
+              if (status.durationMillis && status.durationMillis > 0) {
+                setAudioPlaybackProgress(status.positionMillis / status.durationMillis);
+              }
+              if (status.didJustFinish) {
+                setPlayingAudioId(null);
+                setAudioPlaybackProgress(0);
+                sound.unloadAsync().catch(() => {});
+                activeSoundRef.current = null;
+              }
+            }
+          }
+        );
+        activeSoundRef.current = sound;
+        return;
+      } catch (err) {
+        console.warn('[Audio] Could not play audio via expo-av, falling back to simulated progress:', err);
+      }
+    }
 
     const stepMs = 200;
     const totalMs = Math.max(durationSec * 1000, 3000);
@@ -342,73 +413,14 @@ export const ChatConversationDetailScreen: React.FC = () => {
         size: realSize || 0,
       };
 
-      setSending(true);
-      const uploadedAttachments = await ChatService.uploadAttachments([photoFile], threadId);
-      const sent = await ChatService.sendMessage({
-        threadId,
-        content: '',
-        attachments: uploadedAttachments,
-        clientTempId: `mob_cam_${Date.now()}`,
+      // WhatsApp flow: Show full-screen pre-send preview BEFORE sending
+      setPendingSendMedia({
+        files: [photoFile],
+        kind: 'camera',
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
-
-      setSentFilePreview({
-        name: photoFile.name,
-        size: photoFile.size,
-        type: photoFile.type,
-        url: photoFile.uri,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-        recipient: title || 'User',
-      });
+      setMediaCaptionText('');
     } catch (err: any) {
-      Alert.alert('Camera Error', err?.message || 'Could not take photo.');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const handleShutterSnap = () => {
-    // Kept for interactive viewfinder modal if opened directly
-    handleCameraCapture();
-  };
-
-  const handleConfirmSendCapturedPhoto = async () => {
-    if (!capturedPhotoUri) return;
-    const photoFile: UploadableFileDescriptor = {
-      uri: capturedPhotoUri,
-      name: `camera_photo_${Date.now()}.jpg`,
-      type: 'image/jpeg',
-      size: 285000,
-    };
-    setCameraModalOpen(false);
-    setCapturedPhotoUri(null);
-
-    try {
-      setSending(true);
-      const uploadedAttachments = await ChatService.uploadAttachments([photoFile], threadId);
-      const sent = await ChatService.sendMessage({
-        threadId,
-        content: '',
-        attachments: uploadedAttachments,
-        clientTempId: `mob_cam_${Date.now()}`,
-      });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
-
-      // Trigger File Preview Panel for User-B / participant
-      setSentFilePreview({
-        name: photoFile.name,
-        size: photoFile.size,
-        type: photoFile.type,
-        url: photoFile.uri,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-        recipient: title || 'User',
-      });
-    } catch (err: any) {
-      Alert.alert('Photo Send Failed', err?.message || 'Could not send captured photo.');
-    } finally {
-      setSending(false);
+      Alert.alert('Camera Error', err?.message || 'Could not access camera.');
     }
   };
 
@@ -449,30 +461,14 @@ export const ChatConversationDetailScreen: React.FC = () => {
         })
       );
 
-      setSending(true);
-      const uploaded = await ChatService.uploadAttachments(newFiles, threadId);
-      const sent = await ChatService.sendMessage({
-        threadId,
-        content: '',
-        attachments: uploaded,
-        clientTempId: `mob_gal_${Date.now()}`,
+      // WhatsApp flow: Show pre-send preview BEFORE sending
+      setPendingSendMedia({
+        files: newFiles,
+        kind: 'image',
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
-
-      const primary = newFiles[0];
-      setSentFilePreview({
-        name: primary.name,
-        size: primary.size,
-        type: primary.type,
-        url: primary.uri,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-        recipient: title || 'User',
-      });
+      setMediaCaptionText('');
     } catch (err: any) {
       Alert.alert('Gallery Error', err?.message || 'Could not select photo.');
-    } finally {
-      setSending(false);
     }
   };
 
@@ -493,112 +489,62 @@ export const ChatConversationDetailScreen: React.FC = () => {
         size: asset.size || 0,
       }));
 
-      setSending(true);
-      const uploadedAttachments = await ChatService.uploadAttachments(newFiles, threadId);
-      const sent = await ChatService.sendMessage({
-        threadId,
-        content: `Attached ${newFiles.length} file${newFiles.length > 1 ? 's' : ''}`,
-        attachments: uploadedAttachments,
-        clientTempId: `mob_doc_${Date.now()}`,
+      // WhatsApp flow: Show pre-send preview BEFORE sending
+      setPendingSendMedia({
+        files: newFiles,
+        kind: 'document',
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
-
-      const primaryDoc = newFiles[0];
-      setSentFilePreview({
-        name: primaryDoc.name,
-        size: primaryDoc.size,
-        type: primaryDoc.type,
-        url: primaryDoc.uri,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
-        recipient: title || 'User',
-      });
+      setMediaCaptionText('');
     } catch (err: any) {
       Alert.alert('Document Pick Failed', err?.message || 'Could not select document.');
-    } finally {
-      setSending(false);
     }
   };
 
-  const handleLocationPick = async () => {
-    setComposerMenuOpen(false);
+  const handleConfirmSendPendingMedia = async () => {
+    if (!pendingSendMedia || pendingSendMedia.files.length === 0 || sending) return;
+    const { files, kind } = pendingSendMedia;
+    const caption = mediaCaptionText.trim();
+    setSending(true);
+
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location Permission Required', 'Location access is required to share your current location.');
-        return;
-      }
-      setLocationModalOpen(true);
-      setIsLoadingLocation(true);
-      try {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        const geocode = await Location.reverseGeocodeAsync({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        }).catch(() => []);
-        const addr = geocode[0];
-        const placeName = addr
-          ? [addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(', ')
-          : 'Current GPS Location';
-        setCurrentLocationPreview({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          address: placeName,
-          accuracy: loc.coords.accuracy ?? undefined,
-        });
-      } catch (locErr: any) {
-        console.warn('[Location] GPS acquisition error:', locErr);
-      } finally {
-        setIsLoadingLocation(false);
-      }
-    } catch {
-      Alert.alert('Location Error', 'Unable to request location permissions.');
-    }
-  };
-
-  const handleSendLocation = async () => {
-    setLocationModalOpen(false);
-    try {
-      setSending(true);
-      const loc =
-        currentLocationPreview && currentLocationPreview.latitude
-          ? {
-              coords: {
-                latitude: currentLocationPreview.latitude,
-                longitude: currentLocationPreview.longitude,
-                accuracy: currentLocationPreview.accuracy,
-              },
-            }
-          : await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-
-      const placeName =
-        currentLocationPreview?.address && currentLocationPreview.address !== 'Current GPS Location'
-          ? currentLocationPreview.address
-          : await Location.reverseGeocodeAsync({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            })
-              .then((g) => {
-                const a = g[0];
-                return a ? [a.street, a.district, a.city, a.region].filter(Boolean).join(', ') : 'Current Location';
-              })
-              .catch(() => 'Current Location');
-
-      const accuracyStr = loc.coords.accuracy ? ` (±${Math.round(loc.coords.accuracy)}m)` : '';
-      const locText = `📍 Location: ${placeName} [${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}]${accuracyStr}`;
+      const uploadedAttachments = await ChatService.uploadAttachments(files, threadId);
+      const prefix = kind === 'camera' ? 'mob_cam_' : kind === 'document' ? 'mob_doc_' : 'mob_gal_';
+      const defaultContent =
+        kind === 'document' && !caption
+          ? `Attached ${files.length} file${files.length > 1 ? 's' : ''}`
+          : caption;
 
       const sent = await ChatService.sendMessage({
         threadId,
-        content: locText,
-        clientTempId: `mob_loc_${Date.now()}`,
+        content: defaultContent,
+        attachments: uploadedAttachments,
+        clientTempId: `${prefix}${Date.now()}`,
       });
       setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+
+      const primary = files[0];
+      setSentFilePreview({
+        name: primary.name,
+        size: primary.size,
+        type: primary.type,
+        url: primary.uri,
+        time: format12HourTime(new Date()),
+        recipient: title || 'User',
+      });
+
+      setPendingSendMedia(null);
+      setMediaCaptionText('');
     } catch (err: any) {
-      Alert.alert('Location Send Failed', err?.message || 'Could not share location.');
+      Alert.alert('Send Failed', err?.message || 'Could not send attachment.');
     } finally {
       setSending(false);
     }
+  };
+
+  const handleCancelPendingMedia = () => {
+    setPendingSendMedia(null);
+    setMediaCaptionText('');
   };
 
   // Group details query (for permissions, members, announcement lock, mentions)
@@ -1693,9 +1639,12 @@ export const ChatConversationDetailScreen: React.FC = () => {
                       <View style={styles.voiceNoteBubbleRow}>
                         <TouchableOpacity
                           style={[styles.voicePlayBtnIcon, !isMe && styles.voicePlayBtnIconThem]}
-                          onPress={() =>
-                            togglePlayAudio(msg.id, msg.voiceNote?.durationSeconds || 20)
-                          }
+                          onPress={() => {
+                            const audioUrl =
+                              msg.voiceNote?.url ||
+                              (msg.attachments && msg.attachments.find((a) => a.kind === 'audio')?.url);
+                            togglePlayAudio(msg.id, msg.voiceNote?.durationSeconds || 20, audioUrl);
+                          }}
                           accessibilityRole="button"
                           accessibilityLabel={
                             playingAudioId === msg.id ? 'Pause voice note' : 'Play voice note'
@@ -1730,11 +1679,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
                         <View style={styles.voiceMetaInline}>
                           <Text style={styles.voiceTimeInline}>
-                            {new Date(msg.createdAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true,
-                            })}
+                            {format12HourTime(msg.createdAt)}
                           </Text>
                           {isMe && !msg.isDeleted && (
                             <CheckCheck
@@ -1848,11 +1793,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
                             <Text style={[styles.timeText, isMe && styles.timeTextMe]}>edited • </Text>
                           )}
                           <Text style={[styles.timeText, isMe && styles.timeTextMe]}>
-                            {new Date(msg.createdAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true,
-                            })}
+                            {format12HourTime(msg.createdAt)}
                           </Text>
                           {isMe && !msg.isDeleted && (
                             <View style={{ marginLeft: 4 }}>
@@ -2221,88 +2162,96 @@ export const ChatConversationDetailScreen: React.FC = () => {
                 </View>
                 <Text style={styles.attachLabel}>Poll</Text>
               </TouchableOpacity>
-
-              {/* 6. Location */}
-              <TouchableOpacity
-                style={styles.attachGridItem}
-                onPress={handleLocationPick}
-                accessibilityRole="button"
-                accessibilityLabel="Share location"
-              >
-                <View style={[styles.attachCircle, { backgroundColor: '#EF4444' }]}>
-                  <MapPin size={24} color="#FFFFFF" />
-                </View>
-                <Text style={styles.attachLabel}>Location</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* 2. Interactive Camera Viewfinder & Capture Modal */}
-      <Modal visible={cameraModalOpen} animationType="fade" transparent>
-        <View style={styles.cameraBackdrop}>
-          {capturedPhotoUri ? (
-            /* Captured Photo Preview Screen */
-            <View style={styles.cameraPreviewStage}>
+      {/* WhatsApp Pre-Send Media Preview Modal */}
+      <Modal visible={Boolean(pendingSendMedia)} animationType="fade" transparent={false}>
+        <View
+          style={[
+            styles.preSendModalContainer,
+            {
+              paddingTop: insets.top > 0 ? insets.top + 10 : 36,
+              paddingBottom: insets.bottom > 0 ? insets.bottom + 12 : 20,
+            },
+          ]}
+        >
+          {/* Top Bar */}
+          <View style={styles.preSendHeader}>
+            <TouchableOpacity
+              onPress={handleCancelPendingMedia}
+              style={styles.preSendCancelBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel send"
+            >
+              <X size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.preSendTitle}>
+              {pendingSendMedia?.kind === 'document'
+                ? 'Send Document'
+                : pendingSendMedia?.files.length && pendingSendMedia.files.length > 1
+                ? `${pendingSendMedia.files.length} Photos`
+                : 'Send Photo'}
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Media Center Preview Stage */}
+          <View style={styles.preSendStage}>
+            {pendingSendMedia?.kind === 'document' ? (
+              <View style={styles.preSendDocCard}>
+                <View style={styles.preSendDocIconCircle}>
+                  <FileText size={48} color="#3B82F6" />
+                </View>
+                <Text style={styles.preSendDocName} numberOfLines={2}>
+                  {pendingSendMedia.files[0]?.name}
+                </Text>
+                <Text style={styles.preSendDocSize}>
+                  {formatFileSize(pendingSendMedia.files[0]?.size || 0)} • {pendingSendMedia.files[0]?.type || 'Document'}
+                </Text>
+              </View>
+            ) : (
               <Image
-                source={{ uri: capturedPhotoUri }}
-                style={styles.cameraCapturedImage}
+                source={{ uri: pendingSendMedia?.files[0]?.uri }}
+                style={styles.preSendFullImage}
                 resizeMode="contain"
               />
-              <View style={styles.cameraPreviewBar}>
-                <TouchableOpacity
-                  style={styles.cameraRetakeBtn}
-                  onPress={() => setCapturedPhotoUri(null)}
-                >
-                  <RotateCcw size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.cameraRetakeText}>Retake</Text>
-                </TouchableOpacity>
+            )}
+          </View>
 
-                <TouchableOpacity
-                  style={styles.cameraOkSendBtn}
-                  onPress={handleConfirmSendCapturedPhoto}
-                >
-                  <Check size={20} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                  <Text style={styles.cameraOkSendText}>OK - Send Photo</Text>
-                </TouchableOpacity>
-              </View>
+          {/* WhatsApp Style Bottom Caption & Send Bar */}
+          <View style={styles.preSendBottomBar}>
+            <View style={styles.preSendCaptionInputWrap}>
+              <Smile size={20} color="#94A3B8" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.preSendCaptionInput}
+                placeholder="Add a caption..."
+                placeholderTextColor="#94A3B8"
+                value={mediaCaptionText}
+                onChangeText={setMediaCaptionText}
+                multiline
+                maxLength={500}
+              />
             </View>
-          ) : (
-            /* Live Camera Viewfinder Screen */
-            <View style={styles.cameraViewfinderStage}>
-              <View style={styles.cameraTopNav}>
-                <TouchableOpacity
-                  style={styles.cameraNavIconBtn}
-                  onPress={() => setCameraModalOpen(false)}
-                >
-                  <X size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-                <Text style={styles.cameraNavTitle}>Camera</Text>
-                <View style={styles.cameraNavPlaceholder} />
-              </View>
 
-              <View style={styles.cameraFramingGuide}>
-                <View style={[styles.cameraCornerGuide, styles.guideTL]} />
-                <View style={[styles.cameraCornerGuide, styles.guideTR]} />
-                <View style={[styles.cameraCornerGuide, styles.guideBL]} />
-                <View style={[styles.cameraCornerGuide, styles.guideBR]} />
-                <Text style={styles.cameraGuideHint}>Tap shutter to capture photo</Text>
-              </View>
-
-              <View style={styles.cameraBottomBar}>
-                <TouchableOpacity
-                  style={styles.cameraShutterOuter}
-                  onPress={handleShutterSnap}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Capture photo"
-                >
-                  <View style={styles.cameraShutterInner} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+            <TouchableOpacity
+              style={[styles.preSendConfirmBtn, sending && { opacity: 0.7 }]}
+              onPress={handleConfirmSendPendingMedia}
+              disabled={sending}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Send media"
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Send size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
 
@@ -2383,85 +2332,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
                 <Text style={styles.sentFileShareBtnText}>Share</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* 4. Location Sharing Modal (Current & Live Location with Map Preview) */}
-      <Modal visible={locationModalOpen} animationType="slide" transparent>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={() => setLocationModalOpen(false)}
-        >
-          <View style={styles.locationSheet} onStartShouldSetResponder={() => true}>
-            <View style={styles.sheetHandle} />
-            <View style={styles.locationHeaderRow}>
-              <View>
-                <Text style={styles.locationSheetTitle}>Share Location</Text>
-                <Text style={styles.locationSheetSubTitle}>
-                  Send your coordinates or live location to chat
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => setLocationModalOpen(false)}
-                style={styles.locationCloseBtn}
-              >
-                <X size={18} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Interactive Map Preview Card */}
-            <View style={styles.mapPreviewCard}>
-              <View style={styles.mapSurfaceGrid}>
-                <View style={styles.mapSurfaceRoad1} />
-                <View style={styles.mapSurfaceRoad2} />
-                <View style={styles.mapSurfaceParkZone} />
-                <View style={styles.mapBeaconPulse}>
-                  <View style={styles.mapBeaconCore} />
-                </View>
-                <View style={styles.mapPinCenter}>
-                  <MapPin size={24} color="#EF4444" fill="#EF4444" />
-                </View>
-              </View>
-              <View style={styles.mapCoordBar}>
-                <Text style={styles.mapAddressText} numberOfLines={1}>
-                  {isLoadingLocation
-                    ? 'Locating device via GPS...'
-                    : currentLocationPreview?.address || 'Current Device Location'}
-                </Text>
-                <Text style={styles.mapCoordsText}>
-                  {currentLocationPreview
-                    ? `${currentLocationPreview.latitude.toFixed(4)}° N, ${currentLocationPreview.longitude.toFixed(4)}° E ${
-                        currentLocationPreview.accuracy ? `• ±${Math.round(currentLocationPreview.accuracy)}m` : ''
-                      }`
-                    : 'Obtaining GPS fix...'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Current Location Information Banner */}
-            <View style={styles.currentLocationInfoBanner}>
-              <MapPin size={16} color="#00D287" style={{ marginRight: 8 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.currentLocationBannerTitle}>GPS Location Ready</Text>
-                <Text style={styles.currentLocationBannerSubtitle}>
-                  Real coordinates acquired from device hardware. Tap send to share with chat.
-                </Text>
-              </View>
-            </View>
-
-            {/* Send Location Button */}
-            <TouchableOpacity
-              style={[styles.sendLocationBtn, isLoadingLocation && { opacity: 0.7 }]}
-              onPress={handleSendLocation}
-              disabled={isLoadingLocation}
-            >
-              <Navigation size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.sendLocationBtnText}>
-                {isLoadingLocation ? 'Acquiring GPS...' : 'Send Current Location'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -3000,29 +2870,81 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
                     {/* Media, Links & Docs Section */}
                     <View style={styles.contactSectionBox}>
-                      <Text style={styles.contactSectionTitle}>Media, Links and Docs</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-                        {Array.isArray(sharedFilesQuery.data) && sharedFilesQuery.data.length > 0 ? (
-                          sharedFilesQuery.data.slice(0, 6).map((f: any, idx: number) => (
-                            <TouchableOpacity
-                              key={idx}
-                              style={styles.contactMediaThumbBox}
-                              onPress={() => {
-                                setPreviewMedia({
-                                  url: f.url,
-                                  name: f.name || 'Shared Media',
-                                  kind: f.kind || 'image',
-                                  sender: participantQuery.data.name,
-                                });
-                              }}
-                            >
-                              <Image source={{ uri: f.url }} style={styles.contactMediaThumbImg} />
-                            </TouchableOpacity>
-                          ))
-                        ) : (
-                          <Text style={styles.contactEmptyMediaText}>No recent media shared</Text>
-                        )}
-                      </ScrollView>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={styles.contactSectionTitle}>Media, Links and Docs</Text>
+                        <Text style={styles.contactMediaCountText}>
+                          {(sharedFilesQuery.data || []).length} items
+                        </Text>
+                      </View>
+
+                      {Array.isArray(sharedFilesQuery.data) && sharedFilesQuery.data.length > 0 ? (
+                        <>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                            {sharedFilesQuery.data.slice(0, 8).map((f: any, idx: number) => (
+                              <TouchableOpacity
+                                key={idx}
+                                style={styles.contactMediaThumbBox}
+                                onPress={() => {
+                                  setPreviewMedia({
+                                    url: f.url,
+                                    name: f.name || 'Shared Media',
+                                    kind: f.kind || 'image',
+                                    sender: participantQuery.data.name,
+                                  });
+                                }}
+                              >
+                                {f.kind === 'image' || (f.url && f.url.match(/\.(jpg|jpeg|png|webp|gif)/i)) ? (
+                                  <Image source={{ uri: f.url }} style={styles.contactMediaThumbImg} />
+                                ) : (
+                                  <View style={[styles.contactMediaThumbImg, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
+                                    <FileText size={20} color="#3B82F6" />
+                                  </View>
+                                )}
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+
+                          {/* Shared Files List in Profile Screen */}
+                          <View style={{ marginTop: 12 }}>
+                            {sharedFilesQuery.data.slice(0, 8).map((file: any, fileIdx: number) => (
+                              <TouchableOpacity
+                                key={file.id || file.url || fileIdx}
+                                style={styles.contactSharedFileRow}
+                                onPress={() =>
+                                  openOrShareAttachment({
+                                    url: file.url,
+                                    mediaId: file.mediaId,
+                                    fileName: file.name,
+                                  }).catch((e) => Alert.alert('File', e.message))
+                                }
+                              >
+                                <View style={styles.contactSharedFileIconBox}>
+                                  {file.kind === 'pdf' || file.name?.endsWith('.pdf') ? (
+                                    <FileText size={16} color="#EF4444" />
+                                  ) : file.kind === 'image' ? (
+                                    <ImageIcon size={16} color="#8B5CF6" />
+                                  ) : (
+                                    <Paperclip size={16} color="#6366F1" />
+                                  )}
+                                </View>
+                                <View style={{ flex: 1, marginRight: 8 }}>
+                                  <Text style={styles.contactSharedFileName} numberOfLines={1}>
+                                    {file.name}
+                                  </Text>
+                                  {Boolean(file.size) && (
+                                    <Text style={styles.contactSharedFileSize}>
+                                      {formatFileSize(file.size)}
+                                    </Text>
+                                  )}
+                                </View>
+                                <Download size={15} color="#94A3B8" />
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </>
+                      ) : (
+                        <Text style={styles.contactEmptyMediaText}>No shared media, links, or docs</Text>
+                      )}
                     </View>
 
                     {/* Contact Settings & Actions */}
@@ -5450,5 +5372,142 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+
+  // WhatsApp Pre-Send Media Preview Styles
+  preSendModalContainer: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+    justifyContent: 'space-between',
+  },
+  preSendHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  preSendCancelBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  preSendTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  preSendStage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  preSendFullImage: {
+    width: '100%',
+    height: '100%',
+  },
+  preSendDocCard: {
+    width: '88%',
+    maxWidth: 340,
+    backgroundColor: '#1E293B',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  preSendDocIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  preSendDocName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  preSendDocSize: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  preSendBottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 12,
+  },
+  preSendCaptionInputWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 6,
+    minHeight: 46,
+  },
+  preSendCaptionInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+    maxHeight: 100,
+  },
+  preSendConfirmBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#00D287',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  // Contact Drawer Shared Files
+  contactMediaCountText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  contactSharedFileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  contactSharedFileIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  contactSharedFileName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  contactSharedFileSize: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
   },
 });

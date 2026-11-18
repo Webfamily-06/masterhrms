@@ -54,6 +54,45 @@ jest.mock('expo-file-system', () => {
   };
 });
 
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const inset = { top: 0, right: 0, bottom: 0, left: 0 };
+  const frame = { x: 0, y: 0, width: 390, height: 844 };
+  const SafeAreaInsetsContext = React.createContext(inset);
+  const SafeAreaFrameContext = React.createContext(frame);
+  return {
+    SafeAreaProvider: ({ children }) => children,
+    SafeAreaConsumer: ({ children }) => children(inset),
+    SafeAreaInsetsContext,
+    SafeAreaFrameContext,
+    useSafeAreaInsets: () => inset,
+    useSafeAreaFrame: () => frame,
+  };
+});
+
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskDefined: jest.fn().mockReturnValue(false),
+}));
+
+jest.mock('expo-av', () => ({
+  Audio: {
+    Sound: {
+      createAsync: jest.fn().mockResolvedValue({
+        sound: {
+          playAsync: jest.fn().mockResolvedValue({}),
+          pauseAsync: jest.fn().mockResolvedValue({}),
+          stopAsync: jest.fn().mockResolvedValue({}),
+          unloadAsync: jest.fn().mockResolvedValue({}),
+          setOnPlaybackStatusUpdate: jest.fn(),
+        },
+        status: { isLoaded: true },
+      }),
+    },
+    setAudioModeAsync: jest.fn().mockResolvedValue({}),
+  },
+}));
+
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
@@ -61,9 +100,12 @@ jest.mock('expo-notifications', () => ({
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[mock-token]' }),
   getDevicePushTokenAsync: jest.fn().mockResolvedValue({ data: 'mock-device-token' }),
   setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
+  registerTaskAsync: jest.fn().mockResolvedValue(null),
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
   addNotificationReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
   addNotificationResponseReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
   AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3 },
+  AndroidNotificationPriority: { MAX: 2, HIGH: 1, DEFAULT: 0 },
 }));
 
 jest.mock('expo-device', () => ({

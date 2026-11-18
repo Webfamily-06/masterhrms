@@ -12,15 +12,30 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.masterhrms.app",
-      "googleServicesFile": "./ios/MasterHRMS/GoogleService-Info.plist"
+      "googleServicesFile": "./ios/MasterHRMS/GoogleService-Info.plist",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification", "fetch"]
+      }
     },
     "android": {
       "package": "com.masterhrms.app",
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./android/app/google-services.json",
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_EXACT_ALARM"
+      ]
     },
     "plugins": [
       "expo-sharing",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "color": "#4F46E5",
+          "defaultChannel": "default"
+        }
+      ]
     ]
   }
 }

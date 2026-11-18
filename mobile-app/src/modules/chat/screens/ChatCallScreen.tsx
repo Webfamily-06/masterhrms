@@ -10,6 +10,7 @@ import {
   Image,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
 import {
@@ -54,6 +55,12 @@ interface MeetingPeer {
 export const ChatCallScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Fallback if rendered outside SafeAreaProvider
+  }
   const user = useAuthStore((s) => s.user);
   const { activeRole } = usePermission();
 
@@ -69,7 +76,11 @@ export const ChatCallScreen: React.FC = () => {
     groupName,
     isGroupMeeting = false,
     isIncoming = false,
+    hasAccepted = false,
+    initialStatus,
   } = route.params || {};
+
+  const alreadyConnected = Boolean(hasAccepted || initialStatus === 'connected');
 
   const displayAvatar = React.useMemo(() => {
     const raw = receiverAvatar || callerAvatar;
@@ -103,7 +114,7 @@ export const ChatCallScreen: React.FC = () => {
 
   const [activeCallId, setActiveCallId] = useState<string | null>(initialCallId || null);
   const [callState, setCallState] = useState<CallLifecycleState>(
-    isGroupMeeting ? 'CONNECTED' : isIncoming ? 'RINGING' : 'DIALING'
+    isGroupMeeting || alreadyConnected ? 'CONNECTED' : isIncoming ? 'RINGING' : 'DIALING'
   );
   const [isAnswering, setIsAnswering] = useState(false);
   const [statusNote, setStatusNote] = useState<string>('');
@@ -121,6 +132,7 @@ export const ChatCallScreen: React.FC = () => {
   const [callTimedOut, setCallTimedOut] = useState(false);
 
   const endedCleanupRef = useRef(false);
+  const answeredRef = useRef(false);
 
   // Request hardware media permissions when call screen opens
   useEffect(() => {
@@ -142,13 +154,20 @@ export const ChatCallScreen: React.FC = () => {
   useEffect(() => {
     if (callState !== 'RINGING' && callState !== 'DIALING') return;
     const timer = setTimeout(() => {
-      setCallTimedOut(true);
-      setCallState('ENDED');
-      setStatusNote('No answer');
-      if (activeCallId) ChatService.cancelCall(activeCallId).catch(() => {});
+      if (isIncoming) {
+        // Callee did not answer incoming call within 30 seconds
+        if (activeCallId) ChatService.rejectCall(activeCallId, 'timeout').catch(() => {});
+        navigation.goBack();
+      } else {
+        // Caller dialed but callee did not answer within 30 seconds
+        setCallTimedOut(true);
+        setCallState('ENDED');
+        setStatusNote('No answer');
+        if (activeCallId) ChatService.cancelCall(activeCallId).catch(() => {});
+      }
     }, 30000);
     return () => clearTimeout(timer);
-  }, [callState, activeCallId]);
+  }, [callState, activeCallId, isIncoming, navigation]);
 
   const contactsQuery = useQuery({
     queryKey: createTenantQueryKey(['chat', 'contacts']),
@@ -199,6 +218,12 @@ export const ChatCallScreen: React.FC = () => {
           return;
         }
 
+        if (alreadyConnected && initialCallId) {
+          setActiveCallId(initialCallId);
+          setCallState('CONNECTED');
+          return;
+        }
+
         if (isIncoming && initialCallId) {
           setActiveCallId(initialCallId);
           setCallState('RINGING');
@@ -236,6 +261,7 @@ export const ChatCallScreen: React.FC = () => {
     };
   }, [
     isGroupMeeting,
+    alreadyConnected,
     isIncoming,
     initialCallId,
     receiverId,
@@ -285,6 +311,25 @@ export const ChatCallScreen: React.FC = () => {
           endedCleanupRef.current = true;
           setCallState('ENDED');
           navigation.goBack();
+        }
+      }),
+      realtimeManager.subscribe('call:participant_joined', (p) => {
+        if (p?.callId === activeCallId && p?.user) {
+          const u = p.user;
+          setParticipants((prev) => {
+            const uid = String(u.userId || u.id);
+            if (prev.some((x) => x.userId === uid)) return prev;
+            return [
+              ...prev,
+              {
+                userId: uid,
+                name: String(u.name || 'Participant'),
+                avatarUrl: u.avatarUrl || u.avatar,
+                isMuted: Boolean(u.isMuted),
+                isVideoOff: Boolean(u.isVideoOff),
+              },
+            ];
+          });
         }
       }),
       realtimeManager.subscribe('call:media-state', (p) => {
@@ -389,6 +434,8 @@ export const ChatCallScreen: React.FC = () => {
   };
 
   const handleAnswerIncoming = async () => {
+    if (answeredRef.current) return;
+    answeredRef.current = true;
     if (!activeCallId || isAnswering) return;
     try {
       setIsAnswering(true);
@@ -437,16 +484,34 @@ export const ChatCallScreen: React.FC = () => {
     navigation.goBack();
   };
 
-  const handleInviteColleague = async (targetUserId: string, name: string) => {
+  const handleInviteColleague = async (targetUserId: string, name: string, avatarUrl?: string) => {
     if (!activeCallId) return;
     try {
+      realtimeManager.emit('call:invite_colleague', {
+        callId: activeCallId,
+        targetUserId,
+      });
+
       if (isGroupMeeting) {
         await ChatService.inviteUsersToGroupMeeting(activeCallId, [targetUserId]);
       } else {
         await ChatService.inviteColleagueToCall(activeCallId, targetUserId);
       }
       setInviteModalOpen(false);
-      Alert.alert('Invited', `Call invitation sent to ${name}.`);
+      setParticipants((prev) => {
+        if (prev.some((p) => p.userId === targetUserId)) return prev;
+        return [
+          ...prev,
+          {
+            userId: targetUserId,
+            name,
+            avatarUrl,
+            isMuted: true,
+            isVideoOff: true,
+          },
+        ];
+      });
+      Alert.alert('Invitation Sent', `Call invitation sent to ${name}.`);
     } catch (err: any) {
       Alert.alert('Invite Error', err?.message || 'Unable to invite colleague.');
     }
@@ -471,7 +536,18 @@ export const ChatCallScreen: React.FC = () => {
   if (callTimedOut) {
     const initials = (receiverName || 'U').substring(0, 2).toUpperCase();
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 32,
+            paddingTop: insets.top > 0 ? insets.top + 32 : 44,
+            paddingBottom: insets.bottom > 0 ? insets.bottom + 24 : 32,
+          },
+        ]}
+      >
         <View style={styles.noAnswerAvatarCircle}>
           <Text style={styles.noAnswerAvatarText}>{initials}</Text>
         </View>
@@ -504,7 +580,15 @@ export const ChatCallScreen: React.FC = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top > 0 ? insets.top + 16 : 40,
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24,
+        },
+      ]}
+    >
       <View style={styles.topSection}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
           {isGroupMeeting ? (
@@ -544,7 +628,7 @@ export const ChatCallScreen: React.FC = () => {
       </View>
 
       {/* Center Stage: Multiparty Grid or 1:1 Avatar Stage */}
-      {isGroupMeeting ? (
+      {isGroupMeeting || participants.length > 0 ? (
         <ScrollView contentContainerStyle={styles.gridWrap}>
           {participants.length === 0 ? (
             <View style={styles.tileCard}>
@@ -788,39 +872,71 @@ export const ChatCallScreen: React.FC = () => {
           activeOpacity={1}
           onPress={() => setInviteModalOpen(false)}
         >
-          <View style={styles.modalSheet} onStartShouldSetResponder={() => true}>
+          <View
+            style={[
+              styles.modalSheet,
+              { paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24 },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add to Call</Text>
-              <TouchableOpacity onPress={() => setInviteModalOpen(false)}>
-                <X size={20} color="#FFFFFF" />
+              <TouchableOpacity
+                onPress={() => setInviteModalOpen(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                accessibilityRole="button"
+                accessibilityLabel="Close add to call dialog"
+              >
+                <X size={22} color="#0F172A" />
               </TouchableOpacity>
             </View>
             {contactsQuery.isLoading ? (
               <ActivityIndicator color="#4F46E5" style={{ marginVertical: 20 }} />
             ) : (
-              <ScrollView style={{ maxHeight: 320 }}>
+              <ScrollView style={{ maxHeight: 360 }}>
                 {(contactsQuery.data || [])
                   .filter((c) => c.userId !== user?.id)
                   .map((c) => {
-                    const initials = (c.name || 'U').substring(0, 2).toUpperCase();
+                    let rawAvatar = c.avatar || (c as any).avatarUrl;
+                    if (rawAvatar) {
+                      let trimmed = rawAvatar.trim();
+                      if (trimmed.includes('api.dicebear.com') && trimmed.includes('/svg?')) {
+                        trimmed = trimmed.replace('/svg?', '/png?');
+                      }
+                      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+                        rawAvatar = trimmed;
+                      } else if (trimmed.startsWith('/')) {
+                        rawAvatar = `${Config.API_BASE_URL}${trimmed}`;
+                      } else if (trimmed.startsWith('uploads/')) {
+                        rawAvatar = `${Config.API_BASE_URL}/${trimmed}`;
+                      }
+                    } else {
+                      const seed = encodeURIComponent(c.name || c.userId || 'colleague');
+                      rawAvatar = `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=00d287`;
+                    }
+
                     return (
                       <TouchableOpacity
                         key={c.id}
                         style={styles.inviteRow}
-                        onPress={() => handleInviteColleague(c.userId, c.name)}
+                        onPress={() => handleInviteColleague(c.userId, c.name, rawAvatar)}
+                        activeOpacity={0.7}
                       >
-                        {c.avatar ? (
-                          <Image
-                            source={{ uri: c.avatar }}
-                            style={styles.inviteAvatar}
-                          />
-                        ) : (
-                          <View style={[styles.inviteAvatar, styles.inviteAvatarFallback]}>
-                            <Text style={styles.inviteAvatarText}>{initials}</Text>
-                          </View>
-                        )}
-                        <Text style={styles.inviteName}>{c.name}</Text>
-                        <Text style={styles.inviteAction}>Add →</Text>
+                        <Image
+                          source={{ uri: rawAvatar }}
+                          style={styles.inviteAvatar}
+                        />
+                        <View style={{ flex: 1, marginRight: 10 }}>
+                          <Text style={styles.inviteName} numberOfLines={1}>{c.name}</Text>
+                          {Boolean(c.department || c.designation) && (
+                            <Text style={styles.inviteRoleText} numberOfLines={1}>
+                              {[c.designation, c.department].filter(Boolean).join(' • ')}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.inviteAddBadge}>
+                          <Text style={styles.inviteAction}>Add +</Text>
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -838,8 +954,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
     justifyContent: 'space-between',
-    paddingTop: 56,
-    paddingBottom: 40,
+    paddingTop: 0,
+    paddingBottom: 0,
     paddingHorizontal: 20,
   },
   topSection: {
@@ -1115,11 +1231,22 @@ const styles = StyleSheet.create({
   },
   inviteName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#0F172A',
   },
+  inviteRoleText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  inviteAddBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
   inviteAction: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#4F46E5',
   },

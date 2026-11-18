@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../common/Text';
 import { Button } from '../common/Button';
 import { OfflineBanner } from '../common/OfflineBanner';
@@ -19,6 +20,8 @@ import { useTenantStore } from '../../store/tenantStore';
 import { usePermission } from '../../hooks/usePermission';
 import { realtimeManager, IncomingCallSignal } from '../../core/realtime/realtimeManager';
 import { apiClient } from '../../core/api/apiClient';
+import { requestAppMediaPermissions } from '../../core/services/permissionService';
+import { PushNotificationService } from '../../core/services/pushNotificationService';
 import {
   MessageSquare,
   Calendar,
@@ -118,9 +121,17 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
   const user = useAuthStore((s) => s.user);
   const currentTenant = useTenantStore((s) => s.currentTenant);
   const { permissions } = usePermission();
+  let insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  try {
+    insets = useSafeAreaInsets();
+  } catch {
+    // Fallback if rendered outside SafeAreaProvider
+  }
 
   const [incomingCall, setIncomingCall] = useState<IncomingCallSignal | null>(null);
   const [answeringCall, setAnsweringCall] = useState(false);
+  const handledCallIdsRef = useRef<Set<string>>(new Set());
+  const activeCallIdRef = useRef<string | null>(null);
 
   const incomingCallerAvatar = React.useMemo(() => {
     if (!incomingCall) return null;
@@ -159,8 +170,10 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       const res = await apiClient.get('/api/calls/pending');
       const payload = res.data;
       if (payload?.hasPendingCall && payload?.data?.callId) {
+        const cId = String(payload.data.callId);
+        if (handledCallIdsRef.current.has(cId) || activeCallIdRef.current === cId) return;
         setIncomingCall({
-          callId: payload.data.callId,
+          callId: cId,
           callerId: payload.data.callerId,
           callerName: payload.data.callerName || 'Colleague',
           callerAvatar: payload.data.callerAvatar,
@@ -170,8 +183,10 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
           isAdditionalParticipant: Boolean(payload.data.isAdditionalParticipant),
         });
       } else if (payload?.hasPendingGroupCall && payload?.groupCallData?.callId) {
+        const gCId = String(payload.groupCallData.callId);
+        if (handledCallIdsRef.current.has(gCId) || activeCallIdRef.current === gCId) return;
         setIncomingCall({
-          callId: payload.groupCallData.callId,
+          callId: gCId,
           callerId: payload.groupCallData.callerId,
           callerName: payload.groupCallData.callerName || 'Team Member',
           callerAvatar: payload.groupCallData.callerAvatar,
@@ -190,12 +205,14 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
     void checkPendingCalls();
     const pollInterval = setInterval(() => {
       void checkPendingCalls();
-    }, 3500);
+    }, 4000);
 
     const unsubDirect = realtimeManager.subscribe('call:incoming', (data) => {
       if (!data?.callId || data?.callerId === user?.id) return;
+      const cId = String(data.callId);
+      if (handledCallIdsRef.current.has(cId) || activeCallIdRef.current === cId) return;
       setIncomingCall({
-        callId: data.callId,
+        callId: cId,
         callerId: data.callerId,
         callerName: data.callerName || 'Colleague',
         callerAvatar: data.callerAvatar,
@@ -204,24 +221,43 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
         isGroupCall: false,
         isAdditionalParticipant: Boolean(data.isAdditionalParticipant),
       });
+
+      // Show device notification in system tray
+      void PushNotificationService.presentLocalNotification({
+        title: `Incoming ${data.callType === 'video' ? 'Video' : 'Voice'} Call`,
+        body: `${data.callerName || 'Colleague'} is calling...`,
+        channelId: 'calls',
+        data: { callId: cId, threadId: data.threadId, type: 'incoming_call' },
+      });
     });
 
     const unsubInvited = realtimeManager.subscribe('call:participant_invited', (data) => {
       if (!data?.callId || data?.targetUserId !== user?.id) return;
+      const cId = String(data.callId);
+      if (handledCallIdsRef.current.has(cId) || activeCallIdRef.current === cId) return;
       setIncomingCall({
-        callId: data.callId,
+        callId: cId,
         callerId: data.inviterId || data.callerId || '',
         callerName: data.inviterName || data.callerName || 'Colleague',
         callType: data.callType === 'video' ? 'video' : 'audio',
         isGroupCall: false,
         isAdditionalParticipant: true,
       });
+
+      void PushNotificationService.presentLocalNotification({
+        title: 'Meeting Invitation',
+        body: `${data.inviterName || 'Colleague'} invited you to join a call`,
+        channelId: 'calls',
+        data: { callId: cId, type: 'participant_invited' },
+      });
     });
 
     const unsubGroup = realtimeManager.subscribe('group-call:incoming', (data) => {
       if (!data?.callId || data?.callerId === user?.id) return;
+      const cId = String(data.callId);
+      if (handledCallIdsRef.current.has(cId) || activeCallIdRef.current === cId) return;
       setIncomingCall({
-        callId: data.callId,
+        callId: cId,
         callerId: data.callerId,
         callerName: data.callerName || 'Team Member',
         callType: data.callType === 'video' ? 'video' : 'audio',
@@ -229,9 +265,19 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
         groupName: data.groupName || 'Group Meeting',
         isGroupCall: true,
       });
+
+      void PushNotificationService.presentLocalNotification({
+        title: 'Group Meeting Started',
+        body: `${data.groupName || 'Group'} meeting in progress`,
+        channelId: 'calls',
+        data: { callId: cId, groupId: data.groupId, type: 'group_call' },
+      });
     });
 
     const clearIfMatches = (data: any) => {
+      if (data?.callId) {
+        handledCallIdsRef.current.add(String(data.callId));
+      }
       setIncomingCall((prev) => {
         if (!prev) return null;
         if (!data?.callId || data.callId === prev.callId) return null;
@@ -239,6 +285,8 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       });
     };
 
+    const unsubAccepted = realtimeManager.subscribe('call:accepted', clearIfMatches);
+    const unsubRejected = realtimeManager.subscribe('call:rejected', clearIfMatches);
     const unsubCancelled = realtimeManager.subscribe('call:cancelled', clearIfMatches);
     const unsubEnded = realtimeManager.subscribe('call:ended', clearIfMatches);
     const unsubTimeout = realtimeManager.subscribe('call:timeout', clearIfMatches);
@@ -250,6 +298,8 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       unsubDirect();
       unsubInvited();
       unsubGroup();
+      unsubAccepted();
+      unsubRejected();
       unsubCancelled();
       unsubEnded();
       unsubTimeout();
@@ -261,8 +311,14 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
   const handleAcceptIncoming = async () => {
     if (!incomingCall || answeringCall) return;
     const call = incomingCall;
+    handledCallIdsRef.current.add(call.callId);
+    activeCallIdRef.current = call.callId;
+
     try {
       setAnsweringCall(true);
+      // Pre-acquire hardware permissions smoothly
+      await requestAppMediaPermissions().catch(() => {});
+
       if (call.isGroupCall) {
         await apiClient.post(`/api/chat/meetings/${call.callId}/join`, {
           groupId: call.groupId,
@@ -283,7 +339,9 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
         groupId: call.groupId,
         groupName: call.groupName,
         isGroupMeeting: Boolean(call.isGroupCall),
-        isIncoming: true,
+        isIncoming: false,
+        hasAccepted: true,
+        initialStatus: 'connected',
       });
     } catch {
       setIncomingCall(null);
@@ -295,6 +353,7 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
   const handleDeclineIncoming = async () => {
     if (!incomingCall) return;
     const call = incomingCall;
+    handledCallIdsRef.current.add(call.callId);
     setIncomingCall(null);
     try {
       if (!call.isGroupCall) {
@@ -333,7 +392,12 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       <OfflineBanner />
 
       {/* Top Branded Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top > 0 ? insets.top + 8 : Platform.OS === 'ios' ? 50 : 24 },
+        ]}
+      >
         <View
           style={[
             styles.headerInner,
@@ -421,11 +485,44 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
       <Modal
         visible={Boolean(incomingCall)}
         animationType="slide"
-        transparent
+        transparent={false}
         onRequestClose={handleDeclineIncoming}
       >
         <View style={styles.incomingModalBackdrop}>
-          <View style={styles.incomingModalContainer}>
+          <View
+            style={[
+              styles.incomingModalContainer,
+              {
+                paddingTop: insets.top > 0 ? insets.top + 28 : 44,
+                paddingBottom: insets.bottom > 0 ? insets.bottom + 32 : 44,
+              },
+            ]}
+          >
+            <View style={{ alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                {incomingCall?.callType === 'video' ? (
+                  <Video size={16} color="#00D287" />
+                ) : (
+                  <Phone size={16} color="#00D287" />
+                )}
+                <Text style={styles.incomingModalCallBadge}>
+                  {incomingCall?.isGroupCall
+                    ? `GROUP ${incomingCall?.callType.toUpperCase()} MEETING`
+                    : `INCOMING ${incomingCall?.callType.toUpperCase()} CALL`}
+                </Text>
+              </View>
+              <Text style={styles.incomingModalName} numberOfLines={2}>
+                {incomingCall?.isGroupCall
+                  ? incomingCall?.groupName || 'Group Meeting'
+                  : incomingCall?.callerName}
+              </Text>
+              <Text style={styles.incomingModalType}>
+                {incomingCall?.isGroupCall
+                  ? 'Incoming team conference request...'
+                  : 'Ringing...'}
+              </Text>
+            </View>
+
             <View style={styles.incomingRingingPulseWrap}>
               <View style={styles.incomingRingingOuterRing}>
                 <View style={styles.incomingRingingMidRing}>
@@ -446,42 +543,37 @@ export const WorkspaceModuleShell: React.FC<WorkspaceModuleShellProps> = ({
               </View>
             </View>
 
-            <Text style={styles.incomingModalName} numberOfLines={1}>
-              {incomingCall?.isGroupCall
-                ? incomingCall?.groupName || 'Group Meeting'
-                : incomingCall?.callerName}
-            </Text>
-            <Text style={styles.incomingModalType}>
-              {incomingCall?.isGroupCall
-                ? `Group ${incomingCall?.callType === 'video' ? 'Video' : 'Voice'} Call Ringing...`
-                : `Incoming ${incomingCall?.callType === 'video' ? 'Video' : 'Voice'} Call...`}
-            </Text>
-
             <View style={styles.incomingModalControls}>
-              <TouchableOpacity
-                style={styles.incomingDeclineBtnRound}
-                onPress={handleDeclineIncoming}
-                accessibilityRole="button"
-                accessibilityLabel="Decline call"
-              >
-                <PhoneOff size={28} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={{ alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.incomingDeclineBtnRound}
+                  onPress={handleDeclineIncoming}
+                  accessibilityRole="button"
+                  accessibilityLabel="Decline call"
+                >
+                  <PhoneOff size={30} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.incomingBtnLabel}>Decline</Text>
+              </View>
 
-              <TouchableOpacity
-                style={styles.incomingAcceptBtnRound}
-                onPress={handleAcceptIncoming}
-                disabled={answeringCall}
-                accessibilityRole="button"
-                accessibilityLabel="Accept call"
-              >
-                {answeringCall ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : incomingCall?.callType === 'video' ? (
-                  <Video size={28} color="#FFFFFF" />
-                ) : (
-                  <Phone size={28} color="#FFFFFF" />
-                )}
-              </TouchableOpacity>
+              <View style={{ alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.incomingAcceptBtnRound}
+                  onPress={handleAcceptIncoming}
+                  disabled={answeringCall}
+                  accessibilityRole="button"
+                  accessibilityLabel="Accept call"
+                >
+                  {answeringCall ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : incomingCall?.callType === 'video' ? (
+                    <Video size={30} color="#FFFFFF" />
+                  ) : (
+                    <Phone size={30} color="#FFFFFF" />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.incomingBtnLabel}>Accept</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -796,111 +888,113 @@ const styles = StyleSheet.create({
   },
   incomingModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    backgroundColor: '#FFFFFF',
   },
   incomingModalContainer: {
+    flex: 1,
     width: '100%',
-    maxWidth: 360,
+    height: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
-    paddingVertical: 36,
-    paddingHorizontal: 24,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 12,
+    paddingHorizontal: 24,
+  },
+  incomingModalCallBadge: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#00A86B',
+    letterSpacing: 1.2,
   },
   incomingRingingPulseWrap: {
-    marginBottom: 20,
+    marginVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
   incomingRingingOuterRing: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 176,
+    height: 176,
+    borderRadius: 88,
     backgroundColor: 'rgba(0, 210, 135, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   incomingRingingMidRing: {
-    width: 116,
-    height: 116,
-    borderRadius: 58,
+    width: 144,
+    height: 144,
+    borderRadius: 72,
     backgroundColor: 'rgba(0, 210, 135, 0.22)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   incomingModalAvatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     borderWidth: 3,
     borderColor: '#00D287',
   },
   incomingModalAvatarPlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 112,
+    height: 112,
+    borderRadius: 56,
     backgroundColor: '#00D287',
     justifyContent: 'center',
     alignItems: 'center',
   },
   incomingModalAvatarText: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '800',
   },
   incomingModalName: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
     color: '#0F172A',
     textAlign: 'center',
     marginBottom: 6,
   },
   incomingModalType: {
-    fontSize: 14,
+    fontSize: 15,
     color: '#64748B',
-    fontWeight: '500',
+    fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 32,
   },
   incomingModalControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 48,
+    justifyContent: 'space-around',
     width: '100%',
+    paddingHorizontal: 24,
   },
   incomingDeclineBtnRound: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.45,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
   },
   incomingAcceptBtnRound: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#00D287',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#00D287',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.45,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
+  },
+  incomingBtnLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
   },
 });

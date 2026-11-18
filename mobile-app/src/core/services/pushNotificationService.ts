@@ -1,8 +1,30 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import * as TaskManager from 'expo-task-manager';
 
 export type PushTokenType = 'expo' | 'fcm' | 'apns' | 'none';
+
+export const BACKGROUND_NOTIFICATION_TASK = 'MASTERHRMS_BACKGROUND_NOTIFICATION';
+
+// Define background notification task safely
+try {
+  if (TaskManager && typeof TaskManager.defineTask === 'function') {
+    if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
+      TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }: any) => {
+        if (error) {
+          console.warn('[Push] Background task error:', error);
+          return;
+        }
+        if (data) {
+          console.log('[Push] Background notification received:', data, executionInfo);
+        }
+      });
+    }
+  }
+} catch (taskErr) {
+  console.warn('[Push] Could not define background notification task:', taskErr);
+}
 
 export interface PushCapabilityStatus {
   isPhysicalDevice: boolean;
@@ -96,15 +118,31 @@ export class PushNotificationService {
           importance: Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#4F46E5',
+          enableVibrate: true,
+          showBadge: true,
+          enableLights: true,
         });
 
         await Notifications.setNotificationChannelAsync('calls', {
           name: 'MasterHRMS Calls',
-          importance: Notifications.AndroidImportance.HIGH,
+          importance: Notifications.AndroidImportance.MAX,
           sound: 'default',
           vibrationPattern: [0, 500, 250, 500],
           lightColor: '#10B981',
+          enableVibrate: true,
+          showBadge: true,
+          enableLights: true,
+          bypassDnd: true,
         });
+      }
+
+      // Register background notification task
+      try {
+        if (typeof Notifications.registerTaskAsync === 'function') {
+          await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+        }
+      } catch (bgRegErr) {
+        // Non-fatal if already registered or in development
       }
 
       // 3. Obtain real device/expo push token
@@ -167,6 +205,38 @@ export class PushNotificationService {
         statusReason: err?.message || 'Unexpected error during push registration',
       };
       console.warn('[Push] Registration error:', this.currentStatus.statusReason);
+      return null;
+    }
+  }
+
+  /**
+   * Immediately presents a system notification in the device notification tray.
+   * Useful when receiving realtime call signals, chat messages, or alerts.
+   */
+  public static async presentLocalNotification(params: {
+    title: string;
+    body: string;
+    data?: Record<string, any>;
+    channelId?: 'default' | 'calls';
+    sound?: boolean;
+  }): Promise<string | null> {
+    try {
+      const channelId = params.channelId || 'default';
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: params.title,
+          body: params.body,
+          data: params.data || {},
+          sound: params.sound !== false,
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 250, 250, 250],
+          ...(Platform.OS === 'android' ? { channelId } : {}),
+        },
+        trigger: null, // triggers immediately
+      });
+      return notificationId;
+    } catch (err) {
+      console.warn('[Push] Error presenting local notification:', err);
       return null;
     }
   }

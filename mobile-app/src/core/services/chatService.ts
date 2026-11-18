@@ -887,7 +887,10 @@ export class ChatService {
     }
 
     const res = await apiClient.post('/api/chat/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      headers: {
+        Accept: 'application/json',
+      },
+      transformRequest: (data) => data,
     });
 
     const saved = Array.isArray(res.data?.files) ? res.data.files : [];
