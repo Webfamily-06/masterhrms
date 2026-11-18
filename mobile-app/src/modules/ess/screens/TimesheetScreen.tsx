@@ -18,11 +18,13 @@ import {
   Pencil,
   X,
   Plus,
+  Trash2,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
 import { AttendanceService, TimesheetItem } from '../../../core/services/attendanceService';
+import { LeaveService } from '../../../core/services/leaveService';
 
 export const TimesheetScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'Timesheet'>>();
@@ -31,25 +33,70 @@ export const TimesheetScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [timesheets, setTimesheets] = useState<TimesheetItem[]>([]);
+  const [leaveHours, setLeaveHours] = useState('0.0');
 
   // Edit/Add Time Entry Modal
-  const [editingEntry, setEditingEntry] = useState<TimesheetItem | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [selectedEntry, setSelectedEntry] = useState<TimesheetItem | null>(null);
   const [editDate, setEditDate] = useState(new Date().toISOString().split('T')[0]);
   const [editHours, setEditHours] = useState('8.00');
   const [editDescription, setEditDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Date range label and boundaries for current period
+  const { periodLabel, periodStart, periodEnd } = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const endDays = payPeriodMode === 'weekly' ? 6 : 13;
+    const end = new Date(monday);
+    end.setDate(monday.getDate() + endDays);
+    end.setHours(23, 59, 59, 999);
+
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return {
+      periodLabel: `${fmt(monday)} - ${fmt(end)}, ${end.getFullYear()}`,
+      periodStart: monday,
+      periodEnd: end,
+    };
+  }, [payPeriodMode]);
+
   const loadData = useCallback(async () => {
     try {
-      const data = await AttendanceService.getTimesheets();
-      setTimesheets(data || []);
+      const [tsData, myLeaves] = await Promise.all([
+        AttendanceService.getTimesheets(),
+        LeaveService.getMyRequests().catch(() => []),
+      ]);
+      setTimesheets(tsData || []);
+
+      // Derive real approved leave hours overlapping current period
+      let calculatedLeaveDays = 0;
+      const pStart = periodStart.getTime();
+      const pEnd = periodEnd.getTime();
+      if (Array.isArray(myLeaves)) {
+        myLeaves.forEach((l) => {
+          if (l.status === 'APPROVED' || (l.status as any) === 'approved') {
+            const lStart = new Date(l.startDate).getTime();
+            const lEnd = new Date(l.endDate).getTime();
+            if (!isNaN(lStart) && !isNaN(lEnd) && lStart <= pEnd && lEnd >= pStart) {
+              calculatedLeaveDays += Number(l.days) || 1;
+            }
+          }
+        });
+      }
+      setLeaveHours((calculatedLeaveDays * 8).toFixed(1));
     } catch {
       // Non-fatal
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [periodStart, periodEnd]);
 
   useEffect(() => {
     loadData();
@@ -59,21 +106,6 @@ export const TimesheetScreen: React.FC = () => {
     setRefreshing(true);
     loadData();
   };
-
-  // Date range label for current period
-  const periodLabel = useMemo(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const diffToMonday = (day === 0 ? -6 : 1) - day;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + diffToMonday);
-    const endDays = payPeriodMode === 'weekly' ? 6 : 13;
-    const end = new Date(monday);
-    end.setDate(monday.getDate() + endDays);
-
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(monday)} - ${fmt(end)}, ${end.getFullYear()}`;
-  }, [payPeriodMode]);
 
   // Aggregate stats from real records
   const { regularHours, overtimeHours, totalHours } = useMemo(() => {
@@ -96,17 +128,53 @@ export const TimesheetScreen: React.FC = () => {
   }, [timesheets]);
 
   const handleOpenAdd = () => {
-    setEditingEntry(null);
+    setSelectedEntry(null);
+    setFormMode('create');
     setEditDate(new Date().toISOString().split('T')[0]);
     setEditHours('8.00');
     setEditDescription('');
+    setIsModalVisible(true);
   };
 
   const handleOpenEdit = (entry: TimesheetItem) => {
-    setEditingEntry(entry);
+    if (entry.status === 'approved') {
+      Alert.alert(
+        'Timesheet Locked',
+        'This timesheet entry has already been approved and cannot be modified or deleted without management reopening.'
+      );
+      return;
+    }
+    setSelectedEntry(entry);
+    setFormMode('edit');
     setEditDate(entry.date?.split('T')[0] || new Date().toISOString().split('T')[0]);
     setEditHours(String(entry.hours || '8.00'));
     setEditDescription(entry.description || '');
+    setIsModalVisible(true);
+  };
+
+  const handleDeleteEntry = () => {
+    if (!selectedEntry) return;
+    Alert.alert('Delete Entry', 'Are you sure you want to delete this pending timesheet entry?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setSaving(true);
+            await AttendanceService.deleteTimesheet(selectedEntry.id);
+            setIsModalVisible(false);
+            setSelectedEntry(null);
+            await loadData();
+            Alert.alert('Deleted', 'Timesheet entry removed.');
+          } catch (err: any) {
+            Alert.alert('Error', err?.message || 'Failed to delete timesheet entry.');
+          } finally {
+            setSaving(false);
+          }
+        },
+      },
+    ]);
   };
 
   const handleSaveEntry = async () => {
@@ -118,14 +186,21 @@ export const TimesheetScreen: React.FC = () => {
 
     try {
       setSaving(true);
+      if (formMode === 'edit' && selectedEntry) {
+        await AttendanceService.deleteTimesheet(selectedEntry.id);
+      }
       await AttendanceService.createTimesheet({
         date: editDate,
         hours: hoursNum,
         description: editDescription,
       });
-      setEditingEntry(null);
+      setIsModalVisible(false);
+      setSelectedEntry(null);
       await loadData();
-      Alert.alert('Success', 'Timesheet entry saved.');
+      Alert.alert(
+        'Success',
+        formMode === 'edit' ? 'Timesheet entry updated.' : 'Timesheet entry submitted.'
+      );
     } catch (err: any) {
       Alert.alert('Error', err?.message || 'Could not save timesheet entry.');
     } finally {
@@ -207,7 +282,7 @@ export const TimesheetScreen: React.FC = () => {
             </View>
 
             <View style={[styles.statBox, { backgroundColor: '#F3E8FF' }]}>
-              <Text style={styles.statVal}>0.0</Text>
+              <Text style={styles.statVal}>{leaveHours}</Text>
               <Text style={styles.statLabel}>Leave</Text>
             </View>
 
@@ -274,15 +349,20 @@ export const TimesheetScreen: React.FC = () => {
       </ScrollView>
 
       {/* Edit/Add Time Entry Modal */}
-      <Modal visible={Boolean(editingEntry)} animationType="slide" transparent onRequestClose={() => setEditingEntry(null)}>
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsModalVisible(false)}
+      >
         <View style={styles.modalBackdrop}>
           <View style={styles.editModalSheet}>
-            <TouchableOpacity onPress={() => setEditingEntry(null)} style={styles.floatingCloseBtn}>
+            <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.floatingCloseBtn}>
               <X size={18} color="#0F172A" />
             </TouchableOpacity>
 
             <Text style={styles.editModalTitle}>
-              {editingEntry ? 'Edit Time Entry' : 'New Time Entry'}
+              {formMode === 'edit' ? 'Edit Time Entry' : 'New Time Entry'}
             </Text>
             <View style={styles.dividerThin} />
 
@@ -310,22 +390,35 @@ export const TimesheetScreen: React.FC = () => {
             />
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 14 }}>
+              {formMode === 'edit' && (
+                <TouchableOpacity
+                  style={[styles.whiteBtn, { borderColor: '#EF4444', backgroundColor: '#FEF2F2', paddingHorizontal: 16 }]}
+                  onPress={handleDeleteEntry}
+                  disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete Timesheet Entry"
+                >
+                  <Trash2 size={18} color="#DC2626" />
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
-                style={styles.whiteBtn}
-                onPress={() => setEditingEntry(null)}
+                style={[styles.whiteBtn, { flex: 1 }]}
+                onPress={() => setIsModalVisible(false)}
+                disabled={saving}
               >
                 <Text style={styles.whiteBtnText}>Cancel</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.blueBtn}
+                style={[styles.blueBtn, { flex: 1 }]}
                 onPress={handleSaveEntry}
                 disabled={saving}
               >
                 {saving ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.blueBtnText}>Save</Text>
+                  <Text style={styles.blueBtnText}>{formMode === 'edit' ? 'Update' : 'Save'}</Text>
                 )}
               </TouchableOpacity>
             </View>

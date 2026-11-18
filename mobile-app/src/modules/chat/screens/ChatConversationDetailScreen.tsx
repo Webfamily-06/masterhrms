@@ -82,6 +82,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
 
@@ -218,9 +219,13 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   // Location Sharing Modal State
   const [locationModalOpen, setLocationModalOpen] = useState(false);
-  const [locationType, setLocationType] = useState<'current' | 'live'>('current');
-  const [liveDuration, setLiveDuration] = useState<'10m' | '1h' | '2h' | 'custom'>('1h');
-  const [liveDurationCustomMin, setLiveDurationCustomMin] = useState('30');
+  const [currentLocationPreview, setCurrentLocationPreview] = useState<{
+    latitude: number;
+    longitude: number;
+    address: string;
+    accuracy?: number;
+  } | null>(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   // Swipe Left to Reply State
   const [swipingMsgId, setSwipingMsgId] = useState<string | null>(null);
@@ -317,11 +322,24 @@ export const ChatConversationDetailScreen: React.FC = () => {
       });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
       const asset = result.assets[0];
+
+      let realSize = asset.fileSize;
+      if (!realSize || realSize <= 0) {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+          if (fileInfo.exists && typeof (fileInfo as any).size === 'number') {
+            realSize = (fileInfo as any).size;
+          }
+        } catch {
+          realSize = undefined;
+        }
+      }
+
       const photoFile: UploadableFileDescriptor = {
         uri: asset.uri,
         name: asset.fileName || `camera_${Date.now()}.jpg`,
         type: asset.mimeType || 'image/jpeg',
-        size: asset.fileSize || 300000,
+        size: realSize || 0,
       };
 
       setSending(true);
@@ -409,12 +427,27 @@ export const ChatConversationDetailScreen: React.FC = () => {
       });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
 
-      const newFiles: UploadableFileDescriptor[] = result.assets.map((asset, i) => ({
-        uri: asset.uri,
-        name: asset.fileName || `photo_${Date.now()}_${i}.jpg`,
-        type: asset.mimeType || 'image/jpeg',
-        size: asset.fileSize || 250000,
-      }));
+      const newFiles: UploadableFileDescriptor[] = await Promise.all(
+        result.assets.map(async (asset, i) => {
+          let realSize = asset.fileSize;
+          if (!realSize || realSize <= 0) {
+            try {
+              const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+              if (fileInfo.exists && typeof (fileInfo as any).size === 'number') {
+                realSize = (fileInfo as any).size;
+              }
+            } catch {
+              realSize = undefined;
+            }
+          }
+          return {
+            uri: asset.uri,
+            name: asset.fileName || `photo_${Date.now()}_${i}.jpg`,
+            type: asset.mimeType || 'image/jpeg',
+            size: realSize || 0,
+          };
+        })
+      );
 
       setSending(true);
       const uploaded = await ChatService.uploadAttachments(newFiles, threadId);
@@ -492,10 +525,32 @@ export const ChatConversationDetailScreen: React.FC = () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Location Permission Required', 'Location access is required to share current or live location.');
+        Alert.alert('Location Permission Required', 'Location access is required to share your current location.');
         return;
       }
       setLocationModalOpen(true);
+      setIsLoadingLocation(true);
+      try {
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const geocode = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        }).catch(() => []);
+        const addr = geocode[0];
+        const placeName = addr
+          ? [addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(', ')
+          : 'Current GPS Location';
+        setCurrentLocationPreview({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          address: placeName,
+          accuracy: loc.coords.accuracy ?? undefined,
+        });
+      } catch (locErr: any) {
+        console.warn('[Location] GPS acquisition error:', locErr);
+      } finally {
+        setIsLoadingLocation(false);
+      }
     } catch {
       Alert.alert('Location Error', 'Unable to request location permissions.');
     }
@@ -505,25 +560,32 @@ export const ChatConversationDetailScreen: React.FC = () => {
     setLocationModalOpen(false);
     try {
       setSending(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location Permission Required', 'Location access is required.');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const geocode = await Location.reverseGeocodeAsync({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      }).catch(() => []);
-      const addr = geocode[0];
-      const placeName = addr
-        ? [addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(', ')
-        : 'Current Location';
+      const loc =
+        currentLocationPreview && currentLocationPreview.latitude
+          ? {
+              coords: {
+                latitude: currentLocationPreview.latitude,
+                longitude: currentLocationPreview.longitude,
+                accuracy: currentLocationPreview.accuracy,
+              },
+            }
+          : await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
 
-      const locText =
-        locationType === 'current'
-          ? `📍 Location: ${placeName} (${loc.coords.latitude.toFixed(4)}° N, ${loc.coords.longitude.toFixed(4)}° E)`
-          : `🔴 Live Location (${liveDuration === 'custom' ? liveDurationCustomMin + 'min' : liveDuration}): ${placeName} (${loc.coords.latitude.toFixed(4)}° N, ${loc.coords.longitude.toFixed(4)}° E)`;
+      const placeName =
+        currentLocationPreview?.address && currentLocationPreview.address !== 'Current GPS Location'
+          ? currentLocationPreview.address
+          : await Location.reverseGeocodeAsync({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            })
+              .then((g) => {
+                const a = g[0];
+                return a ? [a.street, a.district, a.city, a.region].filter(Boolean).join(', ') : 'Current Location';
+              })
+              .catch(() => 'Current Location');
+
+      const accuracyStr = loc.coords.accuracy ? ` (±${Math.round(loc.coords.accuracy)}m)` : '';
+      const locText = `📍 Location: ${placeName} [${loc.coords.latitude.toFixed(5)}, ${loc.coords.longitude.toFixed(5)}]${accuracyStr}`;
 
       const sent = await ChatService.sendMessage({
         threadId,
@@ -903,6 +965,30 @@ export const ChatConversationDetailScreen: React.FC = () => {
     // Rich Map Card for Location Messages
     if (content.startsWith('📍 Location') || content.startsWith('🔴 Live Location')) {
       const isLive = content.startsWith('🔴 Live Location');
+      const bracketMatch = content.match(/\[([+-]?\d+(?:\.\d+)?),\s*([+-]?\d+(?:\.\d+)?)\]/);
+      const degreeMatch = content.match(/([+-]?\d+(?:\.\d+)?)°\s*([NS])?,\s*([+-]?\d+(?:\.\d+)?)°\s*([EW])?/i);
+      let parsedLat: number | null = null;
+      let parsedLng: number | null = null;
+      if (bracketMatch) {
+        parsedLat = parseFloat(bracketMatch[1]);
+        parsedLng = parseFloat(bracketMatch[2]);
+      } else if (degreeMatch) {
+        parsedLat = parseFloat(degreeMatch[1]);
+        if (degreeMatch[2]?.toUpperCase() === 'S') parsedLat = -parsedLat;
+        parsedLng = parseFloat(degreeMatch[3]);
+        if (degreeMatch[4]?.toUpperCase() === 'W') parsedLng = -parsedLng;
+      }
+
+      const displayTitle = content
+        .replace(/^[📍🔴]\s*(?:Location:\s*)?/, '')
+        .replace(/\s*\[.*?\]/, '')
+        .replace(/\s*\(.*?°.*?\)/, '')
+        .trim();
+
+      const subtitle = parsedLat !== null && parsedLng !== null
+        ? `${parsedLat.toFixed(4)}°, ${parsedLng.toFixed(4)}° • GPS Location`
+        : 'Shared GPS Location';
+
       return (
         <View style={styles.locationMessageCard}>
           <View style={styles.locationMapThumb}>
@@ -923,20 +1009,21 @@ export const ChatConversationDetailScreen: React.FC = () => {
           <View style={styles.locationInfoRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.locationTitleText} numberOfLines={1}>
-                {content.replace(/^[📍🔴]\s*/, '')}
+                {displayTitle || 'Current Location'}
               </Text>
-              <Text style={styles.locationSubText}>
-                {isLive ? 'Real-time location sharing active' : 'Accurate to 10m • Chennai HQ'}
-              </Text>
+              <Text style={styles.locationSubText}>{subtitle}</Text>
             </View>
             <TouchableOpacity
               style={styles.openMapBtn}
               onPress={() => {
-                const url = Platform.select({
-                  ios: 'maps:13.0827,80.2707',
-                  android: 'geo:13.0827,80.2707?q=13.0827,80.2707(MasterHRMS+HQ)',
-                });
-                if (url) Linking.openURL(url).catch(() => {});
+                if (parsedLat !== null && parsedLng !== null) {
+                  const queryLabel = encodeURIComponent(displayTitle || 'Shared Location');
+                  const url = Platform.select({
+                    ios: `maps:${parsedLat},${parsedLng}?q=${queryLabel}`,
+                    android: `geo:${parsedLat},${parsedLng}?q=${parsedLat},${parsedLng}(${queryLabel})`,
+                  });
+                  if (url) Linking.openURL(url).catch(() => {});
+                }
               }}
               accessibilityRole="button"
               accessibilityLabel="Open in maps"
@@ -2339,112 +2426,40 @@ export const ChatConversationDetailScreen: React.FC = () => {
               </View>
               <View style={styles.mapCoordBar}>
                 <Text style={styles.mapAddressText} numberOfLines={1}>
-                  MasterHRMS Headquarters, Tech Park, Chennai
+                  {isLoadingLocation
+                    ? 'Locating device via GPS...'
+                    : currentLocationPreview?.address || 'Current Device Location'}
                 </Text>
-                <Text style={styles.mapCoordsText}>13.0827° N, 80.2707° E</Text>
+                <Text style={styles.mapCoordsText}>
+                  {currentLocationPreview
+                    ? `${currentLocationPreview.latitude.toFixed(4)}° N, ${currentLocationPreview.longitude.toFixed(4)}° E ${
+                        currentLocationPreview.accuracy ? `• ±${Math.round(currentLocationPreview.accuracy)}m` : ''
+                      }`
+                    : 'Obtaining GPS fix...'}
+                </Text>
               </View>
             </View>
 
-            {/* Location Type Selector */}
-            <View style={styles.locationTypeTabsRow}>
-              <TouchableOpacity
-                style={[
-                  styles.locationTypeTab,
-                  locationType === 'current' && styles.locationTypeTabActive,
-                ]}
-                onPress={() => setLocationType('current')}
-              >
-                <MapPin
-                  size={16}
-                  color={locationType === 'current' ? '#00D287' : '#64748B'}
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  style={[
-                    styles.locationTypeTabText,
-                    locationType === 'current' && styles.locationTypeTabTextActive,
-                  ]}
-                >
-                  Current Location
+            {/* Current Location Information Banner */}
+            <View style={styles.currentLocationInfoBanner}>
+              <MapPin size={16} color="#00D287" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.currentLocationBannerTitle}>GPS Location Ready</Text>
+                <Text style={styles.currentLocationBannerSubtitle}>
+                  Real coordinates acquired from device hardware. Tap send to share with chat.
                 </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.locationTypeTab,
-                  locationType === 'live' && styles.locationTypeTabActive,
-                ]}
-                onPress={() => setLocationType('live')}
-              >
-                <Radio
-                  size={16}
-                  color={locationType === 'live' ? '#EF4444' : '#64748B'}
-                  style={{ marginRight: 6 }}
-                />
-                <Text
-                  style={[
-                    styles.locationTypeTabText,
-                    locationType === 'live' && styles.locationTypeTabTextActive,
-                  ]}
-                >
-                  Live Location
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Live Duration Selector (Visible when live location is selected) */}
-            {locationType === 'live' && (
-              <View style={styles.liveDurationSection}>
-                <Text style={styles.liveDurationLabel}>Share Live Location for:</Text>
-                <View style={styles.liveDurationPillsRow}>
-                  {(['10m', '1h', '2h', 'custom'] as const).map((dur) => (
-                    <TouchableOpacity
-                      key={dur}
-                      style={[
-                        styles.liveDurationPill,
-                        liveDuration === dur && styles.liveDurationPillActive,
-                      ]}
-                      onPress={() => setLiveDuration(dur)}
-                    >
-                      <Text
-                        style={[
-                          styles.liveDurationPillText,
-                          liveDuration === dur && styles.liveDurationPillTextActive,
-                        ]}
-                      >
-                        {dur === '10m' ? '10 Minutes' : dur === '1h' ? '1 Hour' : dur === '2h' ? '2 Hours' : 'Custom'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                {liveDuration === 'custom' && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 }}>
-                    <Text style={styles.liveDurationLabel}>Minutes:</Text>
-                    <TextInput
-                      value={liveDurationCustomMin}
-                      onChangeText={(v) => setLiveDurationCustomMin(v.replace(/[^0-9]/g, ''))}
-                      keyboardType="number-pad"
-                      maxLength={4}
-                      style={{
-                        borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 8,
-                        paddingHorizontal: 10, paddingVertical: 6, fontSize: 14,
-                        minWidth: 80, color: '#0F172A',
-                      }}
-                      placeholder="e.g. 45"
-                    />
-                    <Text style={styles.liveDurationLabel}>min</Text>
-                  </View>
-                )}
               </View>
-            )}
+            </View>
 
             {/* Send Location Button */}
-            <TouchableOpacity style={styles.sendLocationBtn} onPress={handleSendLocation}>
+            <TouchableOpacity
+              style={[styles.sendLocationBtn, isLoadingLocation && { opacity: 0.7 }]}
+              onPress={handleSendLocation}
+              disabled={isLoadingLocation}
+            >
               <Navigation size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.sendLocationBtnText}>
-                {locationType === 'current'
-                  ? 'Send Current Location'
-                  : `Share Live Location (${liveDuration})`}
+                {isLoadingLocation ? 'Acquiring GPS...' : 'Send Current Location'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -4862,6 +4877,27 @@ const styles = StyleSheet.create({
   liveDurationPillTextActive: {
     color: '#DC2626',
     fontWeight: '700',
+  },
+  currentLocationInfoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 10,
+    padding: 12,
+    marginVertical: 14,
+  },
+  currentLocationBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#166534',
+    marginBottom: 2,
+  },
+  currentLocationBannerSubtitle: {
+    fontSize: 11.5,
+    color: '#15803D',
+    lineHeight: 16,
   },
   sendLocationBtn: {
     height: 48,

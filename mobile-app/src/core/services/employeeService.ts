@@ -220,4 +220,20 @@ export class EmployeeService {
       return [];
     }
   }
+
+  /**
+   * Fetch workspace employees (directory for mentions, shift swaps, delegation)
+   */
+  static async getEmployees(search?: string): Promise<Array<{ id: string; firstName: string; lastName: string; employeeCode: string; email?: string }>> {
+    try {
+      const response = await apiClient.get<any>('/api/employees', { params: { search, limit: 100 } });
+      const data = response.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.data)) return data.data;
+      if (Array.isArray(data?.employees)) return data.employees;
+      return [];
+    } catch {
+      return [];
+    }
+  }
 }

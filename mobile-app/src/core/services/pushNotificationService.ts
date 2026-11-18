@@ -1,7 +1,17 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { apiClient } from '../api/apiClient';
+
+export type PushTokenType = 'expo' | 'fcm' | 'apns' | 'none';
+
+export interface PushCapabilityStatus {
+  isPhysicalDevice: boolean;
+  permissionGranted: boolean;
+  tokenType: PushTokenType;
+  pushToken: string | null;
+  serverRegistrationStatus: 'unsupported_backend' | 'registered' | 'failed' | 'not_attempted';
+  statusReason: string;
+}
 
 // Configure how foreground notifications are handled
 Notifications.setNotificationHandler({
@@ -16,14 +26,38 @@ Notifications.setNotificationHandler({
 
 export class PushNotificationService {
   private static isInitialized = false;
+  private static currentStatus: PushCapabilityStatus = {
+    isPhysicalDevice: false,
+    permissionGranted: false,
+    tokenType: 'none',
+    pushToken: null,
+    serverRegistrationStatus: 'not_attempted',
+    statusReason: 'Push registration not yet initialized',
+  };
 
   /**
-   * Registers the mobile device for push notifications and syncs with backend.
+   * Returns current honest push notification capability status.
+   */
+  public static getCapabilityStatus(): PushCapabilityStatus {
+    return { ...this.currentStatus };
+  }
+
+  /**
+   * Registers the mobile device for push notifications and evaluates backend compatibility.
+   * Strict Rule: Never send fabricated VAPID keys and never call non-existent endpoints.
    */
   public static async registerForPushNotifications(): Promise<string | null> {
     try {
       if (!Device.isDevice) {
-        console.log('[Push] Must use physical device for native push notifications');
+        this.currentStatus = {
+          isPhysicalDevice: false,
+          permissionGranted: false,
+          tokenType: 'none',
+          pushToken: null,
+          serverRegistrationStatus: 'not_attempted',
+          statusReason: 'Simulator / Emulator environment does not support native remote push notifications.',
+        };
+        console.log('[Push]', this.currentStatus.statusReason);
         return null;
       }
 
@@ -37,11 +71,19 @@ export class PushNotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.warn('[Push] Push notification permission not granted');
+        this.currentStatus = {
+          isPhysicalDevice: true,
+          permissionGranted: false,
+          tokenType: 'none',
+          pushToken: null,
+          serverRegistrationStatus: 'not_attempted',
+          statusReason: 'Push notification permission was denied by user in system settings.',
+        };
+        console.warn('[Push]', this.currentStatus.statusReason);
         return null;
       }
 
-      // Android specific notification channel setup
+      // 2. Android specific notification channels setup
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('default', {
           name: 'MasterHRMS Alerts',
@@ -59,50 +101,66 @@ export class PushNotificationService {
         });
       }
 
-      // 2. Fetch Expo push token
+      // 3. Obtain real device/expo push token
       let pushToken = '';
+      let tokenType: PushTokenType = 'none';
+
       try {
         const tokenData = await Notifications.getExpoPushTokenAsync();
         pushToken = tokenData.data;
+        tokenType = 'expo';
       } catch {
-        // Fallback to native device push token
-        const deviceToken = await Notifications.getDevicePushTokenAsync();
-        pushToken = deviceToken.data;
+        // Fallback to native FCM (Android) or APNs (iOS) token
+        try {
+          const deviceToken = await Notifications.getDevicePushTokenAsync();
+          pushToken = deviceToken.data;
+          tokenType = Platform.OS === 'android' ? 'fcm' : 'apns';
+        } catch (tokenErr: any) {
+          console.warn('[Push] Failed to acquire device push token:', tokenErr?.message);
+        }
       }
 
       if (!pushToken) {
-        console.warn('[Push] Unable to obtain push token');
+        this.currentStatus = {
+          isPhysicalDevice: true,
+          permissionGranted: true,
+          tokenType: 'none',
+          pushToken: null,
+          serverRegistrationStatus: 'failed',
+          statusReason: 'Unable to acquire native push token from OS provider.',
+        };
         return null;
       }
 
-      // 3. Register token with backend push endpoints
-      const deviceId = `${Platform.OS}_${Device.modelName || 'device'}_${Date.now()}`;
+      // 4. Honest Server Registration Evaluation
+      // The current MasterHRMS Express backend uses Web Push VAPID subscriptions (/api/notifications/push/subscribe),
+      // requiring valid browser P-256 elliptic curve keys (p256dh, auth).
+      // The backend does not expose a native FCM/APNs registration route (e.g. /api/push/register does not exist).
+      // We document this cleanly and do NOT inject fabricated VAPID keys or call non-existent endpoints.
+      this.currentStatus = {
+        isPhysicalDevice: true,
+        permissionGranted: true,
+        tokenType,
+        pushToken,
+        serverRegistrationStatus: 'unsupported_backend',
+        statusReason:
+          'Native device push token obtained successfully. Express backend requires native FCM/APNs registration endpoint; current server push pipeline only supports Web Push VAPID subscriptions.',
+      };
 
-      // Register with /api/push/register (mobile tokens)
-      await Promise.resolve(
-        apiClient.post('/api/push/register', {
-          token: pushToken,
-          platform: Platform.OS,
-          deviceId,
-        })
-      ).catch(() => {});
-
-      // Register with /api/notifications/push/subscribe (standard WebPush/FCM pipeline)
-      await Promise.resolve(
-        apiClient.post('/api/notifications/push/subscribe', {
-          endpoint: pushToken,
-          keys: {
-            p256dh: 'mobile-app-fcm-native',
-            auth: 'mobile-app-fcm-auth',
-          },
-          deviceId,
-          platform: Platform.OS,
-        })
-      ).catch(() => {});
+      console.log(`[Push] Device push token acquired (${tokenType}): ${pushToken.slice(0, 16)}...`);
+      console.log(`[Push] Server status: ${this.currentStatus.statusReason}`);
 
       return pushToken;
     } catch (err: any) {
-      console.warn('[Push] Error registering push notifications:', err?.message || err);
+      this.currentStatus = {
+        isPhysicalDevice: Boolean(Device.isDevice),
+        permissionGranted: false,
+        tokenType: 'none',
+        pushToken: null,
+        serverRegistrationStatus: 'failed',
+        statusReason: err?.message || 'Unexpected error during push registration',
+      };
+      console.warn('[Push] Registration error:', this.currentStatus.statusReason);
       return null;
     }
   }

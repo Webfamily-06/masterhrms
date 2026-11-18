@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,28 +7,76 @@ import {
   Modal,
   TextInput,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
-import { ArrowLeft, X } from 'lucide-react-native';
+import { ArrowLeft, X, ArrowLeftRight, Clock, User, Calendar as CalendarIcon } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
-import { AttendanceService } from '../../../core/services/attendanceService';
+import {
+  AttendanceService,
+  ShiftRosterItem,
+  ShiftSwapItem,
+} from '../../../core/services/attendanceService';
+import { EmployeeService, EmployeeProfile } from '../../../core/services/employeeService';
 
 export const ShiftScheduleScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'ShiftSchedule'>>();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [colleagueName, setColleagueName] = useState('');
-  const [reason, setReason] = useState('');
-  const [shiftData, setShiftData] = useState<{ name: string; startTime: string; endTime: string } | null>(null);
 
-  useEffect(() => {
-    AttendanceService.getDashboardSummary().then((summary) => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Data
+  const [currentProfile, setCurrentProfile] = useState<EmployeeProfile | null>(null);
+  const [rosters, setRosters] = useState<ShiftRosterItem[]>([]);
+  const [swaps, setSwaps] = useState<ShiftSwapItem[]>([]);
+  const [shiftData, setShiftData] = useState<{ name: string; startTime: string; endTime: string } | null>(null);
+  const [colleagues, setColleagues] = useState<Array<{ id: string; firstName: string; lastName: string; employeeCode: string }>>([]);
+
+  // Swap Form State
+  const [selectedPeerId, setSelectedPeerId] = useState<string>('');
+  const [colleagueSearch, setColleagueSearch] = useState('');
+  const [shiftDate, setShiftDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reason, setReason] = useState('');
+
+  const loadData = useCallback(async () => {
+    try {
+      const [summary, shiftsRes, profile, peerList] = await Promise.all([
+        AttendanceService.getDashboardSummary().catch(() => null),
+        AttendanceService.getMyShifts().catch(() => ({ rosters: [], swaps: [] })),
+        EmployeeService.getMyProfile().catch(() => null),
+        EmployeeService.getEmployees().catch(() => []),
+      ]);
+
       if (summary?.shift) {
         setShiftData(summary.shift);
       }
-    }).catch(() => {});
+      setRosters(shiftsRes.rosters || []);
+      setSwaps(shiftsRes.swaps || []);
+      if (profile) setCurrentProfile(profile);
+      if (Array.isArray(peerList)) {
+        setColleagues(peerList.filter((p) => p.id !== profile?.id));
+      }
+    } catch {
+      // Non-fatal
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
 
   const weekShifts = useMemo(() => {
     const now = new Date();
@@ -37,8 +85,8 @@ export const ShiftScheduleScreen: React.FC = () => {
     const monday = new Date(now);
     monday.setDate(now.getDate() + diffToMonday);
 
-    const shiftName = shiftData?.name || 'General Day Shift';
-    const shiftTime = shiftData?.startTime && shiftData?.endTime
+    const defaultShiftName = shiftData?.name || 'General Day Shift';
+    const defaultShiftTime = shiftData?.startTime && shiftData?.endTime
       ? `${shiftData.startTime} – ${shiftData.endTime}`
       : '09:00 AM – 06:00 PM';
 
@@ -46,28 +94,94 @@ export const ShiftScheduleScreen: React.FC = () => {
     return days.map((dayName, idx) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + idx);
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const isoDateStr = d.toISOString().split('T')[0];
+      const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      // Match real roster entry from backend if exists
+      const rosterEntry = rosters.find((r) => r.rosterDate?.startsWith(isoDateStr));
+
+      if (rosterEntry && rosterEntry.shift) {
+        return {
+          day: dayName,
+          date: dateLabel,
+          isoDate: isoDateStr,
+          shift: rosterEntry.shift.name,
+          time: `${rosterEntry.shift.startTime} – ${rosterEntry.shift.endTime}`,
+          type: rosterEntry.shift.type?.toUpperCase() === 'HALF' ? 'HALF' : 'WORK',
+        };
+      }
+
       const isSunday = idx === 6;
       const isSaturday = idx === 5;
       return {
         day: dayName,
-        date: dateStr,
-        shift: isSunday ? 'Weekly Off' : isSaturday ? 'Weekend Support / Half' : shiftName,
-        time: isSunday ? 'Rest Day' : isSaturday ? '09:00 AM – 01:00 PM' : shiftTime,
+        date: dateLabel,
+        isoDate: isoDateStr,
+        shift: isSunday ? 'Weekly Off' : isSaturday ? 'Weekend Support / Half' : defaultShiftName,
+        time: isSunday ? 'Rest Day' : isSaturday ? '09:00 AM – 01:00 PM' : defaultShiftTime,
         type: isSunday ? 'OFF' : isSaturday ? 'HALF' : 'WORK',
       };
     });
-  }, [shiftData]);
+  }, [shiftData, rosters]);
 
-  const handleSwapRequest = () => {
-    if (!colleagueName.trim()) {
-      Alert.alert('Required', 'Please enter colleague name or employee code.');
+  const filteredColleagues = useMemo(() => {
+    if (!colleagueSearch.trim()) return colleagues.slice(0, 5);
+    const q = colleagueSearch.toLowerCase();
+    return colleagues.filter(
+      (c) =>
+        c.firstName?.toLowerCase().includes(q) ||
+        c.lastName?.toLowerCase().includes(q) ||
+        c.employeeCode?.toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [colleagues, colleagueSearch]);
+
+  const handleOpenSwapForDate = (isoDate: string) => {
+    setShiftDate(isoDate);
+    setModalVisible(true);
+  };
+
+  const handleSwapRequest = async () => {
+    if (!selectedPeerId) {
+      Alert.alert('Required', 'Please select a colleague to swap shifts with.');
       return;
     }
-    setModalVisible(false);
-    setColleagueName('');
-    setReason('');
-    Alert.alert('Shift Swap Request Sent', 'Request forwarded to your manager and colleague for mutual approval.');
+    if (!shiftDate.trim()) {
+      Alert.alert('Required', 'Please specify the shift date to swap.');
+      return;
+    }
+    if (!reason.trim()) {
+      Alert.alert('Required', 'Please state a reason for the shift swap.');
+      return;
+    }
+
+    const requesterId = currentProfile?.id;
+    if (!requesterId) {
+      Alert.alert('Profile Error', 'Unable to resolve your employee record ID. Please try again.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await AttendanceService.createShiftSwap({
+        requesterEmployeeId: requesterId,
+        targetEmployeeId: selectedPeerId,
+        shiftDate,
+        reason: reason.trim(),
+      });
+      setModalVisible(false);
+      setSelectedPeerId('');
+      setColleagueSearch('');
+      setReason('');
+      await loadData();
+      Alert.alert(
+        'Shift Swap Submitted',
+        'Your shift swap request has been sent for colleague and manager review.'
+      );
+    } catch (err: any) {
+      Alert.alert('Swap Request Failed', err?.message || 'Could not submit shift swap request.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -89,11 +203,16 @@ export const ShiftScheduleScreen: React.FC = () => {
           accessibilityRole="button"
           accessibilityLabel="Swap shift"
         >
+          <ArrowLeftRight size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
           <Text style={styles.swapBtnText}>Swap</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         {/* Current Active Shift Banner */}
         <View style={styles.activeShiftCard}>
           <Text style={styles.activeShiftTag}>CURRENT SHIFT</Text>
@@ -104,15 +223,24 @@ export const ShiftScheduleScreen: React.FC = () => {
               : '09:00 AM – 06:00 PM'}
           </Text>
           <View style={styles.breakBadge}>
+            <Clock size={12} color="#00D287" style={{ marginRight: 4 }} />
             <Text style={styles.breakText}>Lunch Break: 01:00 PM – 02:00 PM</Text>
           </View>
         </View>
 
         {/* Weekly Roster List */}
-        <Text style={styles.sectionTitle}>This Week's Schedule</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={styles.sectionTitle}>This Week's Schedule</Text>
+          {loading && <ActivityIndicator size="small" color="#4F46E5" />}
+        </View>
 
         {weekShifts.map((s, idx) => (
-          <View key={idx} style={styles.shiftCard}>
+          <TouchableOpacity
+            key={idx}
+            style={styles.shiftCard}
+            activeOpacity={0.8}
+            onPress={() => s.type !== 'OFF' && handleOpenSwapForDate(s.isoDate)}
+          >
             <View style={styles.dateCol}>
               <Text style={styles.dayText}>{s.day}</Text>
               <Text style={styles.dateText}>{s.date}</Text>
@@ -146,12 +274,75 @@ export const ShiftScheduleScreen: React.FC = () => {
                 {s.type}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         ))}
+
+        {/* Active Shift Swap Requests */}
+        {swaps.length > 0 && (
+          <View style={{ marginTop: 20 }}>
+            <Text style={styles.sectionTitle}>Shift Swap Requests</Text>
+            {swaps.map((sw) => {
+              const isRequester = sw.requesterEmployeeId === currentProfile?.id;
+              const peerName = isRequester
+                ? `${sw.targetEmployee?.firstName || ''} ${sw.targetEmployee?.lastName || 'Colleague'}`.trim()
+                : `${sw.requesterEmployee?.firstName || ''} ${sw.requesterEmployee?.lastName || 'Colleague'}`.trim();
+              const formattedDate = new Date(sw.shiftDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+
+              return (
+                <View key={sw.id} style={styles.swapCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <User size={14} color="#6366F1" />
+                      <Text style={styles.swapPeerName}>
+                        {isRequester ? `With: ${peerName}` : `From: ${peerName}`}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        sw.status === 'approved'
+                          ? styles.statusApproved
+                          : sw.status === 'rejected' || sw.status === 'declined'
+                          ? styles.statusRejected
+                          : styles.statusPending,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusPillText,
+                          sw.status === 'approved'
+                            ? styles.textGreen
+                            : sw.status === 'rejected' || sw.status === 'declined'
+                            ? styles.textRed
+                            : styles.textYellow,
+                        ]}
+                      >
+                        {sw.status?.replace('_', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                    <CalendarIcon size={12} color="#64748B" />
+                    <Text style={styles.swapDateText}>Shift Date: {formattedDate}</Text>
+                  </View>
+                  {Boolean(sw.reason) && (
+                    <Text style={styles.swapReasonText} numberOfLines={2}>
+                      Reason: {sw.reason}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       {/* Swap Request Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
@@ -161,27 +352,67 @@ export const ShiftScheduleScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.fieldLabel}>Swap With (Colleague Name / Code)</Text>
+            <Text style={styles.fieldLabel}>Shift Date (YYYY-MM-DD)</Text>
             <TextInput
               style={styles.modalInput}
-              value={colleagueName}
-              onChangeText={setColleagueName}
-              placeholder="e.g. John Doe (EMP-024)"
+              value={shiftDate}
+              onChangeText={setShiftDate}
+              placeholder="YYYY-MM-DD"
               placeholderTextColor="#94A3B8"
             />
+
+            <Text style={styles.fieldLabel}>Select Colleague</Text>
+            <TextInput
+              style={[styles.modalInput, { marginBottom: 8 }]}
+              value={colleagueSearch}
+              onChangeText={setColleagueSearch}
+              placeholder="Search by name or code..."
+              placeholderTextColor="#94A3B8"
+            />
+
+            {filteredColleagues.length > 0 && (
+              <View style={styles.peerListWrap}>
+                {filteredColleagues.map((c) => {
+                  const isSelected = selectedPeerId === c.id;
+                  return (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.peerRow, isSelected && styles.peerRowSelected]}
+                      onPress={() => {
+                        setSelectedPeerId(c.id);
+                        setColleagueSearch(`${c.firstName} ${c.lastName} (${c.employeeCode})`);
+                      }}
+                    >
+                      <Text style={[styles.peerNameText, isSelected && styles.peerNameSelected]}>
+                        {c.firstName} {c.lastName}
+                      </Text>
+                      <Text style={styles.peerCodeText}>{c.employeeCode}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
 
             <Text style={styles.fieldLabel}>Reason for Swap</Text>
             <TextInput
               style={[styles.modalInput, styles.textArea]}
               value={reason}
               onChangeText={setReason}
-              placeholder="e.g. Personal family engagement"
+              placeholder="e.g. Personal family emergency or shift adjustment"
               multiline
               placeholderTextColor="#94A3B8"
             />
 
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSwapRequest}>
-              <Text style={styles.submitBtnText}>Submit Shift Swap Request</Text>
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleSwapRequest}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Submit Shift Swap Request</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -405,5 +636,83 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  peerListWrap: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    maxHeight: 140,
+    overflow: 'hidden',
+  },
+  peerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  peerRowSelected: {
+    backgroundColor: '#EEF2FF',
+  },
+  peerNameText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  peerNameSelected: {
+    color: '#4F46E5',
+    fontWeight: '700',
+  },
+  peerCodeText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  swapCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  swapPeerName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  swapDateText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  swapReasonText: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  statusPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusApproved: {
+    backgroundColor: '#D1FAE5',
+  },
+  statusPending: {
+    backgroundColor: '#FEF3C7',
+  },
+  statusRejected: {
+    backgroundColor: '#FEE2E2',
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  textRed: {
+    color: '#DC2626',
   },
 });

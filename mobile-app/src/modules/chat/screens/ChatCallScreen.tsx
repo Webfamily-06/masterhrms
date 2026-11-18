@@ -82,9 +82,8 @@ export const ChatCallScreen: React.FC = () => {
       if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
       if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
     }
-    const seed = encodeURIComponent(receiverName || 'colleague');
-    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=00d287`;
-  }, [receiverAvatar, callerAvatar, receiverName]);
+    return null;
+  }, [receiverAvatar, callerAvatar]);
 
   const selfAvatar = React.useMemo(() => {
     const raw = user?.profile?.avatarUrl;
@@ -97,8 +96,7 @@ export const ChatCallScreen: React.FC = () => {
       if (trimmed.startsWith('/')) return `${Config.API_BASE_URL}${trimmed}`;
       if (trimmed.startsWith('uploads/')) return `${Config.API_BASE_URL}/${trimmed}`;
     }
-    const seed = encodeURIComponent(user?.profile?.fullName || user?.email || 'me');
-    return `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=4f46e5`;
+    return null;
   }, [user]);
 
   const hasNativeWebRtc = typeof (globalThis as any).RTCPeerConnection === 'function';
@@ -550,12 +548,14 @@ export const ChatCallScreen: React.FC = () => {
         <ScrollView contentContainerStyle={styles.gridWrap}>
           {participants.length === 0 ? (
             <View style={styles.tileCard}>
-              {user?.profile?.avatarUrl ? (
+              {selfAvatar ? (
                 <Image source={{ uri: selfAvatar }} style={styles.tileAvatarImage} />
               ) : (
-                <Text style={styles.tileInitials}>
-                  {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
-                </Text>
+                <View style={styles.tileInitialsBox}>
+                  <Text style={styles.tileInitials}>
+                    {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
               )}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                 <Text style={styles.tileName}>You</Text>
@@ -568,11 +568,19 @@ export const ChatCallScreen: React.FC = () => {
                 ? (p.avatarUrl.startsWith('http')
                     ? p.avatarUrl
                     : `${Config.API_BASE_URL}${p.avatarUrl.startsWith('/') ? '' : '/'}${p.avatarUrl}`)
-                : `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(p.name)}&backgroundColor=00d287`;
+                : null;
 
               return (
                 <View key={p.userId} style={styles.tileCard}>
-                  <Image source={{ uri: pAvatar }} style={styles.tileAvatarImage} />
+                  {pAvatar ? (
+                    <Image source={{ uri: pAvatar }} style={styles.tileAvatarImage} />
+                  ) : (
+                    <View style={styles.tileInitialsBox}>
+                      <Text style={styles.tileInitials}>
+                        {(p.name || 'P').substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                     <Text style={styles.tileName} numberOfLines={1}>
                       {p.name}
@@ -601,11 +609,19 @@ export const ChatCallScreen: React.FC = () => {
           {/* Peer Video Surface */}
           <View style={styles.peerVideoSurface}>
             <View style={styles.avatarBig}>
-              <Image
-                source={{ uri: displayAvatar }}
-                style={styles.avatarBigImage}
-                resizeMode="cover"
-              />
+              {displayAvatar ? (
+                <Image
+                  source={{ uri: displayAvatar }}
+                  style={styles.avatarBigImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.avatarInitialsBig}>
+                  <Text style={styles.avatarInitialsBigText}>
+                    {(receiverName || 'User').substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text style={styles.videoPeerName}>{receiverName}</Text>
           </View>
@@ -613,11 +629,19 @@ export const ChatCallScreen: React.FC = () => {
           {/* Picture-In-Picture PIP Self Camera (Matches 26_Light_Video Call Room.png) */}
           <View style={styles.pipVideoBox}>
             <View style={styles.pipInnerCamera}>
-              <Image
-                source={{ uri: selfAvatar }}
-                style={styles.pipAvatarImage}
-                resizeMode="cover"
-              />
+              {selfAvatar ? (
+                <Image
+                  source={{ uri: selfAvatar }}
+                  style={styles.pipAvatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.pipInitialsBox}>
+                  <Text style={styles.pipInitialsText}>
+                    {(user?.profile?.fullName || user?.email || 'ME').substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               {isMuted && (
                 <View style={styles.pipMuteBadge}>
                   <MicOff size={10} color="#FFFFFF" />
@@ -630,11 +654,19 @@ export const ChatCallScreen: React.FC = () => {
         <View style={styles.centerStage}>
           <View style={styles.outerPulse}>
             <View style={styles.avatarBig}>
-              <Image
-                source={{ uri: displayAvatar }}
-                style={styles.avatarBigImage}
-                resizeMode="cover"
-              />
+              {displayAvatar ? (
+                <Image
+                  source={{ uri: displayAvatar }}
+                  style={styles.avatarBigImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.avatarInitialsBig}>
+                  <Text style={styles.avatarInitialsBigText}>
+                    {(receiverName || 'User').substring(0, 2).toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -882,6 +914,19 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 70,
   },
+  avatarInitialsBig: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 70,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitialsBigText: {
+    color: '#FFFFFF',
+    fontSize: 44,
+    fontWeight: '800',
+  },
   avatarBigText: {
     color: '#FFFFFF',
     fontSize: 44,
@@ -910,11 +955,19 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     backgroundColor: '#E2E8F0',
   },
-  tileInitials: {
-    color: '#0F172A',
-    fontSize: 22,
-    fontWeight: '800',
+  tileInitialsBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#00D287',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 6,
+  },
+  tileInitials: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
   },
   tileName: {
     color: '#475569',
@@ -1120,6 +1173,18 @@ const styles = StyleSheet.create({
   pipAvatarImage: {
     width: '100%',
     height: '100%',
+  },
+  pipInitialsBox: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#1E293B',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pipInitialsText: {
+    color: '#00D287',
+    fontSize: 22,
+    fontWeight: '800',
   },
   pipInitials: {
     color: '#FFFFFF',

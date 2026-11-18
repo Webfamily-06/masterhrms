@@ -58,6 +58,31 @@ export interface DashboardSummaryResponse {
   pendingTasks?: number;
 }
 
+export interface ShiftRosterItem {
+  id: string;
+  rosterDate: string;
+  shift?: {
+    id: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    type?: string;
+  };
+  status?: string;
+}
+
+export interface ShiftSwapItem {
+  id: string;
+  requesterEmployeeId: string;
+  targetEmployeeId: string;
+  shiftDate: string;
+  reason: string;
+  status: 'pending_peer' | 'pending_manager' | 'approved' | 'rejected' | 'declined' | string;
+  requesterEmployee?: { firstName: string; lastName: string; employeeCode: string };
+  targetEmployee?: { firstName: string; lastName: string; employeeCode: string };
+  createdAt: string;
+}
+
 export interface TimesheetItem {
   id: string;
   employeeId?: string;
@@ -173,6 +198,42 @@ export class AttendanceService {
     description?: string;
   }): Promise<TimesheetItem> {
     const response = await apiClient.post<TimesheetItem>('/api/timesheets', payload);
+    return response.data;
+  }
+
+  /**
+   * Delete pending timesheet entry
+   */
+  static async deleteTimesheet(id: string): Promise<boolean> {
+    await apiClient.delete(`/api/timesheets/${id}`);
+    return true;
+  }
+
+  /**
+   * Fetch current user's shift roster and swap requests
+   */
+  static async getMyShifts(): Promise<{ rosters: ShiftRosterItem[]; swaps: ShiftSwapItem[] }> {
+    try {
+      const response = await apiClient.get<any>('/api/v1/me/attendance/shifts');
+      return {
+        rosters: Array.isArray(response.data?.rosters) ? response.data.rosters : [],
+        swaps: Array.isArray(response.data?.swaps) ? response.data.swaps : [],
+      };
+    } catch {
+      return { rosters: [], swaps: [] };
+    }
+  }
+
+  /**
+   * Request shift swap with a peer
+   */
+  static async createShiftSwap(payload: {
+    requesterEmployeeId: string;
+    targetEmployeeId: string;
+    shiftDate: string;
+    reason: string;
+  }): Promise<ShiftSwapItem> {
+    const response = await apiClient.post<ShiftSwapItem>('/api/shifts/swaps', payload);
     return response.data;
   }
 }
