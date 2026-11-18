@@ -5,7 +5,7 @@ PODS:
     - ReactNativeDependencies
   - EXConstants (58.0.16):
     - ExpoModulesCore
-  - Expo (58.0.25):
+  - Expo (58.0.26):
     - ExpoModulesCore
     - ExpoModulesJSI
     - hermes-engine
@@ -35,6 +35,8 @@ PODS:
   - ExpoApplication (58.1.2):
     - ExpoModulesCore
   - ExpoAsset (58.0.21):
+    - ExpoModulesCore
+  - ExpoAudio (58.0.12):
     - ExpoModulesCore
   - ExpoDevice (58.0.5):
     - ExpoModulesCore
@@ -89,6 +91,9 @@ PODS:
     - ExpoModulesCore
   - ExpoSharing (58.0.23):
     - ExpoModulesCore
+  - ExpoTaskManager (58.0.14):
+    - ExpoModulesCore
+    - UMAppLoader
   - fast_float (8.0.0):
     - ReactNativeDependencies
   - FBLazyVector (0.88.1):
@@ -1971,7 +1976,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - RNSVG (15.16.1):
+  - RNSVG (15.16.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1993,9 +1998,9 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
-    - RNSVG/common (= 15.16.1)
+    - RNSVG/common (= 15.16.0)
     - Yoga
-  - RNSVG/common (15.16.1):
+  - RNSVG/common (15.16.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2020,6 +2025,7 @@ PODS:
     - Yoga
   - SocketRocket (0.7.1):
     - ReactNativeDependencies
+  - UMAppLoader (58.0.2)
   - Yoga (0.0.0):
     - React-Core-prebuilt
 
@@ -2029,7 +2035,8 @@ DEPENDENCIES:
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoApplication (from `../node_modules/expo-application/ios`)
-  - ExpoAsset (from `../node_modules/expo/node_modules/expo-asset/ios`)
+  - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoAudio (from `../node_modules/expo-audio/ios`)
   - ExpoDevice (from `../node_modules/expo-device/ios`)
   - ExpoDocumentPicker (from `../node_modules/expo-document-picker/ios`)
   - "ExpoDomWebView (from `../node_modules/expo/node_modules/@expo/dom-webview/ios`)"
@@ -2044,6 +2051,7 @@ DEPENDENCIES:
   - ExpoModulesWorklets (from `../node_modules/expo-modules-core`)
   - ExpoNotifications (from `../node_modules/expo-notifications/ios`)
   - ExpoSharing (from `../node_modules/expo-sharing/ios`)
+  - ExpoTaskManager (from `../node_modules/expo-task-manager/ios`)
   - fast_float (from `build/rndeps-facades/fast_float`)
   - FBLazyVector (from `build/rncore-facades/FBLazyVector`)
   - fmt (from `build/rndeps-facades/fmt`)
@@ -2132,6 +2140,7 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - SocketRocket (from `build/rndeps-facades/SocketRocket`)
+  - UMAppLoader (from `../node_modules/unimodules-app-loader/ios`)
   - Yoga (from `build/rncore-facades/Yoga`)
 
 EXTERNAL SOURCES:
@@ -2146,7 +2155,9 @@ EXTERNAL SOURCES:
   ExpoApplication:
     :path: "../node_modules/expo-application/ios"
   ExpoAsset:
-    :path: "../node_modules/expo/node_modules/expo-asset/ios"
+    :path: "../node_modules/expo-asset/ios"
+  ExpoAudio:
+    :path: "../node_modules/expo-audio/ios"
   ExpoDevice:
     :path: "../node_modules/expo-device/ios"
   ExpoDocumentPicker:
@@ -2175,6 +2186,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-notifications/ios"
   ExpoSharing:
     :path: "../node_modules/expo-sharing/ios"
+  ExpoTaskManager:
+    :path: "../node_modules/expo-task-manager/ios"
   fast_float:
     :path: build/rndeps-facades/fast_float
   FBLazyVector:
@@ -2350,6 +2363,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   SocketRocket:
     :path: build/rndeps-facades/SocketRocket
+  UMAppLoader:
+    :path: "../node_modules/unimodules-app-loader/ios"
   Yoga:
     :path: build/rncore-facades/Yoga
 
@@ -2357,9 +2372,10 @@ SPEC CHECKSUMS:
   boost: 8502bfdc46e2804408af2e163049ece181009af4
   DoubleConversion: 501a575c40c0b50c89685762dd3e415e6bb26fb0
   EXConstants: aeda76f4be923fc719522ae162dd0b8c6483f9cc
-  Expo: c11bb32bebda9fafb2e1b8482ddeae4eaf69594d
+  Expo: 23763d9c59158fd5cae2d5831d3e42576f61f011
   ExpoApplication: c83355b2f69f996b5d26b64fef39228e7f1e1208
   ExpoAsset: eda9e4844b55b78d4e71a0e2de767a038f3a0806
+  ExpoAudio: 04b22b00783fe443c15121138f827b808fdf8c71
   ExpoDevice: 77a9816436a09a0bfc00f5ace649c6ccb219b96d
   ExpoDocumentPicker: 3e8fdb323db3ad2f7c8bbd21fdad3b982f1cf178
   ExpoDomWebView: b2a6d681b9d34c23b1f584321386ca8da1d36afb
@@ -2374,6 +2390,7 @@ SPEC CHECKSUMS:
   ExpoModulesWorklets: 03d171c0296cdffc054e9570e9393a7655ef360d
   ExpoNotifications: fa890b1d743fd72ca15c52ac9f9f23c76860e228
   ExpoSharing: 4831940284e0dd904b0522e027e85cd286e563d2
+  ExpoTaskManager: 0eeb489a4bcaf2d6d997b4f8e38f6d04a488244e
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: 07cb4c5b92110c132f2bb73b908e87f35cbe0a19
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93
@@ -2459,8 +2476,9 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: a5164c3ebbe90d992022b5d9cbabbf770a6d7d05
   RNKeychain: 8dcecf6c80b6f6d949e87ce0fa09a7e507bf8582
   RNScreens: f15a5bda1ddeff8575b8ce41d83885b67129f84b
-  RNSVG: 0851af4352d2e692b44aada9dd7a1d361c18fcfc
+  RNSVG: c35beed3dcf6fd14b50ca1fc0d4214a17ec5334d
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
+  UMAppLoader: 813e4d172a12484f5bb149d9e99b1e7c11ae0b0c
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
 PODFILE CHECKSUM: 6bad08a01913588324766cb3ff0bdacd4ef595c5
