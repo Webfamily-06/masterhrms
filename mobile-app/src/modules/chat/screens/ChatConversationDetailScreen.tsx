@@ -18,7 +18,15 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+  useAudioRecorder,
+  RecordingPresets,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import { Text } from '../../../components/common/Text';
 import {
   Search,
@@ -203,15 +211,22 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const typingStopTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartX = useRef<number>(0);
 
-  // Audio Note Playback State (Matches 18_Light_Personal Chat Room Voice Message.png)
+  // Audio Note Playback State via expo-audio (Matches 18_Light_Personal Chat Room Voice Message.png)
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [audioPlaybackProgress, setAudioPlaybackProgress] = useState<number>(0);
-  const audioIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activePlayerRef = useRef<AudioPlayer | null>(null);
+  const activePlayerSubRef = useRef<{ remove: () => void } | null>(null);
 
-  // Voice Note Recording State (Matches 18_Light_Personal Chat Room Voice Message.png)
+  // Voice Note Recording State via expo-audio (Matches 18_Light_Personal Chat Room Voice Message.png)
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceRecordDuration, setVoiceRecordDuration] = useState(0);
   const voiceRecordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY, (status) => {
+    if (status.hasError && status.error) {
+      console.warn('[AudioRecorder] Recording status error:', status.error);
+    }
+  });
 
   // In-App Fullscreen Media Preview Modal
   const [previewMedia, setPreviewMedia] = useState<{
@@ -233,15 +248,24 @@ export const ChatConversationDetailScreen: React.FC = () => {
   } | null>(null);
   const [mediaCaptionText, setMediaCaptionText] = useState('');
 
-  // Audio Playback Sound Instance via expo-av
-  const activeSoundRef = useRef<Audio.Sound | null>(null);
-
   useEffect(() => {
     return () => {
-      if (activeSoundRef.current) {
-        activeSoundRef.current.unloadAsync().catch(() => {});
+      if (activePlayerSubRef.current) {
+        activePlayerSubRef.current.remove();
+        activePlayerSubRef.current = null;
       }
-      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause();
+          activePlayerRef.current.remove?.();
+          (activePlayerRef.current as any)?.release?.();
+        } catch (_) {}
+        activePlayerRef.current = null;
+      }
+      if (voiceRecordTimerRef.current) clearInterval(voiceRecordTimerRef.current);
+      if (audioRecorder.isRecording) {
+        audioRecorder.stop().catch(() => {});
+      }
     };
   }, []);
 
@@ -259,96 +283,173 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const [swipingMsgId, setSwipingMsgId] = useState<string | null>(null);
   const [swipeOffset, setSwipeOffset] = useState<number>(0);
 
-  // Toggle audio note playback with real sound via expo-av
-  const togglePlayAudio = async (msgId: string, durationSec = 20, audioUrl?: string) => {
+  // Toggle audio note playback with real sound via expo-audio
+  const togglePlayAudio = async (msgId: string, _durationSec = 20, audioUrl?: string) => {
+    // If currently playing this message, pause and release
     if (playingAudioId === msgId) {
-      if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-      if (activeSoundRef.current) {
-        await activeSoundRef.current.stopAsync().catch(() => {});
-        await activeSoundRef.current.unloadAsync().catch(() => {});
-        activeSoundRef.current = null;
+      if (activePlayerSubRef.current) {
+        activePlayerSubRef.current.remove();
+        activePlayerSubRef.current = null;
+      }
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause();
+          activePlayerRef.current.remove?.();
+          (activePlayerRef.current as any)?.release?.();
+        } catch (_) {}
+        activePlayerRef.current = null;
       }
       setPlayingAudioId(null);
       setAudioPlaybackProgress(0);
       return;
     }
 
-    if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-    if (activeSoundRef.current) {
-      await activeSoundRef.current.stopAsync().catch(() => {});
-      await activeSoundRef.current.unloadAsync().catch(() => {});
-      activeSoundRef.current = null;
+    // Stop and release any existing player before playing a different voice note
+    if (activePlayerSubRef.current) {
+      activePlayerSubRef.current.remove();
+      activePlayerSubRef.current = null;
+    }
+    if (activePlayerRef.current) {
+      try {
+        activePlayerRef.current.pause();
+        activePlayerRef.current.remove?.();
+        (activePlayerRef.current as any)?.release?.();
+      } catch (_) {}
+      activePlayerRef.current = null;
+    }
+
+    if (!audioUrl) {
+      setPlayingAudioId(null);
+      setAudioPlaybackProgress(0);
+      Alert.alert('Playback Error', 'Voice note audio URL is missing or unavailable.');
+      return;
     }
 
     setPlayingAudioId(msgId);
     setAudioPlaybackProgress(0);
 
-    if (audioUrl) {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        }).catch(() => {});
+    try {
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        interruptionMode: 'duckOthers',
+      }).catch(() => {});
 
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: audioUrl },
-          { shouldPlay: true },
-          (status) => {
-            if (status.isLoaded) {
-              if (status.durationMillis && status.durationMillis > 0) {
-                setAudioPlaybackProgress(status.positionMillis / status.durationMillis);
-              }
-              if (status.didJustFinish) {
-                setPlayingAudioId(null);
-                setAudioPlaybackProgress(0);
-                sound.unloadAsync().catch(() => {});
-                activeSoundRef.current = null;
-              }
-            }
+      const player = createAudioPlayer(audioUrl, { updateInterval: 100 });
+      activePlayerRef.current = player;
+
+      const sub = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+        if (status.isLoaded) {
+          if (status.duration && status.duration > 0) {
+            const prog = Math.min(Math.max(status.currentTime / status.duration, 0), 1);
+            setAudioPlaybackProgress(prog);
           }
-        );
-        activeSoundRef.current = sound;
-        return;
-      } catch (err) {
-        console.warn('[Audio] Could not play audio via expo-av, falling back to simulated progress:', err);
-      }
-    }
-
-    const stepMs = 200;
-    const totalMs = Math.max(durationSec * 1000, 3000);
-    const inc = stepMs / totalMs;
-
-    audioIntervalRef.current = setInterval(() => {
-      setAudioPlaybackProgress((prev) => {
-        if (prev >= 1) {
-          if (audioIntervalRef.current) clearInterval(audioIntervalRef.current);
-          setPlayingAudioId(null);
-          return 0;
+          if (status.didJustFinish) {
+            setPlayingAudioId(null);
+            setAudioPlaybackProgress(0);
+            sub.remove();
+            activePlayerSubRef.current = null;
+            try {
+              player.remove?.();
+              (player as any)?.release?.();
+            } catch (_) {}
+            activePlayerRef.current = null;
+          }
         }
-        return prev + inc;
+        if (status.error) {
+          console.warn('[Audio] Playback status error:', status.error);
+          setPlayingAudioId(null);
+          setAudioPlaybackProgress(0);
+          sub.remove();
+          activePlayerSubRef.current = null;
+          try {
+            player.remove?.();
+            (player as any)?.release?.();
+          } catch (_) {}
+          activePlayerRef.current = null;
+          Alert.alert('Audio Playback Error', status.error || 'Failed to play audio.');
+        }
       });
-    }, stepMs);
+      activePlayerSubRef.current = sub;
+
+      player.play();
+    } catch (err: any) {
+      console.warn('[Audio] Failed to create or play audio player:', err);
+      setPlayingAudioId(null);
+      setAudioPlaybackProgress(0);
+      if (activePlayerSubRef.current) {
+        activePlayerSubRef.current.remove();
+        activePlayerSubRef.current = null;
+      }
+      activePlayerRef.current = null;
+      Alert.alert('Playback Failed', err?.message || 'Could not play voice note.');
+    }
   };
 
   // Start Voice Recording (Matches 18_Light_Personal Chat Room Voice Message.png)
   const startVoiceRecording = async () => {
-    const granted = await requestMicrophonePermission();
-    if (!granted) {
-      Alert.alert('Microphone Permission', 'Microphone access is required to record voice notes.');
-      return;
+    try {
+      let isGranted = false;
+      try {
+        const perm = await requestRecordingPermissionsAsync();
+        isGranted = Boolean(perm?.granted);
+      } catch (_) {
+        isGranted = false;
+      }
+
+      if (!isGranted) {
+        const fallbackGranted = await requestMicrophonePermission();
+        if (!fallbackGranted) {
+          Alert.alert('Microphone Permission', 'Microphone access is required to record voice notes.');
+          return;
+        }
+      }
+
+      // Stop any active audio playback before recording
+      if (activePlayerSubRef.current) {
+        activePlayerSubRef.current.remove();
+        activePlayerSubRef.current = null;
+      }
+      if (activePlayerRef.current) {
+        try {
+          activePlayerRef.current.pause();
+          activePlayerRef.current.remove?.();
+          (activePlayerRef.current as any)?.release?.();
+        } catch (_) {}
+        activePlayerRef.current = null;
+      }
+      setPlayingAudioId(null);
+      setAudioPlaybackProgress(0);
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      }).catch(() => {});
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+
+      setComposerMenuOpen(false);
+      setIsRecordingVoice(true);
+      setVoiceRecordDuration(0);
+      if (voiceRecordTimerRef.current) clearInterval(voiceRecordTimerRef.current);
+      voiceRecordTimerRef.current = setInterval(() => {
+        setVoiceRecordDuration((s) => s + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.warn('[AudioRecorder] Start voice recording error:', err);
+      Alert.alert('Recording Error', err?.message || 'Could not start audio recording.');
+      setIsRecordingVoice(false);
+      setVoiceRecordDuration(0);
     }
-    setComposerMenuOpen(false);
-    setIsRecordingVoice(true);
-    setVoiceRecordDuration(0);
-    if (voiceRecordTimerRef.current) clearInterval(voiceRecordTimerRef.current);
-    voiceRecordTimerRef.current = setInterval(() => {
-      setVoiceRecordDuration((s) => s + 1);
-    }, 1000);
   };
 
-  const cancelVoiceRecording = () => {
+  const cancelVoiceRecording = async () => {
     if (voiceRecordTimerRef.current) clearInterval(voiceRecordTimerRef.current);
+    try {
+      if (audioRecorder.isRecording) {
+        await audioRecorder.stop().catch(() => {});
+      }
+    } catch (_) {}
     setIsRecordingVoice(false);
     setVoiceRecordDuration(0);
   };
@@ -359,21 +460,50 @@ export const ChatConversationDetailScreen: React.FC = () => {
     setIsRecordingVoice(false);
     setVoiceRecordDuration(0);
 
-    const clientTempId = `mob_voice_${Date.now()}`;
     try {
+      if (audioRecorder.isRecording) {
+        await audioRecorder.stop();
+      }
+
+      const recordedUri = audioRecorder.uri;
+      if (!recordedUri) {
+        Alert.alert('Recording Failed', 'No audio file recorded from microphone.');
+        return;
+      }
+
+      const fileName = `voice_note_${Date.now()}.m4a`;
+      const uploadCandidate: UploadableFileDescriptor = {
+        uri: recordedUri,
+        name: fileName,
+        type: 'audio/m4a',
+      };
+
+      // Upload recorded audio to the existing backend upload endpoint
+      const uploadedAttachments = await ChatService.uploadAttachments([uploadCandidate], threadId);
+      if (!uploadedAttachments || uploadedAttachments.length === 0) {
+        Alert.alert('Upload Failed', 'Failed to upload voice note to the server.');
+        return;
+      }
+
+      const uploadedAudio = uploadedAttachments[0];
+      const clientTempId = `mob_voice_${Date.now()}`;
+
       const sent = await ChatService.sendMessage({
         threadId,
         content: `🎤 Voice note (${finalDuration}s)`,
         clientTempId,
         voiceNote: {
           durationSeconds: finalDuration,
-          url: 'https://cdn.masterhrms.internal/media/voice_note_sample.mp3',
-          mediaId: `vn_${Date.now()}`,
+          url: uploadedAudio.url,
+          mediaId: uploadedAudio.mediaId || uploadedAudio.id,
         },
+        attachments: uploadedAttachments,
       });
+
       setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
     } catch (err: any) {
+      console.warn('[AudioRecorder] Send voice note failed:', err);
       Alert.alert('Voice Note Failed', err?.message || 'Could not send voice note.');
     }
   };

@@ -75,23 +75,56 @@ jest.mock('expo-task-manager', () => ({
   isTaskDefined: jest.fn().mockReturnValue(false),
 }));
 
-jest.mock('expo-av', () => ({
-  Audio: {
-    Sound: {
-      createAsync: jest.fn().mockResolvedValue({
-        sound: {
-          playAsync: jest.fn().mockResolvedValue({}),
-          pauseAsync: jest.fn().mockResolvedValue({}),
-          stopAsync: jest.fn().mockResolvedValue({}),
-          unloadAsync: jest.fn().mockResolvedValue({}),
-          setOnPlaybackStatusUpdate: jest.fn(),
-        },
-        status: { isLoaded: true },
-      }),
+jest.mock('expo-audio', () => {
+  const mockPlayer = {
+    play: jest.fn(),
+    pause: jest.fn(),
+    seekTo: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn(),
+    release: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    currentTime: 0,
+    duration: 20,
+    playing: false,
+    isLoaded: true,
+  };
+  const mockRecorder = {
+    prepareToRecordAsync: jest.fn().mockResolvedValue(undefined),
+    record: jest.fn(),
+    stop: jest.fn().mockResolvedValue(undefined),
+    uri: 'file:///mock/recording.m4a',
+    isRecording: false,
+    currentTime: 0,
+    getStatus: jest.fn().mockReturnValue({ canRecord: true, isRecording: false, durationMillis: 0 }),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+    remove: jest.fn(),
+  };
+
+  return {
+    useAudioPlayer: jest.fn(() => mockPlayer),
+    useAudioPlayerStatus: jest.fn(() => ({
+      currentTime: 0,
+      duration: 20,
+      playing: false,
+      isLoaded: true,
+      didJustFinish: false,
+    })),
+    createAudioPlayer: jest.fn(() => mockPlayer),
+    useAudioRecorder: jest.fn(() => mockRecorder),
+    setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+    setIsAudioActiveAsync: jest.fn().mockResolvedValue(undefined),
+    requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true }),
+    getRecordingPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true }),
+    RecordingPresets: {
+      HIGH_QUALITY: { extension: '.m4a' },
+      LOW_QUALITY: { extension: '.m4a' },
     },
-    setAudioModeAsync: jest.fn().mockResolvedValue({}),
-  },
-}));
+    AudioModule: {
+      requestRecordingPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true }),
+      setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+    },
+  };
+});
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),

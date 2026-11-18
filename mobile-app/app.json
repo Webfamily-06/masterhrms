@@ -14,7 +14,11 @@
       "bundleIdentifier": "com.masterhrms.app",
       "googleServicesFile": "./ios/MasterHRMS/GoogleService-Info.plist",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification", "fetch"]
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ],
+        "NSMicrophoneUsageDescription": "MasterHRMS requires access to your microphone for voice notes and calls."
       }
     },
     "android": {
@@ -24,7 +28,9 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.USE_EXACT_ALARM"
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -35,7 +41,8 @@
           "color": "#4F46E5",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-audio"
     ]
   }
 }
