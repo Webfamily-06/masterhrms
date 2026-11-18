@@ -8,10 +8,12 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
-import { ArrowLeft, Shield } from 'lucide-react-native';
+import { ArrowLeft, Shield, Server } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common';
 import { SuperAdminService, SystemTelemetry } from '../../../core/services/superAdminService';
 import { useNavigation } from '@react-navigation/native';
+import { Config } from '../../../config/environment';
+import { apiClient } from '../../../core/api/apiClient';
 
 export const SystemDiagnosticsScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,10 +28,17 @@ export const SystemDiagnosticsScreen: React.FC = () => {
     nodeVersion: 'v22.x',
     environment: 'production',
   });
+  const [apiHealth, setApiHealth] = useState<'checking' | 'healthy' | 'unreachable'>('checking');
 
   const loadData = useCallback(async () => {
     try {
-      const data = await SuperAdminService.getTelemetry();
+      const [data] = await Promise.all([
+        SuperAdminService.getTelemetry(),
+        apiClient
+          .get('/api/health', { skipAuth: true } as any)
+          .then(() => setApiHealth('healthy'))
+          .catch(() => setApiHealth('unreachable')),
+      ]);
       setTelemetry(data);
     } catch {
       // Handled
@@ -98,6 +107,60 @@ export const SystemDiagnosticsScreen: React.FC = () => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Node.js Engine Version</Text>
               <Text style={styles.infoValue}>{telemetry.nodeVersion}</Text>
+            </View>
+          </View>
+
+          {/* Mobile API & Network Configuration */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Server size={17} color="#2563EB" />
+                <Text style={styles.cardTitle}>Mobile API Configuration</Text>
+              </View>
+              <View
+                style={[
+                  styles.onlineBadge,
+                  apiHealth === 'unreachable'
+                    ? { backgroundColor: '#FEE2E2' }
+                    : apiHealth === 'checking'
+                    ? { backgroundColor: '#FEF3C7' }
+                    : { backgroundColor: '#DCFCE7' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.onlineText,
+                    apiHealth === 'unreachable'
+                      ? { color: '#DC2626' }
+                      : apiHealth === 'checking'
+                      ? { color: '#D97706' }
+                      : { color: '#15803D' },
+                  ]}
+                >
+                  {apiHealth === 'checking'
+                    ? 'CONNECTING...'
+                    : apiHealth === 'healthy'
+                    ? 'HEALTHY'
+                    : 'UNREACHABLE'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Active Environment</Text>
+              <Text style={[styles.infoValue, { textTransform: 'uppercase', color: '#2563EB' }]}>
+                {Config.ENV}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Selected API Base URL</Text>
+              <Text style={[styles.infoValue, { fontSize: 12 }]} numberOfLines={1}>
+                {Config.API_BASE_URL}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Local Backend Target</Text>
+              <Text style={styles.infoValue}>Port 4000 (0.0.0.0)</Text>
             </View>
           </View>
 

@@ -3,7 +3,7 @@ import { ApiError } from './apiErrors';
 import { CustomRequestConfig } from './types';
 import { secureStorage } from '../storage/secureStorage';
 import { STORAGE_KEYS } from '../../config/constants';
-import { Config, getDevApiHost } from '../../config/environment';
+import { Config } from '../../config/environment';
 
 // Forward reference store accessors to prevent circular imports
 let getAccessToken: () => string | null = () => null;
@@ -42,17 +42,13 @@ function processQueue(error: any, token: string | null = null) {
 }
 
 export function setupInterceptors(axiosInstance: AxiosInstance): void {
-  // Request Interceptor: Attach Bearer JWT, Tenant Context, and User-Agent
+  // Request Interceptor: Attach Bearer JWT, Tenant Context, and Client Identification
+  // Strictly respects the configured baseURL and never overwrites it.
   axiosInstance.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      if (__DEV__) {
-        const dynamicHost = getDevApiHost();
-        if (dynamicHost) {
-          config.baseURL = `http://${dynamicHost}`;
-        }
-      }
-
       const customConfig = config as CustomRequestConfig;
+
+      // 1. Attach Bearer token unless skipAuth is specified
       if (!customConfig.skipAuth) {
         const token = getAccessToken();
         if (token && !config.headers.Authorization) {
@@ -60,6 +56,7 @@ export function setupInterceptors(axiosInstance: AxiosInstance): void {
         }
       }
 
+      // 2. Attach Tenant scoping headers
       const { tenantId, tenantSlug } = getTenantHeaders();
       if (tenantId && !config.headers['x-tenant-id']) {
         config.headers['x-tenant-id'] = tenantId;
@@ -68,14 +65,11 @@ export function setupInterceptors(axiosInstance: AxiosInstance): void {
         config.headers['x-tenant-slug'] = tenantSlug;
       }
 
-      // Ensure local development requests from mobile Wi-Fi IPs are recognized by backend host middleware
-      if (__DEV__ && !config.headers['x-forwarded-host']) {
-        config.headers['x-forwarded-host'] = 'localhost';
-      }
-
+      // 3. Attach standard client metadata (without fabricated proxy host headers)
       config.headers['x-client-platform'] = 'mobile';
       config.headers['x-mobile-app'] = 'true';
       config.headers['User-Agent'] = `${Config.APP_NAME}-Mobile/${Config.APP_VERSION}`;
+
       return config;
     },
     (error) => Promise.reject(ApiError.fromAxiosError(error))
@@ -119,7 +113,6 @@ export function setupInterceptors(axiosInstance: AxiosInstance): void {
           }
 
           // Call backend atomic refresh endpoint
-          // (Use raw axios to bypass interceptor recursion)
           const refreshResponse = await axiosInstance.post(
             '/api/v1/auth/refresh',
             { refreshToken, sessionId },

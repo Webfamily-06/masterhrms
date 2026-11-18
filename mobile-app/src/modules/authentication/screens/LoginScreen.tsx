@@ -13,7 +13,7 @@ import {
 import { Text } from '../../../components/common/Text';
 import { AlertCircle } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
-import { Config, getDevApiHost } from '../../../config/environment';
+import { Config } from '../../../config/environment';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
 
@@ -69,7 +69,7 @@ export const LoginScreen: React.FC = () => {
         );
       } else if (err?.isNetworkError || err?.message?.toLowerCase().includes('network')) {
         setError(
-          `Unable to reach backend server (${getDevApiHost()}). Please ensure backend is running on port 4000 and device is on the same network.`
+          `Unable to reach backend server (${Config.API_BASE_URL}). Please ensure backend is running on port 4000 and device is on the same network.`
         );
       } else {
         setError(err?.message || 'Invalid email or password.');

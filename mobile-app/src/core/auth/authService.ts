@@ -4,7 +4,7 @@ import { secureStorage } from '../storage/secureStorage';
 import { STORAGE_KEYS } from '../../config/constants';
 import { useAuthStore } from '../../store/authStore';
 import { useTenantStore } from '../../store/tenantStore';
-import { queryClient } from '../../app/providers/QueryProvider';
+import { queryClient } from '../../app/providers/queryClient';
 import { PushNotificationService } from '../services/pushNotificationService';
 import {
   LoginResult,
