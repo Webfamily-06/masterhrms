@@ -13,16 +13,22 @@ export interface PushCapabilityStatus {
   statusReason: string;
 }
 
-// Configure how foreground notifications are handled
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Configure how foreground notifications are handled safely
+try {
+  if (Notifications && typeof Notifications.setNotificationHandler === 'function') {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  }
+} catch (handlerErr) {
+  console.warn('[Push] Could not configure notification handler:', handlerErr);
+}
 
 export class PushNotificationService {
   private static isInitialized = false;

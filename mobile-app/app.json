@@ -19,7 +19,8 @@
       "googleServicesFile": "./android/app/google-services.json"
     },
     "plugins": [
-      "expo-sharing"
+      "expo-sharing",
+      "expo-notifications"
     ]
   }
 }

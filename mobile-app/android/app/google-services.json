@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "102052771234",
+    "project_id": "masterhrms-ab50b",
+    "storage_bucket": "masterhrms-ab50b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102052771234:android:6fa54a57eca2c314f62efb",
+        "android_client_info": {
+          "package_name": "com.masterhrms.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDM4Dz9IiRjv2H_R_Xc_O86QtN8snnPHWY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
