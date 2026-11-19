@@ -197,7 +197,7 @@ export default function SuperAnalyticsPage() {
             <div className="text-2xl font-bold">
               {telemetryData?.metrics?.apiRequestsToday
                 ? (telemetryData.metrics.apiRequestsToday * 30).toLocaleString()
-                : "427,500"}
+                : "0"}
             </div>
             <p className="text-xs text-emerald-600 mt-1 flex items-center">
               <ArrowUpRight className="w-3 h-3 mr-0.5" /> Normal cluster throughput

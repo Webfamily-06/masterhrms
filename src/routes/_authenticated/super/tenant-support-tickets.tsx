@@ -54,21 +54,22 @@ export type SupportTicket = {
   createdAt: string;
 };
 
-const COMPANY_AVATARS = [
-  "/ui-assets/company/company-01.svg",
-  "/ui-assets/company/company-02.svg",
-  "/ui-assets/company/company-03.svg",
-  "/ui-assets/company/company-04.svg",
-  "/ui-assets/company/company-05.svg",
-  "/ui-assets/company/company-06.svg",
-];
+function CompanyAvatar({ name }: { name: string }) {
+  const getInitials = (str: string) => {
+    if (!str) return "CO";
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return str.slice(0, 2).toUpperCase();
+  };
 
-const AGENT_LIST = [
-  { name: "Edgar Hansel", role: "Senior Specialist", activeTickets: 6, online: true },
-  { name: "Ann Lynch", role: "Billing Lead", activeTickets: 3, online: true },
-  { name: "Jessie Otero", role: "DevOps Engineer", activeTickets: 5, online: false },
-  { name: "Mark Peterson", role: "Support Agent", activeTickets: 2, online: true },
-];
+  return (
+    <div className="w-6 h-6 rounded-full bg-orange-500/10 text-[#FF6F28] dark:bg-orange-950/40 dark:text-orange-400 font-bold text-[10px] flex items-center justify-center shrink-0 border border-orange-200/60 dark:border-orange-900/60 select-none">
+      {getInitials(name)}
+    </div>
+  );
+}
 
 export default function TenantSupportTicketsPage() {
   const queryClient = useQueryClient();
@@ -95,6 +96,18 @@ export default function TenantSupportTicketsPage() {
   });
 
   // 1. Fetch tickets from backend
+  const { data: supportAgents = [] } = useQuery<any[]>({
+    queryKey: ["super-support-agents-list"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/api/super/support/agents");
+        return Array.isArray(res) ? res : res?.data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
   const { data: tickets = [], isLoading } = useQuery<SupportTicket[]>({
     queryKey: ["platform-support-tickets"],
     queryFn: async () => {
@@ -275,9 +288,7 @@ export default function TenantSupportTicketsPage() {
     toast.success("Support tickets exported to CSV");
   };
 
-  const getCompanyAvatar = (idx: number) => {
-    return COMPANY_AVATARS[idx % COMPANY_AVATARS.length];
-  };
+  // Clean dynamic agent resolution
 
   return (
     <div className="space-y-6">
@@ -454,8 +465,7 @@ export default function TenantSupportTicketsPage() {
             </div>
           ) : (
             filteredTickets.map((t, idx) => {
-              const avatarSrc = getCompanyAvatar(idx);
-              const agent = AGENT_LIST[idx % AGENT_LIST.length];
+              const assignedAgent = supportAgents.length > 0 ? supportAgents[idx % supportAgents.length] : null;
 
               return (
                 <div
@@ -534,13 +544,7 @@ export default function TenantSupportTicketsPage() {
                         <div>
                           <p className="text-[11px] text-slate-400 mb-1">Ticket Raised By</p>
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full border border-slate-200 dark:border-slate-700 bg-white p-0.5 flex items-center justify-center">
-                              <img
-                                src={avatarSrc}
-                                alt="company"
-                                className="w-full h-full object-contain rounded-full"
-                              />
-                            </div>
+                            <CompanyAvatar name={t.tenant?.name || "Corporate Workspace"} />
                             <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {t.tenant?.name || "Corporate Workspace"}
                             </span>
@@ -552,10 +556,10 @@ export default function TenantSupportTicketsPage() {
                           <p className="text-[11px] text-slate-400 mb-1">Assignee</p>
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center">
-                              {agent.name.slice(0, 2).toUpperCase()}
+                              {assignedAgent ? assignedAgent.name.slice(0, 2).toUpperCase() : "UA"}
                             </div>
                             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                              {agent.name}
+                              {assignedAgent ? assignedAgent.name : "Unassigned"}
                             </span>
                           </div>
                         </div>
@@ -620,29 +624,35 @@ export default function TenantSupportTicketsPage() {
               <h4 className="font-semibold text-sm text-slate-900 dark:text-white">Support Agents</h4>
             </div>
             <div className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-              {AGENT_LIST.map((agent, i) => (
-                <div key={i} className="flex items-center justify-between p-3.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center">
-                        {agent.name.slice(0, 2).toUpperCase()}
-                      </div>
-                      <span
-                        className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
-                          agent.online ? "bg-emerald-500" : "bg-slate-400"
-                        }`}
-                      ></span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-slate-800 dark:text-slate-100">{agent.name}</p>
-                      <p className="text-[10px] text-slate-400">{agent.role}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium">
-                    {agent.activeTickets} tickets
-                  </span>
+              {supportAgents.length === 0 ? (
+                <div className="p-4 text-center text-xs text-slate-400">
+                  No support agents active.
                 </div>
-              ))}
+              ) : (
+                supportAgents.map((agent: any, i: number) => (
+                  <div key={agent.id || i} className="flex items-center justify-between p-3.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs flex items-center justify-center">
+                          {agent.name ? agent.name.slice(0, 2).toUpperCase() : "SA"}
+                        </div>
+                        <span
+                          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-slate-900 ${
+                            agent.availability === "Available" ? "bg-emerald-500" : "bg-slate-400"
+                          }`}
+                        ></span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-800 dark:text-slate-100">{agent.name || "Support Agent"}</p>
+                        <p className="text-[10px] text-slate-400">{agent.role || "Support Specialist"}</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium">
+                      {agent.ticketsAssigned ?? 0} tickets
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

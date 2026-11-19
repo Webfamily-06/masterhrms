@@ -77,18 +77,22 @@ export type CustomDomainRecord = {
   customDomainUrl?: string;
 };
 
-const COMPANY_AVATARS = [
-  "/ui-assets/company/company-01.svg",
-  "/ui-assets/company/company-02.svg",
-  "/ui-assets/company/company-03.svg",
-  "/ui-assets/company/company-04.svg",
-  "/ui-assets/company/company-05.svg",
-  "/ui-assets/company/company-06.svg",
-  "/ui-assets/company/company-07.svg",
-  "/ui-assets/company/company-08.svg",
-  "/ui-assets/company/company-09.svg",
-  "/ui-assets/company/company-10.svg",
-];
+function CompanyAvatar({ name }: { name: string }) {
+  const getInitials = (str: string) => {
+    if (!str) return "CO";
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return str.slice(0, 2).toUpperCase();
+  };
+
+  return (
+    <div className="size-7 rounded-lg bg-orange-500/10 text-[#FF6F28] dark:bg-orange-950/40 dark:text-orange-400 font-bold text-[10px] flex items-center justify-center shrink-0 border border-orange-200/60 dark:border-orange-900/60 select-none shadow-2xs">
+      {getInitials(name)}
+    </div>
+  );
+}
 
 export default function SuperDomainsPage() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
@@ -611,7 +615,7 @@ export default function SuperDomainsPage() {
               </thead>
               <tbody className="divide-y divide-border-color">
                 {filteredDomains.map((d, idx) => {
-                  const avatarSrc = COMPANY_AVATARS[idx % COMPANY_AVATARS.length];
+                  // Clean dynamic initial avatar
                   const isApproved = d.status === "approved";
                   const isPending = d.status === "pending";
                   const isRejected = d.status === "rejected";
@@ -650,9 +654,7 @@ export default function SuperDomainsPage() {
                       {/* Tenant with Avatar */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2.5">
-                          <div className="size-7 rounded-full border p-0.5 bg-background flex items-center justify-center shrink-0">
-                            <img src={avatarSrc} alt={d.tenantName} className="size-full object-contain rounded-full" />
-                          </div>
+                          <CompanyAvatar name={d.tenantName} />
                           <div>
                             <span className="font-semibold text-foreground block">{d.tenantName}</span>
                             <span className="text-[10px] text-muted-foreground font-mono">{d.subdomain}</span>

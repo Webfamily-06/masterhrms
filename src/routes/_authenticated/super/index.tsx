@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Plus, Send } from "lucide-react";
+import { Loader2, Plus, Send, Receipt, Building2, CheckCircle2, Sparkles } from "lucide-react";
 
 // Lazy load react-apexcharts for SSR safety
 const Chart = lazy(() => import("react-apexcharts"));
@@ -50,6 +50,34 @@ function SparklineBar({ data, color = "#FF6F28" }: { data: number[]; color?: str
   );
 }
 
+// Company Initial Avatar component for clean fallback without mock imagery
+function CompanyAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+  const getInitials = (str: string) => {
+    if (!str) return "CO";
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return str.slice(0, 2).toUpperCase();
+  };
+
+  const sz = size === "sm" ? "size-8 text-[11px]" : "size-10 text-xs";
+
+  return (
+    <div className={`${sz} rounded-full bg-orange-500/10 text-[#FF6F28] dark:bg-orange-950/40 dark:text-orange-400 font-bold flex items-center justify-center shrink-0 border border-orange-200/60 dark:border-orange-900/60 select-none shadow-2xs`}>
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 function SuperDashboard() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -62,7 +90,7 @@ function SuperDashboard() {
 
   // Filter dropdown states
   const [companyFilter, setCompanyFilter] = useState("This Week");
-  const [revenueYear, setRevenueYear] = useState("2025");
+  const [revenueYear, setRevenueYear] = useState("2026");
   const [plansFilter, setPlansFilter] = useState("This Month");
   const [expiredTab, setExpiredTab] = useState<"expired" | "request">("expired");
 
@@ -83,22 +111,34 @@ function SuperDashboard() {
     staleTime: 60 * 1000,
     queryFn: async () => {
       try {
-        const [superStats, tenants, txns] = await Promise.all([
+        const [superStats, tenantsRes, txnsRes] = await Promise.all([
           api.get("/super/stats").catch(() => null),
           api.get("/super/tenants").catch(() => []),
-          api.get("/super/transactions").catch(() => []),
+          api.get("/super/transactions?limit=20").catch(() => ({ transactions: [] })),
         ]);
+
+        const rawTenants: any = tenantsRes;
+        const tenantList: any[] = Array.isArray(rawTenants) ? rawTenants : (rawTenants?.data || rawTenants?.tenants || []);
+
+        const rawTxns: any = txnsRes;
+        const txnList: any[] = Array.isArray(rawTxns) ? rawTxns : (rawTxns?.data || rawTxns?.transactions || []);
+
+        const today = new Date().toDateString();
+        const todayNewTenants = tenantList.filter((t: any) => {
+          const d = t.createdAt || t.created_at;
+          return d ? new Date(d).toDateString() === today : false;
+        }).length;
+
         return {
-          totalTenants: superStats?.totalTenants ?? tenants?.length ?? 0,
-          activeTenants: superStats?.activeTenants ?? 0,
+          totalTenants: superStats?.totalTenants ?? tenantList.length,
+          activeTenants: superStats?.activeTenants ?? tenantList.filter((t: any) => t.status === "active").length,
           totalUsers: superStats?.totalUsers ?? 0,
           mrr: superStats?.mrr ?? 0,
-          todayNewTenants: tenants?.filter((t: any) => {
-            const today = new Date().toDateString();
-            return new Date(t.createdAt).toDateString() === today;
-          }).length || 0,
-          tenantsList: tenants || [],
-          transactionsList: txns || [],
+          growth: superStats?.growth || [],
+          planDistribution: superStats?.planDistribution || [],
+          todayNewTenants,
+          tenantsList: tenantList,
+          transactionsList: txnList,
         };
       } catch {
         return {
@@ -106,6 +146,8 @@ function SuperDashboard() {
           activeTenants: 0,
           totalUsers: 0,
           mrr: 0,
+          growth: [],
+          planDistribution: [],
           todayNewTenants: 0,
           tenantsList: [],
           transactionsList: [],
@@ -165,16 +207,22 @@ function SuperDashboard() {
     toast.success(`Subscription renewal reminder dispatched to ${companyName}!`);
   };
 
-  const handleApproveRequest = (companyName: string) => {
-    toast.success(`Plan upgrade request for ${companyName} approved successfully!`);
-  };
-
-  const handleRejectRequest = (companyName: string) => {
-    toast.info(`Plan upgrade request for ${companyName} was rejected.`);
-  };
-
   // ─── APEX CHARTS CONFIGURATIONS ─────────────────────────────
   // 1. Weekly Companies Bar Chart
+  const weeklyData = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    const list = stats?.tenantsList || [];
+    list.forEach((t: any) => {
+      const dStr = t.createdAt || t.created_at;
+      if (dStr) {
+        const day = new Date(dStr).getDay();
+        const idx = day === 0 ? 6 : day - 1;
+        counts[idx] += 1;
+      }
+    });
+    return counts;
+  }, [stats?.tenantsList]);
+
   const companyChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -202,7 +250,7 @@ function SuperDashboard() {
       series: [
         {
           name: "Company",
-          data: [40, 60, 20, 80, 60, 60, 60],
+          data: weeklyData,
         },
       ],
       xaxis: {
@@ -233,47 +281,51 @@ function SuperDashboard() {
         },
       },
     }),
-    []
+    [weeklyData]
   );
 
-  // 2. Revenue Stacked Bar Chart
+  // 2. Revenue Breakdown Chart
+  const revenueChartData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const curMonth = new Date().getMonth();
+    const data = new Array(12).fill(0);
+    const txns = stats?.transactionsList || [];
+    txns.forEach((tx: any) => {
+      const d = tx.createdAt || tx.created_at;
+      if (d) {
+        const m = new Date(d).getMonth();
+        data[m] += Math.round(Number(tx.amount || tx.subtotalAmount || 0));
+      }
+    });
+    if (data.every((v) => v === 0) && stats?.mrr) {
+      data[curMonth] = stats.mrr;
+    }
+    return { months, data };
+  }, [stats?.transactionsList, stats?.mrr]);
+
   const revenueChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
         height: 270,
         type: "bar",
-        stacked: true,
         toolbar: { show: false },
       },
-      colors: ["#f26522", "#0c4b5e", "#1b84ff", "#F3F4F6"],
+      colors: ["#f26522"],
       plotOptions: {
         bar: {
           borderRadius: 5,
-          borderRadiusWhenStacked: "last",
-          columnWidth: "50%",
+          columnWidth: "40%",
           horizontal: false,
         },
       },
       series: [
         {
-          name: "Income Base (25%)",
-          data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25],
-        },
-        {
-          name: "Income Mid (30%)",
-          data: [30, 5, 20, 30, 30, 30, 30, 30, 30, 30, 0, 30],
-        },
-        {
-          name: "Income Top (5%)",
-          data: [5, 0, 0, 25, 30, 35, 25, 25, 25, 30, 0, 25],
-        },
-        {
-          name: "Remaining/Expenses",
-          data: [40, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20],
+          name: "Revenue ($)",
+          data: revenueChartData.data,
         },
       ],
       xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        categories: revenueChartData.months,
         labels: {
           style: { colors: "#6B7280", fontSize: "11px" },
         },
@@ -281,32 +333,55 @@ function SuperDashboard() {
         axisTicks: { show: false },
       },
       yaxis: {
-        min: 0,
-        max: 100,
         labels: {
           style: { colors: "#6B7280", fontSize: "11px" },
-          formatter: (value: number) => `${value}K`,
+          formatter: (value: number) => `$${value}`,
         },
       },
       grid: {
-        borderColor: "transparent",
+        borderColor: "#E5E7EB",
+        strokeDashArray: 4,
         padding: { left: -5, right: 0 },
       },
       legend: { show: false },
       dataLabels: { enabled: false },
       tooltip: {
-        shared: true,
-        intersect: false,
         theme: "dark",
         y: {
-          formatter: (val: number) => `$${val}K`,
+          formatter: (val: number) => `$${val.toLocaleString()}`,
         },
       },
     }),
-    []
+    [revenueChartData]
   );
 
   // 3. Top Plans Donut Chart
+  const planChartData = useMemo(() => {
+    const dist = stats?.planDistribution || [];
+    if (dist.length > 0) {
+      return {
+        labels: dist.map((d: any) => d.name || "Standard"),
+        series: dist.map((d: any) => d.count),
+      };
+    }
+    const list = stats?.tenantsList || [];
+    if (list.length > 0) {
+      const counts: Record<string, number> = {};
+      list.forEach((t: any) => {
+        const p = t.plan_name || t.planName || "Enterprise";
+        counts[p] = (counts[p] || 0) + 1;
+      });
+      return {
+        labels: Object.keys(counts),
+        series: Object.values(counts),
+      };
+    }
+    return {
+      labels: ["Enterprise"],
+      series: [0],
+    };
+  }, [stats?.planDistribution, stats?.tenantsList]);
+
   const planChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -314,9 +389,9 @@ function SuperDashboard() {
         type: "donut",
         toolbar: { show: false },
       },
-      colors: ["#FFC107", "#1B84FF", "#F26522"],
-      series: [20, 60, 20],
-      labels: ["Enterprise", "Premium", "Basic"],
+      colors: ["#F26522", "#1B84FF", "#FFC107", "#10B981"],
+      series: planChartData.series.length > 0 ? planChartData.series : [1],
+      labels: planChartData.labels.length > 0 ? planChartData.labels : ["No Plans"],
       plotOptions: {
         pie: {
           donut: {
@@ -333,12 +408,23 @@ function SuperDashboard() {
       tooltip: {
         theme: "dark",
         y: {
-          formatter: (val: number) => `${val}%`,
+          formatter: (val: number) => `${val} Workspace(s)`,
         },
       },
     }),
-    []
+    [planChartData]
   );
+
+  // Filtered lists for Row 3 cards
+  const expiredCompanies = useMemo(() => {
+    const list = stats?.tenantsList || [];
+    const now = new Date();
+    return list.filter((t: any) => {
+      if (t.status === "suspended" || t.status === "expired") return true;
+      if (t.expires_at && new Date(t.expires_at) < now) return true;
+      return false;
+    });
+  }, [stats?.tenantsList]);
 
   return (
     <div className="space-y-6">
@@ -363,39 +449,35 @@ function SuperDashboard() {
           </nav>
         </div>
 
-        {/* Right Toolbar: Date Range Picker & Controls */}
+        {/* Right Toolbar: Quick Action Buttons */}
         <div className="flex items-center gap-2">
-          <div className="relative inline-flex items-center">
-            <span className="absolute left-3 text-muted-foreground pointer-events-none">
-              <i className="ti ti-calendar text-sm"></i>
-            </span>
-            <input
-              type="text"
-              readOnly
-              value="01/09/2026 - 30/09/2026"
-              className="pl-9 pr-3 py-1.5 text-xs bg-white dark:bg-slate-900 border border-border rounded-md shadow-2xs font-medium text-gray-700 dark:text-gray-300 w-56 focus:outline-none"
-            />
-          </div>
-
-          <button
-            type="button"
-            className="size-8 rounded-md border border-border bg-white dark:bg-slate-900 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors shadow-2xs"
-            title="Collapse Header"
+          <Button
+            size="sm"
+            onClick={() => setIsCreateTenantOpen(true)}
+            className="gap-1.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            <i className="ti ti-chevrons-up text-sm"></i>
-          </button>
+            <Plus className="size-3.5" /> New Tenant
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsBroadcastOpen(true)}
+            className="gap-1.5 text-xs"
+          >
+            <Send className="size-3.5" /> Broadcast
+          </Button>
         </div>
       </div>
 
       {/* ─── Welcome Wrap Banner ──────────────────────────────────────────── */}
-      <div className="welcome-wrap relative rounded-lg p-6 sm:p-8 overflow-hidden text-white shadow-md">
+      <div className="welcome-wrap relative rounded-lg p-6 sm:p-8 overflow-hidden text-white shadow-md bg-gradient-to-r from-slate-900 to-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-xs">
-              Welcome Back, {profile?.full_name?.split(" ")[0] || "Adrian"}
+              Welcome Back, {profile?.full_name?.split(" ")[0] || "Super Admin"}
             </h2>
-            <p className="text-sm sm:text-base text-orange-100 font-medium">
-              {stats?.todayNewTenants ?? 14} New Companies Subscribed Today !!!
+            <p className="text-sm sm:text-base text-orange-200 font-medium">
+              {stats?.todayNewTenants ?? 0} New Companies Subscribed Today
             </p>
           </div>
 
@@ -404,34 +486,15 @@ function SuperDashboard() {
               to="/super/tenants"
               className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-md bg-[#212529] hover:bg-black text-white shadow-xs transition-colors"
             >
-              Companies
+              Manage Companies ({stats?.totalTenants ?? 0})
             </Link>
             <Link
               to="/super/plans"
               className="inline-flex items-center justify-center px-4 py-2 text-xs font-semibold rounded-md bg-white hover:bg-slate-100 text-gray-900 shadow-xs transition-colors"
             >
-              All Packages
+              Subscription Plans
             </Link>
           </div>
-        </div>
-
-        {/* Vector Background Illustrations */}
-        <div className="welcome-bg absolute inset-0 pointer-events-none overflow-hidden select-none">
-          <img
-            src="/ui-assets/bg/welcome-bg-02.svg"
-            alt="bg shape"
-            className="welcome-bg-01 absolute top-0 left-0 w-auto h-full opacity-80"
-          />
-          <img
-            src="/ui-assets/bg/welcome-bg-03.svg"
-            alt="bg shape"
-            className="welcome-bg-02 absolute top-[20%] left-[40%] w-auto h-auto opacity-75"
-          />
-          <img
-            src="/ui-assets/bg/welcome-bg-01.svg"
-            alt="bg shape"
-            className="welcome-bg-03 absolute bottom-0 right-0 w-auto h-full opacity-80"
-          />
         </div>
       </div>
 
@@ -445,17 +508,17 @@ function SuperDashboard() {
                 <i className="ti ti-building text-base"></i>
               </span>
               <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                +19.01%
+                Live DB
               </span>
             </div>
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.totalTenants ?? 5468).toLocaleString()}
+                  {(stats?.totalTenants ?? 0).toLocaleString()}
                 </h2>
                 <p className="text-xs text-muted-foreground font-medium">Total Companies</p>
               </div>
-              <SparklineBar data={[5, 10, 7, 5, 10, 7, 5]} color="#FF6F28" />
+              <SparklineBar data={[stats?.totalTenants ?? 1, stats?.totalTenants ?? 1, stats?.totalTenants ?? 1, stats?.totalTenants ?? 1]} color="#FF6F28" />
             </div>
           </div>
         </div>
@@ -467,62 +530,62 @@ function SuperDashboard() {
               <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
                 <i className="ti ti-carousel-vertical text-base"></i>
               </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                -12%
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                Active
               </span>
             </div>
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.activeTenants ?? 4598).toLocaleString()}
+                  {(stats?.activeTenants ?? 0).toLocaleString()}
                 </h2>
                 <p className="text-xs text-muted-foreground font-medium">Active Companies</p>
               </div>
-              <SparklineBar data={[5, 3, 7, 6, 3, 10, 5]} color="#FF6F28" />
+              <SparklineBar data={[stats?.activeTenants ?? 1, stats?.activeTenants ?? 1, stats?.activeTenants ?? 1, stats?.activeTenants ?? 1]} color="#FF6F28" />
             </div>
           </div>
         </div>
 
-        {/* Card 3: Total Subscribers */}
+        {/* Card 3: Total Subscribers / Users */}
         <div className="lg:col-span-3 flex">
           <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between mb-4">
               <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
-                <i className="ti ti-chalkboard-off text-base"></i>
+                <i className="ti ti-users text-base"></i>
               </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                +6%
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                Subscribers
               </span>
             </div>
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  {(stats?.totalUsers ?? 3698).toLocaleString()}
+                  {(stats?.totalUsers ?? 0).toLocaleString()}
                 </h2>
-                <p className="text-xs text-muted-foreground font-medium">Total Subscribers</p>
+                <p className="text-xs text-muted-foreground font-medium">Platform Users</p>
               </div>
-              <SparklineBar data={[8, 10, 10, 8, 8, 10, 8]} color="#FF6F28" />
+              <SparklineBar data={[stats?.totalUsers ?? 1, stats?.totalUsers ?? 1, stats?.totalUsers ?? 1, stats?.totalUsers ?? 1]} color="#FF6F28" />
             </div>
           </div>
         </div>
 
-        {/* Card 4: Total Earnings */}
+        {/* Card 4: Total Monthly Revenue (MRR) */}
         <div className="lg:col-span-3 flex">
           <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between mb-4">
               <span className="size-10 rounded-full bg-[#212529] text-white flex items-center justify-center">
                 <i className="ti ti-businessplan text-base"></i>
               </span>
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                -16%
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                MRR
               </span>
             </div>
             <div className="flex items-end justify-between">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-0.5">
-                  $89,878.58
+                  {formatCurrency(stats?.mrr ?? 0)}
                 </h2>
-                <p className="text-xs text-muted-foreground font-medium">Total Earnings</p>
+                <p className="text-xs text-muted-foreground font-medium">Monthly Revenue</p>
               </div>
               <SparklineBar data={[5, 10, 7, 5, 10, 7, 5]} color="#FF6F28" />
             </div>
@@ -536,16 +599,9 @@ function SuperDashboard() {
         <div className="lg:col-span-3 flex">
           <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Companies</h5>
+              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Companies Added</h5>
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setCompanyFilter(companyFilter === "This Week" ? "This Month" : "This Week")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {companyFilter}
-                </button>
+                <span className="text-xs text-muted-foreground font-medium">By Day</span>
               </div>
             </div>
 
@@ -565,42 +621,34 @@ function SuperDashboard() {
 
             <p className="text-xs text-muted-foreground flex items-center pt-2 border-t border-border/60">
               <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 mr-1.5">
-                +6%
+                Active
               </span>
-              5 Companies from last month
+              {stats?.totalTenants ?? 0} total registered organizations
             </p>
           </div>
         </div>
 
-        {/* Center Card: Revenue Stacked Breakdown */}
+        {/* Center Card: Revenue Breakdown */}
         <div className="lg:col-span-6 flex">
           <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Revenue</h5>
+              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Platform Revenue</h5>
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setRevenueYear(revenueYear === "2025" ? "2026" : "2025")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {revenueYear}
-                </button>
+                <span className="text-xs text-muted-foreground font-medium">Year {revenueYear}</span>
               </div>
             </div>
 
             {/* Subheader: Revenue KPI & Legend */}
             <div className="flex items-center justify-between flex-wrap gap-2 pt-3 pb-1">
               <div>
-                <h4 className="text-xl font-extrabold text-gray-900 dark:text-gray-100">$45,787</h4>
-                <p className="text-xs text-muted-foreground">
-                  <span className="text-emerald-600 font-bold mr-1">+40%</span>
-                  increased from last year
-                </p>
+                <h4 className="text-xl font-extrabold text-gray-900 dark:text-gray-100">
+                  {formatCurrency((stats?.mrr ?? 0) * 12)}
+                </h4>
+                <p className="text-xs text-muted-foreground">Annualized Run Rate (ARR)</p>
               </div>
               <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">
                 <i className="ti ti-circle-filled text-xs text-[#f26522]"></i>
-                Revenue
+                Monthly Collections
               </div>
             </div>
 
@@ -624,17 +672,10 @@ function SuperDashboard() {
         <div className="lg:col-span-3 flex">
           <div className="card flex-1 h-full bg-white dark:bg-slate-900 border border-border rounded-lg p-5 flex flex-col justify-between shadow-2xs">
             <div className="flex items-center justify-between pb-2 border-b border-border/60">
-              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Top Plans</h5>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setPlansFilter(plansFilter === "This Month" ? "This Week" : "This Month")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border border-border bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-slate-50 transition-colors shadow-2xs"
-                >
-                  <i className="ti ti-calendar text-xs"></i>
-                  {plansFilter}
-                </button>
-              </div>
+              <h5 className="font-bold text-sm text-gray-900 dark:text-gray-100">Plan Distribution</h5>
+              <Link to="/super/plans" className="text-xs text-primary hover:underline font-medium">
+                View All
+              </Link>
             </div>
 
             <div className="my-2 min-h-[220px] flex items-center justify-center">
@@ -651,29 +692,25 @@ function SuperDashboard() {
               ) : null}
             </div>
 
-            {/* Plan Breakdown Percentages */}
+            {/* Real Plan Breakdown Percentages */}
             <div className="space-y-2 pt-2 border-t border-border/60">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#F26522]"></i>
-                  Basic
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">60%</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#1B84FF]"></i>
-                  Premium
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">20%</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
-                  <i className="ti ti-circle-filled text-xs text-[#FFC107]"></i>
-                  Enterprise
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-100">20%</span>
-              </div>
+              {planChartData.labels.map((label: string, idx: number) => {
+                const count = planChartData.series[idx] || 0;
+                const total = planChartData.series.reduce((a: number, b: number) => a + b, 0) || 1;
+                const pct = Math.round((count / total) * 100);
+                const colors = ["#F26522", "#1B84FF", "#FFC107", "#10B981"];
+                const dotColor = colors[idx % colors.length];
+
+                return (
+                  <div key={label} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 text-gray-700 dark:text-gray-300 font-medium">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: dotColor }} />
+                      {label}
+                    </span>
+                    <span className="font-bold text-gray-900 dark:text-gray-100">{pct}% ({count})</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -695,72 +732,36 @@ function SuperDashboard() {
                 </Link>
               </div>
 
-              {/* Transactions List */}
+              {/* Real Transactions List */}
               <div className="space-y-4">
-                {[
-                  {
-                    name: "Stellar Dynamics",
-                    id: "#12457",
-                    date: "14 Jan 2025",
-                    amount: "+$245",
-                    plan: "Basic (Monthly)",
-                    img: "/ui-assets/company/company-02.svg",
-                  },
-                  {
-                    name: "Quantum Nexus",
-                    id: "#65974",
-                    date: "14 Jan 2025",
-                    amount: "+$395",
-                    plan: "Enterprise (Yearly)",
-                    img: "/ui-assets/company/company-03.svg",
-                  },
-                  {
-                    name: "Aurora Technologies",
-                    id: "#22457",
-                    date: "14 Jan 2025",
-                    amount: "+$145",
-                    plan: "Advanced (Monthly)",
-                    img: "/ui-assets/company/company-05.svg",
-                  },
-                  {
-                    name: "TerraFusion Energy",
-                    id: "#43412",
-                    date: "14 Jan 2025",
-                    amount: "+$145",
-                    plan: "Enterprise (Monthly)",
-                    img: "/ui-assets/company/company-07.svg",
-                  },
-                  {
-                    name: "Epicurean Delights",
-                    id: "#43567",
-                    date: "14 Jan 2025",
-                    amount: "+$977",
-                    plan: "Premium (Yearly)",
-                    img: "/ui-assets/company/company-08.svg",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                        <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
+                {stats?.transactionsList && stats.transactionsList.length > 0 ? (
+                  stats.transactionsList.slice(0, 5).map((item: any, idx: number) => (
+                    <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CompanyAvatar name={item.customerName || item.tenantSlug || "Client"} size="sm" />
+                        <div className="min-w-0">
+                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
+                            {item.customerName || item.tenantSlug || "Platform Invoice"}
+                          </h6>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                            <span className="text-sky-600 dark:text-sky-400 font-medium">#{item.invoiceId || item.id?.slice(0, 8)}</span>
+                            <span>•</span>
+                            <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString("en-GB") : "Recently"}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                          {item.name}
-                        </h6>
-                        <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                          <span className="text-sky-600 dark:text-sky-400 font-medium">{item.id}</span>
-                          <span>•</span>
-                          <span>{item.date}</span>
-                        </p>
+                      <div className="text-right shrink-0">
+                        <h6 className="font-bold text-gray-900 dark:text-gray-100">+${Number(item.amount || 0).toLocaleString()}</h6>
+                        <p className="text-[11px] text-muted-foreground">{item.planName || "Subscription"}</p>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <h6 className="font-bold text-gray-900 dark:text-gray-100">{item.amount}</h6>
-                      <p className="text-[11px] text-muted-foreground">{item.plan}</p>
-                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                    <Receipt className="size-8 text-muted-foreground/30 mb-2" />
+                    <span>No platform transactions recorded yet</span>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -780,63 +781,34 @@ function SuperDashboard() {
                 </Link>
               </div>
 
-              {/* Registered Companies List */}
+              {/* Real Registered Companies List */}
               <div className="space-y-4">
-                {[
-                  {
-                    name: "Pitch",
-                    plan: "Basic (Monthly)",
-                    users: "150 Users",
-                    domain: "pitch.example.com",
-                    img: "/ui-assets/icons/company-icon-11.svg",
-                  },
-                  {
-                    name: "Initech",
-                    plan: "Enterprise (Yearly)",
-                    users: "200 Users",
-                    domain: "initech.example.com",
-                    img: "/ui-assets/icons/company-icon-12.svg",
-                  },
-                  {
-                    name: "Umbrella Corp",
-                    plan: "Advanced (Monthly)",
-                    users: "129 Users",
-                    domain: "umbcorp.example.com",
-                    img: "/ui-assets/icons/company-icon-13.svg",
-                  },
-                  {
-                    name: "Capital Partners",
-                    plan: "Enterprise (Monthly)",
-                    users: "103 Users",
-                    domain: "capitalpart.example.com",
-                    img: "/ui-assets/icons/company-icon-14.svg",
-                  },
-                  {
-                    name: "Massive Dynamic",
-                    plan: "Premium (Yearly)",
-                    users: "108 Users",
-                    domain: "msdynamic.example.com",
-                    img: "/ui-assets/icons/company-icon-15.svg",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                        <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
+                {stats?.tenantsList && stats.tenantsList.length > 0 ? (
+                  stats.tenantsList.slice(0, 5).map((t: any, idx: number) => (
+                    <div key={t.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <CompanyAvatar name={t.name || "Workspace"} size="sm" />
+                        <div className="min-w-0">
+                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
+                            {t.name}
+                          </h6>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{t.plan_name || "Enterprise Plan"}</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                          {item.name}
-                        </h6>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{item.plan}</p>
+                      <div className="text-right shrink-0">
+                        <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5">
+                          {t.employee_count ?? 0} Employees
+                        </p>
+                        <h6 className="text-[11px] text-muted-foreground font-mono">{t.slug}.masterhrms.com</h6>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-0.5">{item.users}</p>
-                      <h6 className="text-[11px] text-muted-foreground font-mono">{item.domain}</h6>
-                    </div>
+                  ))
+                ) : (
+                  <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                    <Building2 className="size-8 text-muted-foreground/30 mb-2" />
+                    <span>No registered workspaces</span>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
@@ -879,125 +851,44 @@ function SuperDashboard() {
               {/* Expired Tab List */}
               {expiredTab === "expired" ? (
                 <div className="space-y-4">
-                  {[
-                    {
-                      name: "Silicon Corp",
-                      expiry: "Expired : 10 Apr 2025",
-                      plan: "Basic (Monthly)",
-                      img: "/ui-assets/icons/company-icon-16.svg",
-                    },
-                    {
-                      name: "Hubspot",
-                      expiry: "Expired : 12 Jun 2025",
-                      plan: "Enterprise (Yearly)",
-                      img: "/ui-assets/icons/company-icon-14.svg",
-                    },
-                    {
-                      name: "Licon Industries",
-                      expiry: "Expired : 16 Jun 2025",
-                      plan: "Advanced (Monthly)",
-                      img: "/ui-assets/icons/company-icon-18.svg",
-                    },
-                    {
-                      name: "TerraFusion Energy",
-                      expiry: "Expired : 12 May 2025",
-                      plan: "Enterprise (Monthly)",
-                      img: "/ui-assets/company/company-07.svg",
-                    },
-                    {
-                      name: "Epicurean Delights",
-                      expiry: "Expired : 15 May 2025",
-                      plan: "Premium (Yearly)",
-                      img: "/ui-assets/company/company-08.svg",
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                          <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
+                  {expiredCompanies.length > 0 ? (
+                    expiredCompanies.map((item: any, idx: number) => (
+                      <div key={item.id || idx} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <CompanyAvatar name={item.name || "Workspace"} size="sm" />
+                          <div className="min-w-0">
+                            <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
+                              {item.name}
+                            </h6>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {item.expires_at ? `Expired : ${new Date(item.expires_at).toLocaleDateString("en-GB")}` : "Subscription Suspended"}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-primary transition-colors cursor-pointer">
-                            {item.name}
-                          </h6>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">{item.expiry}</p>
+                        <div className="text-right shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleSendReminder(item.name)}
+                            className="text-[11px] text-sky-600 dark:text-sky-400 underline font-medium hover:text-sky-700 transition-colors block mb-0.5"
+                          >
+                            Send Reminder
+                          </button>
+                          <p className="text-[11px] text-muted-foreground">{item.plan_name || "Enterprise"}</p>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleSendReminder(item.name)}
-                          className="text-[11px] text-sky-600 dark:text-sky-400 underline font-medium hover:text-sky-700 transition-colors block mb-0.5"
-                        >
-                          Send Reminder
-                        </button>
-                        <p className="text-[11px] text-muted-foreground">{item.plan}</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                      <CheckCircle2 className="size-8 text-emerald-500/30 mb-2" />
+                      <span>All company subscriptions active & healthy</span>
                     </div>
-                  ))}
+                  )}
                 </div>
               ) : (
                 /* Request Tab List */
-                <div className="space-y-4">
-                  {[
-                    {
-                      name: "Silicon Corp",
-                      domain: "silicon.example.com",
-                      img: "/ui-assets/icons/company-icon-16.svg",
-                    },
-                    {
-                      name: "Hubspot",
-                      domain: "hubspot.example.com",
-                      img: "/ui-assets/icons/company-icon-14.svg",
-                    },
-                    {
-                      name: "Licon Industries",
-                      domain: "licon.example.com",
-                      img: "/ui-assets/icons/company-icon-18.svg",
-                    },
-                    {
-                      name: "TerraFusion Energy",
-                      domain: "fusion.example.com",
-                      img: "/ui-assets/company/company-07.svg",
-                    },
-                    {
-                      name: "Epicurean Delights",
-                      domain: "epicuran.example.com",
-                      img: "/ui-assets/company/company-08.svg",
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="size-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center p-2 shrink-0 border border-border/40">
-                          <img src={item.img} alt={item.name} className="w-full h-full object-contain" />
-                        </div>
-                        <div className="min-w-0">
-                          <h6 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {item.name}
-                          </h6>
-                          <p className="text-[11px] text-sky-600 dark:text-sky-400 font-mono mt-0.5 truncate">
-                            {item.domain}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleApproveRequest(item.name)}
-                          className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline transition-colors"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRejectRequest(item.name)}
-                          className="text-xs font-semibold text-rose-600 hover:text-rose-700 underline transition-colors"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                  <Sparkles className="size-8 text-muted-foreground/30 mb-2" />
+                  <span>No pending plan change requests</span>
                 </div>
               )}
             </div>
@@ -1005,95 +896,118 @@ function SuperDashboard() {
         </div>
       </div>
 
-      {/* ─── Footer ───────────────────────────────────────────────────────── */}
-      <div className="footer flex flex-col sm:flex-row items-center justify-between border-t border-border pt-4 pb-2 text-xs text-muted-foreground">
-        <p className="mb-1 sm:mb-0">&copy; {new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.</p>
-        <p>
-          Maintained &amp; Secured By{" "}
-          <span className="text-primary font-medium">Webfamily Tech Solutions</span>
-        </p>
-      </div>
-
-      {/* ─── Quick Actions Dialogs (Preserved) ─────────────────────────────── */}
-      {/* Create Tenant Modal */}
+      {/* ─── Modal 1: Create Tenant Dialog ─────────────────────────────────── */}
       <Dialog open={isCreateTenantOpen} onOpenChange={setIsCreateTenantOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Provision New ERP Tenant Workspace</DialogTitle>
-            <DialogDescription>
-              Create an isolated organization tenant with dedicated database records, employee records,
-              and default admin credentials.
+            <DialogTitle>Provision Enterprise Workspace</DialogTitle>
+            <DialogDescription className="text-xs">
+              Instantly create an isolated tenant database instance for a new company.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Workspace Name</Label>
+            <div>
+              <Label className="text-xs font-semibold">Company / Workspace Name</Label>
               <Input
-                placeholder="Apex Technologies Inc."
+                placeholder="e.g. Acme Cloud Corp"
                 value={newTenantName}
                 onChange={(e) => {
                   setNewTenantName(e.target.value);
-                  setNewTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"));
+                  if (!newTenantSlug) {
+                    setNewTenantSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-"));
+                  }
                 }}
+                className="mt-1 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Workspace Slug (URL Subdomain)</Label>
+            <div>
+              <Label className="text-xs font-semibold">Subdomain / Slug</Label>
               <Input
-                placeholder="apex-global"
+                placeholder="e.g. acme-cloud"
                 value={newTenantSlug}
                 onChange={(e) => setNewTenantSlug(e.target.value)}
-                className="font-mono text-xs"
+                className="mt-1 text-xs font-mono"
               />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Will be accessible at: https://{newTenantSlug || "subdomain"}.masterhrms.com
+              </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateTenantOpen(false)}>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateTenantOpen(false)}
+              disabled={isCreatingTenant}
+              className="text-xs"
+            >
               Cancel
             </Button>
-            <Button onClick={handleCreateTenant} disabled={isCreatingTenant} className="bg-purple-600 hover:bg-purple-700 text-white">
-              {isCreatingTenant ? <Loader2 className="size-4 animate-spin mr-2" /> : <Plus className="size-4 mr-2" />}
-              Provision Tenant
+            <Button
+              size="sm"
+              onClick={handleCreateTenant}
+              disabled={isCreatingTenant}
+              className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {isCreatingTenant ? <Loader2 className="size-3.5 animate-spin mr-1.5" /> : null}
+              Provision Workspace
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Broadcast Announcement Modal */}
+      {/* ─── Modal 2: System Broadcast Dialog ──────────────────────────────── */}
       <Dialog open={isBroadcastOpen} onOpenChange={setIsBroadcastOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Broadcast System Announcement</DialogTitle>
-            <DialogDescription>
-              Publish an immediate system-wide banner notification to all ERP & HRMS active workspaces.
+            <DialogTitle>Transmit System-Wide Announcement</DialogTitle>
+            <DialogDescription className="text-xs">
+              Broadcast an urgent notification banner directly to all company workspace dashboards.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Announcement Title</Label>
+            <div>
+              <Label className="text-xs font-semibold">Announcement Title</Label>
               <Input
-                placeholder="Scheduled Maintenance & Platform Upgrade"
+                placeholder="e.g. Scheduled Maintenance Notice"
                 value={broadcastTitle}
                 onChange={(e) => setBroadcastTitle(e.target.value)}
+                className="mt-1 text-xs"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Announcement Content</Label>
+            <div>
+              <Label className="text-xs font-semibold">Notification Body</Label>
               <Textarea
-                placeholder="We are upgrading the core ERP database engine on Sunday at 02:00 UTC. Systems will remain operational."
+                rows={3}
+                placeholder="Detail maintenance schedule, updates, or alerts..."
                 value={broadcastMessage}
                 onChange={(e) => setBroadcastMessage(e.target.value)}
-                rows={3}
+                className="mt-1 text-xs resize-none"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsBroadcastOpen(false)}>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBroadcastOpen(false)}
+              disabled={isSendingBroadcast}
+              className="text-xs"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSendBroadcast} disabled={isSendingBroadcast} className="bg-purple-600 hover:bg-purple-700 text-white">
-              {isSendingBroadcast ? <Loader2 className="size-4 animate-spin mr-2" /> : <Send className="size-4 mr-2" />}
-              Broadcast Banner
+            <Button
+              size="sm"
+              onClick={handleSendBroadcast}
+              disabled={isSendingBroadcast}
+              className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {isSendingBroadcast ? <Loader2 className="size-3.5 animate-spin mr-1.5" /> : null}
+              Send Announcement
             </Button>
           </DialogFooter>
         </DialogContent>

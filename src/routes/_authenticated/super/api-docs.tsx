@@ -37,24 +37,7 @@ export type ApiKeyRecord = {
   permissions: string[];
 };
 
-const DEFAULT_API_KEYS: ApiKeyRecord[] = [
-  {
-    id: "k-1",
-    name: "Production Webhook Key (ZKTeco Biometric)",
-    key_token: "mhrms_sec_live_998877a1b2c3d4e5f6",
-    created_at: "2026-01-15",
-    last_used: "2 mins ago",
-    permissions: ["tenants:manage", "biometric:sync"],
-  },
-  {
-    id: "k-2",
-    name: "Tally Prime ERP ODBC Gateway",
-    key_token: "mhrms_sec_tally_445566x1y2z3a4b5c6",
-    created_at: "2026-03-10",
-    last_used: "1 hour ago",
-    permissions: ["accounting:read", "accounting:reconcile"],
-  },
-];
+const DEFAULT_API_KEYS: ApiKeyRecord[] = [];
 
 export function ApiDocsAdminStudio() {
   const qc = useQueryClient();
@@ -529,36 +512,44 @@ export function ApiDocsAdminStudio() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {apiKeys.map((k) => (
-                  <tr key={k.id}>
-                    <td className="p-3 pl-4 font-bold text-foreground">{k.name}</td>
-                    <td className="p-3 font-mono text-[11px]">
-                      <span className="bg-muted p-1 rounded border text-muted-foreground">{k.key_token}</span>
-                    </td>
-                    <td className="p-3 text-muted-foreground">{k.created_at}</td>
-                    <td className="p-3 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                      {k.last_used}
-                    </td>
-                    <td className="p-3 pr-4 text-right space-x-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCopy(k.key_token, k.id)}
-                        className="size-7 p-0"
-                      >
-                        {copiedKey === k.id ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3.5" />}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRevokeKey(k.id)}
-                        className="size-7 p-0 text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                {apiKeys.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground text-xs">
+                      No API keys provisioned yet. Click "Generate Key" to create an integration key.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  apiKeys.map((k) => (
+                    <tr key={k.id}>
+                      <td className="p-3 pl-4 font-bold text-foreground">{k.name}</td>
+                      <td className="p-3 font-mono text-[11px]">
+                        <span className="bg-muted p-1 rounded border text-muted-foreground">{k.key_token}</span>
+                      </td>
+                      <td className="p-3 text-muted-foreground">{k.created_at}</td>
+                      <td className="p-3 font-mono text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                        {k.last_used}
+                      </td>
+                      <td className="p-3 pr-4 text-right space-x-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCopy(k.key_token, k.id)}
+                          className="size-7 p-0"
+                        >
+                          {copiedKey === k.id ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3.5" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRevokeKey(k.id)}
+                          className="size-7 p-0 text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </Card>
