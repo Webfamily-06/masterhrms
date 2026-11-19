@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Modal,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
@@ -18,54 +20,222 @@ import {
   MinusCircle,
   Info,
   X,
-  Clock,
-  Award,
-  Car,
+  AlertCircle,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProps } from '../../../types/navigation.types';
+import { PayrollService, PayslipDetail, PayslipItem } from '../../../core/services/payrollService';
+
+interface LineItem {
+  title: string;
+  subtitle?: string;
+  amount: number;
+}
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
 
 export const SalarySlipDetailScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute<RouteProps<'SalarySlipDetail'>>();
 
   const routeParams = (route.params as any) || {};
-  const month = routeParams.month || 'Current';
-  const year = routeParams.year || new Date().getFullYear();
-  const grossAmount = Number(routeParams.gross || 0);
-  const netAmount = Number(routeParams.net || 0);
-  const deductions = Math.max(0, grossAmount - netAmount);
+  const initialMonth = routeParams.month || MONTHS[new Date().getMonth()];
+  const initialYear = Number(routeParams.year) || new Date().getFullYear();
 
-  const basicSalary = Math.round(grossAmount * 0.7);
-  const allowances = grossAmount - basicSalary;
-  const taxInsurance = Math.round(deductions * 0.6);
-  const otherDeductions = deductions - taxInsurance;
+  const [currentMonth, setCurrentMonth] = useState<string>(initialMonth);
+  const [currentYear, setCurrentYear] = useState<number>(initialYear);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
-  const [currentMonth, setCurrentMonth] = useState(month);
-  const [currentYear] = useState(year);
+  const [payslip, setPayslip] = useState<PayslipDetail | null>(null);
 
-  // Breakdown Sheet Modal (Matches 67, 68, 69, 70)
+  // Breakdown Sheet Modal
   const [breakdownModalType, setBreakdownModalType] = useState<
     'basic' | 'allowances' | 'tax' | 'other' | null
   >(null);
 
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
+  const fetchPayslipData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. If explicit ID provided in route params, fetch detail directly
+      const paramId = routeParams.id || routeParams.payslipId;
+      if (paramId) {
+        const detail = await PayrollService.getPayslipDetail(paramId);
+        if (detail) {
+          setPayslip(detail);
+          if (detail.periodMonth && detail.periodMonth >= 1 && detail.periodMonth <= 12) {
+            setCurrentMonth(MONTHS[detail.periodMonth - 1]);
+          }
+          if (detail.periodYear) {
+            setCurrentYear(detail.periodYear);
+          }
+          return;
+        }
+      }
+
+      // 2. Otherwise search employee payslips for selected month & year
+      const monthNumber = MONTHS.indexOf(currentMonth) + 1;
+      const allPayslips = await PayrollService.getMyPayslips();
+
+      const matched = allPayslips.find((p: PayslipItem) => {
+        const pMonth = p.periodMonth || p.month;
+        const pYear = p.periodYear || p.year;
+        return pMonth === monthNumber && pYear === currentYear;
+      });
+
+      if (matched && matched.id) {
+        const fullDetail = await PayrollService.getPayslipDetail(matched.id);
+        setPayslip(fullDetail || (matched as any));
+      } else {
+        setPayslip(null);
+      }
+    } catch (err: any) {
+      console.warn('[SalarySlipDetail] Failed to fetch payslip:', err?.message);
+      setPayslip(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [currentMonth, currentYear, routeParams.id, routeParams.payslipId]);
+
+  useEffect(() => {
+    fetchPayslipData();
+  }, [fetchPayslipData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchPayslipData();
+  };
 
   const handlePrevMonth = () => {
-    const idx = months.indexOf(currentMonth);
-    if (idx > 0) setCurrentMonth(months[idx - 1]);
-    else setCurrentMonth(months[11]);
+    const idx = MONTHS.indexOf(currentMonth);
+    if (idx > 0) {
+      setCurrentMonth(MONTHS[idx - 1]);
+    } else {
+      setCurrentMonth(MONTHS[11]);
+      setCurrentYear((y) => y - 1);
+    }
   };
 
   const handleNextMonth = () => {
-    const idx = months.indexOf(currentMonth);
-    if (idx < 11) setCurrentMonth(months[idx + 1]);
-    else setCurrentMonth(months[0]);
+    const idx = MONTHS.indexOf(currentMonth);
+    if (idx < 11) {
+      setCurrentMonth(MONTHS[idx + 1]);
+    } else {
+      setCurrentMonth(MONTHS[0]);
+      setCurrentYear((y) => y + 1);
+    }
   };
+
+  // Extract real numbers from payslip
+  const grossAmount = Number(payslip?.grossSalary || 0);
+  const netAmount = Number(payslip?.netSalary || 0);
+  const totalDeductions = Number(payslip?.totalDeductions || payslip?.deductions || 0);
+
+  // Compute breakdown line items from server response breakdown
+  const { basicItems, allowanceItems, taxItems, otherItems, basicSalary, allowances, taxInsurance, otherDeductions } = useMemo(() => {
+    const bItems: LineItem[] = [];
+    const aItems: LineItem[] = [];
+    const tItems: LineItem[] = [];
+    const oItems: LineItem[] = [];
+
+    const breakdown = payslip?.breakdown;
+    if (breakdown && typeof breakdown === 'object') {
+      // Process earnings
+      if (breakdown.earnings) {
+        if (Array.isArray(breakdown.earnings)) {
+          breakdown.earnings.forEach((e: any) => {
+            const name = e.name || e.component || 'Earning';
+            const amt = Number(e.amount || 0);
+            if (name.toLowerCase().includes('basic')) {
+              bItems.push({ title: name, subtitle: 'Monthly fixed pay', amount: amt });
+            } else {
+              aItems.push({ title: name, subtitle: e.type || 'Allowance', amount: amt });
+            }
+          });
+        } else if (typeof breakdown.earnings === 'object') {
+          Object.entries(breakdown.earnings).forEach(([key, val]) => {
+            const amt = Number(val || 0);
+            const title = key
+              .replace(/([A-Z])/g, ' $1')
+              .replace(/^./, (str) => str.toUpperCase())
+              .trim();
+            if (key.toLowerCase().includes('basic')) {
+              bItems.push({ title, subtitle: 'Monthly fixed pay', amount: amt });
+            } else {
+              aItems.push({ title, subtitle: 'Tax exempted / taxable allowance', amount: amt });
+            }
+          });
+        }
+      }
+
+      // Process deductions
+      if (breakdown.deductions) {
+        if (Array.isArray(breakdown.deductions)) {
+          breakdown.deductions.forEach((d: any) => {
+            const name = d.name || d.component || 'Deduction';
+            const amt = Number(d.amount || 0);
+            const lower = name.toLowerCase();
+            if (lower.includes('tax') || lower.includes('pf') || lower.includes('provident') || lower.includes('esi') || lower.includes('tds')) {
+              tItems.push({ title: name, subtitle: 'Statutory deduction', amount: amt });
+            } else {
+              oItems.push({ title: name, subtitle: d.type || 'Other deduction', amount: amt });
+            }
+          });
+        } else if (typeof breakdown.deductions === 'object') {
+          Object.entries(breakdown.deductions).forEach(([key, val]) => {
+            const amt = Number(val || 0);
+            const title = key
+              .replace(/([A-Z])/g, ' $1')
+              .replace(/^./, (str) => str.toUpperCase())
+              .trim();
+            const lower = key.toLowerCase();
+            if (lower.includes('tax') || lower.includes('pf') || lower.includes('esi') || lower.includes('tds') || lower.includes('epf')) {
+              tItems.push({ title, subtitle: 'Statutory deduction', amount: amt });
+            } else {
+              oItems.push({ title, subtitle: 'Other deduction', amount: amt });
+            }
+          });
+        }
+      }
+    }
+
+    // Calculate aggregated sums
+    const bSum = bItems.reduce((acc, i) => acc + i.amount, 0);
+    const aSum = aItems.reduce((acc, i) => acc + i.amount, 0);
+    const tSum = tItems.reduce((acc, i) => acc + i.amount, 0);
+    const oSum = oItems.reduce((acc, i) => acc + i.amount, 0);
+
+    return {
+      basicItems: bItems,
+      allowanceItems: aItems,
+      taxItems: tItems,
+      otherItems: oItems,
+      basicSalary: bSum > 0 ? bSum : grossAmount,
+      allowances: aSum,
+      taxInsurance: tSum > 0 ? tSum : totalDeductions,
+      otherDeductions: oSum,
+    };
+  }, [payslip, grossAmount, totalDeductions]);
+
+  const activeModalItems = useMemo(() => {
+    switch (breakdownModalType) {
+      case 'basic':
+        return { title: 'Basic Salary & Overtime', items: basicItems, total: basicSalary };
+      case 'allowances':
+        return { title: 'Allowances Breakdown', items: allowanceItems, total: allowances };
+      case 'tax':
+        return { title: 'Tax & Statutory Insurance', items: taxItems, total: taxInsurance };
+      case 'other':
+        return { title: 'Other Deductions', items: otherItems, total: otherDeductions };
+      default:
+        return null;
+    }
+  }, [breakdownModalType, basicItems, allowanceItems, taxItems, otherItems, basicSalary, allowances, taxInsurance, otherDeductions]);
 
   return (
     <View style={styles.container}>
@@ -103,132 +273,156 @@ export const SalarySlipDetailScreen: React.FC = () => {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Top Net Salary Summary Card (Matches 66. Payslip - Detail.png) */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.netSalaryLabel}>Net Salary</Text>
-          <Text style={styles.netSalaryAmount}>
-            ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </Text>
-
-          <View style={styles.splitRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.splitLabel}>Gross Salary</Text>
-              <Text style={styles.splitGrossVal}>
-                ${grossAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
-
-            <View style={{ alignItems: 'flex-end', flex: 1 }}>
-              <Text style={styles.splitLabel}>Total Deductions</Text>
-              <Text style={styles.splitDeductVal}>
-                -${deductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Text>
-            </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563EB']} />}
+      >
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.loadingText}>Fetching verified payslip details...</Text>
           </View>
-        </View>
-
-        {/* EARNINGS Section */}
-        <Text style={styles.sectionHeaderLabel}>EARNINGS</Text>
-        <View style={styles.sectionBox}>
-          {/* Basic Salary */}
-          <TouchableOpacity
-            style={styles.sectionRowItem}
-            onPress={() => setBreakdownModalType('basic')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.sectionRowIconWrap, { backgroundColor: '#EFF6FF' }]}>
-              <FileText size={20} color="#2563EB" />
-            </View>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.rowItemTitle}>Basic Salary</Text>
-              <Text style={styles.rowItemSub}>Monthly fixed pay</Text>
-            </View>
-            <Text style={styles.rowItemAmount}>
-              ${basicSalary.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+        ) : !payslip ? (
+          <View style={styles.emptyPayslipCard}>
+            <AlertCircle size={44} color="#94A3B8" strokeWidth={1.6} />
+            <Text style={styles.emptyPayslipTitle}>No Payslip Available</Text>
+            <Text style={styles.emptyPayslipSubtitle}>
+              No verified payroll statement has been published for {currentMonth} {currentYear}. Payslips become available after the monthly payroll cycle is finalized by HR.
             </Text>
-            <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Top Net Salary Summary Card */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.netSalaryLabel}>Net Salary</Text>
+              <Text style={styles.netSalaryAmount}>
+                ₹{netAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </Text>
 
-          <View style={styles.rowDivider} />
+              <View style={styles.splitRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.splitLabel}>Gross Salary</Text>
+                  <Text style={styles.splitGrossVal}>
+                    ₹{grossAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
 
-          {/* Allowances */}
-          <TouchableOpacity
-            style={styles.sectionRowItem}
-            onPress={() => setBreakdownModalType('allowances')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.sectionRowIconWrap, { backgroundColor: '#FEF3C7' }]}>
-              <Gift size={20} color="#D97706" />
+                <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                  <Text style={styles.splitLabel}>Total Deductions</Text>
+                  <Text style={styles.splitDeductVal}>
+                    -₹{totalDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </View>
             </View>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.rowItemTitle}>Allowances</Text>
-              <Text style={styles.rowItemSub}>Transport, Meal, etc.</Text>
-            </View>
-            <Text style={styles.rowItemAmount}>
-              ${allowances.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-            <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-        </View>
 
-        {/* DEDUCTIONS Section */}
-        <Text style={styles.sectionHeaderLabel}>DEDUCTIONS</Text>
-        <View style={styles.sectionBox}>
-          {/* Tax & Insurance */}
-          <TouchableOpacity
-            style={styles.sectionRowItem}
-            onPress={() => setBreakdownModalType('tax')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.sectionRowIconWrap, { backgroundColor: '#EEF2FF' }]}>
-              <Building2 size={20} color="#4F46E5" />
-            </View>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.rowItemTitle}>Tax & Insurance</Text>
-              <Text style={styles.rowItemSub}>Income tax, social security</Text>
-            </View>
-            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
-              -${taxInsurance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-            <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
+            {/* EARNINGS Section */}
+            <Text style={styles.sectionHeaderLabel}>EARNINGS</Text>
+            <View style={styles.sectionBox}>
+              {/* Basic Salary */}
+              <TouchableOpacity
+                style={styles.sectionRowItem}
+                onPress={() => setBreakdownModalType('basic')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sectionRowIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                  <FileText size={20} color="#2563EB" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.rowItemTitle}>Basic Salary</Text>
+                  <Text style={styles.rowItemSub}>Monthly fixed pay</Text>
+                </View>
+                <Text style={styles.rowItemAmount}>
+                  ₹{basicSalary.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+                <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
 
-          <View style={styles.rowDivider} />
+              <View style={styles.rowDivider} />
 
-          {/* Other Deductions */}
-          <TouchableOpacity
-            style={styles.sectionRowItem}
-            onPress={() => setBreakdownModalType('other')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.sectionRowIconWrap, { backgroundColor: '#FEE2E2' }]}>
-              <MinusCircle size={20} color="#EF4444" />
+              {/* Allowances */}
+              <TouchableOpacity
+                style={styles.sectionRowItem}
+                onPress={() => setBreakdownModalType('allowances')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sectionRowIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                  <Gift size={20} color="#D97706" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.rowItemTitle}>Allowances</Text>
+                  <Text style={styles.rowItemSub}>Transport, Meal, HRA, etc.</Text>
+                </View>
+                <Text style={styles.rowItemAmount}>
+                  ₹{allowances.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+                <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
             </View>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.rowItemTitle}>Other Deductions</Text>
-              <Text style={styles.rowItemSub}>Unpaid leave, loan repayment</Text>
-            </View>
-            <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
-              -${otherDeductions.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </Text>
-            <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-        </View>
 
-        {/* Bank Deposit Info Card */}
-        <View style={styles.bankInfoCard}>
-          <Info size={18} color="#2563EB" style={{ marginRight: 10, marginTop: 2 }} />
-          <Text style={styles.bankInfoText}>
-            Your salary was transferred to your Bank of America account ending in ****4582 on {currentMonth} 28, {currentYear}.
-          </Text>
-        </View>
+            {/* DEDUCTIONS Section */}
+            <Text style={styles.sectionHeaderLabel}>DEDUCTIONS</Text>
+            <View style={styles.sectionBox}>
+              {/* Tax & Insurance */}
+              <TouchableOpacity
+                style={styles.sectionRowItem}
+                onPress={() => setBreakdownModalType('tax')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sectionRowIconWrap, { backgroundColor: '#EEF2FF' }]}>
+                  <Building2 size={20} color="#4F46E5" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.rowItemTitle}>Tax & Statutory</Text>
+                  <Text style={styles.rowItemSub}>PF, ESI, Professional Tax, TDS</Text>
+                </View>
+                <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
+                  -₹{taxInsurance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+                <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+
+              <View style={styles.rowDivider} />
+
+              {/* Other Deductions */}
+              <TouchableOpacity
+                style={styles.sectionRowItem}
+                onPress={() => setBreakdownModalType('other')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sectionRowIconWrap, { backgroundColor: '#FEE2E2' }]}>
+                  <MinusCircle size={20} color="#EF4444" />
+                </View>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.rowItemTitle}>Other Deductions</Text>
+                  <Text style={styles.rowItemSub}>Unpaid leave (LOP), Loan recovery</Text>
+                </View>
+                <Text style={[styles.rowItemAmount, { color: '#EF4444' }]}>
+                  -₹{otherDeductions.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </Text>
+                <ChevronRight size={18} color="#94A3B8" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Bank Deposit Info Card */}
+            <View style={styles.bankInfoCard}>
+              <Info size={18} color="#2563EB" style={{ marginRight: 10, marginTop: 2 }} />
+              <Text style={styles.bankInfoText}>
+                Salary disbursement processed via Direct Bank Transfer according to payroll cycle schedule.
+              </Text>
+            </View>
+          </>
+        )}
       </ScrollView>
 
-      {/* ───────────────────────────────────────────────────────────────── */}
-      {/* Line Item Breakdown Bottom Sheet Modal (Matches 67, 68, 69, 70)   */}
-      {/* ───────────────────────────────────────────────────────────────── */}
-      <Modal visible={Boolean(breakdownModalType)} animationType="slide" transparent onRequestClose={() => setBreakdownModalType(null)}>
+      {/* Line Item Breakdown Bottom Sheet Modal */}
+      <Modal
+        visible={Boolean(breakdownModalType)}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setBreakdownModalType(null)}
+      >
         <TouchableOpacity
           style={styles.modalBackdrop}
           activeOpacity={1}
@@ -237,186 +431,66 @@ export const SalarySlipDetailScreen: React.FC = () => {
           <View style={styles.breakdownSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandleBar} />
             <View style={styles.sheetHeaderRow}>
-              <Text style={styles.sheetTitle}>
-                {breakdownModalType === 'basic'
-                  ? 'Basic Salary'
-                  : breakdownModalType === 'allowances'
-                  ? 'Allowances'
-                  : breakdownModalType === 'tax'
-                  ? 'Tax & Insurance'
-                  : 'Other Deductions'}
-              </Text>
+              <Text style={styles.sheetTitle}>{activeModalItems?.title || 'Breakdown'}</Text>
               <TouchableOpacity onPress={() => setBreakdownModalType(null)}>
                 <X size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {breakdownModalType === 'basic' ? (
-                /* 67. Payslip - Basic Salary.png */
-                <>
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                      <FileText size={18} color="#2563EB" />
+              {activeModalItems?.items && activeModalItems.items.length > 0 ? (
+                activeModalItems.items.map((item, idx) => (
+                  <View key={idx} style={styles.sheetRow}>
+                    <View style={[styles.sheetIconCircle, { backgroundColor: '#F1F5F9' }]}>
+                      {breakdownModalType === 'basic' ? (
+                        <FileText size={18} color="#2563EB" />
+                      ) : breakdownModalType === 'allowances' ? (
+                        <Gift size={18} color="#D97706" />
+                      ) : breakdownModalType === 'tax' ? (
+                        <Building2 size={18} color="#4F46E5" />
+                      ) : (
+                        <MinusCircle size={18} color="#EF4444" />
+                      )}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Basic Salary</Text>
-                      <Text style={styles.sheetItemSub}>Monthly fixed rate</Text>
+                      <Text style={styles.sheetItemTitle}>{item.title}</Text>
+                      {item.subtitle ? <Text style={styles.sheetItemSub}>{item.subtitle}</Text> : null}
                     </View>
-                    <Text style={styles.sheetItemVal}>$3,500.00</Text>
+                    <Text
+                      style={[
+                        styles.sheetItemVal,
+                        (breakdownModalType === 'tax' || breakdownModalType === 'other') && { color: '#EF4444' },
+                      ]}
+                    >
+                      {breakdownModalType === 'tax' || breakdownModalType === 'other' ? '-' : ''}₹
+                      {item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
                   </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                      <Clock size={18} color="#2563EB" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Overtime</Text>
-                      <Text style={styles.sheetItemSub}>Monthly fixed rate</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$450.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                      <Award size={18} color="#2563EB" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Position Allowance</Text>
-                      <Text style={styles.sheetItemSub}>Monthly fixed rate</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$500.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EFF6FF' }]}>
-                      <Car size={18} color="#2563EB" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Transport</Text>
-                      <Text style={styles.sheetItemSub}>Fixed allowance</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$150.00</Text>
-                  </View>
-
-                  <View style={styles.sheetTotalRow}>
-                    <Text style={styles.sheetTotalLabel}>Total Gross Salary</Text>
-                    <Text style={styles.sheetTotalVal}>$4,600.00</Text>
-                  </View>
-                </>
-              ) : breakdownModalType === 'allowances' ? (
-                /* 68. Payslip - Allowances.png */
-                <>
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                      <Gift size={18} color="#D97706" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Housing Allowance (HRA)</Text>
-                      <Text style={styles.sheetItemSub}>Monthly tax exempted</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$1,200.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                      <Car size={18} color="#D97706" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Travel & Conveyance</Text>
-                      <Text style={styles.sheetItemSub}>Company commuter pass</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$600.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#FEF3C7' }]}>
-                      <Award size={18} color="#D97706" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Medical & Wellness</Text>
-                      <Text style={styles.sheetItemSub}>Monthly health reimbursement</Text>
-                    </View>
-                    <Text style={styles.sheetItemVal}>$500.00</Text>
-                  </View>
-
-                  <View style={styles.sheetTotalRow}>
-                    <Text style={styles.sheetTotalLabel}>Total Allowances</Text>
-                    <Text style={styles.sheetTotalVal}>$2,300.00</Text>
-                  </View>
-                </>
-              ) : breakdownModalType === 'tax' ? (
-                /* 69. Payslip - Tax & Insurance.png */
-                <>
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EEF2FF' }]}>
-                      <Building2 size={18} color="#4F46E5" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Provident Fund (PF)</Text>
-                      <Text style={styles.sheetItemSub}>Statutory retirement</Text>
-                    </View>
-                    <Text style={[styles.sheetItemVal, { color: '#EF4444' }]}>-$600.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EEF2FF' }]}>
-                      <Building2 size={18} color="#4F46E5" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Federal & State Tax (TDS)</Text>
-                      <Text style={styles.sheetItemSub}>Withholding tax</Text>
-                    </View>
-                    <Text style={[styles.sheetItemVal, { color: '#EF4444' }]}>-$450.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#EEF2FF' }]}>
-                      <Building2 size={18} color="#4F46E5" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Health Insurance (ESIC)</Text>
-                      <Text style={styles.sheetItemSub}>Employee premium</Text>
-                    </View>
-                    <Text style={[styles.sheetItemVal, { color: '#EF4444' }]}>-$200.00</Text>
-                  </View>
-
-                  <View style={styles.sheetTotalRow}>
-                    <Text style={styles.sheetTotalLabel}>Total Tax & Insurance</Text>
-                    <Text style={[styles.sheetTotalVal, { color: '#EF4444' }]}>-$1,250.00</Text>
-                  </View>
-                </>
+                ))
               ) : (
-                /* 70. Payslip - Other Deductions.png */
-                <>
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                      <MinusCircle size={18} color="#EF4444" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Salary Advance EMI</Text>
-                      <Text style={styles.sheetItemSub}>Loan repayment #3 of 6</Text>
-                    </View>
-                    <Text style={[styles.sheetItemVal, { color: '#EF4444' }]}>-$200.00</Text>
-                  </View>
-
-                  <View style={styles.sheetRow}>
-                    <View style={[styles.sheetIconCircle, { backgroundColor: '#FEE2E2' }]}>
-                      <MinusCircle size={18} color="#EF4444" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.sheetItemTitle}>Unpaid Leave (LOP)</Text>
-                      <Text style={styles.sheetItemSub}>1 day loss of pay</Text>
-                    </View>
-                    <Text style={[styles.sheetItemVal, { color: '#EF4444' }]}>-$100.00</Text>
-                  </View>
-
-                  <View style={styles.sheetTotalRow}>
-                    <Text style={styles.sheetTotalLabel}>Total Other Deductions</Text>
-                    <Text style={[styles.sheetTotalVal, { color: '#EF4444' }]}>-$300.00</Text>
-                  </View>
-                </>
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <Text style={{ color: '#64748B', fontSize: 14 }}>
+                    No specific sub-items registered in this category. Total: ₹
+                    {(activeModalItems?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
               )}
+
+              <View style={styles.sheetTotalRow}>
+                <Text style={styles.sheetTotalLabel}>Total {breakdownModalType?.toUpperCase()}</Text>
+                <Text
+                  style={[
+                    styles.sheetTotalVal,
+                    (breakdownModalType === 'tax' || breakdownModalType === 'other') && { color: '#EF4444' },
+                  ]}
+                >
+                  {breakdownModalType === 'tax' || breakdownModalType === 'other' ? '-' : ''}₹
+                  {(activeModalItems?.total || 0).toLocaleString('en-IN', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              </View>
             </ScrollView>
           </View>
         </TouchableOpacity>
@@ -436,8 +510,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 32,
   },
-
-  /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -453,99 +525,131 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerMonthTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
+    marginHorizontal: 12,
   },
-
-  /* Summary Card (Matches 66. Payslip - Detail.png) */
+  centerContainer: {
+    padding: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#64748B',
+  },
+  emptyPayslipCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 32,
+    margin: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+  },
+  emptyPayslipTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginTop: 14,
+  },
+  emptyPayslipSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 18,
+  },
   summaryCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 20,
+    margin: 16,
     padding: 20,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 20,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
   },
   netSalaryLabel: {
     fontSize: 13,
+    fontWeight: '600',
     color: '#64748B',
-    marginBottom: 4,
+    textAlign: 'center',
   },
   netSalaryAmount: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
-    color: '#2563EB',
-    marginBottom: 16,
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
   },
   splitRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 14,
+    paddingTop: 16,
   },
   splitLabel: {
     fontSize: 12,
     color: '#64748B',
+    marginBottom: 4,
   },
   splitGrossVal: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A',
-    marginTop: 2,
+    color: '#059669',
   },
   splitDeductVal: {
     fontSize: 16,
     fontWeight: '700',
     color: '#EF4444',
-    marginTop: 2,
   },
-
-  /* Section Box */
   sectionHeaderLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#94A3B8',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
     marginHorizontal: 16,
-    marginBottom: 10,
+    marginTop: 8,
+    marginBottom: 8,
   },
   sectionBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 16,
     marginHorizontal: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    overflow: 'hidden',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    elevation: 1,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
   },
   sectionRowItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 14,
   },
   sectionRowIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 12,
   },
   rowItemTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
@@ -562,44 +666,36 @@ const styles = StyleSheet.create({
   rowDivider: {
     height: 1,
     backgroundColor: '#F1F5F9',
-    marginHorizontal: 16,
   },
-
-  /* Bank Info Card */
   bankInfoCard: {
-    backgroundColor: '#EFF6FF',
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
     flexDirection: 'row',
+    backgroundColor: '#EFF6FF',
+    marginHorizontal: 16,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
     alignItems: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#DBEAFE',
   },
   bankInfoText: {
     flex: 1,
     fontSize: 13,
-    color: '#1D4ED8',
+    color: '#1E40AF',
     lineHeight: 18,
   },
-
-  /* Breakdown Sheet (Matches 67, 68, 69, 70) */
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   breakdownSheet: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
-    maxHeight: '75%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '80%',
   },
   sheetHandleBar: {
-    width: 40,
+    width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: '#CBD5E1',
@@ -611,10 +707,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   sheetTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0F172A',
   },
   sheetRow: {
@@ -625,9 +724,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F8FAFC',
   },
   sheetIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -643,27 +742,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sheetItemVal: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
   },
   sheetTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     paddingTop: 16,
     marginTop: 8,
-    borderTopWidth: 1,
+    borderTopWidth: 2,
     borderTopColor: '#E2E8F0',
+    paddingBottom: 16,
   },
   sheetTotalLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#0F172A',
   },
   sheetTotalVal: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#2563EB',
+    color: '#059669',
   },
 });

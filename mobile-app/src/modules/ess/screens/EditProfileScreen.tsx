@@ -46,17 +46,17 @@ export const EditProfileScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [fullName, setFullName] = useState('Sarah Miller');
-  const [dateOfBirth, setDateOfBirth] = useState('14 Oct 1992');
+  const [fullName, setFullName] = useState(user?.profile?.fullName || '');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState('Male');
 
-  const [phone, setPhone] = useState('(555) 123-4567');
-  const [email, setEmail] = useState('sarah@karajo.app');
-  const [address, setAddress] = useState('42 Innovation Drive, Apt 304\nSan Francisco, CA 94107');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
+  const [address, setAddress] = useState('');
 
-  const [emergencyName, setEmergencyName] = useState('Hanna Jenkins');
-  const [emergencyRelation, setEmergencyRelation] = useState('Spouse');
-  const [emergencyPhone, setEmergencyPhone] = useState('(555) 987-6543');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyRelation, setEmergencyRelation] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
 
   useEffect(() => {
     async function fetchCurrent() {
@@ -72,6 +72,7 @@ export const EditProfileScreen: React.FC = () => {
           if (data.emergencyContactName) setEmergencyName(data.emergencyContactName);
           if (data.emergencyContactRelation) setEmergencyRelation(data.emergencyContactRelation);
           if (data.emergencyContactPhone) setEmergencyPhone(data.emergencyContactPhone);
+          if (data.gender) setGender(data.gender);
         } else if (user?.profile?.fullName) {
           setFullName(user.profile.fullName);
         }

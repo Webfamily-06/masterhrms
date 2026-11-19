@@ -6,6 +6,7 @@
     "slug": "masterhrms",
     "version": "0.0.1",
     "orientation": "portrait",
+    "platforms": ["ios", "android"],
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,

@@ -235,6 +235,93 @@ export class AuthService {
   }
 
   /**
+   * Biometric session restoration via POST /api/v1/auth/refresh
+   * Reads securely stored refresh token and sessionId from Keychain/Keystore,
+   * performs token rotation, validates user roles (enforcing Super Admin exclusion),
+   * restores full auth session and initiates push notification listeners.
+   */
+  public static async restoreBiometricSession(): Promise<{ success: boolean; user: User }> {
+    try {
+      const activeRefreshToken = await secureStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+      const activeSessionId = await secureStorage.getItem(STORAGE_KEYS.SESSION_ID);
+
+      if (!activeRefreshToken || !activeSessionId) {
+        throw new Error('No saved biometric session found. Please sign in with your email and password first.');
+      }
+
+      const response = await apiClient.post<RefreshTokenResponse>(
+        '/api/v1/auth/refresh',
+        { refreshToken: activeRefreshToken, sessionId: activeSessionId },
+        { skipAuth: true } as any
+      );
+
+      const data = response.data;
+      if (!data?.token) {
+        throw new Error('Failed to refresh authentication session.');
+      }
+
+      // Update in-memory token first so subsequent requests are authenticated
+      useAuthStore.getState().setToken(data.token);
+
+      // Rotate refresh token in secure storage if new one provided
+      if (data.refreshToken) {
+        await secureStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);
+      }
+      if (data.sessionId) {
+        await secureStorage.setItem(STORAGE_KEYS.SESSION_ID, data.sessionId);
+      }
+
+      // Fetch verified user profile & roles
+      const userWithPerms = await this.getCurrentUser();
+
+      // Enforce Super Admin mobile exclusion
+      const userRoles = userWithPerms.roles || [];
+      const hasSuperAdmin = userRoles.some(
+        (r: any) => String(r).toLowerCase() === 'super_admin' || String(r).toLowerCase() === 'superadmin'
+      );
+      if (hasSuperAdmin) {
+        await useAuthStore.getState().logout();
+        throw new Error(
+          'Access denied. Super Administrator accounts cannot log in to the mobile application. This mobile app is exclusively for Employees, HR, and Tenant Administrators.'
+        );
+      }
+
+      // Restore session in authStore
+      await useAuthStore.getState().setSession({
+        token: data.token,
+        user: userWithPerms,
+        roles: userWithPerms.roles,
+        sessionId: data.sessionId || activeSessionId,
+        refreshToken: data.refreshToken || activeRefreshToken,
+      });
+
+      // Hydrate tenant
+      const tenantId = userWithPerms.profile?.tenantId;
+      if (tenantId) {
+        await useTenantStore.getState().setTenant({
+          resolved: true,
+          id: tenantId,
+          name: 'Workspace',
+          slug: 'default',
+        });
+      }
+
+      void PushNotificationService.registerForPushNotifications();
+      PushNotificationService.initListeners();
+
+      return { success: true, user: userWithPerms };
+    } catch (error: any) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof Error && !('response' in error)) {
+        throw new ApiError(400, error.message, 'BIOMETRIC_AUTH_ERROR');
+      }
+      throw ApiError.fromAxiosError(error);
+    }
+  }
+
+  /**
    * Hydrates current user, profile, roles, and permissions via GET /api/v1/auth/me
    */
   public static async getCurrentUser(): Promise<User & { permissions: string[]; workspaceRole: any }> {

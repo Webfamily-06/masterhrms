@@ -9,22 +9,28 @@ import {
 import { ArrowLeft, Fingerprint } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
+import { AuthService } from '../../../core/auth/authService';
 
 export const FingerprintAuthScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [scanning, setScanning] = useState(false);
 
-  const handleFingerprintScan = () => {
+  const handleFingerprintScan = async () => {
+    if (scanning) return;
     setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
+    try {
+      await AuthService.restoreBiometricSession();
+      // Navigation to AppNavigator will be triggered automatically by RootNavigator via isAuthenticated in authStore
+    } catch (err: any) {
       Alert.alert(
-        'Biometric Verified',
-        'Fingerprint matched successfully.',
+        'Touch ID Authentication Failed',
+        err?.message || 'Could not verify biometric credentials. Please try again or use your password.',
         [
+          { text: 'Try Again', onPress: () => setScanning(false) },
           {
-            text: 'Continue',
+            text: 'Use Password',
             onPress: () => {
+              setScanning(false);
               if (navigation.canGoBack()) {
                 navigation.goBack();
               }
@@ -32,7 +38,9 @@ export const FingerprintAuthScreen: React.FC = () => {
           },
         ]
       );
-    }, 1200);
+    } finally {
+      setScanning(false);
+    }
   };
 
   return (

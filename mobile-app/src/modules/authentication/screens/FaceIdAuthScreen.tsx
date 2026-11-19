@@ -9,22 +9,28 @@ import {
 import { ArrowLeft, ScanFace } from 'lucide-react-native';
 import { Text } from '../../../components/common/Text';
 import { useNavigation } from '@react-navigation/native';
+import { AuthService } from '../../../core/auth/authService';
 
 export const FaceIdAuthScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const [scanning, setScanning] = useState(false);
 
-  const handleFaceScan = () => {
+  const handleFaceScan = async () => {
+    if (scanning) return;
     setScanning(true);
-    setTimeout(() => {
-      setScanning(false);
+    try {
+      await AuthService.restoreBiometricSession();
+      // Navigation to AppNavigator will be triggered automatically by RootNavigator via isAuthenticated in authStore
+    } catch (err: any) {
       Alert.alert(
-        'Face ID Verified',
-        'Facial recognition matched successfully.',
+        'Face ID Authentication Failed',
+        err?.message || 'Could not verify biometric credentials. Please try again or use your password.',
         [
+          { text: 'Try Again', onPress: () => setScanning(false) },
           {
-            text: 'Continue',
+            text: 'Use Password',
             onPress: () => {
+              setScanning(false);
               if (navigation.canGoBack()) {
                 navigation.goBack();
               }
@@ -32,7 +38,9 @@ export const FaceIdAuthScreen: React.FC = () => {
           },
         ]
       );
-    }, 1400);
+    } finally {
+      setScanning(false);
+    }
   };
 
   return (

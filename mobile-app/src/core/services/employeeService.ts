@@ -31,6 +31,7 @@ export interface EmployeeProfile {
   emergencyContactPhone?: string | null;
   emergencyContactRelation?: string | null;
   bloodGroup?: string | null;
+  gender?: string | null;
   address?: string | null;
 }
 
@@ -106,17 +107,31 @@ export class EmployeeService {
   static async getMyProfile(): Promise<EmployeeProfile | null> {
     try {
       const response = await apiClient.get<any>('/api/v1/me/profile');
-      return response.data?.employee || response.data;
+      return response.data?.data || response.data?.employee || response.data;
     } catch {
       return null;
     }
   }
 
   /**
-   * Update profile contact details or submit change request
+   * Update profile contact details (phone, gender) directly
    */
   static async updateMyProfile(data: Partial<EmployeeProfile>): Promise<any> {
     const response = await apiClient.put('/api/v1/me/profile', data);
+    return response.data;
+  }
+
+  /**
+   * Submit change request for sensitive profile attributes (bank, statutory, address, emergency contact)
+   * Calls POST /api/v1/me/profile/change-requests
+   */
+  static async submitProfileChangeRequest(payload: {
+    category: string;
+    fieldKey: string;
+    newValue: string;
+    reason?: string;
+  }): Promise<any> {
+    const response = await apiClient.post('/api/v1/me/profile/change-requests', payload);
     return response.data;
   }
 

@@ -7,6 +7,7 @@ import {
   TextInput,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Text } from '../../../components/common/Text';
 import {
@@ -16,6 +17,7 @@ import {
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useNavigation } from '@react-navigation/native';
 import { NavigationProp } from '../../../types/navigation.types';
+import { PayrollService } from '../../../core/services/payrollService';
 
 export const SalaryAdvanceLoanScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp<'SalaryAdvanceLoan'>>();
@@ -28,6 +30,7 @@ export const SalaryAdvanceLoanScreen: React.FC = () => {
   const [paymentPeriodDropdownOpen, setPaymentPeriodDropdownOpen] = useState(false);
 
   const [reason, setReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const loanTypeOptions = [
     'Personal / Medical Emergency',
@@ -43,17 +46,61 @@ export const SalaryAdvanceLoanScreen: React.FC = () => {
     '12 Months',
   ];
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    const rawAmt = loanAmount.replace(/,/g, '').trim();
+    const principalNum = parseFloat(rawAmt);
+    if (isNaN(principalNum) || principalNum <= 0) {
+      Alert.alert('Validation Error', 'Please enter a valid loan amount.');
+      return;
+    }
+
     if (!reason.trim()) {
       Alert.alert('Validation Error', 'Please briefly explain why you need the loan.');
       return;
     }
 
-    Alert.alert(
-      'Application Submitted',
-      `Your loan application for ₹${loanAmount} (${paymentPeriod}) has been routed to HR for verification.`,
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+    // Parse tenure months from e.g. "6 Months"
+    const monthsMatch = paymentPeriod.match(/\d+/);
+    const tenureMonths = monthsMatch ? parseInt(monthsMatch[0], 10) : 6;
+
+    // Calculate deduction start month: next month YYYY-MM
+    const nextDate = new Date();
+    nextDate.setMonth(nextDate.getMonth() + 1);
+    const deductionStartMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+
+    // Normalize loan type for API
+    let normalizedLoanType = 'salary_advance';
+    if (loanType.toLowerCase().includes('medical') || loanType.toLowerCase().includes('personal')) {
+      normalizedLoanType = 'personal_loan';
+    } else if (loanType.toLowerCase().includes('education')) {
+      normalizedLoanType = 'education_assistance';
+    } else if (loanType.toLowerCase().includes('relocation')) {
+      normalizedLoanType = 'relocation_advance';
+    }
+
+    setSubmitting(true);
+    try {
+      await PayrollService.requestSalaryAdvance({
+        principal: principalNum,
+        tenureMonths,
+        deductionStartMonth,
+        reason: reason.trim(),
+        loanType: normalizedLoanType,
+      });
+
+      Alert.alert(
+        'Application Submitted',
+        `Your loan application for ₹${principalNum.toLocaleString('en-IN')} (${tenureMonths} months tenure) has been successfully submitted and routed to HR for verification.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (err: any) {
+      Alert.alert(
+        'Submission Failed',
+        err?.message || 'Unable to submit loan application. Please check your connection and try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -168,10 +215,15 @@ export const SalaryAdvanceLoanScreen: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.blueBtn}
+            style={[styles.blueBtn, submitting && { opacity: 0.6 }]}
             onPress={handleSubmit}
+            disabled={submitting}
           >
-            <Text style={styles.blueBtnText}>Submit</Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.blueBtnText}>Submit</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>

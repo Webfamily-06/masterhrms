@@ -112,6 +112,11 @@ export const NotificationsScreen: React.FC = () => {
       prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
     );
 
+    // Persist read state to backend
+    if (item.id && !item.id.startsWith('live-')) {
+      void NotificationService.markAsRead(item.id);
+    }
+
     // Deep-link / navigate directly to the target destination
     if (item.targetRoute) {
       try {
@@ -124,6 +129,7 @@ export const NotificationsScreen: React.FC = () => {
 
   const markAllRead = () => {
     setNotifications(notifications.map((n) => ({ ...n, read: true })));
+    void NotificationService.markAllAsRead();
   };
 
   const filtered = notifications.filter((n) =>
