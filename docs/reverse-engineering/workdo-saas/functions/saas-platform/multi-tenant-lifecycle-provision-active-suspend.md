@@ -1,0 +1,84 @@
+# Function Report: Multi-Tenant Lifecycle (Provision, Active, Suspend)
+
+**Function ID:** FN-060  
+**Canonical Name:** Multi-Tenant Lifecycle (Provision, Active, Suspend)  
+**Module:** Super Admin Platform SaaS (`Tenants`)  
+**Phase:** PHASE-1  
+**Operational Status:** **WORKING**  
+**Investigation Date:** November 19, 2026  
+
+---
+
+## 1. Requirement & Business Purpose
+- **Original Requirement:** Enable seamless, compliant enterprise execution of Multi-Tenant Lifecycle (Provision, Active, Suspend) across multi-tenant workspace environments.
+- **Business Purpose:** Delivers transactional capability for Multi-Tenant Lifecycle (Provision, Active, Suspend) within the Super Admin Platform SaaS domain.
+- **Workflow Dependency:** Super Admin Authentication.
+
+---
+
+## 2. Trigger & Execution Architecture
+- **Trigger Type:** User Action / Scheduled Event.
+- **Frontend Entry Point:** `/super/tenants` -> Click 'Suspend Workspace' or 'Create Tenant'.
+- **Backend API Contract:**
+  - **Endpoint:** `/api/super/tenants`
+  - **HTTP Method:** `POST`
+  - **Tenant Scoped:** `false`
+- **RBAC Permissions Required:** `super.manage`
+- **Authorized Roles:** `super_admin`.
+
+---
+
+## 3. Execution Sequence & Data Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Authorized User (super_admin)
+    participant Front as Frontend UI (/super/tenants)
+    participant Router as Express API Gateway
+    participant MW as Middleware Chain (Host, Tenant, Auth, Entitlement)
+    participant Service as Domain Service
+    participant DB as PostgreSQL (Prisma)
+    participant Outbox as Activity Log / Event Outbox
+
+    User->>Front: Click 'Suspend Workspace' or 'Create Tenant'
+    Front->>Router: POST /api/super/tenants (JSON Payload)
+    Router->>MW: Evaluate Host Context & Resolve Tenant
+    MW->>MW: Check Bearer JWT & AppRole (`super.manage`)
+    MW->>Service: Dispatch verified payload
+    
+    rect rgb(240, 248, 255)
+        Note over Service,DB: Atomic Transaction Boundary
+        Service->>DB: Query prerequisite records (Tenant, User)
+        Service->>DB: Execute Mutation (INSERT/UPDATE) on Tenant
+        Service->>Outbox: Record ActivityLog & Audit Trail
+    end
+    
+    Service-->>Router: Return Structured Response (RFC 7807 on error)
+    Router-->>Front: HTTP 201 Created
+    Front-->>User: Update UI / Close Drawer / Toast Notification
+```
+
+---
+
+## 4. Database Models & Schema Interactions
+- **Primary Database Models:** `Tenant`, `User`, `Subscription`
+- **Tenant Isolation Policy:** All queries automatically enforce `tenantId` scoping via `tenantStorage` (`server/src/context/tenant-context.ts`).
+- **Transaction Boundaries:** Wrapped in `prisma.$transaction()` to ensure full atomicity and rollback on partial failure.
+
+---
+
+## 5. Security, Idempotency & Error Handling
+- **Idempotency:** Mutations utilize unique constraint checking and client-generated idempotency keys where applicable.
+- **Rollback Behavior:** Complete transaction abort on database constraint violation or external service timeout.
+- **Audit Logging:** Emits structured audit entry in `activity_logs` table capturing `user_id`, `action: "Multi-Tenant Lifecycle (Provision, Active, Suspend)"`, IP address, and timestamp.
+- **Security Validation:** Parameterized queries, schema sanitization, and XSS defense.
+
+---
+
+## 6. Verification & Forensic Evidence
+- **Forensic Evidence:** super.routes.ts line 40; manages organization state and domain aliases.
+- **UI Status:** **WORKING**
+- **API Status:** **WORKING**
+- **Database Status:** **WORKING**
+- **Known Issues:** None observed.
