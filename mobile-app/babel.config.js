@@ -1,12 +1,7 @@
-// Ensure EXPO_OS environment variable is populated to prevent Babel/Metro EXPO_OS warnings
-if (!process.env.EXPO_OS) {
-  process.env.EXPO_OS = 'android';
-}
-
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: ['module:@react-native/babel-preset'],
+    presets: ['babel-preset-expo'],
     plugins: [
       [
         'module-resolver',

@@ -207,7 +207,7 @@ describe('Phase 6 & 7: Shared Role UI Parity, Permissions, Ownership & Responsiv
           expect(text).toContain('Personal');
           expect(text).toContain('Groups');
           expect(text).toContain('Contacts');
-          expect(text).toContain('Call Logs');
+          expect(text).not.toContain('Call Logs');
           expect(text).toContain('Priya Sharma');
           expect(text).toContain('Sprint review at 4 PM');
         } finally {

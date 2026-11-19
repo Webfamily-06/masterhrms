@@ -119,6 +119,81 @@ export function formatFileSize(bytes?: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export type AttachmentFileType =
+  | 'pdf'
+  | 'word'
+  | 'excel'
+  | 'ppt'
+  | 'txt'
+  | 'archive'
+  | 'audio'
+  | 'video'
+  | 'image'
+  | 'other';
+
+export function resolveAttachmentFileType(
+  mimeType?: string | null,
+  fileName?: string | null
+): AttachmentFileType {
+  const mime = (mimeType || '').toLowerCase();
+  const ext = extractFileExtension(fileName);
+
+  if (
+    (mime.startsWith('image/') && !mime.includes('svg')) ||
+    ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic', 'heif'].includes(ext)
+  ) {
+    return 'image';
+  }
+  if (mime === 'application/pdf' || ext === 'pdf') {
+    return 'pdf';
+  }
+  if (
+    mime.includes('word') ||
+    mime.includes('officedocument.wordprocessingml') ||
+    ['doc', 'docx', 'dot', 'dotx'].includes(ext)
+  ) {
+    return 'word';
+  }
+  if (
+    mime.includes('excel') ||
+    mime.includes('spreadsheet') ||
+    mime.includes('csv') ||
+    ['xls', 'xlsx', 'csv', 'ods'].includes(ext)
+  ) {
+    return 'excel';
+  }
+  if (
+    mime.includes('powerpoint') ||
+    mime.includes('presentation') ||
+    ['ppt', 'pptx', 'odp'].includes(ext)
+  ) {
+    return 'ppt';
+  }
+  if (
+    mime.startsWith('text/') ||
+    ['txt', 'log', 'md', 'rtf'].includes(ext)
+  ) {
+    return 'txt';
+  }
+  if (
+    mime.includes('zip') ||
+    mime.includes('tar') ||
+    mime.includes('rar') ||
+    mime.includes('7z') ||
+    mime.includes('compressed') ||
+    ['zip', 'rar', '7z', 'tar', 'gz', 'bz2'].includes(ext)
+  ) {
+    return 'archive';
+  }
+  if (mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac', 'opus'].includes(ext)) {
+    return 'audio';
+  }
+  if (mime.startsWith('video/') || ['mp4', 'mov', 'webm', 'avi', 'mkv', '3gp'].includes(ext)) {
+    return 'video';
+  }
+  return 'other';
+}
+
 export function classifyAttachmentKind(
   mimeType?: string | null,
   fileName?: string | null

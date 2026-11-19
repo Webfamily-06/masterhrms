@@ -1,11 +1,6 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 
-// SDK-compatible guard to ensure EXPO_OS is defined
-if (!process.env.EXPO_OS) {
-  process.env.EXPO_OS = Platform.OS === 'web' ? 'web' : (Platform.OS || 'android');
-}
-
 export type Environment = 'development' | 'staging' | 'production';
 
 export const PRODUCTION_API_URL = 'https://www.masterhrms.com';
@@ -36,7 +31,7 @@ export function normalizeApiOrigin(url: string): string {
  * 3. Release builds default to 'production' unless explicitly configured otherwise
  */
 export function resolveEnvironment(): Environment {
-  const explicit = (process.env.EXPO_PUBLIC_APP_ENV || '').toLowerCase().trim();
+  const explicit = (process.env['EXPO_PUBLIC_APP_ENV'] || '').toLowerCase().trim();
   if (explicit === 'production') return 'production';
   if (explicit === 'staging') return 'staging';
   if (explicit === 'development') return 'development';
@@ -73,19 +68,19 @@ export function setRuntimeApiBaseUrl(customUrl: string | null): void {
  */
 export function resolveDevelopmentApiUrl(): string {
   // 1. Explicit API base URL from environment
-  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const envUrl = process.env['EXPO_PUBLIC_API_BASE_URL'];
   if (envUrl && envUrl.trim()) {
     return normalizeApiOrigin(envUrl);
   }
 
   // 2. Explicit LAN IP from environment
-  const envLanIp = process.env.EXPO_PUBLIC_DEV_LAN_IP;
+  const envLanIp = process.env['EXPO_PUBLIC_DEV_LAN_IP'];
   if (envLanIp && envLanIp.trim()) {
     return `http://${envLanIp.trim()}:${DEFAULT_BACKEND_PORT}`;
   }
 
   // 3. Simulators and Emulators
-  const isPhysical = typeof Device?.isDevice === 'boolean' ? Device.isDevice : false;
+  const isPhysical = Device && typeof Device.isDevice === 'boolean' ? Device.isDevice : false;
   if (!isPhysical) {
     if (Platform.OS === 'android') {
       return `http://10.0.2.2:${DEFAULT_BACKEND_PORT}`;
@@ -111,7 +106,7 @@ export function getDevApiHost(): string {
  */
 export function resolveStagingApiUrl(): string {
   const stagingUrl =
-    process.env.EXPO_PUBLIC_STAGING_API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
+    process.env['EXPO_PUBLIC_STAGING_API_BASE_URL'] || process.env['EXPO_PUBLIC_API_BASE_URL'];
   if (!stagingUrl || !stagingUrl.trim()) {
     console.warn(
       '[Environment] Staging environment requires explicit EXPO_PUBLIC_STAGING_API_BASE_URL. Falling back to development.'

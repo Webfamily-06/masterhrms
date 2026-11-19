@@ -1,4 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { requestRecordingPermissionsAsync, getRecordingPermissionsAsync } from 'expo-audio';
 
 export interface MediaPermissionsStatus {
   camera: boolean;
@@ -9,53 +11,99 @@ export interface MediaPermissionsStatus {
 }
 
 /**
- * Requests camera permission with rationale fallback.
+ * Checks camera permission without prompting the user.
+ */
+export const checkCameraPermission = async (): Promise<boolean> => {
+  try {
+    if (Platform.OS === 'android') {
+      return await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+    }
+    if (typeof ImagePicker?.getCameraPermissionsAsync === 'function') {
+      const response = await ImagePicker.getCameraPermissionsAsync();
+      return Boolean(response?.granted);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[PermissionService] Check camera permission error:', err);
+    return false;
+  }
+};
+
+/**
+ * Checks microphone permission without prompting the user.
+ */
+export const checkMicrophonePermission = async (): Promise<boolean> => {
+  try {
+    if (Platform.OS === 'android') {
+      return await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    }
+    if (typeof getRecordingPermissionsAsync === 'function') {
+      const response = await getRecordingPermissionsAsync();
+      return Boolean(response?.granted);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[PermissionService] Check microphone permission error:', err);
+    return false;
+  }
+};
+
+/**
+ * Requests camera permission with genuine native platform calls.
  */
 export const requestCameraPermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    try {
+  try {
+    if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.CAMERA,
         {
           title: 'Camera Permission Request',
           message:
-            'MasterHRMS requires access to your camera for video calling and taking profile & attachment photos.',
+            'MasterHRMS requires access to your camera for taking profile & attachment photos.',
           buttonPositive: 'Allow',
           buttonNegative: 'Deny',
         }
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      console.warn('[PermissionService] Camera permission error:', err);
-      return false;
     }
+    if (typeof ImagePicker?.requestCameraPermissionsAsync === 'function') {
+      const response = await ImagePicker.requestCameraPermissionsAsync();
+      return Boolean(response?.granted);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[PermissionService] Camera permission error:', err);
+    return false;
   }
-  return true;
 };
 
 /**
- * Requests microphone permission with rationale fallback.
+ * Requests microphone permission with genuine native platform calls.
  */
 export const requestMicrophonePermission = async (): Promise<boolean> => {
-  if (Platform.OS === 'android') {
-    try {
+  try {
+    if (Platform.OS === 'android') {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         {
           title: 'Microphone Permission Request',
           message:
-            'MasterHRMS requires access to your microphone for voice calling and recording audio notes.',
+            'MasterHRMS requires access to your microphone for recording voice notes.',
           buttonPositive: 'Allow',
           buttonNegative: 'Deny',
         }
       );
       return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      console.warn('[PermissionService] Microphone permission error:', err);
-      return false;
     }
+    if (typeof requestRecordingPermissionsAsync === 'function') {
+      const response = await requestRecordingPermissionsAsync();
+      return Boolean(response?.granted);
+    }
+    return true;
+  } catch (err) {
+    console.warn('[PermissionService] Microphone permission error:', err);
+    return false;
   }
-  return true;
 };
 
 /**
@@ -64,7 +112,10 @@ export const requestMicrophonePermission = async (): Promise<boolean> => {
 export const requestStoragePermission = async (): Promise<boolean> => {
   if (Platform.OS === 'android') {
     try {
-      const version = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10) || 0;
+      const version =
+        typeof Platform.Version === 'number'
+          ? Platform.Version
+          : parseInt(String(Platform.Version), 10) || 0;
       if (version >= 33) {
         const perms = [
           PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
@@ -123,10 +174,10 @@ export const requestLocationPermission = async (): Promise<boolean> => {
 };
 
 /**
- * Requests essential hardware permissions (Camera, Microphone, Storage, Notifications)
- * upon application startup for frictionless video calling, voice calling, and push delivery.
+ * Requests essential hardware permissions upon application startup.
  */
 export const requestAppMediaPermissions = async (): Promise<MediaPermissionsStatus> => {
+  // General bootstrap permission flow
   if (Platform.OS === 'android') {
     try {
       const permissionsToRequest: any[] = [
@@ -134,9 +185,11 @@ export const requestAppMediaPermissions = async (): Promise<MediaPermissionsStat
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
       ];
 
-      const version = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10) || 0;
+      const version =
+        typeof Platform.Version === 'number'
+          ? Platform.Version
+          : parseInt(String(Platform.Version), 10) || 0;
 
-      // Android 13+ (API 33+) requires runtime POST_NOTIFICATIONS and READ_MEDIA_*
       if (version >= 33) {
         if (PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS) {
           permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
@@ -157,8 +210,10 @@ export const requestAppMediaPermissions = async (): Promise<MediaPermissionsStat
       const audioGranted =
         results[PermissionsAndroid.PERMISSIONS.RECORD_AUDIO] === PermissionsAndroid.RESULTS.GRANTED;
       const storageGranted =
-        results[PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES] === PermissionsAndroid.RESULTS.GRANTED ||
-        results[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] === PermissionsAndroid.RESULTS.GRANTED;
+        results[PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES] ===
+          PermissionsAndroid.RESULTS.GRANTED ||
+        results[PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE] ===
+          PermissionsAndroid.RESULTS.GRANTED;
 
       return {
         camera: cameraGranted,
@@ -172,6 +227,16 @@ export const requestAppMediaPermissions = async (): Promise<MediaPermissionsStat
     }
   }
 
-  // iOS permissions are triggered upon usage, Info.plist entries handle OS prompts
-  return { camera: true, microphone: true, storage: true, notifications: true };
+  // iOS check
+  const [camStatus, micStatus] = await Promise.all([
+    checkCameraPermission(),
+    checkMicrophonePermission(),
+  ]);
+
+  return {
+    camera: camStatus,
+    microphone: micStatus,
+    storage: true,
+    notifications: true,
+  };
 };

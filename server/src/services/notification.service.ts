@@ -5,6 +5,8 @@ import { getIO } from "../socket";
 import { PusherService } from "./pusher.service";
 import { VapidService } from "./vapid.service";
 import { PushSubscriptionStore } from "./push-subscription.store";
+import { NativePushStore } from "./native-push.store";
+import { NativePushDispatcher } from "./native-push-dispatcher.service";
 
 export interface CreateNotificationParams {
   tenantId: string;
@@ -141,6 +143,23 @@ export class NotificationService {
       console.warn("[NotificationService] Web Push dispatch failed:", err?.message || err);
     });
 
+    // Native Mobile Push (FCM / Expo) delivery to user's registered physical devices
+    void trackBackgroundTask(
+      this.dispatchNativePush(params.tenantId, targetUserId, {
+        id: notification.id,
+        title: notification.title,
+        body: notification.body,
+        type: notification.module,
+        module: notification.module,
+        linkTo: notification.linkTo,
+        actionUrl: notification.linkTo || (params.metadata?.actionUrl) || "/",
+        metadata: notification.metadataJson,
+        createdAt: notification.createdAt,
+      })
+    ).catch((err) => {
+      console.warn("[NotificationService] Native Push dispatch failed:", err?.message || err);
+    });
+
     return notification;
   }
 
@@ -209,6 +228,41 @@ export class NotificationService {
       return { sent, failed };
     } catch (err: any) {
       console.warn(`[NotificationService] Web Push delivery error for user ${userId}:`, err?.message);
+      return { sent: 0, failed: 0 };
+    }
+  }
+
+  /**
+   * Dispatches native mobile push notifications (FCM / Expo) to all active device tokens of recipient.
+   */
+  public static async dispatchNativePush(
+    tenantId: string,
+    userId: string,
+    payload: any
+  ): Promise<{ sent: number; failed: number }> {
+    try {
+      const tokens = await NativePushStore.getActiveDeviceTokens(tenantId, userId);
+      if (!tokens || tokens.length === 0) {
+        return { sent: 0, failed: 0 };
+      }
+
+      const res = await NativePushDispatcher.dispatch(tokens, {
+        id: payload.id,
+        tenantId,
+        title: payload.title || "MasterHRMS Alert",
+        body: payload.body || "",
+        type: payload.type || payload.module || "SYSTEM",
+        module: payload.module || "SYSTEM",
+        linkTo: payload.linkTo || "/",
+        actionUrl: payload.actionUrl || payload.linkTo || "/",
+        metadata: payload.metadata || null,
+        sound: "default",
+        channelId: "default",
+      });
+
+      return { sent: res.sent, failed: res.failed };
+    } catch (err: any) {
+      console.warn(`[NotificationService] Native Push delivery error for user ${userId}:`, err?.message);
       return { sent: 0, failed: 0 };
     }
   }
@@ -311,7 +365,11 @@ export class NotificationService {
   }
 }
 
-// Serverless-safe: Web Push delivery is fire-and-forget at call sites; track it for the current request.
+// Serverless-safe: Web Push & Native Push delivery is fire-and-forget at call sites; track it for the current request.
 const originalDispatchWebPush = NotificationService.dispatchWebPush.bind(NotificationService);
 NotificationService.dispatchWebPush = ((tenantId: string, userId: string, payload: any) =>
   trackBackgroundTask(originalDispatchWebPush(tenantId, userId, payload))) as typeof NotificationService.dispatchWebPush;
+
+const originalDispatchNativePush = NotificationService.dispatchNativePush.bind(NotificationService);
+NotificationService.dispatchNativePush = ((tenantId: string, userId: string, payload: any) =>
+  trackBackgroundTask(originalDispatchNativePush(tenantId, userId, payload))) as typeof NotificationService.dispatchNativePush;

@@ -3,7 +3,7 @@ import { TenantResolveResponse } from '../../types/tenant.types';
 import { ApiError } from '../api/apiErrors';
 import { useTenantStore } from '../../store/tenantStore';
 import { useAuthStore } from '../../store/authStore';
-import { purgeQueryCache } from '../../app/providers/QueryProvider';
+import { purgeQueryCache } from '../query/queryClient';
 import { AuthService } from '../auth/authService';
 
 export interface TenantSwitchResult {

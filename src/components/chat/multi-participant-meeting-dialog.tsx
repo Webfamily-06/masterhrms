@@ -1462,7 +1462,7 @@ export function MultiParticipantMeetingDialog({
                     <span>No chat messages yet.</span>
                   </div>
                 ) : (
-                  threadMessages.map((msg) => (
+                  Array.from(new Map(threadMessages.map((m) => [String(m.id || '').trim(), m])).values()).map((msg) => (
                     <div
                       key={msg.id}
                       className="p-2 rounded-xl bg-background/80 border border-border text-xs space-y-1"

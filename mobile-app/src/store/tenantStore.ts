@@ -3,7 +3,7 @@ import { TenantResolveResponse } from '../types/tenant.types';
 import { secureStorage } from '../core/storage/secureStorage';
 import { STORAGE_KEYS } from '../config/constants';
 import { configureInterceptorDependencies } from '../core/api/interceptors';
-import { purgeQueryCache } from '../app/providers/QueryProvider';
+import { purgeQueryCache } from '../core/query/queryClient';
 import { realtimeManager } from '../core/realtime/realtimeManager';
 import { useAuthStore } from './authStore';
 

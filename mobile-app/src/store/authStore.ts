@@ -8,8 +8,9 @@ import {
 import { secureStorage } from '../core/storage/secureStorage';
 import { STORAGE_KEYS } from '../config/constants';
 import { configureInterceptorDependencies } from '../core/api/interceptors';
-import { purgeQueryCache } from '../app/providers/QueryProvider';
+import { purgeQueryCache } from '../core/query/queryClient';
 import { realtimeManager } from '../core/realtime/realtimeManager';
+import { PushNotificationService } from '../core/services/pushNotificationService';
 
 interface AuthState {
   token: string | null;
@@ -144,6 +145,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }),
 
   logout: async () => {
+    try {
+      await PushNotificationService.unregisterDeviceToken();
+    } catch {
+      // Ignore in offline/test environments
+    }
+
     realtimeManager.disconnectAll();
     // Purge query cache to completely isolate former tenant session
     try {

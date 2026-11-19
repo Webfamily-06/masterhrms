@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text as RNText, TextProps as RNTextProps } from 'react-native';
+import { Text as RNText, TextProps as RNTextProps, Platform } from 'react-native';
 import { useTheme } from '../../app/providers/ThemeProvider';
 
 export interface TextProps extends RNTextProps {
@@ -26,6 +26,7 @@ export const Text: React.FC<TextProps> = ({
   return (
     <RNText
       style={[
+        Platform.OS === 'android' ? { includeFontPadding: false } : null,
         variantStyle,
         { color: textColor },
         weight ? { fontWeight: weight } : null,

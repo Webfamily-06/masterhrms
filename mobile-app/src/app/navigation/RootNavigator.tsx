@@ -15,6 +15,9 @@ import { FingerprintAuthScreen } from '../../modules/authentication/screens/Fing
 import { FaceIdAuthScreen } from '../../modules/authentication/screens/FaceIdAuthScreen';
 import { AppNavigator } from '../../modules/navigation/AppNavigator';
 
+import { navigationRef } from './navigationRef';
+import { NotificationRealtimeBridge } from '../../components/notification/NotificationRealtimeBridge';
+
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 
@@ -40,6 +43,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: theme.isDark,
         colors: {
@@ -65,6 +69,7 @@ export const RootNavigator: React.FC = () => {
           <RootStack.Screen name="Auth" component={AuthNavigator} />
         )}
       </RootStack.Navigator>
+      {isAuthenticated && <NotificationRealtimeBridge />}
     </NavigationContainer>
   );
 };

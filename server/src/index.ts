@@ -610,6 +610,7 @@ app.use("/api/sales", salesRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/notifications/push", pushRouter);
+app.use("/api/push", pushRouter);
 app.use("/api/calls", callRouter);
 app.use("/api/biometric", biometricRouter);
 app.use("/api/public/biometric", publicBiometricRouter);

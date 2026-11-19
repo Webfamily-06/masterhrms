@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,31 +8,46 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Text } from '../../../components/common/Text';
 import {
-  Users,
   Video,
   VideoOff,
   Phone,
   PhoneOff,
   Mic,
   MicOff,
-  UserPlus,
   Volume2,
   VolumeX,
+  ChevronDown,
+  MoreVertical,
+  Hash,
+  SwitchCamera,
+  Hand,
+  ShieldCheck,
   X,
 } from 'lucide-react-native';
-import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { createTenantQueryKey } from '../../../core/query/tenantQueryKeys';
 import { useAuthStore } from '../../../store/authStore';
+import { useCallStore } from '../../../store/callStore';
 import { usePermission } from '../../../hooks/usePermission';
 import { realtimeManager } from '../../../core/realtime/realtimeManager';
 import { ChatService } from '../../../core/services/chatService';
 import { requestAppMediaPermissions } from '../../../core/services/permissionService';
+import { LiveActivityService } from '../../../core/services/liveActivityService';
 import { Config } from '../../../config/environment';
+
+import { CallWaveformView } from '../../../components/calling/CallWaveformView';
+import { CallKeypadModal } from '../../../components/calling/CallKeypadModal';
+import { InCallOptionsBottomSheet } from '../../../components/calling/InCallOptionsBottomSheet';
+import { CallPermissionModal } from '../../../components/calling/CallPermissionModal';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type CallLifecycleState =
   | 'DIALING'
@@ -44,12 +59,28 @@ type CallLifecycleState =
   | 'ENDED'
   | 'ERROR';
 
+type NetworkQuality = 'connecting' | 'hd' | 'poor' | 'reconnecting' | 'failed';
+
 interface MeetingPeer {
   userId: string;
   name: string;
   avatarUrl?: string;
   isMuted?: boolean;
   isVideoOff?: boolean;
+  isHandRaised?: boolean;
+}
+
+function deduplicatePeers(peers: MeetingPeer[]): MeetingPeer[] {
+  if (!Array.isArray(peers)) return [];
+  const seen = new Set<string>();
+  const deduped: MeetingPeer[] = [];
+  for (const p of peers) {
+    const key = String(p.userId || (p as any).id || '').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(p);
+  }
+  return deduped;
 }
 
 export const ChatCallScreen: React.FC = () => {
@@ -61,8 +92,12 @@ export const ChatCallScreen: React.FC = () => {
   } catch {
     // Fallback if rendered outside SafeAreaProvider
   }
+
   const user = useAuthStore((s) => s.user);
   const { activeRole } = usePermission();
+  const setMinimized = useCallStore((s) => s.setMinimized);
+  const setActiveCallInStore = useCallStore((s) => s.setActiveCall);
+  const resetCallInStore = useCallStore((s) => s.resetCall);
 
   const {
     callId: initialCallId,
@@ -110,41 +145,82 @@ export const ChatCallScreen: React.FC = () => {
     return null;
   }, [user]);
 
-  const hasNativeWebRtc = typeof (globalThis as any).RTCPeerConnection === 'function';
-
   const [activeCallId, setActiveCallId] = useState<string | null>(initialCallId || null);
   const [callState, setCallState] = useState<CallLifecycleState>(
     isGroupMeeting || alreadyConnected ? 'CONNECTED' : isIncoming ? 'RINGING' : 'DIALING'
+  );
+  const [networkQuality, setNetworkQuality] = useState<NetworkQuality>(
+    alreadyConnected ? 'hd' : 'connecting'
   );
   const [isAnswering, setIsAnswering] = useState(false);
   const [statusNote, setStatusNote] = useState<string>('');
   const [callDuration, setCallDuration] = useState(0);
 
+  // In-call media toggles
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(callType === 'video');
   const [peerMuted, setPeerMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(false);
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  const [isBackgroundBlur, setIsBackgroundBlur] = useState(false);
+
+  // Modals
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+  const [callTimedOut, setCallTimedOut] = useState(false);
 
   // Multiparty roster & invite modal
   const [participants, setParticipants] = useState<MeetingPeer[]>([]);
   const [creatorId, setCreatorId] = useState<string>('');
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [callTimedOut, setCallTimedOut] = useState(false);
+
+  const dedupedParticipants = useMemo(() => deduplicatePeers(participants), [participants]);
 
   const endedCleanupRef = useRef(false);
   const answeredRef = useRef(false);
+
+  // Animated pulse for avatar ring
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (callState === 'DIALING' || callState === 'RINGING') {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.25,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      loop.start();
+      return () => {
+        loop.stop();
+      };
+    }
+    pulseAnim.setValue(1);
+    return undefined;
+  }, [callState, pulseAnim]);
 
   // Request hardware media permissions when call screen opens
   useEffect(() => {
     const acquireHardware = async () => {
       const res = await requestAppMediaPermissions();
       if (!res.camera && (callType === 'video' || isVideoEnabled)) {
-        Alert.alert('Camera Access', 'Camera permission was not granted. Video will remain off.');
         setIsVideoEnabled(false);
+        setPermissionModalOpen(true);
       }
       if (!res.microphone) {
-        Alert.alert('Microphone Access', 'Microphone permission was not granted. You are muted.');
         setIsMuted(true);
+        setPermissionModalOpen(true);
       }
     };
     void acquireHardware();
@@ -155,11 +231,9 @@ export const ChatCallScreen: React.FC = () => {
     if (callState !== 'RINGING' && callState !== 'DIALING') return;
     const timer = setTimeout(() => {
       if (isIncoming) {
-        // Callee did not answer incoming call within 30 seconds
         if (activeCallId) ChatService.rejectCall(activeCallId, 'timeout').catch(() => {});
         navigation.goBack();
       } else {
-        // Caller dialed but callee did not answer within 30 seconds
         setCallTimedOut(true);
         setCallState('ENDED');
         setStatusNote('No answer');
@@ -182,13 +256,16 @@ export const ChatCallScreen: React.FC = () => {
       if (data?.creatorId) setCreatorId(String(data.creatorId));
       if (Array.isArray(data?.participants)) {
         setParticipants(
-          data.participants.map((p: any) => ({
-            userId: String(p.userId || p.id),
-            name: String(p.name || 'Participant'),
-            avatarUrl: p.avatarUrl || p.avatar || p.image,
-            isMuted: Boolean(p.isMuted),
-            isVideoOff: Boolean(p.isVideoOff ?? p.isCameraOff),
-          }))
+          deduplicatePeers(
+            data.participants.map((p: any) => ({
+              userId: String(p.userId || p.id),
+              name: String(p.name || 'Participant'),
+              avatarUrl: p.avatarUrl || p.avatar || p.image,
+              isMuted: Boolean(p.isMuted),
+              isVideoOff: Boolean(p.isVideoOff ?? p.isCameraOff),
+              isHandRaised: Boolean(p.isHandRaised),
+            }))
+          )
         );
       }
     } catch {
@@ -208,9 +285,10 @@ export const ChatCallScreen: React.FC = () => {
             if (!mounted) return;
             setActiveCallId(initialCallId);
             setCallState('CONNECTED');
+            setNetworkQuality('hd');
             if (joinRes?.creatorId) setCreatorId(String(joinRes.creatorId));
             if (Array.isArray(joinRes?.participants)) {
-              setParticipants(joinRes.participants);
+              setParticipants(deduplicatePeers(joinRes.participants));
             } else {
               void refreshMeetingRoster(initialCallId);
             }
@@ -221,6 +299,7 @@ export const ChatCallScreen: React.FC = () => {
         if (alreadyConnected && initialCallId) {
           setActiveCallId(initialCallId);
           setCallState('CONNECTED');
+          setNetworkQuality('hd');
           return;
         }
 
@@ -236,11 +315,13 @@ export const ChatCallScreen: React.FC = () => {
           if (!mounted) return;
           setActiveCallId(res.callId);
           setCallState(res.status === 'connected' ? 'CONNECTED' : 'RINGING');
+          if (res.status === 'connected') setNetworkQuality('hd');
         } else if (initialCallId) {
           const st = await ChatService.getCallStatus(initialCallId);
           if (!mounted) return;
           setActiveCallId(initialCallId);
           setCallState(st?.status === 'connected' ? 'CONNECTED' : 'RINGING');
+          if (st?.status === 'connected') setNetworkQuality('hd');
         } else {
           setCallState('ERROR');
           setStatusNote('Missing target participant ID.');
@@ -280,6 +361,7 @@ export const ChatCallScreen: React.FC = () => {
       realtimeManager.subscribe('call:accepted', (p) => {
         if (!p?.callId || p.callId === activeCallId) {
           setCallState('CONNECTED');
+          setNetworkQuality('hd');
         }
       }),
       realtimeManager.subscribe('call:rejected', (p) => {
@@ -327,6 +409,7 @@ export const ChatCallScreen: React.FC = () => {
                 avatarUrl: u.avatarUrl || u.avatar,
                 isMuted: Boolean(u.isMuted),
                 isVideoOff: Boolean(u.isVideoOff),
+                isHandRaised: Boolean(u.isHandRaised),
               },
             ];
           });
@@ -367,12 +450,28 @@ export const ChatCallScreen: React.FC = () => {
     };
   }, [activeCallId, navigation, refreshMeetingRoster, user?.id]);
 
-  // Connected duration counter + 5s backend call heartbeat
+  // Connected duration counter + Live Activity update + 5s backend call heartbeat
   useEffect(() => {
     if (callState !== 'CONNECTED') return;
 
+    // Start Live Activity on Dynamic Island / Android foreground notification
+    void LiveActivityService.startLiveActivity({
+      callId: activeCallId || 'call_live',
+      callerName: isGroupMeeting ? groupName || receiverName : receiverName,
+      callType,
+      isGroup: isGroupMeeting,
+      groupName,
+    });
+
     const secInterval = setInterval(() => {
-      setCallDuration((d) => d + 1);
+      setCallDuration((d) => {
+        const next = d + 1;
+        // Update Live Activity every 5 seconds
+        if (next % 5 === 0) {
+          void LiveActivityService.updateLiveActivity(isMuted, 'active', next);
+        }
+        return next;
+      });
     }, 1000);
 
     let hbInterval: ReturnType<typeof setInterval> | null = null;
@@ -394,18 +493,20 @@ export const ChatCallScreen: React.FC = () => {
     return () => {
       clearInterval(secInterval);
       if (hbInterval) clearInterval(hbInterval);
+      void LiveActivityService.endLiveActivity();
     };
-  }, [callState, isGroupMeeting, activeCallId, navigation]);
+  }, [callState, isGroupMeeting, activeCallId, navigation, groupName, receiverName, callType, isMuted]);
 
   const formatDuration = (sec: number) => {
     const mins = Math.floor(sec / 60);
     const rem = sec % 60;
-    return `${mins < 10 ? '0' : ''}${mins}:${rem < 10 ? '0' : ''}${rem} mins`;
+    return `${mins.toString().padStart(2, '0')}:${rem.toString().padStart(2, '0')}`;
   };
 
   const toggleMute = async () => {
     const next = !isMuted;
     setIsMuted(next);
+    void LiveActivityService.updateLiveActivity(next, 'active', callDuration);
     if (!activeCallId) return;
     try {
       if (isGroupMeeting) {
@@ -433,6 +534,31 @@ export const ChatCallScreen: React.FC = () => {
     }
   };
 
+  const handleMinimize = () => {
+    setMinimized(true);
+    setActiveCallInStore({
+      callId: activeCallId || 'call_temp',
+      callerId: user?.id || '',
+      callerName: user?.profile?.fullName || 'Me',
+      callerAvatar: selfAvatar,
+      receiverId: receiverId || '',
+      receiverName: isGroupMeeting ? groupName || receiverName : receiverName,
+      receiverAvatar: displayAvatar,
+      callType,
+      threadId,
+      groupId,
+      groupName,
+      isGroupMeeting,
+      status: 'connected',
+      durationSeconds: callDuration,
+      isMuted,
+      isVideoOff: !isVideoEnabled,
+      isSpeakerOn,
+      isMinimized: true,
+    });
+    navigation.goBack();
+  };
+
   const handleAnswerIncoming = async () => {
     if (answeredRef.current) return;
     answeredRef.current = true;
@@ -443,6 +569,7 @@ export const ChatCallScreen: React.FC = () => {
       setStatusNote('Connecting...');
       await ChatService.acceptCall(activeCallId);
       setCallState('CONNECTED');
+      setNetworkQuality('hd');
       setStatusNote('');
     } catch (err: any) {
       setCallState('ERROR');
@@ -454,6 +581,9 @@ export const ChatCallScreen: React.FC = () => {
   };
 
   const handleHangupOrLeave = async () => {
+    void LiveActivityService.endLiveActivity();
+    resetCallInStore();
+
     if (!endedCleanupRef.current && activeCallId) {
       endedCleanupRef.current = true;
       try {
@@ -475,6 +605,8 @@ export const ChatCallScreen: React.FC = () => {
 
   const handleEndMeetingForAll = async () => {
     if (!activeCallId) return;
+    void LiveActivityService.endLiveActivity();
+    resetCallInStore();
     endedCleanupRef.current = true;
     try {
       await ChatService.endGroupMeetingForAll(activeCallId);
@@ -521,18 +653,7 @@ export const ChatCallScreen: React.FC = () => {
     isGroupMeeting &&
     (creatorId === user?.id || activeRole === 'tenant_admin');
 
-  const statusHeading =
-    callState === 'DIALING'
-      ? 'Dialing...'
-      : callState === 'RINGING'
-      ? isIncoming ? 'Incoming Call...' : 'Ringing...'
-      : callState === 'ACCEPTING'
-      ? 'Connecting...'
-      : callState === 'CONNECTED'
-      ? formatDuration(callDuration)
-      : statusNote || callState;
-
-  // ── 'User Did Not Respond' screen shown after 30-second timeout ──
+  // 'User Did Not Respond' screen shown after 30-second timeout
   if (callTimedOut) {
     const initials = (receiverName || 'U').substring(0, 2).toUpperCase();
     return (
@@ -555,24 +676,34 @@ export const ChatCallScreen: React.FC = () => {
         <Text style={styles.noAnswerHeading}>Didn't Respond</Text>
         <Text style={styles.noAnswerSub}>Call ended after 30 seconds</Text>
         <View style={styles.noAnswerPhoneWrap}>
-          <PhoneOff size={40} color="#EF4444" />
+          <PhoneOff size={38} color="#EF4444" />
         </View>
-        <View style={{ flexDirection: 'row', gap: 16, marginTop: 36 }}>
+        <View style={{ flexDirection: 'row', gap: 16, marginTop: 32 }}>
           <TouchableOpacity
-            style={[styles.noAnswerBtn, { backgroundColor: '#00D287' }]}
+            style={[styles.noAnswerBtn, { backgroundColor: '#334155' }]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.noAnswerBtnText}>Dismiss</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.noAnswerBtn, { backgroundColor: '#6366F1' }]}
             onPress={() => {
               setCallTimedOut(false);
               setCallState('DIALING');
+              if (receiverId) {
+                ChatService.initiateCall(receiverId, callType, threadId)
+                  .then((r) => {
+                    setActiveCallId(r.callId);
+                    setCallState(r.status === 'connected' ? 'CONNECTED' : 'RINGING');
+                  })
+                  .catch(() => setCallState('ERROR'));
+              }
             }}
+            activeOpacity={0.8}
           >
-            <Phone size={18} color="#FFFFFF" />
+            <Phone size={16} color="#FFFFFF" />
             <Text style={styles.noAnswerBtnText}>Call Again</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.noAnswerBtn, { backgroundColor: '#64748B' }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.noAnswerBtnText}>Back to Chat</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -584,54 +715,61 @@ export const ChatCallScreen: React.FC = () => {
       style={[
         styles.container,
         {
-          paddingTop: insets.top > 0 ? insets.top + 16 : 40,
+          paddingTop: insets.top > 0 ? insets.top + 12 : 36,
           paddingBottom: insets.bottom > 0 ? insets.bottom + 16 : 24,
         },
       ]}
     >
-      <View style={styles.topSection}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 4 }}>
-          {isGroupMeeting ? (
-            <Users size={14} color="#6366F1" />
-          ) : callType === 'video' ? (
-            <Video size={14} color="#6366F1" />
-          ) : (
-            <Phone size={14} color="#6366F1" />
-          )}
-          <Text style={styles.badgeText}>
-            {isGroupMeeting
-              ? `MULTIPARTY ${callType.toUpperCase()} MEETING`
-              : callType === 'video'
-              ? 'SECURE VIDEO CALL'
-              : 'SECURE VOICE CALL'}
+      {/* ── Top Header Navigation Bar ── */}
+      <View style={styles.topBar}>
+        {/* Minimize Button */}
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={handleMinimize}
+          accessibilityLabel="Minimize call to Picture-in-Picture"
+          activeOpacity={0.7}
+        >
+          <ChevronDown size={22} color="#CBD5E1" />
+        </TouchableOpacity>
+
+        {/* Center Title & Badge */}
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {isGroupMeeting ? groupName || 'Group Meeting' : receiverName}
           </Text>
-        </View>
-        <Text style={styles.titleText} numberOfLines={2}>
-          {isGroupMeeting ? groupName || receiverName : receiverName}
-        </Text>
-        <Text style={styles.statusText}>{statusHeading}</Text>
 
-        {peerMuted && !isGroupMeeting && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 }}>
-            <MicOff size={12} color="#EF4444" />
-            <Text style={styles.peerMutedNote}>Peer microphone is muted</Text>
-          </View>
-        )}
-
-        {!hasNativeWebRtc && (
-          <View style={styles.webrtcNotice}>
-            <Text style={styles.webrtcNoticeText}>
-              Signaling connected via MasterHRMS API • Native audio/video media stream requires a WebRTC native build.
+          {/* Network / Encryption State Badge */}
+          <View style={styles.networkBadge}>
+            <ShieldCheck size={11} color={networkQuality === 'poor' ? '#F59E0B' : '#10B981'} />
+            <Text style={styles.networkBadgeText}>
+              {callState === 'CONNECTED'
+                ? `${networkQuality === 'poor' ? 'Weak Connection' : 'HD'} • ${formatDuration(callDuration)}`
+                : callState === 'RINGING'
+                ? isIncoming ? 'Incoming...' : 'Ringing...'
+                : callState === 'DIALING'
+                ? 'Calling...'
+                : statusNote || callState}
             </Text>
           </View>
-        )}
+        </View>
+
+        {/* More Options / Settings Button */}
+        <TouchableOpacity
+          style={styles.headerIconBtn}
+          onPress={() => setMoreOptionsOpen(true)}
+          accessibilityLabel="More in-call options"
+          activeOpacity={0.7}
+        >
+          <MoreVertical size={20} color="#CBD5E1" />
+        </TouchableOpacity>
       </View>
 
-      {/* Center Stage: Multiparty Grid or 1:1 Avatar Stage */}
+      {/* ── Center Stage: Multiparty Grid, Video Stage, or Audio Call Stage ── */}
       {isGroupMeeting || participants.length > 0 ? (
+        /* Multiparty Group Grid */
         <ScrollView contentContainerStyle={styles.gridWrap}>
           {participants.length === 0 ? (
-            <View style={styles.tileCard}>
+            <View style={[styles.tileCard, styles.tileCardActiveSpeaker]}>
               {selfAvatar ? (
                 <Image source={{ uri: selfAvatar }} style={styles.tileAvatarImage} />
               ) : (
@@ -641,13 +779,13 @@ export const ChatCallScreen: React.FC = () => {
                   </Text>
                 </View>
               )}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                <Text style={styles.tileName}>You</Text>
+              <View style={styles.tileInfoRow}>
+                <Text style={styles.tileName}>You (Host)</Text>
                 {isMuted ? <MicOff size={12} color="#EF4444" /> : <Mic size={12} color="#10B981" />}
               </View>
             </View>
           ) : (
-            participants.map((p) => {
+            dedupedParticipants.map((p: MeetingPeer) => {
               const pAvatar = p.avatarUrl
                 ? (p.avatarUrl.startsWith('http')
                     ? p.avatarUrl
@@ -655,7 +793,13 @@ export const ChatCallScreen: React.FC = () => {
                 : null;
 
               return (
-                <View key={p.userId} style={styles.tileCard}>
+                <View
+                  key={p.userId}
+                  style={[
+                    styles.tileCard,
+                    !p.isMuted && styles.tileCardActiveSpeaker,
+                  ]}
+                >
                   {pAvatar ? (
                     <Image source={{ uri: pAvatar }} style={styles.tileAvatarImage} />
                   ) : (
@@ -665,12 +809,17 @@ export const ChatCallScreen: React.FC = () => {
                       </Text>
                     </View>
                   )}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <View style={styles.tileInfoRow}>
                     <Text style={styles.tileName} numberOfLines={1}>
                       {p.name}
                     </Text>
                     {p.isMuted ? <MicOff size={12} color="#EF4444" /> : <Mic size={12} color="#10B981" />}
                   </View>
+                  {p.isHandRaised && (
+                    <View style={styles.handBadge}>
+                      <Hand size={11} color="#F59E0B" />
+                    </View>
+                  )}
                   {canEndMeetingForAll && p.userId !== user?.id && activeCallId && (
                     <TouchableOpacity
                       style={styles.removePeerBtn}
@@ -688,96 +837,140 @@ export const ChatCallScreen: React.FC = () => {
             })
           )}
         </ScrollView>
-      ) : isVideoEnabled ? (
+      ) : isVideoEnabled && callState === 'CONNECTED' ? (
+        /* Video Call Stage */
         <View style={styles.videoStage}>
-          {/* Peer Video Surface */}
-          <View style={styles.peerVideoSurface}>
-            <View style={styles.avatarBig}>
-              {displayAvatar ? (
-                <Image
-                  source={{ uri: displayAvatar }}
-                  style={styles.avatarBigImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.avatarInitialsBig}>
-                  <Text style={styles.avatarInitialsBigText}>
-                    {(receiverName || 'User').substring(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-              )}
+          {/* Main Remote Video Surface */}
+          <View style={styles.remoteVideoContainer}>
+            {displayAvatar ? (
+              <Image source={{ uri: displayAvatar }} style={styles.videoAvatarFull} resizeMode="cover" />
+            ) : (
+              <View style={styles.videoInitialsFull}>
+                <Text style={styles.videoInitialsText}>
+                  {(receiverName || 'U').substring(0, 2).toUpperCase()}
+                </Text>
+              </View>
+            )}
+
+            {/* Top-Left Remote Name & Timer Badge */}
+            <View style={styles.videoInfoBadge}>
+              <Text style={styles.videoInfoName}>{receiverName}</Text>
+              <Text style={styles.videoInfoTime}>• {formatDuration(callDuration)}</Text>
             </View>
-            <Text style={styles.videoPeerName}>{receiverName}</Text>
+
+            {/* Remote Mute Notice */}
+            {peerMuted && (
+              <View style={styles.peerMutedBadge}>
+                <MicOff size={12} color="#EF4444" />
+                <Text style={styles.peerMutedBadgeText}>Microphone muted</Text>
+              </View>
+            )}
           </View>
 
-          {/* Picture-In-Picture PIP Self Camera (Matches 26_Light_Video Call Room.png) */}
+          {/* Local PiP Preview Box */}
           <View style={styles.pipVideoBox}>
-            <View style={styles.pipInnerCamera}>
-              {selfAvatar ? (
-                <Image
-                  source={{ uri: selfAvatar }}
-                  style={styles.pipAvatarImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={styles.pipInitialsBox}>
-                  <Text style={styles.pipInitialsText}>
-                    {(user?.profile?.fullName || user?.email || 'ME').substring(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              {isMuted && (
-                <View style={styles.pipMuteBadge}>
-                  <MicOff size={10} color="#FFFFFF" />
-                </View>
-              )}
-            </View>
+            {selfAvatar ? (
+              <Image source={{ uri: selfAvatar }} style={styles.pipAvatarImg} resizeMode="cover" />
+            ) : (
+              <View style={styles.pipInitialsBox}>
+                <Text style={styles.pipInitialsText}>
+                  {(user?.profile?.fullName || 'ME').substring(0, 2).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.pipFlipBtn}
+              onPress={() => setIsFrontCamera((c) => !c)}
+              accessibilityLabel="Flip camera"
+            >
+              <SwitchCamera size={13} color={isFrontCamera ? '#FFFFFF' : '#818CF8'} />
+            </TouchableOpacity>
+            {isMuted && (
+              <View style={styles.pipMuteBadge}>
+                <MicOff size={10} color="#FFFFFF" />
+              </View>
+            )}
           </View>
         </View>
       ) : (
-        <View style={styles.centerStage}>
-          <View style={styles.outerPulse}>
-            <View style={styles.avatarBig}>
+        /* Audio Call Center Stage */
+        <View style={styles.audioStage}>
+          {/* Outer Pulse Waves */}
+          <View style={styles.pulseContainer}>
+            <Animated.View
+              style={[
+                styles.pulseWaveOuter,
+                {
+                  transform: [{ scale: pulseAnim }],
+                  opacity: pulseAnim.interpolate({
+                    inputRange: [1, 1.25],
+                    outputRange: [0.35, 0],
+                  }),
+                },
+              ]}
+            />
+            <View style={styles.pulseWaveInner} />
+
+            {/* Main Center Avatar */}
+            <View style={styles.audioAvatarCircle}>
               {displayAvatar ? (
-                <Image
-                  source={{ uri: displayAvatar }}
-                  style={styles.avatarBigImage}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: displayAvatar }} style={styles.audioAvatarImg} resizeMode="cover" />
               ) : (
-                <View style={styles.avatarInitialsBig}>
-                  <Text style={styles.avatarInitialsBigText}>
-                    {(receiverName || 'User').substring(0, 2).toUpperCase()}
+                <View style={styles.audioInitialsCircle}>
+                  <Text style={styles.audioInitialsText}>
+                    {(receiverName || 'U').substring(0, 2).toUpperCase()}
                   </Text>
                 </View>
               )}
             </View>
           </View>
+
+          {/* Caller Details */}
+          <Text style={styles.callerNameText}>{receiverName}</Text>
+          <Text style={styles.callerSubText}>
+            {callState === 'CONNECTED'
+              ? 'High Definition Voice'
+              : callState === 'RINGING'
+              ? 'Ringing...'
+              : 'Calling...'}
+          </Text>
+
+          {/* Animated Waveform Speaking Indicator */}
+          <View style={styles.waveformWrap}>
+            <CallWaveformView
+              isActive={callState === 'CONNECTED' && !peerMuted}
+              barCount={16}
+              maxHeight={32}
+            />
+          </View>
+
+          {/* Active Call Duration */}
+          <Text style={styles.durationBigText}>
+            {callState === 'CONNECTED' ? formatDuration(callDuration) : ' '}
+          </Text>
         </View>
       )}
 
-      {/* Bottom Call Controls */}
-      <View style={styles.controlsArea}>
+      {/* ── Bottom Call Controls Dock ── */}
+      <View style={styles.controlsDock}>
         {isIncoming && callState === 'RINGING' ? (
-          /* Incoming Call Ringing: Accept & Decline Buttons (Matches 23_Light_Voice Call Ringing.png) */
-          <View style={styles.incomingButtonsRow}>
+          /* Incoming Accept & Decline Controls */
+          <View style={styles.incomingControlsRow}>
             <TouchableOpacity
-              style={styles.declineCircleBtn}
+              style={[styles.circleBtn, styles.declineBtn]}
               onPress={handleHangupOrLeave}
               activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Decline incoming call"
+              accessibilityLabel="Decline call"
             >
               <PhoneOff size={28} color="#FFFFFF" strokeWidth={2.4} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.answerCircleBtn}
+              style={[styles.circleBtn, styles.answerBtn]}
               onPress={handleAnswerIncoming}
               disabled={isAnswering}
               activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel="Answer incoming call"
+              accessibilityLabel="Answer call"
             >
               {isAnswering ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -786,86 +979,162 @@ export const ChatCallScreen: React.FC = () => {
               )}
             </TouchableOpacity>
           </View>
+        ) : callState === 'DIALING' || callState === 'RINGING' ? (
+          /* Outgoing Dialing: Single Red Cancel Button */
+          <View style={styles.outgoingControlsRow}>
+            <TouchableOpacity
+              style={[styles.circleBtn, styles.endCallCircleBtn]}
+              onPress={handleHangupOrLeave}
+              activeOpacity={0.85}
+              accessibilityLabel="Cancel call"
+            >
+              <PhoneOff size={28} color="#FFFFFF" strokeWidth={2.4} />
+            </TouchableOpacity>
+            <Text style={styles.controlLabel}>Cancel</Text>
+          </View>
         ) : (
-          /* Active Call Controls (Matches 24_Light_Voice Call Room.png) */
-          <>
-            <View style={styles.controlsRow}>
+          /* Connected Active Call Controls Dock */
+          <View style={styles.dockSurface}>
+            <View style={styles.dockRow}>
+              {/* 1. Mute Toggle */}
               <TouchableOpacity
-                style={[styles.ctrlBtn, isMuted && styles.ctrlBtnActive]}
+                style={[styles.dockBtn, isMuted && styles.dockBtnActiveRed]}
                 onPress={toggleMute}
-                accessibilityRole="button"
+                activeOpacity={0.75}
                 accessibilityLabel={isMuted ? 'Unmute' : 'Mute'}
               >
-                <View style={{ marginBottom: 4 }}>
-                  {isMuted ? <MicOff size={22} color="#EF4444" /> : <Mic size={22} color="#0F172A" />}
-                </View>
-                <Text style={styles.ctrlLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
+                {isMuted ? <MicOff size={22} color="#EF4444" /> : <Mic size={22} color="#F8FAFC" />}
+                <Text style={[styles.dockLabel, isMuted && { color: '#EF4444' }]}>
+                  {isMuted ? 'Muted' : 'Mute'}
+                </Text>
               </TouchableOpacity>
 
+              {/* 2. Video Toggle */}
               <TouchableOpacity
-                style={[styles.ctrlBtn, isVideoEnabled && styles.ctrlBtnActive]}
+                style={[styles.dockBtn, isVideoEnabled && styles.dockBtnActiveIndigo]}
                 onPress={toggleVideo}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle video"
+                activeOpacity={0.75}
+                accessibilityLabel={isVideoEnabled ? 'Turn Video Off' : 'Turn Video On'}
               >
-                <View style={{ marginBottom: 4 }}>
-                  {isVideoEnabled ? <Video size={22} color="#00C278" /> : <VideoOff size={22} color="#94A3B8" />}
-                </View>
-                <Text style={styles.ctrlLabel}>{isVideoEnabled ? 'Video On' : 'Video Off'}</Text>
+                {isVideoEnabled ? (
+                  <Video size={22} color="#818CF8" />
+                ) : (
+                  <VideoOff size={22} color="#94A3B8" />
+                )}
+                <Text style={[styles.dockLabel, isVideoEnabled && { color: '#818CF8' }]}>
+                  {isVideoEnabled ? 'Video On' : 'Video Off'}
+                </Text>
               </TouchableOpacity>
 
+              {/* 3. Speaker Toggle */}
               <TouchableOpacity
-                style={[styles.ctrlBtn, isSpeakerOn && styles.ctrlBtnActive]}
+                style={[styles.dockBtn, isSpeakerOn && styles.dockBtnActiveIndigo]}
                 onPress={() => setIsSpeakerOn((s) => !s)}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle speaker"
+                activeOpacity={0.75}
+                accessibilityLabel="Toggle Speaker"
               >
-                <View style={{ marginBottom: 4 }}>
-                  {isSpeakerOn ? <Volume2 size={22} color="#00C278" /> : <VolumeX size={22} color="#0F172A" />}
-                </View>
-                <Text style={styles.ctrlLabel}>{isSpeakerOn ? 'Speaker' : 'Earpiece'}</Text>
+                {isSpeakerOn ? (
+                  <Volume2 size={22} color="#818CF8" />
+                ) : (
+                  <VolumeX size={22} color="#94A3B8" />
+                )}
+                <Text style={[styles.dockLabel, isSpeakerOn && { color: '#818CF8' }]}>
+                  {isSpeakerOn ? 'Speaker' : 'Earpiece'}
+                </Text>
               </TouchableOpacity>
 
+              {/* 4. Keypad Toggle */}
               <TouchableOpacity
-                style={styles.ctrlBtn}
-                onPress={() => setInviteModalOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Invite colleague"
+                style={styles.dockBtn}
+                onPress={() => setKeypadOpen(true)}
+                activeOpacity={0.75}
+                accessibilityLabel="Open Keypad"
               >
-                <View style={{ marginBottom: 4 }}>
-                  <UserPlus size={22} color="#0F172A" />
-                </View>
-                <Text style={styles.ctrlLabel}>Add to Call</Text>
+                <Hash size={22} color="#F8FAFC" />
+                <Text style={styles.dockLabel}>Keypad</Text>
               </TouchableOpacity>
-            </View>
 
-            <View style={styles.hangupRow}>
+              {/* 5. More Options */}
               <TouchableOpacity
-                style={styles.endCallBtn}
+                style={styles.dockBtn}
+                onPress={() => setMoreOptionsOpen(true)}
+                activeOpacity={0.75}
+                accessibilityLabel="More options"
+              >
+                <MoreVertical size={22} color="#F8FAFC" />
+                <Text style={styles.dockLabel}>More</Text>
+              </TouchableOpacity>
+
+              {/* 6. End Call */}
+              <TouchableOpacity
+                style={[styles.dockBtn, styles.endCallBtn]}
                 onPress={handleHangupOrLeave}
                 activeOpacity={0.85}
-                accessibilityRole="button"
                 accessibilityLabel={isGroupMeeting ? 'Leave meeting' : 'End call'}
               >
-                <PhoneOff size={26} color="#FFFFFF" strokeWidth={2.4} />
+                <PhoneOff size={22} color="#FFFFFF" strokeWidth={2.4} />
+                <Text style={[styles.dockLabel, { color: '#FFFFFF', fontWeight: '700' }]}>
+                  {isGroupMeeting ? 'Leave' : 'End'}
+                </Text>
               </TouchableOpacity>
-
-              {canEndMeetingForAll && (
-                <TouchableOpacity
-                  style={styles.endAllBtn}
-                  onPress={handleEndMeetingForAll}
-                  accessibilityRole="button"
-                  accessibilityLabel="End meeting for all"
-                >
-                  <Text style={styles.endCallText}>End For All</Text>
-                </TouchableOpacity>
-              )}
             </View>
-          </>
+
+            {canEndMeetingForAll && (
+              <TouchableOpacity
+                style={styles.endForAllBtn}
+                onPress={handleEndMeetingForAll}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.endForAllText}>End Meeting for All Participants</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
 
-      {/* Add Colleague to Call Modal */}
+      {/* ── Keypad Modal ── */}
+      <CallKeypadModal
+        visible={keypadOpen}
+        onClose={() => setKeypadOpen(false)}
+        onSendDtmfTone={(digit) => {
+          if (activeCallId) {
+            realtimeManager.emit('call:dtmf', { callId: activeCallId, digit });
+          }
+        }}
+      />
+
+      {/* ── In-Call Options Bottom Sheet ── */}
+      <InCallOptionsBottomSheet
+        visible={moreOptionsOpen}
+        onClose={() => setMoreOptionsOpen(false)}
+        participantCount={participants.length + 1}
+        onOpenParticipants={() => setInviteModalOpen(true)}
+        onOpenInviteColleagues={() => setInviteModalOpen(true)}
+        isScreenSharing={isScreenSharing}
+        onToggleScreenShare={() => setIsScreenSharing((s) => !s)}
+        isHandRaised={isHandRaised}
+        onToggleRaiseHand={() => setIsHandRaised((h) => !h)}
+        isBackgroundBlur={isBackgroundBlur}
+        onToggleBackgroundBlur={() => setIsBackgroundBlur((b) => !b)}
+        onOpenCallInfo={() => {
+          Alert.alert(
+            'Call Information',
+            `Session ID: ${activeCallId || 'N/A'}\nMode: ${callType.toUpperCase()}\nSecurity: End-to-End Encrypted\nRelay: Free STUN Traversal\nMedia: Peer-to-Peer Mesh`
+          );
+        }}
+      />
+
+      {/* ── Hardware Permissions Modal ── */}
+      <CallPermissionModal
+        visible={permissionModalOpen}
+        onClose={() => setPermissionModalOpen(false)}
+        onRequestPermissions={async () => {
+          await requestAppMediaPermissions();
+        }}
+        missingPermissions={callType === 'video' ? ['microphone', 'camera'] : ['microphone']}
+      />
+
+      {/* ── Add Colleague Modal ── */}
       <Modal visible={inviteModalOpen} animationType="slide" transparent onRequestClose={() => setInviteModalOpen(false)}>
         <TouchableOpacity
           style={styles.modalBackdrop}
@@ -880,20 +1149,16 @@ export const ChatCallScreen: React.FC = () => {
             onStartShouldSetResponder={() => true}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add to Call</Text>
-              <TouchableOpacity
-                onPress={() => setInviteModalOpen(false)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityRole="button"
-                accessibilityLabel="Close add to call dialog"
-              >
-                <X size={22} color="#0F172A" />
+              <Text style={styles.modalTitle}>Add Colleague to Call</Text>
+              <TouchableOpacity onPress={() => setInviteModalOpen(false)}>
+                <X size={20} color="#94A3B8" />
               </TouchableOpacity>
             </View>
+
             {contactsQuery.isLoading ? (
-              <ActivityIndicator color="#4F46E5" style={{ marginVertical: 20 }} />
+              <ActivityIndicator color="#6366F1" style={{ marginVertical: 24 }} />
             ) : (
-              <ScrollView style={{ maxHeight: 360 }}>
+              <ScrollView style={{ maxHeight: 380 }}>
                 {(contactsQuery.data || [])
                   .filter((c) => c.userId !== user?.id)
                   .map((c) => {
@@ -912,7 +1177,7 @@ export const ChatCallScreen: React.FC = () => {
                       }
                     } else {
                       const seed = encodeURIComponent(c.name || c.userId || 'colleague');
-                      rawAvatar = `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=00d287`;
+                      rawAvatar = `https://api.dicebear.com/7.x/avataaars/png?seed=${seed}&backgroundColor=6366f1`;
                     }
 
                     return (
@@ -922,12 +1187,11 @@ export const ChatCallScreen: React.FC = () => {
                         onPress={() => handleInviteColleague(c.userId, c.name, rawAvatar)}
                         activeOpacity={0.7}
                       >
-                        <Image
-                          source={{ uri: rawAvatar }}
-                          style={styles.inviteAvatar}
-                        />
+                        <Image source={{ uri: rawAvatar }} style={styles.inviteAvatar} />
                         <View style={{ flex: 1, marginRight: 10 }}>
-                          <Text style={styles.inviteName} numberOfLines={1}>{c.name}</Text>
+                          <Text style={styles.inviteName} numberOfLines={1}>
+                            {c.name}
+                          </Text>
                           {Boolean(c.department || c.designation) && (
                             <Text style={styles.inviteRoleText} numberOfLines={1}>
                               {[c.designation, c.department].filter(Boolean).join(' • ')}
@@ -935,7 +1199,7 @@ export const ChatCallScreen: React.FC = () => {
                           )}
                         </View>
                         <View style={styles.inviteAddBadge}>
-                          <Text style={styles.inviteAction}>Add +</Text>
+                          <Text style={styles.inviteAction}>Invite +</Text>
                         </View>
                       </TouchableOpacity>
                     );
@@ -952,408 +1216,436 @@ export const ChatCallScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0B0F19',
     justifyContent: 'space-between',
-    paddingTop: 0,
-    paddingBottom: 0,
-    paddingHorizontal: 20,
   },
-  topSection: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    zIndex: 10,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  badgeText: {
-    color: '#00A86B',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    marginBottom: 8,
+  headerCenter: {
+    alignItems: 'center',
   },
-  titleText: {
-    color: '#0F172A',
-    fontSize: 26,
-    fontWeight: '800',
+  headerTitle: {
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '700',
+    maxWidth: 220,
+    textAlign: 'center',
+  },
+  networkBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  networkBadgeText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  audioStage: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  pulseContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  pulseWaveOuter: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(99, 102, 241, 0.3)',
+  },
+  pulseWaveInner: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+  },
+  audioAvatarCircle: {
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    borderWidth: 3,
+    borderColor: '#6366F1',
+    overflow: 'hidden',
+    backgroundColor: '#1E293B',
+    elevation: 8,
+    shadowColor: '#6366F1',
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+  },
+  audioAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  audioInitialsCircle: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#312E81',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  audioInitialsText: {
+    color: '#FFFFFF',
+    fontSize: 44,
+    fontWeight: '700',
+  },
+  callerNameText: {
+    color: '#F8FAFC',
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
     marginBottom: 6,
   },
-  statusText: {
-    color: '#64748B',
-    fontSize: 15,
-    fontWeight: '600',
+  callerSubText: {
+    color: '#94A3B8',
+    fontSize: 14,
+    marginBottom: 16,
   },
-  peerMutedNote: {
-    color: '#F59E0B',
-    fontSize: 12,
-    marginTop: 6,
+  waveformWrap: {
+    marginVertical: 12,
   },
-  webrtcNotice: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginTop: 12,
+  durationBigText: {
+    color: '#818CF8',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginTop: 4,
   },
-  webrtcNoticeText: {
-    color: '#64748B',
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  centerStage: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outerPulse: {
-    width: 176,
-    height: 176,
-    borderRadius: 88,
-    backgroundColor: 'rgba(0, 210, 135, 0.12)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarBig: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: '#00D287',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#00D287',
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+  videoStage: {
+    flex: 1,
+    position: 'relative',
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 24,
     overflow: 'hidden',
   },
-  avatarBigImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 70,
-  },
-  avatarInitialsBig: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 70,
-    backgroundColor: '#00D287',
+  remoteVideoContainer: {
+    flex: 1,
+    backgroundColor: '#1E293B',
+    borderRadius: 24,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarInitialsBigText: {
-    color: '#FFFFFF',
-    fontSize: 44,
-    fontWeight: '800',
+  videoAvatarFull: {
+    width: '100%',
+    height: '100%',
   },
-  avatarBigText: {
+  videoInitialsFull: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#312E81',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoInitialsText: {
     color: '#FFFFFF',
-    fontSize: 44,
-    fontWeight: '800',
+    fontSize: 40,
+    fontWeight: '700',
+  },
+  videoInfoBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  videoInfoName: {
+    color: '#F8FAFC',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  videoInfoTime: {
+    color: '#818CF8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  peerMutedBadge: {
+    position: 'absolute',
+    bottom: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  peerMutedBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  pipVideoBox: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    width: 96,
+    height: 136,
+    borderRadius: 16,
+    backgroundColor: '#0F172A',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    overflow: 'hidden',
+    elevation: 8,
+  },
+  pipAvatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  pipInitialsBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#312E81',
+  },
+  pipInitialsText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  pipFlipBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pipMuteBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   gridWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 12,
-    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   tileCard: {
-    width: '45%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 16,
+    width: (SCREEN_WIDTH - 44) / 2,
+    aspectRatio: 1.1,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 18,
+    padding: 12,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'relative',
+  },
+  tileCardActiveSpeaker: {
+    borderColor: '#6366F1',
+    borderWidth: 2,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
   },
   tileAvatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginBottom: 6,
-    backgroundColor: '#E2E8F0',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    marginBottom: 8,
   },
   tileInitialsBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#00D287',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#312E81',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   tileInitials: {
     color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
+  },
+  tileInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   tileName: {
-    color: '#475569',
+    color: '#F8FAFC',
     fontSize: 12,
     fontWeight: '600',
+    maxWidth: 90,
   },
-  removePeerBtn: {
-    marginTop: 8,
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  handBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    padding: 4,
     borderRadius: 8,
   },
+  removePeerBtn: {
+    marginTop: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
   removePeerText: {
-    color: '#DC2626',
+    color: '#EF4444',
     fontSize: 10,
     fontWeight: '700',
   },
-  controlsArea: {
-    alignItems: 'center',
+  controlsDock: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  controlsRow: {
+  dockSurface: {
+    backgroundColor: 'rgba(30, 41, 59, 0.85)',
+    borderRadius: 28,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dockRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 24,
-  },
-  ctrlBtn: {
-    minWidth: 64,
-    minHeight: 64,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 10,
   },
-  ctrlBtnActive: {
-    backgroundColor: '#E8F8F0',
+  dockBtn: {
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 48,
   },
-  ctrlIcon: {
-    fontSize: 22,
-    marginBottom: 4,
+  dockBtnActiveIndigo: {
+    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 14,
   },
-  ctrlLabel: {
-    color: '#475569',
-    fontSize: 11,
+  dockBtnActiveRed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+  },
+  dockLabel: {
+    color: '#94A3B8',
+    fontSize: 10,
     fontWeight: '600',
   },
-  hangupRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
   endCallBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#EF4444',
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    gap: 0,
   },
-  endAllBtn: {
-    minHeight: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    backgroundColor: '#991B1B',
-    justifyContent: 'center',
+  endForAllBtn: {
+    marginTop: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    paddingVertical: 8,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  endCallText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
+  endForAllText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '700',
   },
-  incomingButtonsRow: {
+  incomingControlsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    width: '100%',
-    paddingHorizontal: 24,
-    marginBottom: 10,
+    alignItems: 'center',
+    paddingVertical: 10,
   },
-  answerCircleBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#00D287',
+  outgoingControlsRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  circleBtn: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 6,
-    shadowColor: '#00D287',
-    shadowOpacity: 0.45,
+  },
+  answerBtn: {
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.4,
     shadowRadius: 10,
   },
-  declineCircleBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+  declineBtn: {
     backgroundColor: '#EF4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 6,
     shadowColor: '#EF4444',
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.4,
     shadowRadius: 10,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  closeModalText: {
-    fontSize: 18,
-    color: '#64748B',
-    fontWeight: '700',
-  },
-  inviteRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  inviteName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  inviteRoleText: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  inviteAddBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  inviteAction: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4F46E5',
-  },
-  videoStage: {
-    flex: 1,
-    width: '100%',
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 12,
-  },
-  peerVideoSurface: {
-    width: '100%',
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoPeerName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 14,
-  },
-  pipVideoBox: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 100,
-    height: 140,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#00D287',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-    overflow: 'hidden',
-  },
-  pipInnerCamera: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pipAvatarImage: {
-    width: '100%',
-    height: '100%',
-  },
-  pipInitialsBox: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#1E293B',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pipInitialsText: {
-    color: '#00D287',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  pipInitials: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '800',
-  },
-  pipMuteBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
+  endCallCircleBtn: {
     backgroundColor: '#EF4444',
-    padding: 3,
-    borderRadius: 6,
+    shadowColor: '#EF4444',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
   },
-
-  // Invite modal avatar styles
-  inviteAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
+  controlLabel: {
+    color: '#94A3B8',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  inviteAvatarFallback: {
-    backgroundColor: '#00D287',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  inviteAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-
-  // 'No Response' screen styles
   noAnswerAvatarCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#00D287',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: '#312E81',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   noAnswerAvatarText: {
     color: '#FFFFFF',
@@ -1363,26 +1655,26 @@ const styles = StyleSheet.create({
   noAnswerName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#F8FAFC',
     marginBottom: 4,
   },
   noAnswerHeading: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#EF4444',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   noAnswerSub: {
     fontSize: 13,
     color: '#94A3B8',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   noAnswerPhoneWrap: {
-    marginVertical: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FEE2E2',
+    marginVertical: 16,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1390,13 +1682,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 50,
+    paddingHorizontal: 22,
+    borderRadius: 24,
     gap: 8,
   },
   noAnswerBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: '#0F172A',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#F8FAFC',
+  },
+  inviteRow: {
+    paddingVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  inviteAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  inviteName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F8FAFC',
+  },
+  inviteRoleText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  inviteAddBadge: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  inviteAction: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#818CF8',
   },
 });

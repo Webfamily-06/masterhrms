@@ -32,14 +32,17 @@ export type SharedCollaborationModuleParamList = {
   ChatCall: {
     callId?: string;
     receiverId?: string;
-    receiverName: string;
+    receiverName?: string;
     receiverAvatar?: string;
-    callType: 'audio' | 'video';
+    callerAvatar?: string;
+    callType?: 'audio' | 'video';
     threadId?: string;
     groupId?: string;
     groupName?: string;
     isGroupMeeting?: boolean;
     isIncoming?: boolean;
+    hasAccepted?: boolean;
+    initialStatus?: string;
   };
   CalendarMain:
     | {

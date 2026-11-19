@@ -13,8 +13,13 @@ describe('MasterHRMS Mobile Environment Configuration & Interceptors', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    jest.resetModules();
-    process.env = { ...originalEnv };
+    // Mutate process.env in place so references to process.env (like expo/virtual/env) remain valid
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) {
+        delete process.env[key];
+      }
+    }
+    Object.assign(process.env, originalEnv);
   });
 
   afterAll(() => {
@@ -29,8 +34,8 @@ describe('MasterHRMS Mobile Environment Configuration & Interceptors', () => {
   });
 
   it('development defaults to the local backend and never to production', () => {
-    delete process.env.EXPO_PUBLIC_APP_ENV;
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    delete process.env['EXPO_PUBLIC_APP_ENV'];
+    delete process.env['EXPO_PUBLIC_API_BASE_URL'];
 
     const env = resolveEnvironment();
     expect(env).toBe('development');
@@ -42,27 +47,27 @@ describe('MasterHRMS Mobile Environment Configuration & Interceptors', () => {
   });
 
   it('respects developer-configured EXPO_PUBLIC_API_BASE_URL', () => {
-    process.env.EXPO_PUBLIC_API_BASE_URL = 'http://192.168.1.200:4000';
+    process.env['EXPO_PUBLIC_API_BASE_URL'] = 'http://192.168.1.200:4000';
     const devUrl = resolveDevelopmentApiUrl();
     expect(devUrl).toBe('http://192.168.1.200:4000');
   });
 
   it('respects developer-configured EXPO_PUBLIC_DEV_LAN_IP', () => {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
-    process.env.EXPO_PUBLIC_DEV_LAN_IP = '192.168.1.250';
+    delete process.env['EXPO_PUBLIC_API_BASE_URL'];
+    process.env['EXPO_PUBLIC_DEV_LAN_IP'] = '192.168.1.250';
     const devUrl = resolveDevelopmentApiUrl();
     expect(devUrl).toBe('http://192.168.1.250:4000');
   });
 
   it('resolves production explicitly to https://www.masterhrms.com when configured', () => {
-    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    process.env['EXPO_PUBLIC_APP_ENV'] = 'production';
     expect(resolveEnvironment()).toBe('production');
     expect(getResolvedApiBaseUrl()).toBe('https://www.masterhrms.com');
   });
 
   it('staging requires explicit configuration value', () => {
-    process.env.EXPO_PUBLIC_APP_ENV = 'staging';
-    process.env.EXPO_PUBLIC_STAGING_API_BASE_URL = 'https://staging.masterhrms.com';
+    process.env['EXPO_PUBLIC_APP_ENV'] = 'staging';
+    process.env['EXPO_PUBLIC_STAGING_API_BASE_URL'] = 'https://staging.masterhrms.com';
     expect(resolveStagingApiUrl()).toBe('https://staging.masterhrms.com');
   });
 

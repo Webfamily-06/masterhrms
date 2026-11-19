@@ -6,7 +6,6 @@ import { secureStorage } from '../../core/storage/secureStorage';
 import { STORAGE_KEYS } from '../../config/constants';
 import { AuthService } from '../../core/auth/authService';
 import { BiometricService } from '../../core/auth/biometricService';
-import { requestAppMediaPermissions } from '../../core/services/permissionService';
 import { PushNotificationService } from '../../core/services/pushNotificationService';
 import { LoadingView } from '../../components/common/LoadingView';
 import { Text } from '../../components/common/Text';
@@ -14,6 +13,8 @@ import { Button } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 import { useTheme } from '../providers/ThemeProvider';
 import { RootNavigator } from '../navigation/RootNavigator';
+import { FloatingMiniCallWidget } from '../../components/calling/FloatingMiniCallWidget';
+import { FullScreenIncomingCallModal } from '../../components/calling/FullScreenIncomingCallModal';
 
 export const AppBootstrap: React.FC = () => {
   const { theme } = useTheme();
@@ -67,9 +68,6 @@ export const AppBootstrap: React.FC = () => {
   useEffect(() => {
     async function bootstrap() {
       try {
-        // Request mandatory Camera, Microphone, and Notification permissions on boot
-        void requestAppMediaPermissions();
-
         // 1. Restore last-known tenant workspace slug / id
         const savedTenantSlug = await secureStorage.getItem(STORAGE_KEYS.TENANT_SLUG);
         const savedTenantId = await secureStorage.getItem(STORAGE_KEYS.TENANT_ID);
@@ -154,7 +152,13 @@ export const AppBootstrap: React.FC = () => {
     );
   }
 
-  return <RootNavigator />;
+  return (
+    <>
+      <RootNavigator />
+      <FloatingMiniCallWidget />
+      <FullScreenIncomingCallModal />
+    </>
+  );
 };
 
 const styles = StyleSheet.create({

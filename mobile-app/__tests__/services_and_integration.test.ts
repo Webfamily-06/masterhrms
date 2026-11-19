@@ -274,11 +274,16 @@ describe('MasterHRMS Mobile Services & Integration Suites', () => {
   });
 
   describe('NotificationService & PushNotificationService', () => {
-    it('registers push notification token', async () => {
-      (apiClient.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
-
+    it('registers native device token with backend device-token endpoint', async () => {
+      (apiClient.post as jest.Mock).mockResolvedValueOnce({
+        data: { success: true, message: 'Native device push token registered successfully' },
+      });
       const registered = await NotificationService.registerDeviceToken('token-12345', 'android');
       expect(registered).toBe(true);
+      expect(apiClient.post).toHaveBeenCalledWith('/api/notifications/push/device-token', {
+        token: 'token-12345',
+        platform: 'android',
+      });
     });
 
     it('truthfully reports push capability status without sending fake VAPID tokens', () => {

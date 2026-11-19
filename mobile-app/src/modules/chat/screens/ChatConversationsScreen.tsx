@@ -24,16 +24,19 @@ import {
   MessageSquare,
   Users,
   Megaphone,
-  Phone,
-  Video,
   Bell,
   BellOff,
   Mail,
   Check,
   CheckSquare,
   Square,
-  ArrowUpRight,
-  ArrowDownLeft,
+  Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
+  PhoneMissed,
+  Video,
+  Plus,
+  Trash2,
 } from 'lucide-react-native';
 import {
   WorkspaceModuleShell,
@@ -41,7 +44,7 @@ import {
   WorkspaceErrorBlock,
   WorkspaceEmptyBlock,
 } from '../../../components/workspace/WorkspaceModuleShell';
-import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { createTenantQueryKey } from '../../../core/query/tenantQueryKeys';
 import { useAuthStore } from '../../../store/authStore';
 import { usePermission } from '../../../hooks/usePermission';
 import { realtimeManager } from '../../../core/realtime/realtimeManager';
@@ -51,9 +54,10 @@ import {
   ChatConversation,
   ChatContact,
   ChatGroupDetail,
-  CallLogItem,
   OrgGroupTemplate,
 } from '../../../core/services/chatService';
+import { CallOptionsBottomSheet } from '../../../components/calling/CallOptionsBottomSheet';
+import { GroupCallSetupModal } from '../../../components/calling/GroupCallSetupModal';
 
 type ChatWorkspaceTab = 'chats' | 'groups' | 'contacts' | 'calls';
 
@@ -70,13 +74,13 @@ export const ChatConversationsScreen: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
 
-  // Call logs filters
-  const [callTypeFilter, setCallTypeFilter] = useState<'all' | 'audio' | 'video'>('all');
-  const [callStatusFilter, setCallStatusFilter] = useState<'all' | 'COMPLETED' | 'MISSED'>('all');
-  const [selectedCallDetail, setSelectedCallDetail] = useState<CallLogItem | null>(null);
 
   // Thread context action modal
   const [contextConv, setContextConv] = useState<ChatConversation | null>(null);
+
+  // Call Options Bottom Sheet & Group Call Setup Modal
+  const [callOptionsTarget, setCallOptionsTarget] = useState<ChatContact | null>(null);
+  const [groupSetupOpen, setGroupSetupOpen] = useState(false);
 
   // New Chat / Create Group / Join Invite modal
   const [newModalVisible, setNewModalVisible] = useState(false);
@@ -155,6 +159,26 @@ export const ChatConversationsScreen: React.FC = () => {
     enabled: activeTab === 'contacts' || newModalVisible,
   });
 
+  // Calls query & filter
+  const [callFilter, setCallFilter] = useState<'all' | 'missed'>('all');
+  const callsQuery = useQuery({
+    queryKey: createTenantQueryKey(['chat', 'calls', callFilter]),
+    queryFn: () =>
+      ChatService.getCallLogs({
+        status: callFilter === 'missed' ? 'missed' : undefined,
+        limit: 50,
+      }),
+    enabled: activeTab === 'calls',
+    refetchInterval: 15000,
+  });
+
+  const deleteCallMutation = useMutation({
+    mutationFn: (id: string) => ChatService.deleteCallRecord(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['chat', 'calls']) });
+    },
+  });
+
   // Org templates query
   const templatesQuery = useQuery({
     queryKey: createTenantQueryKey(['chat', 'org-templates']),
@@ -162,24 +186,6 @@ export const ChatConversationsScreen: React.FC = () => {
     enabled: newModalVisible && newModalMode === 'org_template',
   });
 
-  // Call logs query
-  const callsQuery = useQuery({
-    queryKey: createTenantQueryKey([
-      'chat',
-      'calls',
-      callTypeFilter,
-      callStatusFilter,
-      debouncedSearch,
-    ]),
-    queryFn: () =>
-      ChatService.getCalls({
-        search: activeTab === 'calls' && debouncedSearch ? debouncedSearch : undefined,
-        callType: callTypeFilter === 'all' ? undefined : callTypeFilter,
-        status: callStatusFilter === 'all' ? undefined : callStatusFilter,
-        limit: 40,
-      }),
-    enabled: activeTab === 'calls',
-  });
 
   // Global search query (>= 2 chars in Personal or Groups tabs)
   const globalSearchQuery = useQuery({
@@ -330,22 +336,21 @@ export const ChatConversationsScreen: React.FC = () => {
     },
   });
 
-  const deleteCallMutation = useMutation({
-    mutationFn: (callId: string) => ChatService.deleteCallLog(callId),
-    onSuccess: () => {
-      setSelectedCallDetail(null);
-      void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['chat', 'calls']) });
-    },
-    onError: (err: any) => {
-      Alert.alert('Error', err?.message || 'Failed to remove call log.');
-    },
-  });
 
-  // Filtered conversations
-  const allConversations = useMemo(
-    () => conversationsQuery.data || [],
-    [conversationsQuery.data]
-  );
+  // Filtered conversations with strict canonical threadId deduplication
+  const allConversations = useMemo(() => {
+    const list = conversationsQuery.data || [];
+    const seen = new Set<string>();
+    const deduped: ChatConversation[] = [];
+    for (const c of list) {
+      const key = String(c.threadId || c.id || '').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(c);
+    }
+    return deduped;
+  }, [conversationsQuery.data]);
+
   const visibleConversations = useMemo(() => {
     return allConversations.filter((c) => {
       if (!showArchived && c.isArchived) return false;
@@ -382,38 +387,42 @@ export const ChatConversationsScreen: React.FC = () => {
     [allConversations]
   );
 
-  // Alphabetical contacts
+  // Alphabetical contacts with canonical userId deduplication
   const filteredContacts = useMemo(() => {
     const list = (contactsQuery.data || []).filter((c) => c.userId !== user?.id);
+    const seen = new Set<string>();
+    const dedupedList: any[] = [];
+    for (const c of list) {
+      const key = String(c.userId || c.id || '').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      dedupedList.push(c);
+    }
     const q = (activeTab === 'contacts' ? debouncedSearch : contactFilter).toLowerCase();
     const matched = q
-      ? list.filter(
+      ? dedupedList.filter(
           (c) =>
             c.name.toLowerCase().includes(q) ||
             c.email.toLowerCase().includes(q) ||
             (c.department || '').toLowerCase().includes(q) ||
             (c.designation || '').toLowerCase().includes(q)
         )
-      : list;
+      : dedupedList;
     return [...matched].sort((a, b) => a.name.localeCompare(b.name));
   }, [contactsQuery.data, user?.id, activeTab, debouncedSearch, contactFilter]);
 
-  // Call logs stats
-  const callRecords = useMemo(
-    () => callsQuery.data?.calls || [],
-    [callsQuery.data?.calls]
-  );
-  const callStats = useMemo(() => {
-    const total = callsQuery.data?.total ?? callRecords.length;
-    const completed = callRecords.filter((c) => c.status === 'COMPLETED' || c.status === 'CONNECTED').length;
-    const missed = callRecords.filter((c) =>
-      ['MISSED', 'NO_ANSWER', 'REJECTED', 'CANCELLED'].includes(c.status)
-    ).length;
-    const outgoing = callRecords.filter(
-      (c) => c.direction === 'outgoing' || c.callerId === user?.id
-    ).length;
-    return { total, completed, missed, outgoing, incoming: Math.max(0, callRecords.length - outgoing) };
-  }, [callRecords, callsQuery.data?.total, user?.id]);
+  const deduplicatedCalls = useMemo(() => {
+    const list = callsQuery.data?.calls || [];
+    const seen = new Set<string>();
+    const deduped: any[] = [];
+    for (const c of list) {
+      const key = String(c.id || '').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(c);
+    }
+    return deduped;
+  }, [callsQuery.data?.calls]);
 
   const openConversation = (conv: ChatConversation) => {
     navigation.navigate('ChatConversationDetail', {
@@ -438,21 +447,6 @@ export const ChatConversationsScreen: React.FC = () => {
     });
   };
 
-  const dialColleague = (targetUserId: string, targetName: string, callType: 'audio' | 'video', threadId?: string) => {
-    if (!targetUserId || targetUserId === user?.id) {
-      Alert.alert('Call Error', 'Please select a valid colleague to call.');
-      return;
-    }
-    navigation.navigate('ChatCall', {
-      receiverId: targetUserId,
-      receiverName: targetName,
-      callType,
-      threadId,
-      isGroupMeeting: false,
-      isIncoming: false,
-    });
-  };
-
   const formatTimestamp = (iso?: string) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -464,24 +458,15 @@ export const ChatConversationsScreen: React.FC = () => {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  const formatDurationSec = (sec: number) => {
-    if (!sec || sec <= 0) return '0:00';
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
   const isRefreshing =
     conversationsQuery.isRefetching ||
     groupsQuery.isRefetching ||
-    contactsQuery.isRefetching ||
-    callsQuery.isRefetching;
+    contactsQuery.isRefetching;
 
   const handleRefresh = () => {
     void conversationsQuery.refetch();
     if (activeTab === 'groups') void groupsQuery.refetch();
     if (activeTab === 'contacts') void contactsQuery.refetch();
-    if (activeTab === 'calls') void callsQuery.refetch();
   };
 
   return (
@@ -510,9 +495,7 @@ export const ChatConversationsScreen: React.FC = () => {
               <TextInput
                 style={styles.searchInput}
                 placeholder={
-                  activeTab === 'calls'
-                    ? 'Search call history...'
-                    : activeTab === 'contacts'
+                  activeTab === 'contacts'
                     ? 'Search organization directory...'
                     : 'Search messages, files & chats...'
                 }
@@ -539,14 +522,18 @@ export const ChatConversationsScreen: React.FC = () => {
             )}
           </View>
 
-          {/* 4-Mode Workspace Switcher: Personal | Groups | Contacts | Call Logs */}
+          {/* 4-Mode Workspace Switcher: Personal | Groups | Contacts | Calls */}
           <View style={styles.modeTabsRow}>
             {(
               [
                 { key: 'chats', label: 'Personal', badge: directUnreadTotal },
                 { key: 'groups', label: 'Groups', badge: groupUnreadTotal },
                 { key: 'contacts', label: 'Contacts', badge: 0 },
-                { key: 'calls', label: 'Call Logs', badge: 0 },
+                {
+                  key: 'calls',
+                  label: 'Calls',
+                  badge: (callsQuery.data?.calls || []).filter((c) => c.status === 'missed').length,
+                },
               ] as const
             ).map((tab) => {
               const selected = activeTab === tab.key;
@@ -876,31 +863,43 @@ export const ChatConversationsScreen: React.FC = () => {
                     <View style={styles.contactQuickActions}>
                       <TouchableOpacity
                         style={styles.quickActionCircle}
-                        onPress={() => startDirectMutation.mutate(contact)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Message ${contact.name}`}
-                      >
-                        <MessageSquare size={16} color="#4F46E5" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.quickActionCircle}
                         onPress={() =>
-                          dialColleague(contact.userId, contact.name, 'audio', contact.threadId)
-                        }
-                        accessibilityRole="button"
-                        accessibilityLabel={`Audio call ${contact.name}`}
-                      >
-                        <Phone size={16} color="#10B981" />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.quickActionCircle}
-                        onPress={() =>
-                          dialColleague(contact.userId, contact.name, 'video', contact.threadId)
+                          navigation.navigate('ChatCall', {
+                            receiverId: contact.userId,
+                            receiverName: contact.name,
+                            receiverAvatar: contact.avatar,
+                            callType: 'video',
+                            isIncoming: false,
+                          })
                         }
                         accessibilityRole="button"
                         accessibilityLabel={`Video call ${contact.name}`}
                       >
-                        <Video size={16} color="#6366F1" />
+                        <Video size={16} color="#10B981" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.quickActionCircle}
+                        onPress={() =>
+                          navigation.navigate('ChatCall', {
+                            receiverId: contact.userId,
+                            receiverName: contact.name,
+                            receiverAvatar: contact.avatar,
+                            callType: 'audio',
+                            isIncoming: false,
+                          })
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Voice call ${contact.name}`}
+                      >
+                        <Phone size={16} color="#4F46E5" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.quickActionCircle}
+                        onPress={() => startDirectMutation.mutate(contact)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Message ${contact.name}`}
+                      >
+                        <MessageSquare size={16} color="#64748B" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -910,148 +909,134 @@ export const ChatConversationsScreen: React.FC = () => {
           </>
         )}
 
-        {/* TAB 4: CALL LOGS WORKSPACE */}
         {activeTab === 'calls' && (
           <>
-            {/* 4 KPI Stat Cards */}
-            <View style={styles.kpiGrid}>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiValue}>{callStats.total}</Text>
-                <Text style={styles.kpiLabel}>Total Calls</Text>
-              </View>
-              <View style={styles.kpiCard}>
-                <Text style={[styles.kpiValue, { color: '#10B981' }]}>{callStats.completed}</Text>
-                <Text style={styles.kpiLabel}>Completed</Text>
-              </View>
-              <View style={styles.kpiCard}>
-                <Text style={[styles.kpiValue, { color: '#EF4444' }]}>{callStats.missed}</Text>
-                <Text style={styles.kpiLabel}>Missed / No Ans</Text>
-              </View>
-              <View style={styles.kpiCard}>
-                <Text style={styles.kpiValue}>
-                  {callStats.incoming} / {callStats.outgoing}
-                </Text>
-                <Text style={styles.kpiLabel}>In / Out</Text>
-              </View>
-            </View>
+            {/* Quick action bar: New Call / Group Call */}
+            <View style={styles.callsQuickBar}>
+              <TouchableOpacity
+                style={styles.callsNewBtn}
+                onPress={() => setGroupSetupOpen(true)}
+              >
+                <Plus size={16} color="#FFFFFF" />
+                <Text style={styles.callsNewBtnText}>New Call</Text>
+              </TouchableOpacity>
 
-            {/* Call Filter Chips */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.callFiltersRow}
-            >
-              {(['all', 'audio', 'video'] as const).map((ct) => (
+              <View style={styles.callFilterRow}>
                 <TouchableOpacity
-                  key={ct}
-                  style={[styles.filterPill, callTypeFilter === ct && styles.filterPillActive]}
-                  onPress={() => setCallTypeFilter(ct)}
+                  style={[styles.callFilterChip, callFilter === 'all' && styles.callFilterChipActive]}
+                  onPress={() => setCallFilter('all')}
                 >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    {ct === 'audio' && (
-                      <Phone size={12} color={callTypeFilter === ct ? '#FFFFFF' : '#64748B'} />
-                    )}
-                    {ct === 'video' && (
-                      <Video size={12} color={callTypeFilter === ct ? '#FFFFFF' : '#64748B'} />
-                    )}
-                    <Text
-                      style={[
-                        styles.filterPillText,
-                        callTypeFilter === ct && styles.filterPillTextActive,
-                      ]}
-                    >
-                      {ct === 'all' ? 'All Types' : ct === 'audio' ? 'Audio' : 'Video'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {(['all', 'COMPLETED', 'MISSED'] as const).map((st) => (
-                <TouchableOpacity
-                  key={st}
-                  style={[styles.filterPill, callStatusFilter === st && styles.filterPillActive]}
-                  onPress={() => setCallStatusFilter(st)}
-                >
-                  <Text
-                    style={[
-                      styles.filterPillText,
-                      callStatusFilter === st && styles.filterPillTextActive,
-                    ]}
-                  >
-                    {st === 'all' ? 'All Status' : st}
+                  <Text style={[styles.callFilterText, callFilter === 'all' && styles.callFilterTextActive]}>
+                    All
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+                <TouchableOpacity
+                  style={[styles.callFilterChip, callFilter === 'missed' && styles.callFilterChipActive]}
+                  onPress={() => setCallFilter('missed')}
+                >
+                  <Text style={[styles.callFilterText, callFilter === 'missed' && styles.callFilterTextActive]}>
+                    Missed
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {callsQuery.isLoading ? (
               <WorkspaceLoadingBlock message="Loading call history..." />
             ) : callsQuery.isError ? (
               <WorkspaceErrorBlock
-                message={(callsQuery.error as any)?.message || 'Failed to load call logs.'}
+                message={(callsQuery.error as any)?.message || 'Failed to load call history.'}
                 onRetry={() => callsQuery.refetch()}
               />
-            ) : callRecords.length === 0 ? (
+            ) : deduplicatedCalls.length === 0 ? (
               <WorkspaceEmptyBlock
-                title="No Call History Found"
-                description="Audio and video calls made within your workspace will appear here."
+                title={callFilter === 'missed' ? 'No Missed Calls' : 'No Call History'}
+                description={
+                  callFilter === 'missed'
+                    ? 'You have caught up with all incoming team calls.'
+                    : 'Audio and video calls with your team members will be logged here.'
+                }
               />
             ) : (
-              callRecords.map((call) => {
-                const isOutgoing = call.callerId === user?.id || call.direction === 'outgoing';
-                const peerId = isOutgoing ? call.receiverId : call.callerId;
-                const peerName = isOutgoing ? call.receiverName : call.callerName;
-                const isMissed = ['MISSED', 'NO_ANSWER', 'REJECTED'].includes(call.status);
+              deduplicatedCalls.map((call) => {
+                const isMissed = call.status === 'missed';
+                const isIncoming = call.direction === 'incoming' || call.computedDirection === 'incoming';
+                const isVideo = call.callType === 'video';
+                const displayName = call.contactName || (isIncoming ? call.callerName : call.receiverName) || 'Colleague';
+                let avatarUri = call.contactAvatarUrl || (isIncoming ? call.callerAvatarUrl : call.receiverAvatarUrl);
+                if (avatarUri && avatarUri.includes('api.dicebear.com') && avatarUri.includes('/svg?')) {
+                  avatarUri = avatarUri.replace('/svg?', '/png?');
+                }
+                const otherPartyId = call.otherUserId || (isIncoming ? call.callerId : call.receiverId);
 
                 return (
-                  <TouchableOpacity
-                    key={call.id}
-                    style={styles.convCard}
-                    onPress={() => setSelectedCallDetail(call)}
-                  >
-                    <View style={styles.avatarCircle}>
-                      {call.callType === 'video' ? (
-                        <Video size={16} color="#6366F1" />
+                  <View key={call.id} style={styles.convCard}>
+                    <View style={styles.avatarWrap}>
+                      {avatarUri ? (
+                        <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
                       ) : (
-                        <Phone size={16} color="#10B981" />
-                      )}
-                    </View>
-                    <View style={styles.convDetails}>
-                      <View style={styles.convTopRow}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }}>
-                          {isOutgoing ? (
-                            <ArrowUpRight size={14} color="#64748B" />
-                          ) : (
-                            <ArrowDownLeft size={14} color={isMissed ? '#DC2626' : '#10B981'} />
-                          )}
-                          <Text
-                            style={[styles.convName, isMissed && { color: '#DC2626' }]}
-                            numberOfLines={1}
-                          >
-                            {peerName}
+                        <View style={[styles.avatarCircle, isMissed && { backgroundColor: '#7F1D1D' }]}>
+                          <Text style={styles.avatarInitials}>
+                            {displayName.substring(0, 2).toUpperCase()}
                           </Text>
                         </View>
-                        <Text style={styles.convTime}>{formatTimestamp(call.createdAt)}</Text>
-                      </View>
-                      <Text style={styles.convSnippet}>
-                        {call.status} • {formatDurationSec(call.durationSeconds)}
-                      </Text>
+                      )}
                     </View>
 
-                    {peerId && peerId !== user?.id && (
+                    <View style={styles.convDetails}>
+                      <Text style={[styles.convName, isMissed && { color: '#EF4444' }]} numberOfLines={1}>
+                        {displayName}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                        {isMissed ? (
+                          <PhoneMissed size={13} color="#EF4444" />
+                        ) : isIncoming ? (
+                          <PhoneIncoming size={13} color="#10B981" />
+                        ) : (
+                          <PhoneOutgoing size={13} color="#4F46E5" />
+                        )}
+                        <Text style={styles.convSnippet}>
+                          {isMissed
+                            ? 'Missed call'
+                            : `${call.durationSeconds ? Math.floor(call.durationSeconds / 60) + 'm ' + (call.durationSeconds % 60) + 's' : 'Connected'} • ${
+                                call.callTime ? new Date(call.callTime).toLocaleDateString() : ''
+                              }`}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.contactQuickActions}>
                       <TouchableOpacity
                         style={styles.quickActionCircle}
-                        onPress={() => dialColleague(peerId, peerName, call.callType, call.threadId)}
+                        onPress={() =>
+                          navigation.navigate('ChatCall', {
+                            receiverId: otherPartyId,
+                            receiverName: displayName,
+                            receiverAvatar: avatarUri,
+                            callType: isVideo ? 'video' : 'audio',
+                            isIncoming: false,
+                          })
+                        }
                         accessibilityRole="button"
-                        accessibilityLabel={`Call back ${peerName}`}
+                        accessibilityLabel={`Call back ${displayName}`}
                       >
-                        {call.callType === 'video' ? (
-                          <Video size={16} color="#6366F1" />
+                        {isVideo ? (
+                          <Video size={16} color="#10B981" />
                         ) : (
-                          <Phone size={16} color="#10B981" />
+                          <Phone size={16} color="#4F46E5" />
                         )}
                       </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.quickActionCircle}
+                        onPress={() => deleteCallMutation.mutate(call.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete call log"
+                      >
+                        <Trash2 size={15} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 );
               })
             )}
@@ -1139,85 +1124,6 @@ export const ChatConversationsScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Call Log Detail Modal */}
-      <Modal visible={!!selectedCallDetail} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.sheetCard}>
-            {selectedCallDetail && (
-              <>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.sheetTitle}>Call Record Details</Text>
-                  <TouchableOpacity onPress={() => setSelectedCallDetail(null)}>
-                    <X size={18} color="#64748B" />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.detailLine}>
-                  Caller: {selectedCallDetail.callerName}
-                </Text>
-                <Text style={styles.detailLine}>
-                  Receiver: {selectedCallDetail.receiverName}
-                </Text>
-                <Text style={styles.detailLine}>
-                  Type: {selectedCallDetail.callType.toUpperCase()} • Status:{' '}
-                  {selectedCallDetail.status}
-                </Text>
-                <Text style={styles.detailLine}>
-                  Duration: {formatDurationSec(selectedCallDetail.durationSeconds)}
-                </Text>
-                <Text style={styles.detailLine}>
-                  Timestamp: {new Date(selectedCallDetail.createdAt).toLocaleString()}
-                </Text>
-
-                <View style={styles.callDetailActions}>
-                  {(() => {
-                    const isOut = selectedCallDetail.callerId === user?.id;
-                    const peerId = isOut
-                      ? selectedCallDetail.receiverId
-                      : selectedCallDetail.callerId;
-                    const peerName = isOut
-                      ? selectedCallDetail.receiverName
-                      : selectedCallDetail.callerName;
-                    return peerId && peerId !== user?.id ? (
-                      <>
-                        <TouchableOpacity
-                          style={styles.primaryActionBtn}
-                          onPress={() => {
-                            setSelectedCallDetail(null);
-                            dialColleague(peerId, peerName, 'audio', selectedCallDetail.threadId);
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Phone size={14} color="#FFFFFF" />
-                            <Text style={styles.primaryActionText}>Audio Call</Text>
-                          </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={styles.primaryActionBtn}
-                          onPress={() => {
-                            setSelectedCallDetail(null);
-                            dialColleague(peerId, peerName, 'video', selectedCallDetail.threadId);
-                          }}
-                        >
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Video size={14} color="#FFFFFF" />
-                            <Text style={styles.primaryActionText}>Video Call</Text>
-                          </View>
-                        </TouchableOpacity>
-                      </>
-                    ) : null;
-                  })()}
-                  <TouchableOpacity
-                    style={styles.dangerActionBtn}
-                    onPress={() => deleteCallMutation.mutate(selectedCallDetail.id)}
-                  >
-                    <Text style={styles.dangerActionText}>Hide Record</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* New Direct Chat / Custom Group / Org Template / Join Invite Modal */}
       <Modal visible={newModalVisible} animationType="slide" transparent>
@@ -1463,6 +1369,53 @@ export const ChatConversationsScreen: React.FC = () => {
       >
         <MessageSquare size={24} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Call Options Bottom Sheet */}
+      <CallOptionsBottomSheet
+        visible={!!callOptionsTarget}
+        onClose={() => setCallOptionsTarget(null)}
+        targetUserName={callOptionsTarget?.name || 'Colleague'}
+        onSelectAudioCall={() => {
+          if (callOptionsTarget) {
+            navigation.navigate('ChatCall', {
+              receiverId: callOptionsTarget.userId,
+              receiverName: callOptionsTarget.name,
+              receiverAvatar: callOptionsTarget.avatar,
+              callType: 'audio',
+              isIncoming: false,
+            });
+          }
+        }}
+        onSelectVideoCall={() => {
+          if (callOptionsTarget) {
+            navigation.navigate('ChatCall', {
+              receiverId: callOptionsTarget.userId,
+              receiverName: callOptionsTarget.name,
+              receiverAvatar: callOptionsTarget.avatar,
+              callType: 'video',
+              isIncoming: false,
+            });
+          }
+        }}
+        onSelectGroupCall={() => {
+          setGroupSetupOpen(true);
+        }}
+      />
+
+      {/* Group Call Setup Modal */}
+      <GroupCallSetupModal
+        visible={groupSetupOpen}
+        onClose={() => setGroupSetupOpen(false)}
+        preselectedUserId={callOptionsTarget?.userId}
+        onStartGroupCall={(cType, _selectedUserIds, gMeetingName) => {
+          navigation.navigate('ChatCall', {
+            callType: cType,
+            receiverName: gMeetingName || 'Team Meeting',
+            isGroupMeeting: true,
+            initialStatus: 'connected',
+          });
+        }}
+      />
     </WorkspaceModuleShell>
   );
 };
@@ -1764,55 +1717,6 @@ const styles = StyleSheet.create({
   quickActionIcon: {
     fontSize: 16,
   },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  kpiCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  kpiLabel: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  callFiltersRow: {
-    paddingBottom: 10,
-    gap: 8,
-  },
-  filterPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginRight: 6,
-  },
-  filterPillActive: {
-    backgroundColor: '#1E1B4B',
-    borderColor: '#1E1B4B',
-  },
-  filterPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  filterPillTextActive: {
-    color: '#FFFFFF',
-  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
@@ -1854,43 +1758,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1E293B',
-  },
-  detailLine: {
-    fontSize: 13,
-    color: '#334155',
-    marginBottom: 6,
-  },
-  callDetailActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-  },
-  primaryActionBtn: {
-    minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryActionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dangerActionBtn: {
-    minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dangerActionText: {
-    color: '#DC2626',
-    fontSize: 13,
-    fontWeight: '700',
   },
   modalTabsRow: {
     flexDirection: 'row',
@@ -2008,5 +1875,52 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
+  },
+  callsQuickBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#0F172A',
+    borderRadius: 14,
+    marginBottom: 12,
+  },
+  callsNewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  callsNewBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  callFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  callFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#1E293B',
+  },
+  callFilterChipActive: {
+    backgroundColor: '#334155',
+  },
+  callFilterText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  callFilterTextActive: {
+    color: '#F8FAFC',
+    fontWeight: '700',
   },
 });

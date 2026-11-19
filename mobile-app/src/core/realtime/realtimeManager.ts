@@ -1,21 +1,8 @@
 import { Config } from '../../config/environment';
 import { apiClient } from '../api/apiClient';
-import { queryClient } from '../../app/providers/QueryProvider';
+import { queryClient } from '../query/queryClient';
 
 export type RealtimeEventHandler = (payload: any, eventName: string) => void;
-
-export interface IncomingCallSignal {
-  callId: string;
-  callerId: string;
-  callerName: string;
-  callerAvatar?: string | null;
-  callType: 'audio' | 'video';
-  threadId?: string;
-  groupId?: string;
-  groupName?: string;
-  isGroupCall?: boolean;
-  isAdditionalParticipant?: boolean;
-}
 
 class RealtimeManager {
   private socketWs: WebSocket | null = null;
@@ -227,11 +214,8 @@ class RealtimeManager {
   public dispatchIncomingEvent(eventName: string, payload: any): void {
     if (!eventName) return;
 
-    // Deduplicate identical message/call events within 1.5s across dual Socket.IO + Pusher transport
-    const dedupId =
-      payload?.message?.id ||
-      payload?.id ||
-      (payload?.callId ? `${eventName}:${payload.callId}:${payload.status || ''}` : null);
+    // Deduplicate identical message events within 1.5s across dual Socket.IO + Pusher transport
+    const dedupId = payload?.message?.id || payload?.id;
     if (dedupId) {
       const fp = `${eventName}::${dedupId}`;
       const now = Date.now();
@@ -266,21 +250,6 @@ class RealtimeManager {
           // Isolate subscriber errors
         }
       });
-    }
-
-    // Normalize colon vs dot call event variants (e.g. call.incoming -> call:incoming)
-    if (eventName.startsWith('call.')) {
-      const colonVariant = eventName.replace(/\./g, ':');
-      const altHandlers = this.listeners.get(colonVariant);
-      if (altHandlers) {
-        altHandlers.forEach((fn) => {
-          try {
-            fn(payload, colonVariant);
-          } catch {
-            // Isolate subscriber errors
-          }
-        });
-      }
     }
 
     this.wildcardListeners.forEach((fn) => {

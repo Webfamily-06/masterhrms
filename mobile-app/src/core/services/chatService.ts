@@ -6,6 +6,34 @@ import {
   validateChatAttachmentCandidate,
 } from '../storage/attachmentHelper';
 
+export interface CallHistoryItem {
+  id: string;
+  callSessionId?: string;
+  callerId: string;
+  callerName: string;
+  callerAvatarUrl?: string | null;
+  receiverId: string;
+  receiverName: string;
+  receiverAvatarUrl?: string | null;
+  callType: 'audio' | 'video';
+  direction: 'incoming' | 'outgoing';
+  computedDirection?: 'incoming' | 'outgoing';
+  status: 'completed' | 'missed' | 'rejected' | 'busy' | 'cancelled' | 'ringing' | 'connected';
+  durationSeconds: number;
+  callTime: string;
+  contactName?: string;
+  contactAvatarUrl?: string | null;
+  otherUserId?: string;
+}
+
+export interface CallLogResponse {
+  calls: CallHistoryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface ChatParticipant {
   id: string;
   userId?: string;
@@ -171,25 +199,6 @@ export interface OrgGroupTemplate {
   description?: string;
 }
 
-export interface CallLogItem {
-  id: string;
-  callSessionId?: string;
-  callerId: string;
-  callerName: string;
-  callerEmail?: string;
-  callerAvatar?: string;
-  receiverId: string;
-  receiverName: string;
-  receiverAvatar?: string;
-  direction?: 'incoming' | 'outgoing';
-  callType: 'audio' | 'video';
-  status: string;
-  durationSeconds: number;
-  threadId?: string;
-  groupId?: string;
-  createdAt: string;
-}
-
 export interface PaginatedMessagesResult {
   messages: ChatMessage[];
   nextCursor: string | null;
@@ -293,8 +302,8 @@ export function normalizeChatMessage(raw: any): ChatMessage {
         const mimeType = att?.mimeType || att?.type || '';
         const rawUrl = att?.signedPreviewUrl || att?.signedDownloadUrl || att?.url || '';
         return {
-          id: String(att?.id || att?.mediaId || `att-${idx}`),
-          mediaId: att?.mediaId ? String(att.mediaId) : att?.id ? String(att.id) : undefined,
+          id: String(att?.id || att?.mediaId || `att-${idx}`).trim(),
+          mediaId: att?.mediaId ? String(att.mediaId).trim() : att?.id ? String(att.id).trim() : undefined,
           name,
           url: resolveSafeBackendUrl(rawUrl) || rawUrl,
           signedDownloadUrl: resolveSafeBackendUrl(att?.signedDownloadUrl) || undefined,
@@ -307,11 +316,13 @@ export function normalizeChatMessage(raw: any): ChatMessage {
     : [];
 
   const isDeleted = Boolean(raw?.isDeleted || raw?.isDeletedForEveryone);
+  const canonicalId = raw?.id ? String(raw.id).trim() : '';
+  const canonicalTempId = raw?.clientTempId ? String(raw.clientTempId).trim() : undefined;
 
   return {
-    id: String(raw?.id || ''),
-    threadId: String(raw?.threadId || ''),
-    senderId: String(raw?.senderId || raw?.userId || ''),
+    id: canonicalId,
+    threadId: String(raw?.threadId || '').trim(),
+    senderId: String(raw?.senderId || raw?.userId || '').trim(),
     senderName: String(raw?.senderName || raw?.sender?.name || 'Member'),
     senderAvatar: resolveSafeBackendUrl(raw?.senderAvatar || raw?.sender?.avatarUrl) || undefined,
     content: isDeleted ? 'This message was deleted' : String(raw?.content ?? ''),
@@ -323,12 +334,12 @@ export function normalizeChatMessage(raw: any): ChatMessage {
     isPinned: Boolean(raw?.isPinned),
     isForwarded: Boolean(raw?.isForwarded),
     deliveryStatus: raw?.deliveryStatus || 'sent',
-    clientTempId: raw?.clientTempId,
+    clientTempId: canonicalTempId,
     mentions: Array.isArray(raw?.mentions) ? raw.mentions.map(String) : undefined,
-    replyToId: raw?.replyToId ? String(raw.replyToId) : raw?.replyTo?.id ? String(raw.replyTo.id) : undefined,
+    replyToId: raw?.replyToId ? String(raw.replyToId).trim() : raw?.replyTo?.id ? String(raw.replyTo.id).trim() : undefined,
     replyTo: raw?.replyTo
       ? {
-          id: String(raw.replyTo.id || raw?.replyToId || ''),
+          id: String(raw.replyTo.id || raw?.replyToId || '').trim(),
           senderName: String(raw.replyTo.senderName || raw.replyTo.sender || 'Member'),
           content: String(raw.replyTo.content || ''),
         }
@@ -345,6 +356,119 @@ export function normalizeChatMessage(raw: any): ChatMessage {
     reactions: normalizeReactions(raw?.reactions),
     poll: normalizePoll(raw?.poll),
   };
+}
+
+/**
+ * Canonical ChatMessage deduplication and reconciliation utility.
+ * Merges incoming messages into base messages (or deduplicates a single array),
+ * reconciling optimistic placeholders (clientTempId) with server-confirmed messages (id),
+ * updating matching records in place without duplicating keys or re-ordering stable items.
+ */
+export function deduplicateMessages(
+  incoming: ChatMessage[],
+  base: ChatMessage[] = []
+): ChatMessage[] {
+  const safeIncoming = Array.isArray(incoming) ? incoming : [];
+  const safeBase = Array.isArray(base) ? base : [];
+
+  const result: ChatMessage[] = [...safeBase];
+  const idIndex = new Map<string, number>();
+  const tempIdIndex = new Map<string, number>();
+
+  for (let i = 0; i < result.length; i++) {
+    const m = result[i];
+    const idKey = m.id ? String(m.id).trim() : '';
+    const tempKey = m.clientTempId ? String(m.clientTempId).trim() : '';
+    if (idKey) idIndex.set(idKey, i);
+    if (tempKey) tempIdIndex.set(tempKey, i);
+  }
+
+  for (const item of safeIncoming) {
+    if (!item) continue;
+    const itemNorm = typeof item.content !== 'undefined' && item.id ? item : normalizeChatMessage(item);
+    const idKey = itemNorm.id ? String(itemNorm.id).trim() : '';
+    const tempKey = itemNorm.clientTempId ? String(itemNorm.clientTempId).trim() : '';
+
+    if (!idKey && !tempKey) continue;
+
+    // Check if matching message exists by canonical id
+    let targetIdx = idKey && idIndex.has(idKey) ? idIndex.get(idKey)! : -1;
+
+    // If not found by canonical id, check by clientTempId (optimistic reconciliation)
+    if (targetIdx === -1 && tempKey && tempIdIndex.has(tempKey)) {
+      targetIdx = tempIdIndex.get(tempKey)!;
+    }
+
+    if (targetIdx >= 0 && targetIdx < result.length) {
+      // Reconcile/merge into existing record in place
+      const existing = result[targetIdx];
+      const merged: ChatMessage = {
+        ...existing,
+        ...itemNorm,
+        // Canonical server id always wins over temporary id
+        id: idKey || existing.id,
+        clientTempId: tempKey || existing.clientTempId,
+        // Preserve reactions/poll if incoming doesn't have them
+        reactions:
+          Array.isArray(itemNorm.reactions) && itemNorm.reactions.length > 0
+            ? itemNorm.reactions
+            : existing.reactions,
+        poll: itemNorm.poll || existing.poll,
+        deliveryStatus: itemNorm.deliveryStatus || existing.deliveryStatus,
+      };
+      result[targetIdx] = merged;
+
+      // Update indices
+      if (merged.id) idIndex.set(merged.id, targetIdx);
+      if (merged.clientTempId) tempIdIndex.set(merged.clientTempId, targetIdx);
+    } else {
+      // New unique message - append
+      const newIdx = result.length;
+      result.push(itemNorm);
+      if (idKey) idIndex.set(idKey, newIdx);
+      if (tempKey) tempIdIndex.set(tempKey, newIdx);
+    }
+  }
+
+  // Final sanity pass to guarantee 100% key uniqueness in the returned array
+  const seenKeys = new Set<string>();
+  const finalUnique: ChatMessage[] = [];
+  for (const m of result) {
+    const key = String(m.id || m.clientTempId || '').trim();
+    if (!key || seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    finalUnique.push(m);
+  }
+
+  return finalUnique;
+}
+
+/**
+ * Prepends older messages (e.g. from pagination cursor) to existing message list,
+ * deduplicating within the older batch and against existing messages by both
+ * canonical id and clientTempId.
+ */
+export function prependOlderMessages(
+  older: ChatMessage[],
+  existing: ChatMessage[]
+): ChatMessage[] {
+  const dedupedOlder = deduplicateMessages(older);
+  const safeExisting = Array.isArray(existing) ? existing : [];
+
+  const existingIds = new Set(safeExisting.map((m) => String(m.id || '').trim()).filter(Boolean));
+  const existingTempIds = new Set(
+    safeExisting.map((m) => String(m.clientTempId || '').trim()).filter(Boolean)
+  );
+
+  const uniqueOlder = dedupedOlder.filter((m) => {
+    const id = String(m.id || '').trim();
+    const tempId = String(m.clientTempId || '').trim();
+    if (id && existingIds.has(id)) return false;
+    if (tempId && existingTempIds.has(tempId)) return false;
+    return true;
+  });
+
+  return [...uniqueOlder, ...safeExisting];
 }
 
 export function normalizeChatConversation(raw: any): ChatConversation {
@@ -780,8 +904,11 @@ export class ChatService {
       ? res.data.messages
       : [];
 
+    const normalized = rawMsgs.map(normalizeChatMessage);
+    const dedupedMessages = deduplicateMessages(normalized);
+
     return {
-      messages: rawMsgs.map(normalizeChatMessage),
+      messages: dedupedMessages,
       nextCursor: res.data?.nextCursor ?? null,
       hasMore: Boolean(res.data?.hasMore),
       seenBy: Array.isArray(res.data?.seenBy) ? res.data.seenBy : [],
@@ -954,11 +1081,25 @@ export class ChatService {
     return normalizeChatMessage(res.data?.message || res.data);
   }
 
+  public static async getPinnedMessages(threadId: string): Promise<ChatMessage[]> {
+    const res = await apiClient.get(`/api/chat/messages/${encodeURIComponent(threadId)}/pinned`);
+    const list = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.data?.messages)
+      ? res.data.messages
+      : [];
+    return list.map(normalizeChatMessage);
+  }
+
   public static async reactToMessage(id: string, emoji: string): Promise<ChatMessage> {
     const res = await apiClient.post(`/api/chat/messages/${encodeURIComponent(id)}/react`, {
       emoji,
     });
     return normalizeChatMessage(res.data?.message || res.data);
+  }
+
+  public static async toggleReaction(id: string, emoji: string): Promise<ChatMessage> {
+    return this.reactToMessage(id, emoji);
   }
 
   public static async forwardMessageBatch(
@@ -998,24 +1139,21 @@ export class ChatService {
     return true;
   }
 
-  // ── 1:1 / Mesh Calls, Multiparty Meetings & Call History ────
+  // =========================================================================
+  // CALLING & WEBRTC LIFECYCLE METHODS
+  // =========================================================================
+
   public static async initiateCall(
-    targetUserId: string,
-    callType: 'audio' | 'video',
+    targetUserIdOrPayload: string | { targetUserId: string; callType: 'audio' | 'video'; callId?: string; threadId?: string },
+    callType?: 'audio' | 'video',
     threadId?: string
-  ): Promise<{ callId: string; status: string }> {
-    const clientCallId = `call_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const res = await apiClient.post('/api/calls/invite', {
-      targetUserId,
-      callType,
-      callId: clientCallId,
-      threadId,
-    });
-    const data = res.data?.data || res.data;
-    return {
-      callId: String(data?.callId || clientCallId),
-      status: String(data?.status || 'ringing'),
-    };
+  ): Promise<{ callId: string; status: string; data?: any }> {
+    const payload =
+      typeof targetUserIdOrPayload === 'string'
+        ? { targetUserId: targetUserIdOrPayload, callType: callType || 'audio', threadId }
+        : targetUserIdOrPayload;
+    const res = await apiClient.post('/api/calls/invite', payload);
+    return res.data?.data || res.data;
   }
 
   public static async getCallStatus(callId: string): Promise<any> {
@@ -1023,164 +1161,115 @@ export class ChatService {
     return res.data?.data || res.data;
   }
 
-  public static async acceptCall(callId: string): Promise<any> {
-    const res = await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/accept`, {});
+  public static async getGroupMeetingParticipants(callId: string): Promise<{ creatorId?: string; participants: any[] }> {
+    const res = await apiClient.get(`/api/chat/meetings/${encodeURIComponent(callId)}/participants`);
     return res.data?.data || res.data;
-  }
-
-  public static async rejectCall(callId: string, reason = 'declined'): Promise<void> {
-    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/reject`, { reason });
-  }
-
-  public static async cancelCall(callId: string): Promise<void> {
-    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/cancel`, {});
-  }
-
-  public static async endCall(callId: string, durationSeconds = 0): Promise<void> {
-    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/end`, { durationSeconds });
-  }
-
-  public static async sendCallHeartbeat(callId: string): Promise<{
-    active: boolean;
-    status?: string;
-    peerLeft?: boolean;
-  }> {
-    const res = await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/heartbeat`, {});
-    return {
-      active: Boolean(res.data?.active ?? res.data?.ok),
-      status: res.data?.status,
-      peerLeft: Boolean(res.data?.peerLeft),
-    };
-  }
-
-  public static async updateCallMediaState(
-    callId: string,
-    type: 'audio-mute' | 'video-mute' | 'call-hold' | 'screen-share',
-    active: boolean
-  ): Promise<void> {
-    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/media-state`, { type, active });
-  }
-
-  public static async inviteColleagueToCall(callId: string, targetUserId: string): Promise<any> {
-    const res = await apiClient.post(
-      `/api/calls/${encodeURIComponent(callId)}/invite-colleague`,
-      { targetUserId }
-    );
-    return res.data?.data || res.data;
-  }
-
-  public static async startGroupMeeting(params: {
-    groupId: string;
-    callType: 'audio' | 'video';
-    invitedUserIds?: string[];
-  }): Promise<{ callId: string; status: string }> {
-    const callId = `meet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const res = await apiClient.post('/api/chat/meetings/start', {
-      groupId: params.groupId,
-      callId,
-      callType: params.callType,
-      invitedUserIds: params.invitedUserIds,
-    });
-    return {
-      callId: String(res.data?.callId || callId),
-      status: String(res.data?.status || 'connected'),
-    };
   }
 
   public static async joinGroupMeeting(callId: string, groupId?: string): Promise<any> {
-    const res = await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/join`, {
-      groupId,
-    });
-    return res.data;
-  }
-
-  public static async getGroupMeetingParticipants(callId: string): Promise<any> {
-    const res = await apiClient.get(
-      `/api/chat/meetings/${encodeURIComponent(callId)}/participants`
-    );
-    return res.data;
+    const res = await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/join`, { groupId });
+    return res.data?.data || res.data;
   }
 
   public static async updateGroupMeetingMediaState(
     callId: string,
-    state: { isMuted?: boolean; isVideoOff?: boolean; isScreenSharing?: boolean }
-  ): Promise<void> {
-    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/media-state`, state);
+    mediaState: { isMuted?: boolean; isVideoOff?: boolean; isScreenSharing?: boolean }
+  ): Promise<boolean> {
+    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/media-state`, mediaState);
+    return true;
   }
 
-  public static async inviteUsersToGroupMeeting(callId: string, userIds: string[]): Promise<void> {
-    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/invite`, { userIds });
-  }
-
-  public static async removeGroupMeetingParticipant(
-    callId: string,
-    targetUserId: string
-  ): Promise<void> {
-    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/remove`, {
-      targetUserId,
-    });
-  }
-
-  public static async leaveGroupMeeting(callId: string): Promise<void> {
+  public static async leaveGroupMeeting(callId: string): Promise<boolean> {
     await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/leave`, {});
+    return true;
   }
 
-  public static async endGroupMeetingForAll(callId: string): Promise<void> {
+  public static async endGroupMeetingForAll(callId: string): Promise<boolean> {
     await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/end`, {});
+    return true;
   }
 
-  public static async getCalls(params?: {
-    search?: string;
-    callType?: 'audio' | 'video';
-    status?: string;
+  public static async inviteUsersToGroupMeeting(callId: string, targetUserIds: string[]): Promise<boolean> {
+    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/invite`, { targetUserIds });
+    return true;
+  }
+
+  public static async removeGroupMeetingParticipant(callId: string, targetUserId: string): Promise<boolean> {
+    await apiClient.post(`/api/chat/meetings/${encodeURIComponent(callId)}/remove`, { targetUserId });
+    return true;
+  }
+
+  public static async acceptCall(callId: string): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/accept`, {});
+    return true;
+  }
+
+  public static async rejectCall(callId: string, reason = 'declined'): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/reject`, { reason });
+    return true;
+  }
+
+  public static async cancelCall(callId: string): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/cancel`, {});
+    return true;
+  }
+
+  public static async endCall(callId: string, durationSeconds = 0): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/end`, { durationSeconds });
+    return true;
+  }
+
+  public static async sendCallHeartbeat(callId: string): Promise<{ active: boolean; status: string; peerLeft: boolean }> {
+    const res = await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/heartbeat`, {});
+    return res.data;
+  }
+
+  public static async updateCallMediaState(
+    callId: string,
+    type: 'audio-mute' | 'video-mute' | 'screen-share',
+    active: boolean
+  ): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/media-state`, { type, active });
+    return true;
+  }
+
+  public static async getPendingIncomingCall(): Promise<any | null> {
+    try {
+      const res = await apiClient.get('/api/calls/pending');
+      return res.data?.hasPendingCall ? res.data.data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  public static async getIceServers(): Promise<Array<{ urls: string | string[] }>> {
+    try {
+      const res = await apiClient.get('/api/calls/ice-servers');
+      return res.data?.data?.iceServers || [{ urls: 'stun:stun.l.google.com:19302' }];
+    } catch {
+      return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+  }
+
+  public static async getCallLogs(params?: {
     page?: number;
     limit?: number;
-    sort?: 'asc' | 'desc';
-  }): Promise<{ calls: CallLogItem[]; total: number; totalPages: number }> {
-    const res = await apiClient.get('/api/chat/calls', {
-      params: {
-        search: params?.search || undefined,
-        callType: params?.callType || undefined,
-        status: params?.status || undefined,
-        page: params?.page ?? 1,
-        limit: params?.limit ?? 30,
-        sort: params?.sort ?? 'desc',
-      },
-    });
-    const list = Array.isArray(res.data)
-      ? res.data
-      : Array.isArray(res.data?.calls)
-      ? res.data.calls
-      : [];
-
-    const calls: CallLogItem[] = list.map((c: any) => ({
-      id: String(c?.id || ''),
-      callSessionId: c?.callSessionId,
-      callerId: String(c?.callerId || ''),
-      callerName: String(c?.callerName || 'Colleague'),
-      callerEmail: c?.callerEmail,
-      callerAvatar: resolveSafeBackendUrl(c?.callerAvatarUrl || c?.callerAvatar) || undefined,
-      receiverId: String(c?.receiverId || ''),
-      receiverName: String(c?.receiverName || 'Colleague'),
-      receiverAvatar: resolveSafeBackendUrl(c?.receiverAvatarUrl || c?.receiverAvatar) || undefined,
-      direction: c?.direction,
-      callType: c?.callType === 'video' ? 'video' : 'audio',
-      status: String(c?.status || 'COMPLETED').toUpperCase(),
-      durationSeconds: Number(c?.durationSeconds ?? 0),
-      threadId: c?.threadId,
-      groupId: c?.groupId,
-      createdAt: c?.createdAt || new Date().toISOString(),
-    }));
-
-    return {
-      calls,
-      total: Number(res.data?.total ?? calls.length),
-      totalPages: Number(res.data?.totalPages ?? 1),
-    };
+    callType?: string;
+    status?: string;
+    direction?: string;
+    search?: string;
+  }): Promise<CallLogResponse> {
+    const res = await apiClient.get('/api/chat/calls', { params });
+    return res.data;
   }
 
-  public static async deleteCallLog(id: string): Promise<boolean> {
+  public static async deleteCallRecord(id: string): Promise<boolean> {
     await apiClient.delete(`/api/chat/calls/${encodeURIComponent(id)}`);
+    return true;
+  }
+
+  public static async inviteColleagueToCall(callId: string, targetUserId: string): Promise<boolean> {
+    await apiClient.post(`/api/calls/${encodeURIComponent(callId)}/invite-colleague`, { targetUserId });
     return true;
   }
 }

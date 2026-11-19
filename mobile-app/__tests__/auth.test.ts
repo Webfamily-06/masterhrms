@@ -14,6 +14,7 @@ jest.mock('../src/core/api/apiClient', () => ({
   apiClient: {
     get: jest.fn(),
     post: jest.fn(),
+    delete: jest.fn().mockResolvedValue({ data: { success: true } }),
     interceptors: {
       request: { use: jest.fn() },
       response: { use: jest.fn() },

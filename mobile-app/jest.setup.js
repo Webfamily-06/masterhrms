@@ -75,6 +75,26 @@ jest.mock('expo-task-manager', () => ({
   isTaskDefined: jest.fn().mockReturnValue(false),
 }));
 
+jest.mock('expo-constants', () => ({
+  __esModule: true,
+  default: {
+    appOwnership: 'standalone',
+    executionEnvironment: 'standalone',
+    manifest: {},
+    expoConfig: {},
+  },
+  ExecutionEnvironment: {
+    Bare: 'bare',
+    Standalone: 'standalone',
+    StoreClient: 'storeClient',
+  },
+  AppOwnership: {
+    Expo: 'expo',
+    Standalone: 'standalone',
+    Guest: 'guest',
+  },
+}));
+
 jest.mock('expo-audio', () => {
   const mockPlayer = {
     play: jest.fn(),
@@ -137,6 +157,7 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
   addNotificationReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
   addNotificationResponseReceivedListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+  addPushTokenListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
   AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3 },
   AndroidNotificationPriority: { MAX: 2, HIGH: 1, DEFAULT: 0 },
 }));
@@ -167,3 +188,11 @@ jest.mock('expo-location', () => ({
   reverseGeocodeAsync: jest.fn().mockResolvedValue([{ street: 'Mount Road', city: 'Chennai', region: 'Tamil Nadu' }]),
   Accuracy: { Balanced: 3, High: 4 },
 }));
+
+jest.mock('expo', () => ({
+  isRunningInExpoGo: jest.fn().mockReturnValue(false),
+  Platform: require('react-native').Platform,
+}));
+
+
+

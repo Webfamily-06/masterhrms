@@ -30,8 +30,8 @@ import {
 import { Text } from '../../../components/common/Text';
 import {
   Search,
-  Phone,
   Video,
+  Phone,
   Info,
   X,
   Pin,
@@ -52,7 +52,6 @@ import {
   Square,
   Link,
   Crown,
-  Circle,
   Smile,
   Camera,
   Play,
@@ -68,9 +67,15 @@ import {
   Navigation,
   Radio,
   Eye,
+  FileSpreadsheet,
+  Presentation,
+  FileCode,
+  Archive,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react-native';
 import { WorkspaceModuleShell } from '../../../components/workspace/WorkspaceModuleShell';
-import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { createTenantQueryKey } from '../../../core/query/tenantQueryKeys';
 import { useAuthStore } from '../../../store/authStore';
 import { usePermission } from '../../../hooks/usePermission';
 import { realtimeManager } from '../../../core/realtime/realtimeManager';
@@ -78,7 +83,11 @@ import {
   formatFileSize,
   openOrShareAttachment,
   downloadOrSaveMedia,
+  resolveAttachmentFileType,
+  MAX_CHAT_ATTACHMENTS_PER_MESSAGE,
+  MAX_CHAT_FILE_SIZE_BYTES,
 } from '../../../core/storage/attachmentHelper';
+import { ChatImageAlbum } from '../components/ChatImageAlbum';
 import {
   requestMicrophonePermission,
 } from '../../../core/services/permissionService';
@@ -86,8 +95,14 @@ import {
   ChatService,
   ChatMessage,
   ChatParticipant,
+  ChatAttachment,
   UploadableFileDescriptor,
+  normalizeChatMessage,
+  deduplicateMessages,
+  prependOlderMessages,
 } from '../../../core/services/chatService';
+import { CallOptionsBottomSheet } from '../../../components/calling/CallOptionsBottomSheet';
+import { GroupCallSetupModal } from '../../../components/calling/GroupCallSetupModal';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -144,6 +159,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
     type = 'direct',
     groupId: paramGroupId,
     otherParticipantId,
+    avatarUrl,
     isAnnouncementOnly: paramAnnouncementOnly,
   } = route.params || {};
 
@@ -154,6 +170,32 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const user = useAuthStore((s) => s.user);
   const { activeRole } = usePermission();
   const currentUserId = user?.id || '';
+
+  const handleStartCall = useCallback(
+    (callType: 'audio' | 'video') => {
+      if (isGroup) {
+        navigation.navigate('ChatCall', {
+          threadId,
+          groupId: resolvedGroupId,
+          groupName: title,
+          callType,
+          isGroupMeeting: true,
+          initialStatus: 'connected',
+        });
+      } else {
+        const receiverId = otherParticipantId || threadId;
+        navigation.navigate('ChatCall', {
+          receiverId,
+          receiverName: title || 'Colleague',
+          receiverAvatar: avatarUrl,
+          callType,
+          threadId,
+          isIncoming: false,
+        });
+      }
+    },
+    [isGroup, resolvedGroupId, title, otherParticipantId, threadId, avatarUrl, navigation]
+  );
 
   // Message state (supports cursor pagination + live socket merges)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -173,7 +215,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   // Realtime UI indicators
   const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
-  const [activeGroupCallId, setActiveGroupCallId] = useState<string | null>(null);
   const [pinnedIdx, setPinnedIdx] = useState(0);
 
   // Thread search
@@ -200,6 +241,10 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   // Info & Group Admin Drawer
   const [infoOpen, setInfoOpen] = useState(false);
+
+  // Calling Sheets
+  const [callOptionsOpen, setCallOptionsOpen] = useState(false);
+  const [groupSetupOpen, setGroupSetupOpen] = useState(false);
   const [addMembersModalOpen, setAddMembersModalOpen] = useState(false);
   const [selectedAddMemberIds, setSelectedAddMemberIds] = useState<string[]>([]);
   const [editGroupName, setEditGroupName] = useState('');
@@ -228,13 +273,31 @@ export const ChatConversationDetailScreen: React.FC = () => {
     }
   });
 
-  // In-App Fullscreen Media Preview Modal
-  const [previewMedia, setPreviewMedia] = useState<{
-    url: string;
-    name: string;
-    kind: string;
-    sender?: string;
+  // In-App Fullscreen Multi-Image & Media Gallery State (WhatsApp style)
+  const [galleryViewer, setGalleryViewer] = useState<{
+    items: ChatAttachment[];
+    currentIndex: number;
+    senderName?: string;
   } | null>(null);
+
+  const setPreviewMedia = (media: { url: string; name: string; kind: string; sender?: string } | null) => {
+    if (!media) {
+      setGalleryViewer(null);
+    } else {
+      setGalleryViewer({
+        items: [
+          {
+            id: 'preview_single',
+            name: media.name,
+            url: media.url,
+            kind: (media.kind as any) || 'image',
+          },
+        ],
+        currentIndex: 0,
+        senderName: media.sender,
+      });
+    }
+  };
 
   // Contact Details Settings & Modals (27_Light to 30_Light)
   const [isContactMuted, setIsContactMuted] = useState(false);
@@ -246,7 +309,19 @@ export const ChatConversationDetailScreen: React.FC = () => {
     files: UploadableFileDescriptor[];
     kind: 'image' | 'document' | 'camera';
   } | null>(null);
+  const [currentCarouselIdx, setCurrentCarouselIdx] = useState(0);
   const [mediaCaptionText, setMediaCaptionText] = useState('');
+  const [forwardSearchQuery, setForwardSearchQuery] = useState('');
+
+  // Message layout tracker for auto-scrolling to pinned / quoted messages
+  const messageLayouts = useRef<Record<string, number>>({});
+
+  const scrollToMessage = useCallback((msgId: string) => {
+    const y = messageLayouts.current[msgId];
+    if (typeof y === 'number' && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: Math.max(0, y - 50), animated: true });
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -500,7 +575,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         attachments: uploadedAttachments,
       });
 
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      setMessages((prev) => deduplicateMessages([sent], prev));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
     } catch (err: any) {
       console.warn('[AudioRecorder] Send voice note failed:', err);
@@ -517,7 +592,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.85,
         allowsEditing: false,
       });
@@ -563,11 +638,20 @@ export const ChatConversationDetailScreen: React.FC = () => {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ['images', 'videos'],
         quality: 0.85,
         allowsMultipleSelection: true,
+        selectionLimit: MAX_CHAT_ATTACHMENTS_PER_MESSAGE,
       });
       if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      if (result.assets.length > MAX_CHAT_ATTACHMENTS_PER_MESSAGE) {
+        Alert.alert(
+          'Attachment Limit Exceeded',
+          `You can select up to ${MAX_CHAT_ATTACHMENTS_PER_MESSAGE} images at once. Please re-select.`
+        );
+        return;
+      }
 
       const newFiles: UploadableFileDescriptor[] = await Promise.all(
         result.assets.map(async (asset, i) => {
@@ -590,6 +674,15 @@ export const ChatConversationDetailScreen: React.FC = () => {
           };
         })
       );
+
+      const oversized = newFiles.find((f) => (f.size || 0) > MAX_CHAT_FILE_SIZE_BYTES);
+      if (oversized) {
+        Alert.alert(
+          'File Size Limit Exceeded',
+          `"${oversized.name}" exceeds the maximum allowed upload limit of 30 MB.`
+        );
+        return;
+      }
 
       // WhatsApp flow: Show pre-send preview BEFORE sending
       setPendingSendMedia({
@@ -650,7 +743,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         attachments: uploadedAttachments,
         clientTempId: `${prefix}${Date.now()}`,
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      setMessages((prev) => deduplicateMessages([sent], prev));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
 
       const primary = files[0];
@@ -674,7 +767,23 @@ export const ChatConversationDetailScreen: React.FC = () => {
 
   const handleCancelPendingMedia = () => {
     setPendingSendMedia(null);
+    setCurrentCarouselIdx(0);
     setMediaCaptionText('');
+  };
+
+  const handleRemoveCurrentPendingFile = () => {
+    if (!pendingSendMedia) return;
+    const updated = pendingSendMedia.files.filter((_, idx) => idx !== currentCarouselIdx);
+    if (updated.length === 0) {
+      setPendingSendMedia(null);
+      setCurrentCarouselIdx(0);
+      setMediaCaptionText('');
+    } else {
+      setPendingSendMedia({ ...pendingSendMedia, files: updated });
+      if (currentCarouselIdx >= updated.length) {
+        setCurrentCarouselIdx(updated.length - 1);
+      }
+    }
   };
 
   // Group details query (for permissions, members, announcement lock, mentions)
@@ -715,7 +824,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const contactsQuery = useQuery({
     queryKey: createTenantQueryKey(['chat', 'contacts']),
     queryFn: () => ChatService.getContacts(),
-    enabled: addMembersModalOpen,
+    enabled: addMembersModalOpen || forwardModalOpen,
   });
 
   const groupData = groupDetailQuery.data;
@@ -757,7 +866,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
       setInitialLoading(true);
       setLoadError(null);
       const page = await ChatService.getMessagesPage(threadId, { limit: 25 });
-      setMessages(page.messages);
+      setMessages(deduplicateMessages(page.messages));
       setNextCursor(page.nextCursor);
       setHasMore(page.hasMore);
       void ChatService.markThreadRead(threadId).catch(() => {});
@@ -784,11 +893,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         limit: 25,
         before: nextCursor,
       });
-      setMessages((prev) => {
-        const existingIds = new Set(prev.map((m) => m.id));
-        const uniqueOlder = olderPage.messages.filter((m) => !existingIds.has(m.id));
-        return [...uniqueOlder, ...prev];
-      });
+      setMessages((prev) => prependOlderMessages(olderPage.messages, prev));
       setNextCursor(olderPage.nextCursor);
       setHasMore(olderPage.hasMore);
     } catch (err: any) {
@@ -807,22 +912,12 @@ export const ChatConversationDetailScreen: React.FC = () => {
     const unsubs = [
       realtimeManager.subscribe('chat:message', (payload) => {
         if (payload?.threadId && payload.threadId !== threadId) return;
-        const incoming = payload?.message ? payload.message : payload;
-        if (!incoming?.id) return;
+        const incomingRaw = payload?.message ? payload.message : payload;
+        if (!incomingRaw) return;
+        const incoming = normalizeChatMessage(incomingRaw);
+        if (!incoming.id && !incoming.clientTempId) return;
 
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === incoming.id)) return prev;
-          const normalized = {
-            ...incoming,
-            id: String(incoming.id),
-            threadId: String(incoming.threadId || threadId),
-            senderId: String(incoming.senderId || ''),
-            senderName: String(incoming.senderName || 'Member'),
-            content: String(incoming.content ?? ''),
-            createdAt: incoming.createdAt || new Date().toISOString(),
-          };
-          return [...prev, normalized];
-        });
+        setMessages((prev) => deduplicateMessages([incoming], prev));
 
         if (incoming.senderId && incoming.senderId !== currentUserId) {
           realtimeManager.emit('chat:delivered', {
@@ -931,18 +1026,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
           navigation.goBack();
         }
       }),
-
-      realtimeManager.subscribe('group-call:incoming', (payload) => {
-        if (resolvedGroupId && payload?.groupId === resolvedGroupId && payload?.callId) {
-          setActiveGroupCallId(String(payload.callId));
-        }
-      }),
-
-      realtimeManager.subscribe('group-call:ended', (payload) => {
-        if (payload?.callId && payload.callId === activeGroupCallId) {
-          setActiveGroupCallId(null);
-        }
-      }),
     ];
 
     // Background sync polling: keeps messages 100% in sync with webapp even during socket renegotiation
@@ -950,28 +1033,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
       try {
         const latestMsgs = await ChatService.getMessages(threadId, 30);
         if (Array.isArray(latestMsgs) && latestMsgs.length > 0) {
-          setMessages((prev) => {
-            const map = new Map<string, ChatMessage>();
-            for (const m of prev) map.set(m.id, m);
-            let hasNew = false;
-            for (const m of latestMsgs) {
-              const existing = map.get(m.id);
-              if (!existing) {
-                map.set(m.id, m);
-                hasNew = true;
-              } else if (
-                existing.content !== m.content ||
-                existing.isDeleted !== m.isDeleted ||
-                existing.deliveryStatus !== m.deliveryStatus
-              ) {
-                map.set(m.id, { ...existing, ...m });
-              }
-            }
-            if (!hasNew && map.size === prev.length) return prev;
-            return Array.from(map.values()).sort(
-              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            );
-          });
+          setMessages((prev) => deduplicateMessages(latestMsgs, prev));
         }
       } catch {
         // Silent poll
@@ -987,7 +1049,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
       leaveRoom();
       unsubs.forEach((u) => u());
     };
-  }, [threadId, currentUserId, resolvedGroupId, activeGroupCallId, loadInitialMessages, navigation]);
+  }, [threadId, currentUserId, resolvedGroupId, loadInitialMessages, navigation]);
 
   // Typing emitter
   const handleComposerChange = (val: string) => {
@@ -1129,6 +1191,162 @@ export const ChatConversationDetailScreen: React.FC = () => {
     );
   };
 
+  const isPlaceholderContent = (content?: string) => {
+    if (!content) return true;
+    const trimmed = content.trim();
+    if (!trimmed) return true;
+    if (/^attached\s+\d+\s+files?$/i.test(trimmed)) return true;
+    if (/^attached\s+file$/i.test(trimmed)) return true;
+    if (/^mob_(cam|doc|gal)_\d+$/i.test(trimmed)) return true;
+    if (trimmed.toLowerCase() === 'attachment' || trimmed.toLowerCase() === 'attached') return true;
+    return false;
+  };
+
+  const shouldRenderContent = (content?: string) => {
+    if (!content) return false;
+    return !isPlaceholderContent(content);
+  };
+
+  const renderFileTypeIcon = (_kind?: string, mimeType?: string, fileName?: string, size = 18) => {
+    const fileType = resolveAttachmentFileType(mimeType, fileName);
+    switch (fileType) {
+      case 'pdf':
+        return <FileText size={size} color="#EF4444" />;
+      case 'word':
+        return <FileText size={size} color="#2563EB" />;
+      case 'excel':
+        return <FileSpreadsheet size={size} color="#10B981" />;
+      case 'ppt':
+        return <Presentation size={size} color="#F97316" />;
+      case 'txt':
+        return <FileCode size={size} color="#64748B" />;
+      case 'archive':
+        return <Archive size={size} color="#D97706" />;
+      case 'audio':
+        return <Music size={size} color="#8B5CF6" />;
+      case 'video':
+        return <Video size={size} color="#EC4899" />;
+      case 'image':
+        return <ImageIcon size={size} color="#06B6D4" />;
+      default:
+        return <FileText size={size} color="#64748B" />;
+    }
+  };
+
+  const getFileTypeBadge = (mimeType?: string, fileName?: string) => {
+    const fileType = resolveAttachmentFileType(mimeType, fileName);
+    switch (fileType) {
+      case 'pdf':
+        return { label: 'PDF', bg: '#FEE2E2', color: '#EF4444' };
+      case 'word':
+        return { label: 'DOC', bg: '#DBEAFE', color: '#2563EB' };
+      case 'excel':
+        return { label: 'XLS', bg: '#D1FAE5', color: '#10B981' };
+      case 'ppt':
+        return { label: 'PPT', bg: '#FFEDD5', color: '#F97316' };
+      case 'txt':
+        return { label: 'TXT', bg: '#F1F5F9', color: '#64748B' };
+      case 'archive':
+        return { label: 'ZIP', bg: '#FEF3C7', color: '#D97706' };
+      case 'audio':
+        return { label: 'AUDIO', bg: '#EDE9FE', color: '#8B5CF6' };
+      case 'video':
+        return { label: 'VIDEO', bg: '#FCE7F3', color: '#EC4899' };
+      case 'image':
+        return { label: 'IMG', bg: '#CFFAFE', color: '#06B6D4' };
+      default:
+        return { label: 'FILE', bg: '#F3F4F6', color: '#6B7280' };
+    }
+  };
+
+  const renderSingleAttachment = (att: any, senderName: string, isMe?: boolean, customStyle?: any) => {
+    const fileType = resolveAttachmentFileType(att.mimeType, att.name);
+    const badge = getFileTypeBadge(att.mimeType, att.name);
+    const isImg = fileType === 'image' && Boolean(att.url);
+
+    return (
+      <TouchableOpacity
+        key={att.id || att.mediaId || att.name}
+        style={[
+          styles.attachmentCard,
+          isMe ? styles.attachmentCardMe : styles.attachmentCardThem,
+          customStyle,
+        ]}
+        activeOpacity={0.88}
+        onPress={() => {
+          if (isImg) {
+            setGalleryViewer({
+              items: [att],
+              currentIndex: 0,
+              senderName,
+            });
+          } else {
+            void openOrShareAttachment({
+              url: att.signedDownloadUrl || att.url,
+              mediaId: att.mediaId,
+              fileName: att.name,
+            });
+          }
+        }}
+      >
+        {isImg ? (
+          <Image
+            source={{ uri: att.url || att.signedPreviewUrl || att.signedDownloadUrl }}
+            style={styles.attachmentThumb}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.docAttachmentHeader}>
+            <View style={[styles.fileTypeBadge, { backgroundColor: badge.bg }]}>
+              {renderFileTypeIcon(att.kind, att.mimeType, att.name, 16)}
+              <Text style={[styles.fileTypeBadgeText, { color: badge.color }]}>{badge.label}</Text>
+            </View>
+            <View style={styles.docAttachmentMeta}>
+              <Text style={styles.attachmentName} numberOfLines={1}>
+                {att.name}
+              </Text>
+              <Text style={styles.attachmentSizeText}>
+                {formatFileSize(att.size)} • Tap to open
+              </Text>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderAttachmentsGrid = (attachments: any[], senderName: string, isMe?: boolean) => {
+    if (!attachments || attachments.length === 0) return null;
+
+    const imageAttachments = attachments.filter((a) => a.kind === 'image');
+    const otherAttachments = attachments.filter((a) => a.kind !== 'image');
+
+    return (
+      <View style={styles.attachmentGridContainer}>
+        {imageAttachments.length > 0 && (
+          <ChatImageAlbum
+            images={imageAttachments}
+            isMe={isMe}
+            onPressImage={(index) => {
+              setGalleryViewer({
+                items: imageAttachments,
+                currentIndex: index,
+                senderName,
+              });
+            }}
+          />
+        )}
+        {otherAttachments.length > 0 && (
+          <View style={imageAttachments.length > 0 ? { marginTop: 6 } : undefined}>
+            {otherAttachments.map((att) =>
+              renderSingleAttachment(att, senderName, isMe)
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
   // Send or Save Edit
   const handleSendOrEdit = async () => {
     const trimmed = inputText.trim();
@@ -1181,9 +1399,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         clientTempId,
       });
 
-      setMessages((prev) =>
-        prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]
-      );
+      setMessages((prev) => deduplicateMessages([sent], prev));
       void queryClient.invalidateQueries({
         queryKey: createTenantQueryKey(['chat', 'conversations']),
       });
@@ -1206,7 +1422,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
         content: draft.text,
         clientTempId: draft.tempId,
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      setMessages((prev) => deduplicateMessages([sent], prev));
     } catch (err: any) {
       setFailedDrafts((prev) => [...prev, draft]);
       Alert.alert('Retry Failed', err?.message || 'Still unable to reach server.');
@@ -1234,7 +1450,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
           isAnonymous: pollAnonymous,
         },
       });
-      setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [...prev, sent]));
+      setMessages((prev) => deduplicateMessages([sent], prev));
       setPollModalOpen(false);
       setPollQuestion('');
       setPollOptions(['', '']);
@@ -1302,11 +1518,23 @@ export const ChatConversationDetailScreen: React.FC = () => {
   const handleForwardSubmit = async () => {
     if (!actionTargetMsg || forwardThreadIds.length === 0) return;
     try {
-      const res = await ChatService.forwardMessageBatch(actionTargetMsg.id, forwardThreadIds);
+      const finalThreadIds: string[] = [];
+      for (const tid of forwardThreadIds) {
+        if (tid.startsWith('user_')) {
+          const targetUserId = tid.slice('user_'.length);
+          const directConv = await ChatService.createDirectConversation(targetUserId);
+          finalThreadIds.push(directConv.threadId);
+        } else {
+          finalThreadIds.push(tid);
+        }
+      }
+
+      const res = await ChatService.forwardMessageBatch(actionTargetMsg.id, finalThreadIds);
       setForwardModalOpen(false);
       setActionTargetMsg(null);
       setForwardThreadIds([]);
-      Alert.alert('Forwarded', `Message forwarded to ${res.forwardedCount} conversation(s).`);
+      setForwardSearchQuery('');
+      Alert.alert('Forwarded', `Message forwarded to ${res.forwardedCount} recipient(s).`);
     } catch (err: any) {
       Alert.alert('Forward Error', err?.message || 'Unable to forward message.');
     }
@@ -1336,52 +1564,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
     } catch (err: any) {
       Alert.alert('Close Poll Error', err?.message || 'Unable to close poll.');
     }
-  };
-
-  // Start Audio/Video Call or Group Meeting
-  const handleStartCall = async (callType: 'audio' | 'video') => {
-    if (isGroup && resolvedGroupId) {
-      try {
-        const started = await ChatService.startGroupMeeting({
-          groupId: resolvedGroupId,
-          callType,
-        });
-        navigation.navigate('ChatCall', {
-          callId: started.callId,
-          receiverName: groupData?.name || title,
-          callType,
-          threadId,
-          groupId: resolvedGroupId,
-          groupName: groupData?.name || title,
-          isGroupMeeting: true,
-          isIncoming: false,
-        });
-      } catch (err: any) {
-        Alert.alert('Meeting Error', err?.message || 'Unable to start group meeting.');
-      }
-      return;
-    }
-
-    const peerId =
-      otherParticipantId ||
-      threadId
-        .replace(/^direct_/, '')
-        .split('_')
-        .find((part: string) => part && part !== currentUserId);
-
-    if (!peerId) {
-      Alert.alert('Call Error', 'Recipient user ID could not be resolved for this thread.');
-      return;
-    }
-
-    navigation.navigate('ChatCall', {
-      receiverId: peerId,
-      receiverName: title,
-      callType,
-      threadId,
-      isGroupMeeting: false,
-      isIncoming: false,
-    });
   };
 
   // Group Admin mutations
@@ -1501,9 +1683,22 @@ export const ChatConversationDetailScreen: React.FC = () => {
   );
 
   const displayedMessages = useMemo(() => {
-    if (!threadSearch.trim()) return messages;
+    // Canonical entity ID deduplication ensuring unique keys
+    const seen = new Set<string>();
+    const unique: ChatMessage[] = [];
+    for (const m of messages) {
+      const canonicalKey = String(m.id || m.clientTempId || '').trim();
+      if (!canonicalKey || seen.has(canonicalKey)) continue;
+      seen.add(canonicalKey);
+      if (m.clientTempId) {
+        seen.add(String(m.clientTempId).trim());
+      }
+      unique.push(m);
+    }
+
+    if (!threadSearch.trim()) return unique;
     const q = threadSearch.trim().toLowerCase();
-    return messages.filter(
+    return unique.filter(
       (m) =>
         m.content.toLowerCase().includes(q) ||
         m.senderName.toLowerCase().includes(q)
@@ -1532,33 +1727,38 @@ export const ChatConversationDetailScreen: React.FC = () => {
     <WorkspaceModuleShell
       activeModule="chat"
       hideModuleTabs
+      hideBottomNav
+      backgroundColor="#0B141A"
+      headerBackgroundColor="#101820"
       title={groupData?.name || title}
       subtitle={subtitleText}
       rightActions={
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => setSearchOpen((s) => !s)}
+            onPress={() => handleStartCall('video')}
+            onLongPress={() => setCallOptionsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Search in conversation"
+            accessibilityLabel="Video Call"
           >
-            <Search size={18} color="#0F172A" />
+            <Video size={19} color="#E9EDEF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => handleStartCall('audio')}
+            onLongPress={() => setCallOptionsOpen(true)}
             accessibilityRole="button"
-            accessibilityLabel="Start audio call"
+            accessibilityLabel="Audio Call"
           >
-            <Phone size={18} color="#0F172A" />
+            <Phone size={18} color="#E9EDEF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => handleStartCall('video')}
+            onPress={() => setSearchOpen((s) => !s)}
             accessibilityRole="button"
-            accessibilityLabel="Start video call"
+            accessibilityLabel="Search in conversation"
           >
-            <Video size={18} color="#0F172A" />
+            <Search size={18} color="#E9EDEF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
@@ -1566,7 +1766,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
             accessibilityRole="button"
             accessibilityLabel="Conversation info"
           >
-            <Info size={18} color="#0F172A" />
+            <Info size={18} color="#E9EDEF" />
           </TouchableOpacity>
         </View>
       }
@@ -1591,31 +1791,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
                 <X size={16} color="#64748B" />
               </TouchableOpacity>
             </View>
-          )}
-
-          {activeGroupCallId && (
-            <TouchableOpacity
-              style={styles.activeMeetingBanner}
-              onPress={() =>
-                navigation.navigate('ChatCall', {
-                  callId: activeGroupCallId,
-                  receiverName: groupData?.name || title,
-                  callType: 'video',
-                  threadId,
-                  groupId: resolvedGroupId,
-                  groupName: groupData?.name || title,
-                  isGroupMeeting: true,
-                  isIncoming: true,
-                })
-              }
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Circle size={10} color="#10B981" fill="#10B981" />
-                <Text style={styles.activeMeetingText}>
-                  Ongoing Group Meeting — Tap to Join
-                </Text>
-              </View>
-            </TouchableOpacity>
           )}
 
           {pinnedMessages.length > 0 && (
@@ -1680,9 +1855,10 @@ export const ChatConversationDetailScreen: React.FC = () => {
             </View>
           ) : (
             displayedMessages.map((msg) => {
+              const msgKey = String(msg.id || msg.clientTempId || '').trim();
               if (msg.isSystemEvent) {
                 return (
-                  <View key={msg.id} style={styles.systemPill}>
+                  <View key={msgKey} style={styles.systemPill}>
                     <Text style={styles.systemPillText}>{msg.content}</Text>
                   </View>
                 );
@@ -1704,7 +1880,12 @@ export const ChatConversationDetailScreen: React.FC = () => {
               );
               return (
                 <View
-                  key={msg.id}
+                  key={msgKey}
+                  onLayout={(e) => {
+                    if (msgKey) {
+                      messageLayouts.current[msgKey] = e.nativeEvent.layout.y;
+                    }
+                  }}
                   style={[
                     styles.msgRow,
                     isMe ? styles.msgRowRight : styles.msgRowLeft,
@@ -1757,12 +1938,19 @@ export const ChatConversationDetailScreen: React.FC = () => {
                     )}
 
                     {msg.replyTo && !msg.isDeleted && (
-                      <View style={styles.replyQuoteBox}>
+                      <TouchableOpacity
+                        style={styles.replyQuoteBox}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          const targetId = msg.replyTo?.id || msg.replyToId;
+                          if (targetId) scrollToMessage(targetId);
+                        }}
+                      >
                         <Text style={styles.replyQuoteAuthor}>{msg.replyTo.senderName}</Text>
                         <Text style={styles.replyQuoteBody} numberOfLines={2}>
-                          {msg.replyTo.content}
+                          {msg.replyTo.content || '[Attachment]'}
                         </Text>
-                      </View>
+                      </TouchableOpacity>
                     )}
 
                     {isVoice && !msg.isDeleted ? (
@@ -1822,51 +2010,21 @@ export const ChatConversationDetailScreen: React.FC = () => {
                       </View>
                     ) : (
                       <>
-                        {msg.content ? (
+                        {/* 1. ATTACHMENTS FIRST (GAP 1.3 & GAP 1.5) */}
+                        {msg.attachments && msg.attachments.length > 0 && (
+                          <View style={styles.bubbleAttachmentsWrap}>
+                            {renderAttachmentsGrid(msg.attachments, msg.senderName, isMe)}
+                          </View>
+                        )}
+
+                        {/* 2. CAPTION / TEXT CONTENT BELOW ATTACHMENT (GAP 1.3 & Phase 3) */}
+                        {shouldRenderContent(msg.content) ? (
                           msg.isDeleted ? (
                             <Text style={[styles.msgBody, styles.deletedItalic]}>{msg.content}</Text>
                           ) : (
                             renderMessageContent(msg.content, isMe)
                           )
                         ) : null}
-
-                        {/* Attachments */}
-                        {msg.attachments &&
-                          msg.attachments.map((att) => (
-                            <TouchableOpacity
-                              key={att.id}
-                              style={styles.attachmentCard}
-                              onPress={() => {
-                                setPreviewMedia({
-                                  url: att.signedDownloadUrl || att.url,
-                                  name: att.name,
-                                  kind: att.kind,
-                                  sender: msg.senderName,
-                                });
-                              }}
-                            >
-                              {att.kind === 'image' && att.url ? (
-                                <Image
-                                  source={{ uri: att.url }}
-                                  style={styles.attachmentThumb}
-                                  resizeMode="cover"
-                                />
-                              ) : null}
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                {att.kind === 'pdf' ? (
-                                  <FileText size={14} color="#6366F1" />
-                                ) : att.kind === 'audio' ? (
-                                  <Music size={14} color="#6366F1" />
-                                ) : (
-                                  <Paperclip size={14} color="#6366F1" />
-                                )}
-                                <Text style={styles.attachmentName} numberOfLines={1}>
-                                  {att.name}
-                                  {att.size ? ` (${formatFileSize(att.size)})` : ''}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
-                          ))}
 
                         {/* Poll Card */}
                         {msg.poll && (
@@ -1877,7 +2035,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
                                 {msg.poll.question}
                               </Text>
                             </View>
-                            {msg.poll.options.map((opt) => {
+                            {msg.poll.options.map((opt, optIdx) => {
                               const totalVotes = msg.poll!.options.reduce(
                                 (sum, o) => sum + (o.votes || 0),
                                 0
@@ -1887,7 +2045,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
                               const voted = opt.voters?.includes(currentUserId);
                               return (
                                 <TouchableOpacity
-                                  key={opt.id}
+                                  key={opt.id || `opt_${optIdx}`}
                                   style={[styles.pollOpt, voted && styles.pollOptVoted]}
                                   disabled={msg.poll?.closed}
                                   onPress={() => handleVotePoll(msg.id, opt.id)}
@@ -1943,9 +2101,9 @@ export const ChatConversationDetailScreen: React.FC = () => {
                     {/* Reactions */}
                     {msg.reactions && msg.reactions.length > 0 && (
                       <View style={styles.reactionsWrap}>
-                        {msg.reactions.map((r) => (
+                        {msg.reactions.map((r, rIdx) => (
                           <TouchableOpacity
-                            key={r.emoji}
+                            key={`${r.emoji}_${rIdx}`}
                             style={styles.reactionPill}
                             onPress={() => handleReaction(msg.id, r.emoji)}
                           >
@@ -1963,8 +2121,8 @@ export const ChatConversationDetailScreen: React.FC = () => {
           )}
 
           {/* Failed Drafts Queue (No Fake Delivery) */}
-          {failedDrafts.map((d) => (
-            <View key={d.tempId} style={styles.failedDraftCard}>
+          {failedDrafts.map((d, dIdx) => (
+            <View key={d.tempId || `draft_${dIdx}`} style={styles.failedDraftCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <AlertTriangle size={14} color="#DC2626" />
                 <Text style={styles.failedDraftText} numberOfLines={2}>
@@ -2308,7 +2466,7 @@ export const ChatConversationDetailScreen: React.FC = () => {
             },
           ]}
         >
-          {/* Top Bar */}
+          {/* Top Bar with Pagination and Delete Option */}
           <View style={styles.preSendHeader}>
             <TouchableOpacity
               onPress={handleCancelPendingMedia}
@@ -2319,38 +2477,141 @@ export const ChatConversationDetailScreen: React.FC = () => {
             >
               <X size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.preSendTitle}>
-              {pendingSendMedia?.kind === 'document'
-                ? 'Send Document'
-                : pendingSendMedia?.files.length && pendingSendMedia.files.length > 1
-                ? `${pendingSendMedia.files.length} Photos`
-                : 'Send Photo'}
-            </Text>
-            <View style={{ width: 40 }} />
+
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.preSendTitle}>
+                {pendingSendMedia && pendingSendMedia.files.length > 1
+                  ? pendingSendMedia.kind === 'document'
+                    ? `Send ${pendingSendMedia.files.length} Documents`
+                    : `Send ${pendingSendMedia.files.length} Photos`
+                  : pendingSendMedia?.kind === 'document'
+                  ? 'Send Document'
+                  : 'Send Photo'}
+              </Text>
+              {pendingSendMedia && pendingSendMedia.files.length > 1 && (
+                <Text style={styles.preSendCounter}>
+                  {currentCarouselIdx + 1} / {pendingSendMedia.files.length}
+                </Text>
+              )}
+            </View>
+
+            <TouchableOpacity
+              onPress={handleRemoveCurrentPendingFile}
+              style={styles.preSendDeleteBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Remove file"
+            >
+              <Trash2 size={20} color="#EF4444" />
+            </TouchableOpacity>
           </View>
 
-          {/* Media Center Preview Stage */}
-          <View style={styles.preSendStage}>
-            {pendingSendMedia?.kind === 'document' ? (
-              <View style={styles.preSendDocCard}>
-                <View style={styles.preSendDocIconCircle}>
-                  <FileText size={48} color="#3B82F6" />
-                </View>
-                <Text style={styles.preSendDocName} numberOfLines={2}>
-                  {pendingSendMedia.files[0]?.name}
-                </Text>
-                <Text style={styles.preSendDocSize}>
-                  {formatFileSize(pendingSendMedia.files[0]?.size || 0)} • {pendingSendMedia.files[0]?.type || 'Document'}
-                </Text>
-              </View>
-            ) : (
-              <Image
-                source={{ uri: pendingSendMedia?.files[0]?.uri }}
-                style={styles.preSendFullImage}
-                resizeMode="contain"
-              />
+          {/* Media Center Preview Carousel Stage */}
+          <View
+            style={styles.preSendStage}
+            onTouchStart={(e: any) => {
+              touchStartX.current = e.nativeEvent?.pageX || 0;
+            }}
+            onTouchEnd={(e: any) => {
+              const dx = (e.nativeEvent?.pageX || 0) - touchStartX.current;
+              if (pendingSendMedia && pendingSendMedia.files.length > 1) {
+                if (dx < -40 && currentCarouselIdx < pendingSendMedia.files.length - 1) {
+                  setCurrentCarouselIdx((i) => i + 1);
+                } else if (dx > 40 && currentCarouselIdx > 0) {
+                  setCurrentCarouselIdx((i) => i - 1);
+                }
+              }
+            }}
+          >
+            {/* Left Chevron */}
+            {pendingSendMedia && pendingSendMedia.files.length > 1 && currentCarouselIdx > 0 && (
+              <TouchableOpacity
+                style={styles.carouselNavLeft}
+                onPress={() => setCurrentCarouselIdx((i) => Math.max(0, i - 1))}
+                accessibilityLabel="Previous attachment"
+              >
+                <ChevronLeft size={28} color="#FFFFFF" />
+              </TouchableOpacity>
             )}
+
+            {/* Current Active File View */}
+            {pendingSendMedia && pendingSendMedia.files[currentCarouselIdx] && (() => {
+              const activeFile = pendingSendMedia.files[currentCarouselIdx];
+              const fileType = resolveAttachmentFileType(activeFile.type, activeFile.name);
+              const badge = getFileTypeBadge(activeFile.type, activeFile.name);
+              const isImg = fileType === 'image';
+
+              return isImg ? (
+                <Image
+                  source={{ uri: activeFile.uri }}
+                  style={styles.preSendFullImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.preSendDocCard}>
+                  <View style={[styles.preSendDocIconCircle, { backgroundColor: badge.bg }]}>
+                    {renderFileTypeIcon(activeFile.type, activeFile.type, activeFile.name, 48)}
+                  </View>
+                  <Text style={styles.preSendDocName} numberOfLines={2}>
+                    {activeFile.name}
+                  </Text>
+                  <Text style={styles.preSendDocSize}>
+                    {formatFileSize(activeFile.size || 0)} • {badge.label}
+                  </Text>
+                </View>
+              );
+            })()}
+
+            {/* Right Chevron */}
+            {pendingSendMedia &&
+              pendingSendMedia.files.length > 1 &&
+              currentCarouselIdx < pendingSendMedia.files.length - 1 && (
+                <TouchableOpacity
+                  style={styles.carouselNavRight}
+                  onPress={() =>
+                    setCurrentCarouselIdx((i) =>
+                      Math.min((pendingSendMedia?.files.length || 1) - 1, i + 1)
+                    )
+                  }
+                  accessibilityLabel="Next attachment"
+                >
+                  <ChevronRight size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
           </View>
+
+          {/* Bottom Thumbnail Strip (when multiple files selected) */}
+          {pendingSendMedia && pendingSendMedia.files.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbStripContainer}
+              style={styles.thumbStripScroll}
+            >
+              {pendingSendMedia.files.map((file, idx) => {
+                const isSelected = idx === currentCarouselIdx;
+                const fileType = resolveAttachmentFileType(file.type, file.name);
+                const isImg = fileType === 'image';
+                const badge = getFileTypeBadge(file.type, file.name);
+
+                return (
+                  <TouchableOpacity
+                    key={`${file.uri}_${idx}`}
+                    onPress={() => setCurrentCarouselIdx(idx)}
+                    style={[styles.thumbStripItem, isSelected && styles.thumbStripItemSelected]}
+                  >
+                    {isImg ? (
+                      <Image source={{ uri: file.uri }} style={styles.thumbStripImage} />
+                    ) : (
+                      <View style={[styles.thumbStripDocBox, { backgroundColor: badge.bg }]}>
+                        {renderFileTypeIcon(file.type, file.type, file.name, 16)}
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
           {/* WhatsApp Style Bottom Caption & Send Bar */}
           <View style={styles.preSendBottomBar}>
@@ -2466,13 +2727,13 @@ export const ChatConversationDetailScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* In-App Fullscreen Media Preview & Download Modal */}
-      <Modal visible={Boolean(previewMedia)} animationType="fade" transparent>
+      {/* In-App Fullscreen Media Preview & Gallery Modal */}
+      <Modal visible={Boolean(galleryViewer)} animationType="fade" transparent>
         <View style={styles.previewBackdrop}>
           <View style={styles.previewHeader}>
             <TouchableOpacity
               style={styles.previewCloseBtn}
-              onPress={() => setPreviewMedia(null)}
+              onPress={() => setGalleryViewer(null)}
               accessibilityRole="button"
               accessibilityLabel="Close media preview"
             >
@@ -2480,38 +2741,132 @@ export const ChatConversationDetailScreen: React.FC = () => {
             </TouchableOpacity>
             <View style={{ flex: 1, marginHorizontal: 12 }}>
               <Text style={styles.previewTitle} numberOfLines={1}>
-                {previewMedia?.name || 'Media Attachment'}
+                {galleryViewer && galleryViewer.items.length > 1
+                  ? `${galleryViewer.currentIndex + 1} of ${galleryViewer.items.length} • ${galleryViewer.items[galleryViewer.currentIndex]?.name || 'Photo'}`
+                  : galleryViewer?.items[0]?.name || 'Media Attachment'}
               </Text>
-              {previewMedia?.sender && (
-                <Text style={styles.previewSubTitle}>Sent by {previewMedia.sender}</Text>
+              {galleryViewer?.senderName && (
+                <Text style={styles.previewSubTitle}>Sent by {galleryViewer.senderName}</Text>
               )}
             </View>
           </View>
 
-          <View style={styles.previewBody}>
-            {previewMedia?.kind === 'image' && previewMedia.url ? (
-              <Image
-                source={{ uri: previewMedia.url }}
-                style={styles.previewFullImage}
-                resizeMode="contain"
-              />
-            ) : (
-              <View style={styles.previewDocPlaceholder}>
-                <FileText size={64} color="#00D287" />
-                <Text style={styles.previewDocName}>{previewMedia?.name}</Text>
-              </View>
+          <View
+            style={styles.previewBody}
+            onTouchStart={(e: any) => {
+              touchStartX.current = e.nativeEvent?.pageX || 0;
+            }}
+            onTouchEnd={(e: any) => {
+              const dx = (e.nativeEvent?.pageX || 0) - touchStartX.current;
+              if (galleryViewer && galleryViewer.items.length > 1) {
+                if (dx < -40 && galleryViewer.currentIndex < galleryViewer.items.length - 1) {
+                  setGalleryViewer((prev) =>
+                    prev ? { ...prev, currentIndex: prev.currentIndex + 1 } : null
+                  );
+                } else if (dx > 40 && galleryViewer.currentIndex > 0) {
+                  setGalleryViewer((prev) =>
+                    prev ? { ...prev, currentIndex: prev.currentIndex - 1 } : null
+                  );
+                }
+              }
+            }}
+          >
+            {/* Left Chevron */}
+            {galleryViewer && galleryViewer.items.length > 1 && galleryViewer.currentIndex > 0 && (
+              <TouchableOpacity
+                style={styles.carouselNavLeft}
+                onPress={() =>
+                  setGalleryViewer((prev) =>
+                    prev ? { ...prev, currentIndex: Math.max(0, prev.currentIndex - 1) } : null
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Previous photo"
+              >
+                <ChevronLeft size={28} color="#FFFFFF" />
+              </TouchableOpacity>
             )}
+
+            {galleryViewer && galleryViewer.items[galleryViewer.currentIndex] && (() => {
+              const cur = galleryViewer.items[galleryViewer.currentIndex];
+              const isImg = cur.kind === 'image' || Boolean(cur.url);
+              const imgUri = cur.url || cur.signedDownloadUrl || cur.signedPreviewUrl || '';
+
+              return isImg ? (
+                <Image
+                  source={{ uri: imgUri }}
+                  style={styles.previewFullImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.previewDocPlaceholder}>
+                  <FileText size={64} color="#00D287" />
+                  <Text style={styles.previewDocName}>{cur.name}</Text>
+                </View>
+              );
+            })()}
+
+            {/* Right Chevron */}
+            {galleryViewer &&
+              galleryViewer.items.length > 1 &&
+              galleryViewer.currentIndex < galleryViewer.items.length - 1 && (
+                <TouchableOpacity
+                  style={styles.carouselNavRight}
+                  onPress={() =>
+                    setGalleryViewer((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            currentIndex: Math.min(prev.items.length - 1, prev.currentIndex + 1),
+                          }
+                        : null
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Next photo"
+                >
+                  <ChevronRight size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
           </View>
+
+          {/* Bottom Thumbnail Strip (when galleryViewer has multiple photos) */}
+          {galleryViewer && galleryViewer.items.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.thumbStripContainer}
+              style={styles.thumbStripScroll}
+            >
+              {galleryViewer.items.map((item, idx) => {
+                const isSelected = idx === galleryViewer.currentIndex;
+                const thumbUri = item.url || item.signedDownloadUrl || item.signedPreviewUrl || '';
+                return (
+                  <TouchableOpacity
+                    key={`${item.id || idx}`}
+                    onPress={() =>
+                      setGalleryViewer((prev) => (prev ? { ...prev, currentIndex: idx } : null))
+                    }
+                    style={[styles.thumbStripItem, isSelected && styles.thumbStripItemSelected]}
+                  >
+                    <Image source={{ uri: thumbUri }} style={styles.thumbStripImage} />
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
 
           <View style={styles.previewFooterBar}>
             <TouchableOpacity
               style={styles.previewActionBtn}
               onPress={async () => {
-                if (!previewMedia?.url) return;
+                const cur = galleryViewer?.items[galleryViewer.currentIndex];
+                const uri = cur?.url || cur?.signedDownloadUrl;
+                if (!uri) return;
                 try {
                   await downloadOrSaveMedia({
-                    url: previewMedia.url,
-                    fileName: previewMedia.name,
+                    url: uri,
+                    fileName: cur.name,
                   });
                   Alert.alert('Download Complete', 'File saved or shared successfully.');
                 } catch (e: any) {
@@ -2528,11 +2883,13 @@ export const ChatConversationDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={[styles.previewActionBtn, { backgroundColor: '#334155' }]}
               onPress={() => {
-                if (previewMedia?.url) {
+                const cur = galleryViewer?.items[galleryViewer.currentIndex];
+                const uri = cur?.url || cur?.signedDownloadUrl;
+                if (uri) {
                   Share.share({
-                    title: previewMedia.name,
-                    url: previewMedia.url,
-                    message: `MasterHRMS Attachment: ${previewMedia.name} - ${previewMedia.url}`,
+                    title: cur.name,
+                    url: uri,
+                    message: `MasterHRMS Attachment: ${cur.name} - ${uri}`,
                   });
                 }
               }}
@@ -2687,50 +3044,158 @@ export const ChatConversationDetailScreen: React.FC = () => {
         </TouchableOpacity>
       </Modal>
 
-      {/* Forward Batch Modal */}
+      {/* Forward Batch Modal (GAP 2.3: Org Directory Selection Screen) */}
       <Modal visible={forwardModalOpen} animationType="slide" transparent>
         <View style={styles.backdrop}>
-          <View style={[styles.sheet, { maxHeight: '80%' }]}>
+          <View style={[styles.sheet, { maxHeight: '85%' }]}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Forward Message</Text>
               <TouchableOpacity
                 onPress={() => {
                   setForwardModalOpen(false);
                   setActionTargetMsg(null);
+                  setForwardSearchQuery('');
                 }}
               >
                 <X size={18} color="#64748B" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 300 }}>
-              {(allConvsQuery.data || []).map((c) => {
-                const chosen = forwardThreadIds.includes(c.threadId);
-                return (
-                  <TouchableOpacity
-                    key={c.threadId}
-                    style={styles.sheetItem}
-                    onPress={() =>
-                      setForwardThreadIds((prev) =>
-                        prev.includes(c.threadId)
-                          ? prev.filter((x) => x !== c.threadId)
-                          : [...prev, c.threadId]
-                      )
-                    }
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+
+            {/* Search Input for Org Directory */}
+            <View style={styles.forwardSearchBox}>
+              <Search size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.forwardSearchInput}
+                placeholder="Search colleagues or chats..."
+                placeholderTextColor="#94A3B8"
+                value={forwardSearchQuery}
+                onChangeText={setForwardSearchQuery}
+              />
+              {Boolean(forwardSearchQuery) && (
+                <TouchableOpacity onPress={() => setForwardSearchQuery('')}>
+                  <X size={14} color="#94A3B8" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+              {/* 1. Active Chats */}
+              {((allConvsQuery.data || []) as any[])
+                .filter((c) =>
+                  !forwardSearchQuery ||
+                  c.name?.toLowerCase().includes(forwardSearchQuery.toLowerCase())
+                )
+                .map((c) => {
+                  const targetId = c.threadId;
+                  const chosen = forwardThreadIds.includes(targetId);
+                  return (
+                    <TouchableOpacity
+                      key={targetId}
+                      style={styles.forwardListItem}
+                      onPress={() =>
+                        setForwardThreadIds((prev) =>
+                          prev.includes(targetId)
+                            ? prev.filter((x) => x !== targetId)
+                            : [...prev, targetId]
+                        )
+                      }
+                    >
+                      <View style={styles.forwardAvatarBox}>
+                        {c.avatar ? (
+                          <Image source={{ uri: c.avatar }} style={styles.forwardAvatarImg} />
+                        ) : (
+                          <View style={styles.forwardAvatarInitials}>
+                            <Text style={styles.forwardAvatarText}>
+                              {(c.name || 'C').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.forwardItemName} numberOfLines={1}>
+                          {c.name}
+                        </Text>
+                        <Text style={styles.forwardItemSub} numberOfLines={1}>
+                          {c.type === 'group' ? 'Group Chat' : 'Active Conversation'}
+                        </Text>
+                      </View>
+
                       {chosen ? (
-                        <CheckSquare size={16} color="#4F46E5" />
+                        <CheckSquare size={18} color="#00D287" />
                       ) : (
-                        <Square size={16} color="#94A3B8" />
+                        <Square size={18} color="#CBD5E1" />
                       )}
-                      <Text style={styles.sheetItemText}>{c.name}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+                    </TouchableOpacity>
+                  );
+                })}
+
+              {/* 2. Organization Colleagues */}
+              {((contactsQuery.data || []) as any[])
+                .filter((contact) => {
+                  if (contact.userId === currentUserId) return false;
+                  if (!forwardSearchQuery) return true;
+                  const q = forwardSearchQuery.toLowerCase();
+                  return (
+                    contact.name?.toLowerCase().includes(q) ||
+                    contact.department?.toLowerCase().includes(q) ||
+                    contact.designation?.toLowerCase().includes(q) ||
+                    contact.email?.toLowerCase().includes(q)
+                  );
+                })
+                .map((contact) => {
+                  const targetId = contact.threadId || `user_${contact.userId}`;
+                  const chosen = forwardThreadIds.includes(targetId);
+                  return (
+                    <TouchableOpacity
+                      key={`contact_${contact.userId}`}
+                      style={styles.forwardListItem}
+                      onPress={() =>
+                        setForwardThreadIds((prev) =>
+                          prev.includes(targetId)
+                            ? prev.filter((x) => x !== targetId)
+                            : [...prev, targetId]
+                        )
+                      }
+                    >
+                      <View style={styles.forwardAvatarBox}>
+                        {contact.avatar ? (
+                          <Image source={{ uri: contact.avatar }} style={styles.forwardAvatarImg} />
+                        ) : (
+                          <View style={styles.forwardAvatarInitials}>
+                            <Text style={styles.forwardAvatarText}>
+                              {(contact.name || 'E').slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={styles.forwardItemName} numberOfLines={1}>
+                          {contact.name}
+                        </Text>
+                        <Text style={styles.forwardItemSub} numberOfLines={1}>
+                          {[contact.designation, contact.department].filter(Boolean).join(' • ') ||
+                            contact.email ||
+                            'Employee'}
+                        </Text>
+                      </View>
+
+                      {chosen ? (
+                        <CheckSquare size={18} color="#00D287" />
+                      ) : (
+                        <Square size={18} color="#CBD5E1" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
             </ScrollView>
+
             <TouchableOpacity
-              style={styles.primaryBtn}
+              style={[
+                styles.primaryBtn,
+                forwardThreadIds.length === 0 && { opacity: 0.5, backgroundColor: '#94A3B8' },
+              ]}
               disabled={forwardThreadIds.length === 0}
               onPress={handleForwardSubmit}
             >
@@ -2941,32 +3406,6 @@ export const ChatConversationDetailScreen: React.FC = () => {
                           <MessageSquare size={18} color="#00D287" />
                         </View>
                         <Text style={styles.contactActionBtnLabel}>Message</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.contactActionBtnCol}
-                        onPress={() => {
-                          setInfoOpen(false);
-                          handleStartCall('audio');
-                        }}
-                      >
-                        <View style={styles.contactActionBtnRound}>
-                          <Phone size={18} color="#00D287" />
-                        </View>
-                        <Text style={styles.contactActionBtnLabel}>Audio</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.contactActionBtnCol}
-                        onPress={() => {
-                          setInfoOpen(false);
-                          handleStartCall('video');
-                        }}
-                      >
-                        <View style={styles.contactActionBtnRound}>
-                          <Video size={18} color="#00D287" />
-                        </View>
-                        <Text style={styles.contactActionBtnLabel}>Video</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -3480,6 +3919,30 @@ export const ChatConversationDetailScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+      {/* Call Options Bottom Sheet */}
+      <CallOptionsBottomSheet
+        visible={callOptionsOpen}
+        onClose={() => setCallOptionsOpen(false)}
+        targetUserName={groupData?.name || title}
+        onSelectAudioCall={() => handleStartCall('audio')}
+        onSelectVideoCall={() => handleStartCall('video')}
+        onSelectGroupCall={() => setGroupSetupOpen(true)}
+      />
+
+      {/* Group Call Setup Modal */}
+      <GroupCallSetupModal
+        visible={groupSetupOpen}
+        onClose={() => setGroupSetupOpen(false)}
+        preselectedUserId={otherParticipantId}
+        onStartGroupCall={(cType, _selectedUserIds, gMeetingName) => {
+          navigation.navigate('ChatCall', {
+            callType: cType,
+            receiverName: gMeetingName || (groupData?.name || title),
+            isGroupMeeting: true,
+            initialStatus: 'connected',
+          });
+        }}
+      />
     </WorkspaceModuleShell>
   );
 };
@@ -3506,24 +3969,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   inThreadSearchBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#101820',
     paddingHorizontal: 14,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#202C33',
   },
   inThreadSearchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#E9EDEF',
     paddingVertical: 6,
   },
   closeText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#8696A0',
     paddingHorizontal: 8,
   },
   activeMeetingBanner: {
@@ -3538,13 +4001,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   pinnedBar: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#101820',
     paddingHorizontal: 14,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#C7D2FE',
+    borderBottomColor: '#202C33',
   },
   pinEmoji: {
     fontSize: 15,
@@ -3553,26 +4016,27 @@ const styles = StyleSheet.create({
   pinnedAuthor: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#53BDEB',
   },
   pinnedPreview: {
     fontSize: 12,
-    color: '#334155',
+    color: '#AEBAC1',
   },
   messagesScroll: {
     padding: 14,
     paddingBottom: 20,
+    backgroundColor: '#0B141A',
   },
   loadOlderBtn: {
     alignSelf: 'center',
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#182229',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 12,
     marginBottom: 14,
   },
   loadOlderText: {
-    color: '#4F46E5',
+    color: '#00D287',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -3610,11 +4074,11 @@ const styles = StyleSheet.create({
   },
   emptyLabel: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#8696A0',
   },
   systemPill: {
     alignSelf: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#182229',
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -3622,7 +4086,7 @@ const styles = StyleSheet.create({
   },
   systemPillText: {
     fontSize: 11,
-    color: '#475569',
+    color: '#8696A0',
   },
   msgRow: {
     flexDirection: 'row',
@@ -3641,15 +4105,13 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   bubbleMe: {
-    backgroundColor: '#E8F8F0',
-    borderWidth: 1,
-    borderColor: '#D1FAE5',
+    backgroundColor: '#005C4B',
+    borderWidth: 0,
     borderBottomRightRadius: 4,
   },
   bubbleThem: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#202C33',
+    borderWidth: 0,
     borderBottomLeftRadius: 4,
   },
   bubbleDeleted: {
@@ -3658,17 +4120,17 @@ const styles = StyleSheet.create({
   senderLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#00C278',
+    color: '#53BDEB',
     marginBottom: 3,
   },
   forwardedTag: {
     fontSize: 10,
     fontStyle: 'italic',
-    color: '#64748B',
+    color: '#8696A0',
     marginBottom: 3,
   },
   replyQuoteBox: {
-    backgroundColor: 'rgba(0, 210, 135, 0.08)',
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
     borderLeftWidth: 3,
     borderLeftColor: '#00D287',
     borderRadius: 6,
@@ -3678,11 +4140,11 @@ const styles = StyleSheet.create({
   replyQuoteAuthor: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#00A86B',
+    color: '#00D287',
   },
   replyQuoteBody: {
     fontSize: 11,
-    color: '#475569',
+    color: '#AEBAC1',
   },
   msgBody: {
     fontSize: 14,
@@ -3690,30 +4152,210 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   msgBodyMe: {
-    color: '#0F172A',
+    color: '#E9EDEF',
   },
   msgBodyThem: {
-    color: '#0F172A',
+    color: '#E9EDEF',
   },
   deletedItalic: {
     fontStyle: 'italic',
+    color: '#8696A0',
+  },
+  bubbleAttachmentsWrap: {
+    marginBottom: 6,
+    width: '100%',
   },
   attachmentCard: {
-    marginTop: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
     borderRadius: 10,
     padding: 8,
+    width: '100%',
+    marginBottom: 4,
+  },
+  attachmentCardMe: {
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
+  },
+  attachmentCardThem: {
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
   },
   attachmentThumb: {
-    width: 190,
-    height: 120,
+    width: '100%',
+    height: 140,
     borderRadius: 8,
-    marginBottom: 6,
+    backgroundColor: '#182229',
+  },
+  docAttachmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  fileTypeBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  fileTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  docAttachmentMeta: {
+    flex: 1,
   },
   attachmentName: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#E9EDEF',
+  },
+  attachmentSizeText: {
+    fontSize: 10,
+    color: '#AEBAC1',
+    marginTop: 2,
+  },
+  attachmentGridContainer: {
+    width: '100%',
+  },
+  attachmentGridRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  attachmentGridCol2: {
+    flex: 1,
+  },
+  attachmentGridCard: {
+    padding: 4,
+    borderRadius: 8,
+  },
+  attachmentGridCardFull: {
+    width: '100%',
+    padding: 6,
+    borderRadius: 8,
+  },
+  moreAttachmentsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreAttachmentsText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  preSendDeleteBtn: {
+    padding: 8,
+  },
+  carouselNavLeft: {
+    position: 'absolute',
+    left: 12,
+    top: '48%',
+    zIndex: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderRadius: 20,
+    padding: 6,
+  },
+  carouselNavRight: {
+    position: 'absolute',
+    right: 12,
+    top: '48%',
+    zIndex: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderRadius: 20,
+    padding: 6,
+  },
+  thumbStripScroll: {
+    maxHeight: 64,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+  },
+  thumbStripContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  thumbStripItem: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: '#1E293B',
+  },
+  thumbStripItemSelected: {
+    borderColor: '#00D287',
+  },
+  thumbStripImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbStripDocBox: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forwardSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 14,
+    marginBottom: 10,
+  },
+  forwardSearchInput: {
+    flex: 1,
+    fontSize: 14,
     color: '#0F172A',
+    padding: 0,
+  },
+  forwardListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  forwardAvatarBox: {
+    marginRight: 10,
+  },
+  forwardAvatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#E2E8F0',
+  },
+  forwardAvatarInitials: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#6366F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forwardAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  forwardItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  forwardItemSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
   },
   voiceNoteCard: {
     marginTop: 6,
@@ -3730,16 +4372,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(148, 163, 184, 0.3)',
+    borderTopColor: 'rgba(148, 163, 184, 0.2)',
   },
   pollTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#E9EDEF',
     marginBottom: 6,
   },
   pollOpt: {
-    backgroundColor: 'rgba(241, 245, 249, 0.92)',
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -3749,18 +4391,18 @@ const styles = StyleSheet.create({
   },
   pollOptVoted: {
     borderWidth: 1.5,
-    borderColor: '#10B981',
+    borderColor: '#00D287',
   },
   pollOptLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0F172A',
+    color: '#E9EDEF',
     flex: 1,
   },
   pollOptStat: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#53BDEB',
   },
   pollFooter: {
     flexDirection: 'row',
@@ -3770,7 +4412,7 @@ const styles = StyleSheet.create({
   },
   pollMetaText: {
     fontSize: 10,
-    color: '#64748B',
+    color: '#8696A0',
   },
   closePollLink: {
     fontSize: 11,
@@ -3788,18 +4430,18 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 10,
-    color: '#94A3B8',
+    color: '#8696A0',
   },
   timeTextMe: {
-    color: '#C7D2FE',
+    color: '#AEBAC1',
   },
   tickText: {
     fontSize: 10,
-    color: '#C7D2FE',
+    color: '#AEBAC1',
     fontWeight: '700',
   },
   tickRead: {
-    color: '#6EE7B7',
+    color: '#53BDEB',
   },
   reactionsWrap: {
     flexDirection: 'row',
@@ -3808,14 +4450,14 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   reactionPill: {
-    backgroundColor: 'rgba(241, 245, 249, 0.9)',
+    backgroundColor: '#182229',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   reactionPillText: {
     fontSize: 11,
-    color: '#0F172A',
+    color: '#E9EDEF',
   },
   failedDraftCard: {
     backgroundColor: '#FEF2F2',
@@ -3845,14 +4487,14 @@ const styles = StyleSheet.create({
     color: '#DC2626',
   },
   mentionStrip: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#182229',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderTopWidth: 1,
-    borderTopColor: '#C7D2FE',
+    borderTopColor: '#202C33',
   },
   mentionChip: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#202C33',
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -3861,28 +4503,28 @@ const styles = StyleSheet.create({
   mentionChipText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#53BDEB',
   },
   replyEditBanner: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#182229',
     paddingHorizontal: 14,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#C7D2FE',
+    borderTopColor: '#202C33',
   },
   replyEditTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: '#00D287',
   },
   replyEditSnippet: {
     fontSize: 12,
-    color: '#334155',
+    color: '#AEBAC1',
   },
   stagedStrip: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#101820',
     paddingHorizontal: 12,
     paddingVertical: 6,
     flexDirection: 'row',
@@ -3892,14 +4534,14 @@ const styles = StyleSheet.create({
   stagedChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#202C33',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   stagedChipText: {
     fontSize: 11,
-    color: '#0F172A',
+    color: '#E9EDEF',
     maxWidth: 180,
   },
   announcementLockBar: {
@@ -3916,9 +4558,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   composerRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#101820',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#202C33',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -3929,9 +4571,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 46,
     maxHeight: 120,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#202C33',
+    borderWidth: 1,
+    borderColor: '#2A3942',
     borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
@@ -3958,7 +4600,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 6,
     fontSize: 14,
-    color: '#0F172A',
+    color: '#E9EDEF',
   },
   sendBtn: {
     width: 48,
@@ -3979,7 +4621,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1E293B',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
@@ -3993,19 +4635,19 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   sheetItem: {
     minHeight: 46,
     justifyContent: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#334155',
   },
   sheetItemText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#E9EDEF',
   },
   quickEmojiRow: {
     flexDirection: 'row',
@@ -4013,7 +4655,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 6,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#334155',
   },
   quickEmojiBtn: {
     padding: 6,
@@ -5261,7 +5903,7 @@ const styles = StyleSheet.create({
   // Fullscreen Media Preview Modal
   previewBackdrop: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B141A',
   },
   previewHeader: {
     flexDirection: 'row',
@@ -5269,7 +5911,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
     paddingBottom: 14,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(11, 20, 26, 0.92)',
   },
   previewCloseBtn: {
     padding: 6,
@@ -5309,7 +5951,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 24,
     paddingVertical: 18,
-    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    backgroundColor: 'rgba(11, 20, 26, 0.92)',
     gap: 16,
   },
   previewActionBtn: {
@@ -5507,7 +6149,7 @@ const styles = StyleSheet.create({
   // WhatsApp Pre-Send Media Preview Styles
   preSendModalContainer: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#0B141A',
     justifyContent: 'space-between',
   },
   preSendHeader: {
@@ -5529,6 +6171,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  preSendCounter: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#AEBAC1',
+    marginTop: 2,
   },
   preSendStage: {
     flex: 1,
@@ -5582,7 +6230,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
+    backgroundColor: '#202C33',
+    borderColor: '#2A3942',
+    borderWidth: 1,
     borderRadius: 24,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 10 : 6,

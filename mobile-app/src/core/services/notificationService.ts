@@ -12,19 +12,18 @@ export interface AppNotification {
 
 export class NotificationService {
   /**
-   * Register push device token
+   * Register native push device token with MasterHRMS backend
    */
   static async registerDeviceToken(token: string, platform: 'android' | 'ios'): Promise<boolean> {
     try {
-      await apiClient.post('/api/push/register', { token, platform });
+      await apiClient.post('/api/notifications/push/device-token', {
+        token,
+        platform,
+      });
       return true;
-    } catch {
-      try {
-        await apiClient.post('/api/notifications/register', { token, platform });
-        return true;
-      } catch {
-        return false;
-      }
+    } catch (err) {
+      console.warn('[NotificationService] Failed to register device token:', err);
+      return false;
     }
   }
 

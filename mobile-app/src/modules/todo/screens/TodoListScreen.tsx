@@ -27,7 +27,7 @@ import {
   WorkspaceErrorBlock,
   WorkspaceEmptyBlock,
 } from '../../../components/workspace/WorkspaceModuleShell';
-import { createTenantQueryKey } from '../../../app/providers/QueryProvider';
+import { createTenantQueryKey } from '../../../core/query/tenantQueryKeys';
 import { useAuthStore } from '../../../store/authStore';
 import { usePermission } from '../../../hooks/usePermission';
 import {

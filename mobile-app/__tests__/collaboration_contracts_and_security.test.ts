@@ -222,28 +222,17 @@ describe('Phase 6 & 7: Collaboration API Contracts, Attachment Security, Cache &
       expect(realtimeManager.isConnected()).toBe(false);
     });
 
-    it('deduplicates identical dual-transport events and normalizes call.incoming -> call:incoming', () => {
+    it('deduplicates identical dual-transport message events', () => {
       const receivedMsgs: any[] = [];
-      const receivedCalls: any[] = [];
 
       const unsubMsg = realtimeManager.subscribe('chat:message', (p) => receivedMsgs.push(p));
-      const unsubCall = realtimeManager.subscribe('call:incoming', (p) => receivedCalls.push(p));
 
       const eventPayload = { threadId: 'direct_1_2', message: { id: 'msg-99', content: 'Hi' } };
       realtimeManager.dispatchIncomingEvent('chat:message', eventPayload);
       realtimeManager.dispatchIncomingEvent('chat:message', eventPayload);
       expect(receivedMsgs).toHaveLength(1);
 
-      realtimeManager.dispatchIncomingEvent('call.incoming', {
-        callId: 'call-77',
-        callerId: 'u-2',
-        callerName: 'Priya',
-      });
-      expect(receivedCalls).toHaveLength(1);
-      expect(receivedCalls[0].callId).toBe('call-77');
-
       unsubMsg();
-      unsubCall();
     });
   });
 

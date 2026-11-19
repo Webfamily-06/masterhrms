@@ -498,11 +498,14 @@ export function TeamWhatsAppChatAddon() {
     if (dbThreadMessages && dbThreadMessages.length > 0 && activeThreadId) {
       setLocalMessagesMap((prev) => {
         const existing = prev[activeThreadId] || [];
-        const existingIds = new Set(existing.map((m) => m.id));
-        const newOnes = dbThreadMessages
-          .filter((dbMsg: any) => !existingIds.has(dbMsg.id))
-          .map((dbMsg: any) => ({
-            id: dbMsg.id,
+        const seenIds = new Set(existing.map((m) => String(m.id).trim()));
+        const newOnes: ChatMessage[] = [];
+        for (const dbMsg of dbThreadMessages) {
+          const id = String(dbMsg.id || '').trim();
+          if (!id || seenIds.has(id)) continue;
+          seenIds.add(id);
+          newOnes.push({
+            id,
             senderId: dbMsg.senderId,
             senderName: dbMsg.senderName,
             senderAvatar: dbMsg.senderAvatar || undefined,
@@ -511,7 +514,8 @@ export function TeamWhatsAppChatAddon() {
             timestamp: new Date(dbMsg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             status: "delivered" as const,
             isRead: true,
-          }));
+          });
+        }
 
         if (newOnes.length === 0) return prev;
         return {
@@ -530,13 +534,17 @@ export function TeamWhatsAppChatAddon() {
       if (!payload || !payload.threadId || !payload.message) return;
       const tId = payload.threadId;
       const msg = payload.message;
+      const msgId = String(msg.id || '').trim();
+      const tempId = String(msg.clientTempId || '').trim();
 
       setLocalMessagesMap((prevMap) => {
         const existing = prevMap[tId] || [];
-        if (existing.some((m) => m.id === msg.id)) return prevMap;
+        if (existing.some((m) => (msgId && m.id === msgId) || (tempId && (m as any).clientTempId === tempId))) {
+          return prevMap;
+        }
 
         const incomingMsg: ChatMessage = {
-          id: msg.id || `msg-${Date.now()}`,
+          id: msgId || `msg-${Date.now()}`,
           senderId: msg.senderId || msg.sender_id || "user",
           senderName: msg.senderName || msg.sender_name || "User",
           senderAvatar: msg.senderAvatar || msg.sender_avatar || undefined,

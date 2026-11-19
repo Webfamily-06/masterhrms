@@ -1,29 +1,14 @@
 import React from 'react';
-import { QueryClientProvider, QueryKey } from '@tanstack/react-query';
-import { useTenantStore } from '../../store/tenantStore';
-import { useAuthStore } from '../../store/authStore';
-import { queryClient, purgeQueryCache } from './queryClient';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient, purgeQueryCache } from '../../core/query/queryClient';
+import { createTenantQueryKey } from '../../core/query/tenantQueryKeys';
 
-export { queryClient, purgeQueryCache };
+export { queryClient, purgeQueryCache, createTenantQueryKey };
 
 /**
- * Tenant-Aware Query Key Helper:
- * Automatically prefixes query keys with the authoritative tenant ID.
- * Strict: Never falls back to an unsafe 'default' tenant key.
+ * Thin QueryProvider wrapper around TanStack React Query.
+ * Decoupled from stores and business logic to eliminate circular dependencies.
  */
-export function createTenantQueryKey(keyParts: (string | number | object)[]): QueryKey {
-  const tenantId =
-    useTenantStore.getState().currentTenant?.id ||
-    useAuthStore.getState().user?.profile?.tenantId;
-
-  if (!tenantId) {
-    // Isolated unassigned partition preventing cross-tenant leakage
-    return ['__no_tenant_context__', ...keyParts];
-  }
-
-  return [tenantId, ...keyParts];
-}
-
 export const QueryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 };

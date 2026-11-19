@@ -250,7 +250,8 @@ self.addEventListener("push", (event) => {
   const standardTitle = payload.title || "MasterHRMS Alert";
   const targetUrl = payload.actionUrl || payload.linkTo || payload.url || (payload.data?.actionUrl) || (payload.data?.linkTo) || (payload.data?.url) || "/";
   const notifId = payload.id || payload.notificationId || (payload.data?.id);
-  const tag = payload.tag || (notifId ? `notif_${notifId}` : "masterhrms-alert");
+  const threadId = payload.threadId || payload.data?.threadId || payload.conversationId || payload.data?.conversationId;
+  const tag = payload.tag || (threadId ? `chat_${threadId}` : notifId ? `notif_${notifId}` : "masterhrms-alert");
 
   const standardOptions = {
     body: payload.body || payload.message || "",
@@ -260,8 +261,10 @@ self.addEventListener("push", (event) => {
     renotify: true,
     vibrate: [200, 100, 200],
     data: {
-      type: payload.type || payload.module || "SYSTEM",
+      type: payload.type || payload.module || (threadId ? "CHAT_MESSAGE" : "SYSTEM"),
       id: notifId,
+      threadId,
+      conversationId: threadId,
       tenantId: payload.tenantId,
       actionUrl: targetUrl,
       url: targetUrl,
@@ -273,7 +276,7 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      // Broadcast payload to all open clients so in-app drawer updates immediately
+      // Broadcast payload to all open clients so in-app drawer or chat updates immediately
       clients.forEach((c) => {
         c.postMessage({
           type: "PUSH_NOTIFICATION_RECEIVED",
@@ -281,12 +284,33 @@ self.addEventListener("push", (event) => {
         });
       });
 
-      // Deduplication: Only suppress OS notification if a client window is BOTH focused AND actively visible.
-      // On mobile Android/iOS, locking the screen or switching apps leaves c.focused === true while visibilityState === "hidden".
-      const hasVisibleFocusedClient = clients.some(
-        (c) => c.focused && c.visibilityState === "visible"
-      );
-      if (hasVisibleFocusedClient) {
+      // Deduplication: Only suppress OS notification if a client window is BOTH focused AND actively visible
+      // AND is already viewing the exact target conversation (for chat messages).
+      // If the client is viewing another module, a different conversation, minimized, or backgrounded,
+      // the native OS notification MUST be displayed.
+      const isChatNotification =
+        type === "CHAT_MESSAGE" ||
+        type === "chat:message" ||
+        payload.module === "CHAT" ||
+        Boolean(threadId);
+
+      const isSuppressedByActiveConversation = clients.some((c) => {
+        if (!c.focused || c.visibilityState !== "visible") return false;
+        if (!isChatNotification) {
+          // For non-chat notifications, do not suppress if user is simply browsing
+          return false;
+        }
+        // If it is a chat notification, only suppress if client is already viewing this exact conversation
+        if (!threadId) return false;
+        const cUrl = c.url || "";
+        return (
+          cUrl.includes(String(threadId)) ||
+          cUrl.includes(`conversationId=${threadId}`) ||
+          cUrl.includes(`threadId=${threadId}`)
+        );
+      });
+
+      if (isSuppressedByActiveConversation) {
         return Promise.resolve();
       }
 
@@ -333,9 +357,10 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   // Resolve target application route (supporting role-aware routes: /hr/*, /me/*, /tenant/*, /super/*, /chat)
+  const chatThreadId = data.threadId || data.conversationId;
   let targetPath = callId
     ? `/chat?callId=${encodeURIComponent(callId)}`
-    : (data.actionUrl || data.url || data.linkTo || "/");
+    : (data.actionUrl || data.url || data.linkTo || (chatThreadId ? `/chat?conversationId=${encodeURIComponent(chatThreadId)}` : "/"));
 
   // Sanitize any accidental autoAccept parameter
   targetPath = targetPath.replace(/([?&])autoAccept=true&?/, "$1").replace(/[?&]$/, "");
