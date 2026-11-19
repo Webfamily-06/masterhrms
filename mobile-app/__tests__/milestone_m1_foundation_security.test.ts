@@ -68,14 +68,14 @@ describe('Milestone M1 — Foundation & Security Verification Suites', () => {
       expect(ok).toBe(true);
     });
 
-    it('subscribes push token via POST /api/notifications/push/subscribe', async () => {
+    it('subscribes push token via POST /api/notifications/push/device-token with fallback', async () => {
       (apiClient.post as jest.Mock).mockResolvedValueOnce({ data: { success: true } });
 
       const ok = await NotificationService.registerDeviceToken('fcm-token-xyz', 'android');
       expect(apiClient.post).toHaveBeenCalledWith(
-        '/api/notifications/push/subscribe',
+        '/api/notifications/push/device-token',
         expect.objectContaining({
-          endpoint: 'fcm-token-xyz',
+          token: 'fcm-token-xyz',
           platform: 'android',
         })
       );

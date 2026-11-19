@@ -12,7 +12,6 @@ export interface AppNotification {
 
 export class NotificationService {
   /**
-  /**
    * Register native push device token with MasterHRMS backend
    */
   static async registerDeviceToken(token: string, platform: 'android' | 'ios'): Promise<boolean> {
@@ -43,8 +42,6 @@ export class NotificationService {
           return false;
         }
       }
-    }
-  }
     }
   }
 
