@@ -23,6 +23,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Copy,
   Search,
   Check,
   RefreshCw,
@@ -241,7 +242,7 @@ export function SuperAdminPlansPage() {
       pricePerUserOriginal: plan.pricePerUserOriginal !== null && plan.pricePerUserOriginal !== undefined ? Number(plan.pricePerUserOriginal) : null,
       billableUsers: plan.billableUsers ? Number(plan.billableUsers) : 25,
       isTrial: Boolean(plan.isTrial),
-      trialDays: 3,
+      trialDays: plan.trialDays ?? 3,
       combinedUserLimit: userLimit,
       storageLimitGb: plan.storageLimitGb ?? 10,
       featuresText: Array.isArray(plan.features) ? plan.features.join("\n") : "",
@@ -322,7 +323,7 @@ export function SuperAdminPlansPage() {
       billableUsers: Number(formData.billableUsers) || 1,
       durationPrices,
       isTrial: formData.isTrial,
-      trialDays: 3, // Exactly 3 days per requirement
+      trialDays: formData.isTrial ? (Number(formData.trialDays) || 3) : 3,
       maxUsers: userLimit,
       maxEmployees: userLimit,
       storageLimitGb: formData.storageLimitGb ? Number(formData.storageLimitGb) : null,
@@ -333,6 +334,16 @@ export function SuperAdminPlansPage() {
     };
 
     savePlanMutation.mutate(payload);
+  };
+
+  const handleDuplicatePlan = async (plan: SubscriptionPlanRecord) => {
+    try {
+      const res = await api.post(`/api/super/plans/${plan.id}/duplicate`);
+      toast.success(`Plan duplicated as "${res.data.name}"`);
+      refetch();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.message || "Failed to duplicate plan");
+    }
   };
 
   const handleDeletePlan = (plan: SubscriptionPlanRecord) => {
@@ -538,7 +549,7 @@ export function SuperAdminPlansPage() {
                   {plan.isTrial && (
                     <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[11px] gap-1 pointer-events-auto">
                       <Clock className="h-3 w-3" />
-                      3-Day Free Trial
+                      {plan.trialDays || 3}-Day Free Trial
                     </Badge>
                   )}
                 </div>
@@ -693,6 +704,16 @@ export function SuperAdminPlansPage() {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit Plan
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDuplicatePlan(plan)}
+                    className="h-8 px-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    title="Duplicate Plan"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
                   </Button>
 
                   <Button
@@ -1087,9 +1108,19 @@ export function SuperAdminPlansPage() {
               </div>
 
               {formData.isTrial && (
-                <div className="pt-2 flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Fixed trial duration: <strong>3 Days</strong> from tenant activation timestamp.</span>
+                <div className="pt-2 flex items-center justify-between gap-3 text-xs bg-emerald-50 dark:bg-emerald-950/30 p-2.5 rounded border border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    <span>Trial Duration (Days):</span>
+                  </div>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="90"
+                    value={formData.trialDays}
+                    onChange={(e) => setFormData({ ...formData, trialDays: Math.max(1, Number(e.target.value) || 1) })}
+                    className="w-20 h-7 text-xs font-semibold text-center bg-white dark:bg-slate-900"
+                  />
                 </div>
               )}
             </div>

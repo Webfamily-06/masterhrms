@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Layers,
   Power,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -582,7 +583,22 @@ export function SuperCouponsPage() {
           <form onSubmit={handleSubmit} className="space-y-4 pt-2 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Coupon Code *</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Coupon Code *</Label>
+                  {!editingCoupon && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const randomCode = `PROMO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+                        setCode(randomCode);
+                        toast.success(`Generated code: ${randomCode}`);
+                      }}
+                      className="text-[10px] text-primary hover:underline font-semibold cursor-pointer flex items-center gap-1"
+                    >
+                      <Sparkles className="size-3" /> Auto-Generate
+                    </button>
+                  )}
+                </div>
                 <Input
                   placeholder="e.g. SUMMER50"
                   value={code}

@@ -248,6 +248,7 @@ import { Route as AuthenticatedSuperMediaRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSuperNotificationsRouteImport } from './routes/_authenticated/super/notifications'
 import { Route as AuthenticatedSuperPlansRouteImport } from './routes/_authenticated/super/plans'
 import { Route as AuthenticatedSuperProfileRouteImport } from './routes/_authenticated/super/profile'
+import { Route as AuthenticatedSuperReferralRouteImport } from './routes/_authenticated/super/referral'
 import { Route as AuthenticatedSuperRolesRouteImport } from './routes/_authenticated/super/roles'
 import { Route as AuthenticatedSuperSettingsRouteImport } from './routes/_authenticated/super/settings'
 import { Route as AuthenticatedSuperSlaPoliciesRouteImport } from './routes/_authenticated/super/sla-policies'
@@ -1692,11 +1693,6 @@ const AuthenticatedMeAccountRoute = AuthenticatedMeAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AuthenticatedMeRoute,
 } as any)
-const AuthenticatedMeSettingsRoute = AuthenticatedMeSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthenticatedMeRoute,
-} as any)
 const AuthenticatedMeApprovalsRoute =
   AuthenticatedMeApprovalsRouteImport.update({
     id: '/approvals',
@@ -1754,6 +1750,11 @@ const AuthenticatedMeNotificationsRoute =
 const AuthenticatedMeProfileRoute = AuthenticatedMeProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AuthenticatedMeRoute,
+} as any)
+const AuthenticatedMeSettingsRoute = AuthenticatedMeSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedMeRoute,
 } as any)
 const AuthenticatedMeTeamRoute = AuthenticatedMeTeamRouteImport.update({
@@ -1889,6 +1890,12 @@ const AuthenticatedSuperProfileRoute =
   AuthenticatedSuperProfileRouteImport.update({
     id: '/profile',
     path: '/profile',
+    getParentRoute: () => AuthenticatedSuperRouteRoute,
+  } as any)
+const AuthenticatedSuperReferralRoute =
+  AuthenticatedSuperReferralRouteImport.update({
+    id: '/referral',
+    path: '/referral',
     getParentRoute: () => AuthenticatedSuperRouteRoute,
   } as any)
 const AuthenticatedSuperRolesRoute = AuthenticatedSuperRolesRouteImport.update({
@@ -3906,8 +3913,6 @@ export interface FileRoutesByFullPath {
   '/hr/settings': typeof AuthenticatedHrSettingsRoute
   '/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/me/account': typeof AuthenticatedMeAccountRoute
-  '/me/settings': typeof AuthenticatedMeSettingsRoute
-  '/me/settings': typeof AuthenticatedMeSettingsRoute
   '/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/me/awards': typeof AuthenticatedMeAwardsRoute
   '/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -3919,6 +3924,7 @@ export interface FileRoutesByFullPath {
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
+  '/me/settings': typeof AuthenticatedMeSettingsRoute
   '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -3942,6 +3948,7 @@ export interface FileRoutesByFullPath {
   '/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/super/plans': typeof AuthenticatedSuperPlansRoute
   '/super/profile': typeof AuthenticatedSuperProfileRoute
+  '/super/referral': typeof AuthenticatedSuperReferralRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
@@ -4457,6 +4464,7 @@ export interface FileRoutesByTo {
   '/me/media': typeof AuthenticatedMeMediaRoute
   '/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
+  '/me/settings': typeof AuthenticatedMeSettingsRoute
   '/me/team': typeof AuthenticatedMeTeamRoute
   '/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -4480,6 +4488,7 @@ export interface FileRoutesByTo {
   '/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/super/plans': typeof AuthenticatedSuperPlansRoute
   '/super/profile': typeof AuthenticatedSuperProfileRoute
+  '/super/referral': typeof AuthenticatedSuperReferralRoute
   '/super/roles': typeof AuthenticatedSuperRolesRoute
   '/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
@@ -4991,7 +5000,6 @@ export interface FileRoutesById {
   '/_authenticated/hr/settings': typeof AuthenticatedHrSettingsRoute
   '/_authenticated/hr/todo': typeof AuthenticatedHrTodoRouteWithChildren
   '/_authenticated/me/account': typeof AuthenticatedMeAccountRoute
-  '/_authenticated/me/settings': typeof AuthenticatedMeSettingsRoute
   '/_authenticated/me/approvals': typeof AuthenticatedMeApprovalsRoute
   '/_authenticated/me/awards': typeof AuthenticatedMeAwardsRoute
   '/_authenticated/me/calendar': typeof AuthenticatedMeCalendarRoute
@@ -5003,6 +5011,7 @@ export interface FileRoutesById {
   '/_authenticated/me/media': typeof AuthenticatedMeMediaRoute
   '/_authenticated/me/notifications': typeof AuthenticatedMeNotificationsRoute
   '/_authenticated/me/profile': typeof AuthenticatedMeProfileRouteWithChildren
+  '/_authenticated/me/settings': typeof AuthenticatedMeSettingsRoute
   '/_authenticated/me/team': typeof AuthenticatedMeTeamRoute
   '/_authenticated/me/todo': typeof AuthenticatedMeTodoRouteWithChildren
   '/_authenticated/super/agents': typeof AuthenticatedSuperAgentsRoute
@@ -5026,6 +5035,7 @@ export interface FileRoutesById {
   '/_authenticated/super/notifications': typeof AuthenticatedSuperNotificationsRoute
   '/_authenticated/super/plans': typeof AuthenticatedSuperPlansRoute
   '/_authenticated/super/profile': typeof AuthenticatedSuperProfileRoute
+  '/_authenticated/super/referral': typeof AuthenticatedSuperReferralRoute
   '/_authenticated/super/roles': typeof AuthenticatedSuperRolesRoute
   '/_authenticated/super/settings': typeof AuthenticatedSuperSettingsRoute
   '/_authenticated/super/sla-policies': typeof AuthenticatedSuperSlaPoliciesRoute
@@ -5536,8 +5546,6 @@ export interface FileRouteTypes {
     | '/hr/settings'
     | '/hr/todo'
     | '/me/account'
-    | '/me/settings'
-    | '/me/settings'
     | '/me/approvals'
     | '/me/awards'
     | '/me/calendar'
@@ -5549,6 +5557,7 @@ export interface FileRouteTypes {
     | '/me/media'
     | '/me/notifications'
     | '/me/profile'
+    | '/me/settings'
     | '/me/team'
     | '/me/todo'
     | '/super/agents'
@@ -5572,6 +5581,7 @@ export interface FileRouteTypes {
     | '/super/notifications'
     | '/super/plans'
     | '/super/profile'
+    | '/super/referral'
     | '/super/roles'
     | '/super/settings'
     | '/super/sla-policies'
@@ -6087,6 +6097,7 @@ export interface FileRouteTypes {
     | '/me/media'
     | '/me/notifications'
     | '/me/profile'
+    | '/me/settings'
     | '/me/team'
     | '/me/todo'
     | '/super/agents'
@@ -6110,6 +6121,7 @@ export interface FileRouteTypes {
     | '/super/notifications'
     | '/super/plans'
     | '/super/profile'
+    | '/super/referral'
     | '/super/roles'
     | '/super/settings'
     | '/super/sla-policies'
@@ -6620,7 +6632,6 @@ export interface FileRouteTypes {
     | '/_authenticated/hr/settings'
     | '/_authenticated/hr/todo'
     | '/_authenticated/me/account'
-    | '/_authenticated/me/settings'
     | '/_authenticated/me/approvals'
     | '/_authenticated/me/awards'
     | '/_authenticated/me/calendar'
@@ -6632,6 +6643,7 @@ export interface FileRouteTypes {
     | '/_authenticated/me/media'
     | '/_authenticated/me/notifications'
     | '/_authenticated/me/profile'
+    | '/_authenticated/me/settings'
     | '/_authenticated/me/team'
     | '/_authenticated/me/todo'
     | '/_authenticated/super/agents'
@@ -6655,6 +6667,7 @@ export interface FileRouteTypes {
     | '/_authenticated/super/notifications'
     | '/_authenticated/super/plans'
     | '/_authenticated/super/profile'
+    | '/_authenticated/super/referral'
     | '/_authenticated/super/roles'
     | '/_authenticated/super/settings'
     | '/_authenticated/super/sla-policies'
@@ -8424,13 +8437,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMeAccountRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
-    '/_authenticated/me/settings': {
-      id: '/_authenticated/me/settings'
-      path: '/settings'
-      fullPath: '/me/settings'
-      preLoaderRoute: typeof AuthenticatedMeSettingsRouteImport
-      parentRoute: typeof AuthenticatedMeRoute
-    }
     '/_authenticated/me/approvals': {
       id: '/_authenticated/me/approvals'
       path: '/approvals'
@@ -8506,6 +8512,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/me/profile'
       preLoaderRoute: typeof AuthenticatedMeProfileRouteImport
+      parentRoute: typeof AuthenticatedMeRoute
+    }
+    '/_authenticated/me/settings': {
+      id: '/_authenticated/me/settings'
+      path: '/settings'
+      fullPath: '/me/settings'
+      preLoaderRoute: typeof AuthenticatedMeSettingsRouteImport
       parentRoute: typeof AuthenticatedMeRoute
     }
     '/_authenticated/me/team': {
@@ -8674,6 +8687,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/super/profile'
       preLoaderRoute: typeof AuthenticatedSuperProfileRouteImport
+      parentRoute: typeof AuthenticatedSuperRouteRoute
+    }
+    '/_authenticated/super/referral': {
+      id: '/_authenticated/super/referral'
+      path: '/referral'
+      fullPath: '/super/referral'
+      preLoaderRoute: typeof AuthenticatedSuperReferralRouteImport
       parentRoute: typeof AuthenticatedSuperRouteRoute
     }
     '/_authenticated/super/roles': {
@@ -11427,6 +11447,7 @@ interface AuthenticatedSuperRouteRouteChildren {
   AuthenticatedSuperNotificationsRoute: typeof AuthenticatedSuperNotificationsRoute
   AuthenticatedSuperPlansRoute: typeof AuthenticatedSuperPlansRoute
   AuthenticatedSuperProfileRoute: typeof AuthenticatedSuperProfileRoute
+  AuthenticatedSuperReferralRoute: typeof AuthenticatedSuperReferralRoute
   AuthenticatedSuperRolesRoute: typeof AuthenticatedSuperRolesRoute
   AuthenticatedSuperSettingsRoute: typeof AuthenticatedSuperSettingsRoute
   AuthenticatedSuperSlaPoliciesRoute: typeof AuthenticatedSuperSlaPoliciesRoute
@@ -11464,6 +11485,7 @@ const AuthenticatedSuperRouteRouteChildren: AuthenticatedSuperRouteRouteChildren
     AuthenticatedSuperNotificationsRoute: AuthenticatedSuperNotificationsRoute,
     AuthenticatedSuperPlansRoute: AuthenticatedSuperPlansRoute,
     AuthenticatedSuperProfileRoute: AuthenticatedSuperProfileRoute,
+    AuthenticatedSuperReferralRoute: AuthenticatedSuperReferralRoute,
     AuthenticatedSuperRolesRoute: AuthenticatedSuperRolesRoute,
     AuthenticatedSuperSettingsRoute: AuthenticatedSuperSettingsRoute,
     AuthenticatedSuperSlaPoliciesRoute: AuthenticatedSuperSlaPoliciesRoute,
@@ -11925,7 +11947,6 @@ const AuthenticatedMeTodoRouteWithChildren =
 
 interface AuthenticatedMeRouteChildren {
   AuthenticatedMeAccountRoute: typeof AuthenticatedMeAccountRoute
-  AuthenticatedMeSettingsRoute: typeof AuthenticatedMeSettingsRoute
   AuthenticatedMeApprovalsRoute: typeof AuthenticatedMeApprovalsRoute
   AuthenticatedMeAwardsRoute: typeof AuthenticatedMeAwardsRoute
   AuthenticatedMeCalendarRoute: typeof AuthenticatedMeCalendarRoute
@@ -11937,6 +11958,7 @@ interface AuthenticatedMeRouteChildren {
   AuthenticatedMeMediaRoute: typeof AuthenticatedMeMediaRoute
   AuthenticatedMeNotificationsRoute: typeof AuthenticatedMeNotificationsRoute
   AuthenticatedMeProfileRoute: typeof AuthenticatedMeProfileRouteWithChildren
+  AuthenticatedMeSettingsRoute: typeof AuthenticatedMeSettingsRoute
   AuthenticatedMeTeamRoute: typeof AuthenticatedMeTeamRoute
   AuthenticatedMeTodoRoute: typeof AuthenticatedMeTodoRouteWithChildren
   AuthenticatedMeIndexRoute: typeof AuthenticatedMeIndexRoute
@@ -12004,7 +12026,6 @@ interface AuthenticatedMeRouteChildren {
 
 const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeAccountRoute: AuthenticatedMeAccountRoute,
-  AuthenticatedMeSettingsRoute: AuthenticatedMeSettingsRoute,
   AuthenticatedMeApprovalsRoute: AuthenticatedMeApprovalsRoute,
   AuthenticatedMeAwardsRoute: AuthenticatedMeAwardsRoute,
   AuthenticatedMeCalendarRoute: AuthenticatedMeCalendarRoute,
@@ -12016,6 +12037,7 @@ const AuthenticatedMeRouteChildren: AuthenticatedMeRouteChildren = {
   AuthenticatedMeMediaRoute: AuthenticatedMeMediaRoute,
   AuthenticatedMeNotificationsRoute: AuthenticatedMeNotificationsRoute,
   AuthenticatedMeProfileRoute: AuthenticatedMeProfileRouteWithChildren,
+  AuthenticatedMeSettingsRoute: AuthenticatedMeSettingsRoute,
   AuthenticatedMeTeamRoute: AuthenticatedMeTeamRoute,
   AuthenticatedMeTodoRoute: AuthenticatedMeTodoRouteWithChildren,
   AuthenticatedMeIndexRoute: AuthenticatedMeIndexRoute,

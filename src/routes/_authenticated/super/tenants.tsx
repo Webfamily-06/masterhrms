@@ -1254,28 +1254,36 @@ function CompaniesManagementPage() {
                           )}
                         </td>
 
-                        {/* Status Badge */}
+                        {/* Status Badge with Direct 1-Click Toggle */}
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(tenant)}
+                            disabled={togglingTenantId === tenant.id}
+                            title={isSuspended ? "Click to Activate workspace" : "Click to Suspend workspace"}
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer hover:shadow-2xs active:scale-95 disabled:opacity-50 ${
                               isSuspended
-                                ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                ? "bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                 : isExpired
                                   ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
                             }`}
                           >
-                            <span
-                              className={`size-1.5 rounded-full ${
-                                isSuspended
-                                  ? "bg-slate-500 dark:bg-slate-400"
-                                  : isExpired
-                                    ? "bg-amber-600 dark:bg-amber-400"
-                                    : "bg-emerald-600 dark:bg-emerald-400"
-                              }`}
-                            />
+                            {togglingTenantId === tenant.id ? (
+                              <Loader2 className="size-2 animate-spin" />
+                            ) : (
+                              <span
+                                className={`size-1.5 rounded-full ${
+                                  isSuspended
+                                    ? "bg-slate-500 dark:bg-slate-400"
+                                    : isExpired
+                                      ? "bg-amber-600 dark:bg-amber-400"
+                                      : "bg-emerald-600 dark:bg-emerald-400"
+                                }`}
+                              />
+                            )}
                             {isSuspended ? "Inactive" : isExpired ? "Expired" : "Active"}
-                          </span>
+                          </button>
                         </td>
 
                         {/* Action Menu */}
@@ -1592,26 +1600,34 @@ function CompaniesManagementPage() {
 
                         {/* Plan & Status Badges */}
                         <div className="flex items-center gap-2 mb-3.5 flex-wrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(tenant)}
+                            disabled={togglingTenantId === tenant.id}
+                            title={isSuspended ? "Click to Activate workspace" : "Click to Suspend workspace"}
+                            className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:shadow-2xs active:scale-95 disabled:opacity-50 ${
                               isSuspended
-                                ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                ? "bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                 : isExpired
                                   ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
-                                  : "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-slate-100 hover:text-slate-600 hover:border-slate-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
                             }`}
                           >
-                            <span
-                              className={`size-1.5 rounded-full ${
-                                isSuspended
-                                  ? "bg-slate-500 dark:bg-slate-400"
-                                  : isExpired
-                                    ? "bg-amber-600 dark:bg-amber-400"
-                                    : "bg-emerald-600 dark:bg-emerald-400"
-                              }`}
-                            />
+                            {togglingTenantId === tenant.id ? (
+                              <Loader2 className="size-2 animate-spin" />
+                            ) : (
+                              <span
+                                className={`size-1.5 rounded-full ${
+                                  isSuspended
+                                    ? "bg-slate-500 dark:bg-slate-400"
+                                    : isExpired
+                                      ? "bg-amber-600 dark:bg-amber-400"
+                                      : "bg-emerald-600 dark:bg-emerald-400"
+                                }`}
+                              />
+                            )}
                             {isSuspended ? "Inactive" : isExpired ? "Expired" : "Active"}
-                          </span>
+                          </button>
 
                           <span
                             className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${

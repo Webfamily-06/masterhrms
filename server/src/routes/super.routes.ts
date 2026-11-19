@@ -33,6 +33,7 @@ import { TenantUsageMetricsService } from "../services/tenant-usage-metrics.serv
 import { invalidateMaintenanceCache } from "../middleware/maintenance";
 import { invalidateCmsAddonsCache } from "./cms.routes";
 import { SettingsService } from "../services/settings/settings.service";
+import { ReferralService } from "../services/referral.service";
 import { getBaseDomain, getWorkspaceUrl, getSuperAdminUrl, getRootUrl, invalidateCustomDomainCache, getCustomDomainUrl } from "../lib/workspace-host";
 import { validateCustomDomain } from "../lib/domain-normalization";
 import { getRequiredDnsRecords, verifyDomainDns, getPlatformCnameTarget } from "../services/domain-dns.service";
@@ -1689,6 +1690,148 @@ superRouter.delete("/plans/:id", requireAuth, requireSuperAdmin, async (req: Aut
     return res.json({ success: true, message: "Subscription plan deleted successfully" });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to delete subscription plan" });
+  }
+});
+
+// ==========================================
+// 1.05 REFERRAL & AFFILIATE PROGRAM (SUPER ADMIN)
+// ==========================================
+
+// GET /api/super/referral
+superRouter.get("/referral", requireAuth, requireSuperAdmin, async (_req: AuthRequest, res: Response) => {
+  try {
+    const overview = await ReferralService.getOverview();
+    return res.json(overview);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to fetch referral overview" });
+  }
+});
+
+// PUT /api/super/referral/settings
+superRouter.put("/referral/settings", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const updated = await ReferralService.updateSettings(req.body, req.user?.id);
+    return res.json({ success: true, settings: updated });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to update referral settings" });
+  }
+});
+
+// POST /api/super/referral/payout-requests/:id/approve
+superRouter.post("/referral/payout-requests/:id/approve", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+    const approved = await ReferralService.approvePayout(id, notes, req.user?.id);
+    return res.json({ success: true, request: approved });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to approve payout request" });
+  }
+});
+
+// POST /api/super/referral/payout-requests/:id/reject
+superRouter.post("/referral/payout-requests/:id/reject", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    if (!reason || typeof reason !== "string") {
+      return res.status(400).json({ error: "Rejection reason is required." });
+    }
+    const rejected = await ReferralService.rejectPayout(id, reason, req.user?.id);
+    return res.json({ success: true, request: rejected });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to reject payout request" });
+  }
+});
+
+// POST /api/super/plans/:id/duplicate
+superRouter.post("/plans/:id/duplicate", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.subscriptionPlan.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ error: "Subscription plan not found." });
+    }
+
+    const duplicateName = `${existing.name} (Copy)`;
+    const newPlan = await prisma.subscriptionPlan.create({
+      data: {
+        name: duplicateName,
+        description: existing.description,
+        status: "active",
+        planType: existing.planType,
+        pricingModel: existing.pricingModel,
+        currency: existing.currency,
+        priceMonthly: existing.priceMonthly,
+        priceMonthlyOriginal: existing.priceMonthlyOriginal,
+        priceQuarterly: existing.priceQuarterly,
+        priceSemiAnnual: existing.priceSemiAnnual,
+        priceAnnual: existing.priceAnnual,
+        priceAnnualOriginal: existing.priceAnnualOriginal,
+        pricePerUser: existing.pricePerUser,
+        pricePerUserOriginal: existing.pricePerUserOriginal,
+        billableUsers: existing.billableUsers,
+        durationPrices: existing.durationPrices as any,
+        isTrial: existing.isTrial,
+        trialDays: existing.trialDays,
+        maxEmployees: existing.maxEmployees,
+        maxUsers: existing.maxUsers,
+        storageLimitGb: existing.storageLimitGb,
+        features: existing.features as any,
+        includedAddonIds: existing.includedAddonIds as any,
+        isPopular: false,
+        sortOrder: existing.sortOrder + 1,
+        isPublic: existing.isPublic,
+      },
+    });
+
+    return res.status(201).json(newPlan);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to duplicate plan" });
+  }
+});
+
+// POST /api/super/plans/:id/make-default
+superRouter.post("/plans/:id/make-default", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const targetPlan = await prisma.subscriptionPlan.findUnique({ where: { id } });
+    if (!targetPlan) {
+      return res.status(404).json({ error: "Subscription plan not found." });
+    }
+
+    const existingSetting = await prisma.setting.findFirst({
+      where: {
+        scope: "PLATFORM",
+        group: "billing",
+        key: "default_signup_plan_id",
+      },
+    });
+
+    if (existingSetting) {
+      await prisma.setting.update({
+        where: { id: existingSetting.id },
+        data: {
+          valueJson: { planId: id, planName: targetPlan.name },
+          updatedBy: req.user?.id || null,
+        },
+      });
+    } else {
+      await prisma.setting.create({
+        data: {
+          scope: "PLATFORM",
+          group: "billing",
+          key: "default_signup_plan_id",
+          valueType: "json",
+          valueJson: { planId: id, planName: targetPlan.name },
+          updatedBy: req.user?.id || null,
+        },
+      });
+    }
+
+    return res.json({ success: true, message: `Plan "${targetPlan.name}" is now the default signup plan.` });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to set default plan" });
   }
 });
 
