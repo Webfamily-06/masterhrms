@@ -1743,20 +1743,98 @@ export const EMPLOYEE_NAVIGATION_REGISTRY: NavRegistryItem[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────
-// 3. TENANT SIDEBAR REGISTRY (/tenant/*) — Exact Section 4.3 Order
+// 3. TENANT SIDEBAR REGISTRY (/tenant/*) — Strict Company Admin Workspace
 // ─────────────────────────────────────────────────────────────
 export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
-  // Workspace
+  // 1. Dashboard
   {
     id: "tenant-dashboard",
     portal: "tenant",
-    heading: "Workspace",
-    label: "Tenant Dashboard",
+    heading: "Dashboard",
+    label: "Dashboard",
     path: ROUTES.tenant.dashboard,
     icon: "LayoutDashboard",
     order: 10,
     exactMatch: true,
   },
+
+  // 2. Unmapped Pages (Immediately below Dashboard)
+  {
+    id: "tenant-unmapped-pages",
+    portal: "tenant",
+    heading: "Unmapped Pages",
+    label: "Unmapped Pages",
+    path: "/ai-business-advisor",
+    icon: "Layers",
+    order: 20,
+    children: [
+      {
+        id: "tenant-unmapped-ai-advisor",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "AI Business Advisor",
+        path: "/ai-business-advisor",
+        icon: "Bot",
+        order: 20.1,
+      },
+      {
+        id: "tenant-unmapped-smart-dashboard",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "Smart Analytics Dashboard",
+        path: "/smart-dashboard",
+        icon: "BarChart3",
+        order: 20.2,
+      },
+      {
+        id: "tenant-unmapped-notice-board",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "Company Notice Board",
+        path: "/notice-board",
+        icon: "Megaphone",
+        order: 20.3,
+      },
+      {
+        id: "tenant-unmapped-time-tracker",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "Workspace Time Tracker",
+        path: "/time-tracker",
+        icon: "Clock",
+        order: 20.4,
+      },
+      {
+        id: "tenant-unmapped-assets",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "Asset Management",
+        path: "/assets",
+        icon: "Package",
+        order: 20.5,
+      },
+      {
+        id: "tenant-unmapped-okr",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "OKR & Strategic Goals",
+        path: "/okr",
+        icon: "Target",
+        order: 20.6,
+      },
+      {
+        id: "tenant-unmapped-pestel",
+        portal: "tenant",
+        heading: "Unmapped Pages",
+        label: "PESTEL Strategic Analysis",
+        path: "/pestel",
+        icon: "Compass",
+        order: 20.7,
+      },
+    ],
+  },
+
+  // 3. Workspace
   {
     id: "tenant-calendar",
     portal: "tenant",
@@ -1764,7 +1842,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Calendar",
     path: ROUTES.tenant.calendar,
     icon: "Calendar",
-    order: 15,
+    order: 30,
   },
   {
     id: "tenant-todo",
@@ -1773,7 +1851,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Todo",
     path: ROUTES.tenant.todo,
     icon: "CheckSquare",
-    order: 16,
+    order: 31,
   },
   {
     id: "tenant-gantt",
@@ -1782,7 +1860,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Gantt",
     path: ROUTES.tenant.todoGantt,
     icon: "BarChartHorizontal",
-    order: 17,
+    order: 32,
   },
   {
     id: "tenant-chat",
@@ -1791,7 +1869,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Chat",
     path: ROUTES.tenant.chat,
     icon: "MessageSquare",
-    order: 18,
+    order: 33,
     children: [
       {
         id: "tenant-chat-personal",
@@ -1800,7 +1878,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Personal Chat",
         path: "/tenant/chat?tab=personal",
         icon: "MessageSquare",
-        order: 18.1,
+        order: 33.1,
       },
       {
         id: "tenant-chat-groups",
@@ -1809,7 +1887,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Chat Groups",
         path: ROUTES.tenant.chatGroups,
         icon: "Users",
-        order: 18.2,
+        order: 33.2,
       },
       {
         id: "tenant-chat-contacts",
@@ -1818,7 +1896,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Chat Contacts",
         path: ROUTES.tenant.chatContacts,
         icon: "Contact",
-        order: 18.3,
+        order: 33.3,
       },
       {
         id: "tenant-chat-calls",
@@ -1827,124 +1905,96 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Call Logs",
         path: ROUTES.tenant.chatCalls,
         icon: "PhoneCall",
-        order: 18.4,
+        order: 33.4,
       },
     ],
   },
   {
-    id: "tenant-files",
+    id: "tenant-file-manager",
     portal: "tenant",
     heading: "Workspace",
     label: "File Manager",
-    path: ROUTES.tenant.files,
+    path: ROUTES.tenant.fileManager,
     icon: "FolderLock",
-    order: 19,
+    order: 34,
   },
-  {
-    id: "tenant-reports",
-    portal: "tenant",
-    heading: "Workspace",
-    label: "Custom Reports",
-    path: "/smart-reports",
-    icon: "FileBarChart",
-    order: 19.5,
-  },
+
+  // 4. Company Profile
   {
     id: "tenant-company-profile",
     portal: "tenant",
-    heading: "Workspace",
-    label: "Company Profile and Billing Address",
+    heading: "Company Profile",
+    label: "Company Profile",
     path: ROUTES.tenant.companyProfile,
     icon: "Building2",
-    order: 20,
+    order: 40,
   },
+
+  // 5. Organization Structure
   {
     id: "tenant-org-structure",
     portal: "tenant",
-    heading: "Workspace",
+    heading: "Organization Structure",
     label: "Organization Structure",
-    path: ROUTES.hr.organization.branches,
-    icon: "Building2",
-    order: 25,
-    children: [
-      {
-        id: "tenant-org-branches",
-        portal: "tenant",
-        heading: "Workspace",
-        label: "Branches",
-        path: ROUTES.hr.organization.branches,
-        icon: "GitBranch",
-        order: 25.1,
-      },
-      {
-        id: "tenant-org-departments",
-        portal: "tenant",
-        heading: "Workspace",
-        label: "Departments",
-        path: ROUTES.hr.organization.departments,
-        icon: "Building2",
-        order: 25.2,
-      },
-      {
-        id: "tenant-org-designations",
-        portal: "tenant",
-        heading: "Workspace",
-        label: "Designations",
-        path: ROUTES.hr.organization.designations,
-        icon: "Award",
-        order: 25.3,
-      },
-    ],
-  },
-  {
-    id: "tenant-users",
-    portal: "tenant",
-    heading: "Workspace",
-    label: "Users",
-    path: ROUTES.tenant.users,
-    icon: "Users",
-    order: 30,
-  },
-  {
-    id: "tenant-roles",
-    portal: "tenant",
-    heading: "Workspace",
-    label: "Roles and Permissions",
-    path: ROUTES.tenant.roles,
-    icon: "ShieldCheck",
-    order: 40,
-  },
-  {
-    id: "tenant-modules",
-    portal: "tenant",
-    heading: "Workspace",
-    label: "Addon Store & Integrations",
-    path: ROUTES.tenant.modules,
-    icon: "Boxes",
+    path: ROUTES.tenant.organization,
+    icon: "GitBranch",
     order: 50,
   },
 
-  // Subscription
+  // 6. Users
+  {
+    id: "tenant-users",
+    portal: "tenant",
+    heading: "Users",
+    label: "Users",
+    path: ROUTES.tenant.users,
+    icon: "Users",
+    order: 60,
+  },
+
+  // 7. Roles and Permissions
+  {
+    id: "tenant-roles",
+    portal: "tenant",
+    heading: "Roles and Permissions",
+    label: "Roles and Permissions",
+    path: ROUTES.tenant.roles,
+    icon: "ShieldCheck",
+    order: 70,
+  },
+
+  // 8. Add-on Store & Integrations
+  {
+    id: "tenant-modules",
+    portal: "tenant",
+    heading: "Add-on Store & Integrations",
+    label: "Add-on Store & Integrations",
+    path: ROUTES.tenant.modules,
+    icon: "Boxes",
+    order: 80,
+  },
+
+  // 9. Subscription & Billing
   {
     id: "tenant-subscription",
     portal: "tenant",
-    heading: "Subscription",
+    heading: "Subscription & Billing",
     label: "Plan and Usage",
     path: ROUTES.tenant.subscription,
     icon: "CreditCard",
-    order: 60,
+    order: 90,
   },
   {
     id: "tenant-billing",
     portal: "tenant",
-    heading: "Subscription",
+    heading: "Subscription & Billing",
     label: "Billing and Invoices",
     path: ROUTES.tenant.billing,
     icon: "Receipt",
-    order: 70,
+    order: 91,
   },
 
-  // Configuration
+  // 10. Configuration
   {
     id: "tenant-branding",
     portal: "tenant",
@@ -1952,7 +2002,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Branding",
     path: ROUTES.tenant.branding,
     icon: "Sparkles",
-    order: 80,
+    order: 100,
   },
   {
     id: "tenant-settings",
@@ -1961,7 +2011,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Settings",
     path: ROUTES.tenant.settings,
     icon: "Settings",
-    order: 90,
+    order: 101,
   },
   {
     id: "tenant-domain",
@@ -1970,7 +2020,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Domain",
     path: ROUTES.tenant.domain,
     icon: "Globe",
-    order: 100,
+    order: 102,
   },
   {
     id: "tenant-integrations",
@@ -1979,7 +2029,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Integrations",
     path: ROUTES.tenant.integrations,
     icon: "Cpu",
-    order: 110,
+    order: 103,
   },
   {
     id: "tenant-biometric-hub",
@@ -1988,7 +2038,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Biometric Hardware Hub",
     path: "/biometric-sync",
     icon: "Fingerprint",
-    order: 115,
+    order: 104,
     planFeature: "biometric-sync",
     moduleKey: "biometric-sync",
     children: [
@@ -1999,7 +2049,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Terminal Overview",
         path: "/biometric-sync?tab=overview",
         icon: "LayoutDashboard",
-        order: 115.1,
+        order: 104.1,
       },
       {
         id: "tenant-biometric-adms",
@@ -2008,7 +2058,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Cloud ADMS Setup",
         path: "/biometric-sync?tab=adms",
         icon: "Cloud",
-        order: 115.2,
+        order: 104.2,
       },
       {
         id: "tenant-biometric-employees",
@@ -2017,7 +2067,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Employee Mapping",
         path: "/biometric-sync?tab=employees",
         icon: "Users",
-        order: 115.3,
+        order: 104.3,
       },
       {
         id: "tenant-biometric-logs",
@@ -2026,7 +2076,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Punch Audit Logs",
         path: "/biometric-sync?tab=logs",
         icon: "Clock",
-        order: 115.4,
+        order: 104.4,
       },
       {
         id: "tenant-biometric-diagnostics",
@@ -2035,7 +2085,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
         label: "Diagnostics & DLLs",
         path: "/biometric-sync?tab=diagnostics",
         icon: "Cpu",
-        order: 115.5,
+        order: 104.5,
       },
     ],
   },
@@ -2043,10 +2093,10 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     id: "tenant-data",
     portal: "tenant",
     heading: "Configuration",
-    label: "Data",
+    label: "Data Management",
     path: ROUTES.tenant.data,
     icon: "Database",
-    order: 120,
+    order: 105,
   },
   {
     id: "tenant-audit-logs",
@@ -2055,7 +2105,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Audit Logs",
     path: ROUTES.tenant.auditLogs,
     icon: "FileSearch",
-    order: 130,
+    order: 106,
   },
   {
     id: "tenant-support",
@@ -2064,29 +2114,74 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     label: "Support",
     path: ROUTES.tenant.support,
     icon: "HelpCircle",
-    order: 140,
+    order: 107,
   },
 
-  // HR Panel Link (Section 4.3: links directly to /hr/*)
+  // 11. Company Reports
   {
-    id: "tenant-hr-panel-group",
+    id: "tenant-company-reports",
     portal: "tenant",
-    heading: "HR Panel",
-    label: "HR Management Portal",
-    path: ROUTES.hr.dashboard,
-    icon: "Briefcase",
-    order: 200,
-  },
-
-  // Employee View Link
-  {
-    id: "tenant-employee-view",
-    portal: "tenant",
-    heading: "Employee View",
-    label: "My Employee Portal",
-    path: ROUTES.me.dashboard,
-    icon: "User",
-    order: 210,
+    heading: "Company Reports",
+    label: "Company Reports",
+    path: "/smart-reports",
+    icon: "FileBarChart",
+    order: 110,
+    children: [
+      {
+        id: "tenant-report-smart",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Smart BI Reports",
+        path: "/smart-reports",
+        icon: "FileBarChart",
+        order: 110.1,
+      },
+      {
+        id: "tenant-report-daily",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Daily Report",
+        path: "/daily-report",
+        icon: "CalendarCheck",
+        order: 110.2,
+      },
+      {
+        id: "tenant-report-expenses",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Expenses Report",
+        path: "/expenses-report",
+        icon: "Receipt",
+        order: 110.3,
+      },
+      {
+        id: "tenant-report-invoices",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Sales Invoice Report",
+        path: "/invoice-report",
+        icon: "FileText",
+        order: 110.4,
+      },
+      {
+        id: "tenant-report-payments",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Payment Report",
+        path: "/payment-report",
+        icon: "CreditCard",
+        order: 110.5,
+      },
+      {
+        id: "tenant-report-projects",
+        portal: "tenant",
+        heading: "Company Reports",
+        label: "Project Progress Report",
+        path: "/project-report",
+        icon: "Kanban",
+        order: 110.6,
+      },
+    ],
   },
 ];
 

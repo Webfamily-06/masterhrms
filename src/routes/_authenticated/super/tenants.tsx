@@ -407,7 +407,7 @@ function CompaniesManagementPage() {
         setToken(res.token);
         qc.clear();
         toast.success(`Logged into ${tenant.name} workspace!`);
-        navigate({ to: "/hrm-dashboard" });
+        navigate({ to: "/tenant/dashboard" });
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to enter tenant workspace");

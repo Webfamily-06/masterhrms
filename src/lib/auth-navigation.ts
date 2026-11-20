@@ -50,14 +50,13 @@ export function resolveDefaultRoute(
   const normalized = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
   const isSuperAdmin = roles.includes("super_admin") || normalized.includes("superadmin");
   const isTenantAdmin =
-    isSuperAdmin ||
     normalized.some((r) =>
       ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
     );
-  const isHrAdmin = isTenantAdmin || normalized.some((r) => ["hradmin", "hr", "hrmanager", "manager"].includes(r));
+  const isHrAdmin = normalized.some((r) => ["hradmin", "hr", "hrmanager"].includes(r));
   const isEmployee = normalized.includes("employee") || normalized.includes("staff") || roles.length === 0;
 
-  // Resolve authorized landing page based on role hierarchy
+  // Resolve authorized landing page based on strict portal separation
   const defaultLanding = isSuperAdmin
     ? "/super"
     : isTenantAdmin
@@ -66,13 +65,13 @@ export function resolveDefaultRoute(
     ? "/hr/dashboard"
     : "/me/dashboard";
 
-  // If super admin is impersonating a tenant, preserve tenant landing (/hrm-dashboard)
+  // If super admin is running as company (tenant impersonation), land strictly on Tenant Dashboard (/tenant/dashboard)
   const isImpersonating =
     options?.isImpersonating ??
     (typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true");
 
   if (isImpersonating) {
-    return "/hrm-dashboard";
+    return "/tenant/dashboard";
   }
 
   // Validate explicit intended redirect path

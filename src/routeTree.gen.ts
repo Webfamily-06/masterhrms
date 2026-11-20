@@ -268,8 +268,10 @@ import { Route as AuthenticatedTenantCompanyProfileRouteImport } from './routes/
 import { Route as AuthenticatedTenantDashboardRouteImport } from './routes/_authenticated/tenant/dashboard'
 import { Route as AuthenticatedTenantDataRouteImport } from './routes/_authenticated/tenant/data'
 import { Route as AuthenticatedTenantDomainRouteImport } from './routes/_authenticated/tenant/domain'
+import { Route as AuthenticatedTenantFileManagerRouteImport } from './routes/_authenticated/tenant/file-manager'
 import { Route as AuthenticatedTenantIntegrationsRouteImport } from './routes/_authenticated/tenant/integrations'
 import { Route as AuthenticatedTenantModulesRouteImport } from './routes/_authenticated/tenant/modules'
+import { Route as AuthenticatedTenantOrganizationRouteImport } from './routes/_authenticated/tenant/organization'
 import { Route as AuthenticatedTenantRolesRouteImport } from './routes/_authenticated/tenant/roles'
 import { Route as AuthenticatedTenantSettingsRouteImport } from './routes/_authenticated/tenant/settings'
 import { Route as AuthenticatedTenantSubscriptionRouteImport } from './routes/_authenticated/tenant/subscription'
@@ -2008,6 +2010,12 @@ const AuthenticatedTenantDomainRoute =
     path: '/domain',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
+const AuthenticatedTenantFileManagerRoute =
+  AuthenticatedTenantFileManagerRouteImport.update({
+    id: '/file-manager',
+    path: '/file-manager',
+    getParentRoute: () => AuthenticatedTenantRoute,
+  } as any)
 const AuthenticatedTenantIntegrationsRoute =
   AuthenticatedTenantIntegrationsRouteImport.update({
     id: '/integrations',
@@ -2018,6 +2026,12 @@ const AuthenticatedTenantModulesRoute =
   AuthenticatedTenantModulesRouteImport.update({
     id: '/modules',
     path: '/modules',
+    getParentRoute: () => AuthenticatedTenantRoute,
+  } as any)
+const AuthenticatedTenantOrganizationRoute =
+  AuthenticatedTenantOrganizationRouteImport.update({
+    id: '/organization',
+    path: '/organization',
     getParentRoute: () => AuthenticatedTenantRoute,
   } as any)
 const AuthenticatedTenantRolesRoute =
@@ -3967,8 +3981,10 @@ export interface FileRoutesByFullPath {
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
   '/tenant/domain': typeof AuthenticatedTenantDomainRoute
+  '/tenant/file-manager': typeof AuthenticatedTenantFileManagerRoute
   '/tenant/integrations': typeof AuthenticatedTenantIntegrationsRoute
   '/tenant/modules': typeof AuthenticatedTenantModulesRoute
+  '/tenant/organization': typeof AuthenticatedTenantOrganizationRoute
   '/tenant/roles': typeof AuthenticatedTenantRolesRoute
   '/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
@@ -4507,8 +4523,10 @@ export interface FileRoutesByTo {
   '/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/tenant/data': typeof AuthenticatedTenantDataRoute
   '/tenant/domain': typeof AuthenticatedTenantDomainRoute
+  '/tenant/file-manager': typeof AuthenticatedTenantFileManagerRoute
   '/tenant/integrations': typeof AuthenticatedTenantIntegrationsRoute
   '/tenant/modules': typeof AuthenticatedTenantModulesRoute
+  '/tenant/organization': typeof AuthenticatedTenantOrganizationRoute
   '/tenant/roles': typeof AuthenticatedTenantRolesRoute
   '/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
@@ -5054,8 +5072,10 @@ export interface FileRoutesById {
   '/_authenticated/tenant/dashboard': typeof AuthenticatedTenantDashboardRoute
   '/_authenticated/tenant/data': typeof AuthenticatedTenantDataRoute
   '/_authenticated/tenant/domain': typeof AuthenticatedTenantDomainRoute
+  '/_authenticated/tenant/file-manager': typeof AuthenticatedTenantFileManagerRoute
   '/_authenticated/tenant/integrations': typeof AuthenticatedTenantIntegrationsRoute
   '/_authenticated/tenant/modules': typeof AuthenticatedTenantModulesRoute
+  '/_authenticated/tenant/organization': typeof AuthenticatedTenantOrganizationRoute
   '/_authenticated/tenant/roles': typeof AuthenticatedTenantRolesRoute
   '/_authenticated/tenant/settings': typeof AuthenticatedTenantSettingsRoute
   '/_authenticated/tenant/subscription': typeof AuthenticatedTenantSubscriptionRoute
@@ -5600,8 +5620,10 @@ export interface FileRouteTypes {
     | '/tenant/dashboard'
     | '/tenant/data'
     | '/tenant/domain'
+    | '/tenant/file-manager'
     | '/tenant/integrations'
     | '/tenant/modules'
+    | '/tenant/organization'
     | '/tenant/roles'
     | '/tenant/settings'
     | '/tenant/subscription'
@@ -6140,8 +6162,10 @@ export interface FileRouteTypes {
     | '/tenant/dashboard'
     | '/tenant/data'
     | '/tenant/domain'
+    | '/tenant/file-manager'
     | '/tenant/integrations'
     | '/tenant/modules'
+    | '/tenant/organization'
     | '/tenant/roles'
     | '/tenant/settings'
     | '/tenant/subscription'
@@ -6686,8 +6710,10 @@ export interface FileRouteTypes {
     | '/_authenticated/tenant/dashboard'
     | '/_authenticated/tenant/data'
     | '/_authenticated/tenant/domain'
+    | '/_authenticated/tenant/file-manager'
     | '/_authenticated/tenant/integrations'
     | '/_authenticated/tenant/modules'
+    | '/_authenticated/tenant/organization'
     | '/_authenticated/tenant/roles'
     | '/_authenticated/tenant/settings'
     | '/_authenticated/tenant/subscription'
@@ -8829,6 +8855,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTenantDomainRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
+    '/_authenticated/tenant/file-manager': {
+      id: '/_authenticated/tenant/file-manager'
+      path: '/file-manager'
+      fullPath: '/tenant/file-manager'
+      preLoaderRoute: typeof AuthenticatedTenantFileManagerRouteImport
+      parentRoute: typeof AuthenticatedTenantRoute
+    }
     '/_authenticated/tenant/integrations': {
       id: '/_authenticated/tenant/integrations'
       path: '/integrations'
@@ -8841,6 +8874,13 @@ declare module '@tanstack/react-router' {
       path: '/modules'
       fullPath: '/tenant/modules'
       preLoaderRoute: typeof AuthenticatedTenantModulesRouteImport
+      parentRoute: typeof AuthenticatedTenantRoute
+    }
+    '/_authenticated/tenant/organization': {
+      id: '/_authenticated/tenant/organization'
+      path: '/organization'
+      fullPath: '/tenant/organization'
+      preLoaderRoute: typeof AuthenticatedTenantOrganizationRouteImport
       parentRoute: typeof AuthenticatedTenantRoute
     }
     '/_authenticated/tenant/roles': {
@@ -12176,8 +12216,10 @@ interface AuthenticatedTenantRouteChildren {
   AuthenticatedTenantDashboardRoute: typeof AuthenticatedTenantDashboardRoute
   AuthenticatedTenantDataRoute: typeof AuthenticatedTenantDataRoute
   AuthenticatedTenantDomainRoute: typeof AuthenticatedTenantDomainRoute
+  AuthenticatedTenantFileManagerRoute: typeof AuthenticatedTenantFileManagerRoute
   AuthenticatedTenantIntegrationsRoute: typeof AuthenticatedTenantIntegrationsRoute
   AuthenticatedTenantModulesRoute: typeof AuthenticatedTenantModulesRoute
+  AuthenticatedTenantOrganizationRoute: typeof AuthenticatedTenantOrganizationRoute
   AuthenticatedTenantRolesRoute: typeof AuthenticatedTenantRolesRoute
   AuthenticatedTenantSettingsRoute: typeof AuthenticatedTenantSettingsRoute
   AuthenticatedTenantSubscriptionRoute: typeof AuthenticatedTenantSubscriptionRoute
@@ -12198,8 +12240,10 @@ const AuthenticatedTenantRouteChildren: AuthenticatedTenantRouteChildren = {
   AuthenticatedTenantDashboardRoute: AuthenticatedTenantDashboardRoute,
   AuthenticatedTenantDataRoute: AuthenticatedTenantDataRoute,
   AuthenticatedTenantDomainRoute: AuthenticatedTenantDomainRoute,
+  AuthenticatedTenantFileManagerRoute: AuthenticatedTenantFileManagerRoute,
   AuthenticatedTenantIntegrationsRoute: AuthenticatedTenantIntegrationsRoute,
   AuthenticatedTenantModulesRoute: AuthenticatedTenantModulesRoute,
+  AuthenticatedTenantOrganizationRoute: AuthenticatedTenantOrganizationRoute,
   AuthenticatedTenantRolesRoute: AuthenticatedTenantRolesRoute,
   AuthenticatedTenantSettingsRoute: AuthenticatedTenantSettingsRoute,
   AuthenticatedTenantSubscriptionRoute: AuthenticatedTenantSubscriptionRoute,
@@ -12304,13 +12348,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -644,11 +644,23 @@ const loginHandler = async (req: any, res: Response) => {
       req.headers["x-auth-portal"] === "super" ||
       req.body.portal === "super";
 
+    // Enforcement of Super Admin / Tenant Login Separation:
+    if (!isSuperPortal) {
+      const isPlatformSuperAdmin =
+        user.email === "admin@masterhrms.com" ||
+        user.roles.some((r: any) => r.role === "super_admin");
+      if (isPlatformSuperAdmin) {
+        // Platform Super Admin must NOT authenticate via normal /login endpoint.
+        // Return generic 401 without leaking identity or super admin existence.
+        return res.status(401).json({ error: "Invalid email or password." });
+      }
+    }
+
     if (isSuperPortal) {
       const isSuper = user.roles.some((r: any) => r.role === "super_admin");
-      if (!isSuper) {
+      if (!isSuper || user.email !== "admin@masterhrms.com") {
         return res.status(403).json({
-          error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
           code: "SUPER_ADMIN_ONLY",
         });
       }
@@ -1278,11 +1290,23 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
       req.headers["x-auth-portal"] === "super" ||
       req.body.portal === "super";
 
+    // Enforcement of Super Admin / Tenant Login Separation:
+    if (!isSuperPortal) {
+      const isPlatformSuperAdmin =
+        user.email === "admin@masterhrms.com" ||
+        user.roles.some((r: any) => r.role === "super_admin");
+      if (isPlatformSuperAdmin) {
+        // Platform Super Admin must NOT authenticate via normal /login endpoint.
+        // Return generic 401 without leaking identity or super admin existence.
+        return res.status(401).json({ error: "Invalid email or password." });
+      }
+    }
+
     if (isSuperPortal) {
       const isSuper = user.roles.some((r: any) => r.role === "super_admin");
-      if (!isSuper) {
+      if (!isSuper || user.email !== "admin@masterhrms.com") {
         return res.status(403).json({
-          error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
           code: "SUPER_ADMIN_ONLY",
         });
       }

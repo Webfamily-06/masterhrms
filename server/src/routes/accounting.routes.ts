@@ -6,6 +6,7 @@ import { resolveTenantId } from "../lib/tenant";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
 import { assertOpenPeriodForPosting, PeriodPostingError, parseAccountingDate } from "../services/fiscal-period.service";
 import { requireEntitlement } from "../middleware/entitlements";
+import { BankReconciliationService } from "../services/bank-reconciliation.service";
 
 export const accountingRouter = Router();
 
@@ -1967,5 +1968,48 @@ accountingRouter.post("/reconcile", requireAuth, async (req: AuthRequest, res: R
     return res.status(500).json({ error: err.message || "Failed to process bank statement reconciliation" });
   }
 });
+
+/**
+ * POST /api/accounting/bank-reconciliation/match
+ * POST /api/accounting/bank-statement/reconcile
+ * Algorithmic Bank Statement Multi-Tier Reconciliation Engine (FN-039)
+ */
+const handleBankReconcileMatch = async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId || req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context required" });
+
+    const { statementRows, csvText, bankAccountId, startDate, endDate, autoMatchThreshold } = req.body;
+
+    let rows = statementRows;
+    if (!rows && csvText) {
+      rows = BankReconciliationService.parseBankCsv(csvText);
+    }
+
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: "statementRows array or csvText is required" });
+    }
+
+    const report = await BankReconciliationService.reconcile({
+      tenantId,
+      bankAccountId,
+      startDate,
+      endDate,
+      statementRows: rows,
+      autoMatchThreshold: autoMatchThreshold || 75,
+    });
+
+    return res.json({
+      success: true,
+      report,
+    });
+  } catch (err: any) {
+    console.error("POST /api/accounting/bank-reconciliation/match error:", err);
+    return res.status(500).json({ error: err.message || "Failed to run bank reconciliation match" });
+  }
+};
+
+accountingRouter.post("/bank-reconciliation/match", handleBankReconcileMatch);
+accountingRouter.post("/bank-statement/reconcile", handleBankReconcileMatch);
 
 export default accountingRouter;

@@ -314,6 +314,23 @@ export function PortalSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
         ))}
+
+        {/* Upgrade Card for Tenant Portal Matching UI Design */}
+        {activePortal === "tenant" && !collapsed && (
+          <div className="p-3.5 mx-3 mb-2 rounded-xl bg-[#1E60FF] text-white flex flex-col gap-2 shadow-xs">
+            <h4 className="text-xs font-bold leading-tight">Upgrade your subscription</h4>
+            <p className="text-[11px] text-white/85 leading-normal">
+              Get even more of the enterprise features you need.
+            </p>
+            <Button
+              size="sm"
+              onClick={() => navigate({ to: "/tenant/subscription" as any })}
+              className="mt-1 h-7 text-xs bg-white text-[#1E60FF] hover:bg-white/90 font-semibold rounded-lg shadow-2xs"
+            >
+              Upgrade
+            </Button>
+          </div>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="p-3 border-t border-border/60 flex flex-row items-center justify-between gap-2">

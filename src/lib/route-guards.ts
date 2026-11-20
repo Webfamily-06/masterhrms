@@ -90,15 +90,16 @@ export function getClientAuthState(): AuthUserState {
   const normalizedRoles = roles.map((r) => String(r).toLowerCase().replace(/[-_ ]/g, ""));
   const roleName = String(user?.workspaceRole?.name || user?.role || "").toLowerCase().replace(/[-_ ]/g, "");
   const isSuperAdmin = roles.includes("super_admin") || normalizedRoles.includes("superadmin") || roleName.includes("superadmin");
+  const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
   const isTenantAdmin =
-    isSuperAdmin ||
+    (isSuperAdmin && isImpersonating) ||
     normalizedRoles.some((r) =>
-      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner", "hradmin", "hr_admin"].includes(r)
+      ["admin", "tenantadmin", "workspaceadmin", "organizationadmin", "owner"].includes(r)
     ) ||
-    roleName.includes("admin") ||
-    roleName.includes("owner") ||
-    roleName.includes("tenant") ||
-    roleName.includes("hr");
+    roleName.includes("workspaceadmin") ||
+    roleName.includes("organizationadmin") ||
+    roleName === "admin" ||
+    roleName === "owner";
 
   const resolvedTenantId =
     user?.tenantId ||
@@ -163,12 +164,16 @@ export function evaluateRouteAccess(
   }
 
   // 3. Portal Isolation Guards
-  if (options.targetPortal === "tenant" && !auth.isTenantAdmin && !auth.isSuperAdmin) {
-    return {
-      allowed: false,
-      redirectUrl: "/403",
-      reason: "Tenant Administrator privileges required",
-    };
+  if (options.targetPortal === "tenant") {
+    const isImpersonating = typeof window !== "undefined" && localStorage.getItem("hrms_impersonation_active") === "true";
+    const allowedTenantAdmin = auth.isTenantAdmin || (auth.isSuperAdmin && isImpersonating);
+    if (!allowedTenantAdmin) {
+      return {
+        allowed: false,
+        redirectUrl: "/403",
+        reason: "Tenant Administrator privileges required",
+      };
+    }
   }
 
   if (options.targetPortal === "hr" && !auth.isTenantAdmin && !auth.isSuperAdmin) {
