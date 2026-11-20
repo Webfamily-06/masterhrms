@@ -21,6 +21,7 @@ This roadmap orchestrates the full transition from reverse-engineering discovery
 - [x] **Phase 6: Enterprise Regression Suite & Final Implementation Report** - Execute full test regression, TypeScript verification, and publish final enterprise report.
 - [x] **Phase 7: Canonical Route Normalization & Alias Verification** - Wire 7 canonical Express route aliases for biometric punch, attendance summary, leave approval, shift swap approval, OKR objectives, OKR check-ins, and Tally import, promoting all 7 PARTIAL items to VERIFIED (Milestone 7.1-B).
 - [x] **Phase 8: External Integration Sandbox & Mock Harnesses** - Implement and verify deterministic mock test harnesses for all 10 BLOCKED_EXTERNAL items (WhatsApp, Twilio, MSG91, SMS Gateway, Google Workspace, WooCommerce, Shopify, Turnstile), promoting all 10 to VERIFIED (Milestone 7.3).
+- [x] **Phase 9: Internal WorkDo Add-on Modules Verification (Wave 1: Content, Strategy & Operations)** - Verify 10 internal WorkDo add-on modules across Digital Certificate Studio, Strategy Matrix Frameworks (SWOT, PEST, PESTEL, Porter's 5 Forces), Document Vault, Contract Staffing & Billing, Flexible Benefit Plan (FBP), Todo Checklists, and Workspace Notes Studio (Milestone 7.4).
 
 ---
 
@@ -147,4 +148,25 @@ Plans:
 
 Plans:
 - [x] 08-01: Implement deterministic mock testing harnesses for all 10 external integration items and promote to VERIFIED.
+
+---
+
+### Phase 9: Internal WorkDo Add-on Modules Verification (Wave 1: Content, Strategy & Operations)
+**Goal**: Empirically verify 10 internal WorkDo add-on modules currently categorized as `PLANNED` across Digital Certificate Studio, Strategy Matrix Frameworks (SWOT, PEST, PESTEL, Porter's 5 Forces), Document Vault, Contract Staffing & Billing, Flexible Benefit Plan (FBP), Todo Checklists, and Workspace Notes Studio by authoring and executing comprehensive native automated test suites (`node:test` + `node:assert/strict`), promoting all 10 items to `VERIFIED` (Milestone 7.4).
+**Depends on**: Phase 8
+**Requirements**: REQ-W1-01, REQ-W1-02, REQ-W1-03, REQ-W1-04, REQ-W1-05, REQ-W1-06, REQ-W1-07, REQ-W1-08, REQ-W1-09, REQ-W1-10
+**Success Criteria**:
+  1. `ADDON-058` (Digital Certificate): Dynamic placeholder registry, verification URL resolution, and certificate template metadata verified.
+  2. `ADDON-067`, `ADDON-068`, `ADDON-069`, `ADDON-070` (Strategy Studio): Templates for SWOT, PEST, PESTEL, and Porter's 5 Forces verified with quadrant item creation, impact scores, and tenant scoping.
+  3. `ADDON-072` (Documents): Corporate template auto-seeding, document metadata persistence, and tenant isolation verified.
+  4. `ADDON-090` (Contract Template & Billing): Staffing client contracts, markup bases (`GROSS_PLUS_PF`, `TOTAL_CTC`, `FIXED_PER_HEAD`), intra-state vs inter-state GST, and client billing summary verified.
+  5. `ADDON-105` (Flexible Benefit Plan / FBP): Standard component definitions, monthly/annual max caps, annual pool calculation, and declaration checks verified.
+  6. `ADDON-112` (Todo): Todo task creation, priority sorting, checklists, and completion lifecycle verified.
+  7. `ADDON-114` (Workspace Notes): Note authoring, pinning, starring, tags, trash lifecycle, and tenant boundary verified.
+  8. All tests in `server/src/tests/workdo-reference-modules-wave1.test.ts` pass with exit code 0.
+  9. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 09-01: Author automated test suite for Wave 1 WorkDo reference modules and promote all 10 items to VERIFIED.
+
 

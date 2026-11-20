@@ -5,39 +5,40 @@
 See: `.planning/PROJECT.md` (updated 2026-11-20)
 
 **Core value:** Every approved functionality must become a genuinely working, secure, tested MASTERHRMS feature.  
-**Current focus:** Milestone 7.3 (Phase 8): External Integration Sandbox & Mock Harnesses COMPLETE. All 10 Section A.4 integration gateways promoted to VERIFIED.
+**Current focus:** Milestone 7.4 (Phase 9): Internal WorkDo Add-on Modules Verification (Wave 1: Content, Strategy & Operations) COMPLETE. 10 internal add-on modules promoted to VERIFIED.
 
-## Current Position & Milestone 7.3 Reconciled Metrics
+## Current Position & Milestone 7.4 Reconciled Metrics
 
-- **Current Milestone:** Milestone 7.3 (External Integration Sandbox & Mock Harnesses) — **COMPLETE**
+- **Current Milestone:** Milestone 7.4 (WorkDo Reference Modules Wave 1) — **COMPLETE**
 - **Overall Enterprise Scope (197 Items):**
-  - **VERIFIED:** **102 Items (51.8%)** — Implementation exists; passing native automated tests (`exit code 0`); tenant isolation & permissions verified (Up from 92 in Milestone 7.2 and 57 in Milestone 7.1-B)
-  - **IMPLEMENTED_UNVERIFIED:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** All 30 items verified in Milestone 7.1-C
-  - **PARTIAL:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** All 7 partial route functions normalized and verified in Milestone 7.1-B
-  - **BLOCKED_EXTERNAL:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** All 10 items verified via native deterministic mock harness in Milestone 7.3
+  - **VERIFIED:** **112 Items (56.9%)** — Implementation exists; passing native automated tests (`exit code 0`); tenant isolation & permissions verified (Up from 102 in Milestone 7.3 and 92 in Milestone 7.2)
+  - **IMPLEMENTED_UNVERIFIED:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** (Milestone 7.1-C)
+  - **PARTIAL:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** (Milestone 7.1-B)
+  - **BLOCKED_EXTERNAL:** **0 Items (0.0%)** — **COMPLETELY ELIMINATED!** (Milestone 7.3)
   - **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY:** **47 Items (23.9%)** — Integration source code unbuilt; credentials required after coding
-  - **PLANNED:** **48 Items (24.4%)** — Internal WorkDo reference modules unbuilt
-- **Codebase Implementation Presence:** **102 of 197 items present (~51.8%)**
-- **Codebase Verified Coverage:** **102 of 102 present items verified (100.0% of repository implementation is VERIFIED!)**
-- **Status:** Milestone 7.3 Complete (20/20 tests passed in `external-integration-harness.test.ts`, 0 failures, exit code 0). Zero TypeScript compilation errors on server and client.
-- **Last activity:** 2026-11-20 — Milestone 7.3 deliverables published (`MILESTONE_7_3_INTEGRATION_HARNESS_REPORT.md`, `external-integration-harness.test.ts`, Phase 8 PLAN & SUMMARY).
+  - **PLANNED:** **38 Items (19.3%)** — Internal WorkDo reference modules remaining (Reduced from 48)
+- **Codebase Implementation Presence:** **112 of 197 items present (~56.9%)**
+- **Codebase Verified Coverage:** **112 of 112 present items verified (100.0% of repository implementation is VERIFIED!)**
+- **Status:** Milestone 7.4 Complete (18/18 tests passed in `workdo-reference-modules-wave1.test.ts`, 0 failures, exit code 0). Zero TypeScript compilation errors on server and client.
+- **Last activity:** 2026-11-20 — Milestone 7.4 deliverables published (`MILESTONE_7_4_WORKDO_MODULES_WAVE1_REPORT.md`, `workdo-reference-modules-wave1.test.ts`, Phase 9 PLAN & SUMMARY).
 
 ## Reconciled Scoreboard
 
 | Item Classification | Add-ons (of 133) | Functions (of 64) | Total Scope (of 197) | Percentage | Code in Repository | Verified Evidence |
 |---|---|---|---|---|---|---|
-| **VERIFIED** | 25 | 77 | 102 | 51.8% | Yes | Yes (100% Pass) |
+| **VERIFIED** | 48 | 64 | 112 | 56.9% | Yes | Yes (100% Pass) |
 | **IMPLEMENTED_UNVERIFIED** | 0 | 0 | 0 | 0.0% | Yes | **0 Items (Eliminated)** |
 | **PARTIAL** | 0 | 0 | 0 | 0.0% | Yes | **0 Items (Eliminated)** |
 | **BLOCKED_EXTERNAL** | 0 | 0 | 0 | 0.0% | Yes | **0 Items (Eliminated)** |
 | **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY** | 47 | 0 | 47 | 23.9% | No | Unbuilt External Spec |
-| **PLANNED** | 48 | 0 | 48 | 24.4% | No | Unbuilt Internal Spec |
-| **TOTALS** | **133** | **64** | **197** | **100.0%** | **102 Present (51.8%)** | **102 Verified (51.8%)** |
+| **PLANNED** | 38 | 0 | 38 | 19.3% | No | Unbuilt Internal Spec |
+| **TOTALS** | **133** | **64** | **197** | **100.0%** | **112 Present (56.9%)** | **112 Verified (56.9%)** |
 
-## Milestone 7.3 Test Execution Summary
+## Milestone 7.4 Test Execution Summary
 
 | Test Suite File | Framework | Tests Passed | Tests Failed | Exit Code | Scope Covered |
 |---|---|---|---|---|---|
+| `server/src/tests/workdo-reference-modules-wave1.test.ts` | `node:test` | 18 | 0 | 0 | ADDON-058, ADDON-067, ADDON-068, ADDON-069, ADDON-070, ADDON-072, ADDON-090, ADDON-105, ADDON-112, ADDON-114 |
 | `server/src/tests/external-integration-harness.test.ts` | `node:test` | 20 | 0 | 0 | ADDON-008, FN-063, ADDON-011, ADDON-016, ADDON-019, ADDON-021, ADDON-043, ADDON-044, FN-062, ADDON-127 |
 | `server/src/tests/statutory-compliance-generators.test.ts` | `node:test` | 5 | 0 | 0 | FN-022, FN-023, FN-024, FN-039, FN-047 |
 | `server/src/tests/canonical-route-aliases.test.ts` | `node:test` | 8 | 0 | 0 | FN-008, FN-009, FN-013, FN-017, FN-048, FN-049, FN-064 |
@@ -53,16 +54,22 @@ See: `.planning/PROJECT.md` (updated 2026-11-20)
 | `server/src/tests/addon-modules-verification.test.ts` | `node:test` | 11 | 0 | 0 | ADDON-004, ADDON-123 |
 | `server/src/tests/modular-packages-core.test.ts` | `node:test` | 16 | 0 | 0 | ADDON-115, ADDON-118, ADDON-120, ADDON-125, ADDON-126 |
 | `server/src/tests/inventory-warehouse-lifecycle.test.ts` | `node:test` | 9 | 0 | 0 | ADDON-050, FN-030, FN-031, FN-032, FN-033, FN-034 |
-| **TOTALS** | **Native Node.js** | **130** | **0** | **0** | **102 Items Promoted to VERIFIED (100% of implemented codebase)** |
+| **TOTALS** | **Native Node.js** | **148** | **0** | **0** | **112 Items Promoted to VERIFIED (100% of implemented codebase)** |
 
-## Prioritized Next Scope: Milestone 7.4 / Phase 9 (Internal PLANNED WorkDo Reference Modules Implementation)
+## Prioritized Next Scope: Milestone 7.5 / Phase 10 (Internal WorkDo Add-on Modules Verification Wave 2)
 
-1. **Step 1: Scaffolding and Architecture for remaining 48 internal PLANNED WorkDo modules:**
-   - E-Commerce & Retail: Newsletter (`ADDON-048`), Feedback (`ADDON-049`), Restaurant Menu (`ADDON-051`), Kitchen Display (`ADDON-052`), Table Management (`ADDON-053`), Food Delivery (`ADDON-054`), Product Variants (`ADDON-055`), Loyalty Points (`ADDON-056`), Gift Cards (`ADDON-057`), Coupons & Discounts (`ADDON-058`), Return/Refund Processing (`ADDON-059`).
-   - Project & Operational: Scrum/Kanban Sprints (`ADDON-081`), Gantt Charts (`ADDON-082`), Project Invoicing (`ADDON-083`), Resource Allocation (`ADDON-084`), Issue Tracker (`ADDON-085`), Milestone Tracking (`ADDON-086`), Project File Sharing (`ADDON-087`), Client Portal (`ADDON-088`).
-   - Human Resources: Employee Referral (`ADDON-091`), Grievance Redressal (`ADDON-092`), Transfer Management (`ADDON-093`), Resignation Processing (`ADDON-095`), Employee Promotion (`ADDON-097`), Warning Management (`ADDON-099`), Termination Management (`ADDON-100`), Travel Requests (`ADDON-101`), Overtime Management (`ADDON-102`), Loan & Advance (`ADDON-103`), Document Requests (`ADDON-104`), Announcement Acknowledgements (`ADDON-105`), Health Insurance (`ADDON-106`).
-   - Additional Utilities & Productivity: Contract Management (`ADDON-068`), Retainer Agreements (`ADDON-069`), Commission Tracking (`ADDON-070`), Billing & Subscription Plans (`ADDON-071`), Delivery Management (`ADDON-072`), Fleet Management (`ADDON-073`), Repair/Maintenance (`ADDON-074`), Booking & Appointments (`ADDON-075`), Event Management (`ADDON-076`), Lead Scoring (`ADDON-077`), Deal Pipelines (`ADDON-078`), Email Templates Builder (`ADDON-111`), SMS Templates Builder (`ADDON-112`), Push Notifications Hub (`ADDON-113`), Audit Trail Deep Inspector (`ADDON-119`), System Health Dashboard (`ADDON-122`).
+1. **Step 1: Next Wave of Internal Reference Modules (Wave 2: Communication, Productivity & Mobility):**
+   - File Sharing (`ADDON-053` - `/api/files`)
+   - Document Types & Templates (`ADDON-073` - `/api/document-types`)
+   - Quotation (`ADDON-074` - `/api/sales`)
+   - Contact Management (`ADDON-078` - `/api/crm`, `/api/customers`)
+   - Call Hub (`ADDON-104` - `/api/calls`)
+   - Email Box (`ADDON-102` - `/api/email`)
+   - Meeting Hub (`ADDON-113` - `/api/hr-meetings`)
+   - Rotas & Shift Management (`ADDON-117` - `/api/shifts`)
+   - Project Template (`ADDON-119` - `/api/projects`)
+   - Custom Alert (`ADDON-122` - `/api/alerts`)
 2. **Step 2: External Integrations Architecture (47 `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY` Items):**
    - Author adapters and sandbox mock harnesses for Cloudflare/Vercel/Stripe/PayPal/Zoom/Slack/etc.
 
-*Updated after Milestone 7.3 completion*
+*Updated after Milestone 7.4 completion*
