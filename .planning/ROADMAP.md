@@ -20,6 +20,7 @@ This roadmap orchestrates the full transition from reverse-engineering discovery
 - [x] **Phase 5: Marketplace & Modular Add-on Architecture** - Verify add-on entitlement gating, modular plugin isolation, and third-party integrations (Workstreams G, H, I).
 - [x] **Phase 6: Enterprise Regression Suite & Final Implementation Report** - Execute full test regression, TypeScript verification, and publish final enterprise report.
 - [x] **Phase 7: Canonical Route Normalization & Alias Verification** - Wire 7 canonical Express route aliases for biometric punch, attendance summary, leave approval, shift swap approval, OKR objectives, OKR check-ins, and Tally import, promoting all 7 PARTIAL items to VERIFIED (Milestone 7.1-B).
+- [x] **Phase 8: External Integration Sandbox & Mock Harnesses** - Implement and verify deterministic mock test harnesses for all 10 BLOCKED_EXTERNAL items (WhatsApp, Twilio, MSG91, SMS Gateway, Google Workspace, WooCommerce, Shopify, Turnstile), promoting all 10 to VERIFIED (Milestone 7.3).
 
 ---
 
@@ -127,4 +128,23 @@ Plans:
 
 Plans:
 - [x] 07-01: Implement 7 canonical route aliases and verify via native test suite.
+
+---
+
+### Phase 8: External Integration Sandbox & Mock Harnesses
+**Goal**: Author and execute comprehensive native mock testing harnesses for all 10 `BLOCKED_EXTERNAL` integration items across Meta WhatsApp, SMS Gateways (Twilio, MSG91, generic telecom aggregator), Google Workspace Directory Sync, E-Commerce platforms (WooCommerce, Shopify), and Cloudflare Turnstile bot protection, promoting all 10 items to `VERIFIED`.
+**Depends on**: Phase 7
+**Requirements**: REQ-INT-01, REQ-INT-02, REQ-INT-03, REQ-INT-04, REQ-INT-05, REQ-INT-06, REQ-INT-07, REQ-INT-08
+**Success Criteria**:
+  1. Meta WhatsApp Cloud API outbound messaging, webhook status callback ingestion, bot auto-responder matching, and alert queue retry worker verified.
+  2. Twilio, MSG91, and generic telecom SMS aggregators tested with E.164 normalization, AES-256 encrypted settings, and rate limiting.
+  3. Google Workspace Directory Sync handshake probe, directory employee mapping, and credential revocation verified.
+  4. WooCommerce REST API v3 store sync, `WC-` product mapping, and bi-directional stock level synchronization verified.
+  5. Shopify Admin API store sync, multi-location inventory mapping, and product catalog import verified.
+  6. Cloudflare Turnstile bot verification harness verified with test tokens, replay protection, and development audit mode.
+  7. All 20 tests in `server/src/tests/external-integration-harness.test.ts` pass with exit code 0.
+  8. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 08-01: Implement deterministic mock testing harnesses for all 10 external integration items and promote to VERIFIED.
 
