@@ -1,6 +1,7 @@
 'use client';
+
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useState, useMemo, useRef } from "react";
@@ -8,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -32,14 +34,10 @@ import {
   Pencil,
   Star,
   Search,
-  LayoutGrid,
-  List as ListIcon,
   Upload,
   Image as ImageIcon,
   ExternalLink,
   Sparkles,
-  Store,
-  DollarSign,
   Layers,
   CheckCircle2,
   X,
@@ -49,17 +47,24 @@ import {
   Tag,
   Package,
   FolderPlus,
-  Info,
-  ChevronDown,
-  ChevronUp,
   AlertTriangle,
-  ArrowUpDown,
   BookOpen,
   Eye,
-  ShieldCheck,
+  ArrowRight,
+  Shield,
+  Bot,
+  Users,
+  Landmark,
+  FileText,
+  ShoppingCart,
+  Cpu,
+  Share2,
+  Sliders,
+  Navigation,
+  Check,
+  CheckCircle,
 } from "lucide-react";
 import { formatSystemAmount, DEFAULT_CURRENCY_SETTINGS, SystemCurrencySettings } from "@/lib/currency";
-
 
 
 export type Addon = {
@@ -97,11 +102,11 @@ const emptyAddon: Omit<Addon, "id"> = {
   tagline: "",
   description: "",
   long_description: "",
-  category: "Productivity",
+  category: "HR",
   icon: "",
   price_monthly: 0,
   developer: "Master ERP Core Team",
-  status: "available",
+  status: "active",
   featured: false,
   install_url: "",
   docs_url: "",
@@ -110,15 +115,270 @@ const emptyAddon: Omit<Addon, "id"> = {
   screenshots: [],
 };
 
+// ==========================================
+// AUTHENTIC BRAND & DOMAIN ICON RENDERER
+// ==========================================
+function AddonIconRenderer({
+  icon,
+  name,
+  category,
+  className = "size-10",
+}: {
+  icon: string | null;
+  name: string;
+  category: string;
+  className?: string;
+}) {
+  // 1. If stored image in local storage or URL, render real image tag
+  if (
+    icon &&
+    (icon.startsWith("http://") ||
+      icon.startsWith("https://") ||
+      icon.startsWith("/uploads/") ||
+      icon.startsWith("/") ||
+      icon.startsWith("data:"))
+  ) {
+    return (
+      <img
+        src={icon}
+        alt={name}
+        className="size-11 object-contain rounded-xl"
+        loading="lazy"
+      />
+    );
+  }
+
+  const n = (name || "").toLowerCase();
+  const c = (category || "").toLowerCase();
+
+  // 2. High-fidelity SVGs matching WorkDo Explore screenshot reference
+  // Free Addons Icons (Dark green rounded box)
+  if (n.includes("ai business advisor") || n.includes("advisor")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#093e32] flex items-center justify-center text-emerald-400 shadow-xs">
+        <svg className="size-6.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="18" height="14" x="3" y="6" rx="3" />
+          <path d="M12 2v4" />
+          <path d="M9 13h.01" />
+          <path d="M15 13h.01" />
+          <path d="M8 17s1.5 1.5 4 1.5 4-1.5 4-1.5" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("smart dashboard")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#0a3539] flex items-center justify-center text-teal-400 shadow-xs">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="7" height="7" x="3" y="3" rx="1.5" />
+          <rect width="7" height="7" x="14" y="3" rx="1.5" />
+          <rect width="7" height="7" x="14" y="14" rx="1.5" />
+          <rect width="7" height="7" x="3" y="14" rx="1.5" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("smart report") || n.includes("reports")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#082a39] flex items-center justify-center text-cyan-400 shadow-xs">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <path d="M9 17v-4" />
+          <path d="M12 17v-2" />
+          <path d="M15 17v-6" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("suggestion box")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#07382c] flex items-center justify-center text-emerald-400 shadow-xs">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+          <path d="m3.3 7 8.7 5 8.7-5" />
+          <path d="M12 22V12" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("notice board")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#08352b] flex items-center justify-center text-emerald-400 shadow-xs">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="16" height="18" x="4" y="4" rx="2" />
+          <path d="M8 2h8" />
+          <path d="M8 10h8" />
+          <path d="M8 14h5" />
+        </svg>
+      </div>
+    );
+  }
+
+  // Social Media Icons
+  if (n.includes("instagram")) {
+    return (
+      <div className="size-11 rounded-xl bg-gradient-to-tr from-[#FFDC80] via-[#FD1D1D] to-[#833AB4] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+          <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("facebook")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#1877F2] flex items-center justify-center text-white font-bold text-2xl shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M9.198 21.5h4v-8.01h3.604l.396-3.98h-4V7.5c0-.988.293-1.49 1.5-1.49H17V2.29C16.34 2.2 15.14 2 13.79 2 10.42 2 8 4.06 8 7.86V9.51H5v3.98h3v8.01z" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("whatsapp")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#25D366] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m.01 1.67c2.2 0 4.26.86 5.82 2.42a8.23 8.23 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("youtube")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#FF0000] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("telegram")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#24A1DE] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="m20.665 3.717-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42 10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701h-.002l-.313 4.67c.458 0 .66-.21.916-.457l2.199-2.138 4.574 3.379c.843.465 1.448.225 1.658-.782l3-14.137c.307-1.232-.47-1.79-1.278-1.424z" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("twilio")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#F22F46] flex items-center justify-center text-white shadow-xs">
+        <div className="grid grid-cols-2 gap-1.5 p-1">
+          <span className="size-2 rounded-full bg-white" />
+          <span className="size-2 rounded-full bg-white" />
+          <span className="size-2 rounded-full bg-white" />
+          <span className="size-2 rounded-full bg-white" />
+        </div>
+      </div>
+    );
+  }
+  if (n.includes("slack")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#4A154B] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M6 15a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2h2zm1 0a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5a2 2 0 0 1-2 2 2 2 0 0 1-2-2zm2-7a2 2 0 0 1-2-2 2 2 0 0 1 2-2 2 2 0 0 1 2 2v2zm0 1a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2H9zm7 2a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2zm-1 0a2 2 0 0 1-2 2 2 2 0 0 1-2-2V5a2 2 0 0 1 2-2 2 2 0 0 1 2 2zm-2 7a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2zm0-1a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2h5z" />
+        </svg>
+      </div>
+    );
+  }
+  if (n.includes("discord")) {
+    return (
+      <div className="size-11 rounded-xl bg-[#5865F2] flex items-center justify-center text-white shadow-xs">
+        <svg className="size-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+        </svg>
+      </div>
+    );
+  }
+
+  // Domain Category Defaults
+  if (c.includes("social")) {
+    return (
+      <div className="size-11 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center shadow-xs">
+        <Share2 className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("integration")) {
+    return (
+      <div className="size-11 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center shadow-xs">
+        <Cpu className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("commerce") || c.includes("sale")) {
+    return (
+      <div className="size-11 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shadow-xs">
+        <ShoppingCart className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("content")) {
+    return (
+      <div className="size-11 rounded-xl bg-cyan-500/10 text-cyan-600 flex items-center justify-center shadow-xs">
+        <FileText className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("finance")) {
+    return (
+      <div className="size-11 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center shadow-xs">
+        <Landmark className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("hr")) {
+    return (
+      <div className="size-11 rounded-xl bg-violet-500/10 text-violet-600 flex items-center justify-center shadow-xs">
+        <Users className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("communication") || c.includes("custom")) {
+    return (
+      <div className="size-11 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shadow-xs">
+        <Sliders className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("mobility") || c.includes("operation")) {
+    return (
+      <div className="size-11 rounded-xl bg-sky-500/10 text-sky-600 flex items-center justify-center shadow-xs">
+        <Navigation className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("ai")) {
+    return (
+      <div className="size-11 rounded-xl bg-fuchsia-500/10 text-fuchsia-600 flex items-center justify-center shadow-xs">
+        <Bot className="size-6" />
+      </div>
+    );
+  }
+  if (c.includes("security")) {
+    return (
+      <div className="size-11 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center shadow-xs">
+        <Shield className="size-6" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="size-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-xs">
+      <Package className="size-6" />
+    </div>
+  );
+}
+
 function MarketplaceAdmin() {
   const qc = useQueryClient();
 
   // Search, Filters & View Mode
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<string>("featured");
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Free Addons");
 
   // Addon Editor State
   const [editing, setEditing] = useState<Partial<Addon> | null>(null);
@@ -129,6 +389,10 @@ function MarketplaceAdmin() {
   const [isUploadingScreenshots, setIsUploadingScreenshots] = useState(false);
   const iconFileInputRef = useRef<HTMLInputElement>(null);
   const screenshotFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Addon Details Modal State
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [viewingAddon, setViewingAddon] = useState<Addon | null>(null);
 
   // Addon Deletion Confirmation State
   const [addonToDelete, setAddonToDelete] = useState<Addon | null>(null);
@@ -142,7 +406,7 @@ function MarketplaceAdmin() {
   const [categoryToDelete, setCategoryToDelete] = useState<CategoryDetail | null>(null);
   const [deleteCategoryModalOpen, setDeleteCategoryModalOpen] = useState(false);
 
-  // 1. Fetch System Settings to derive configured authoritative application currency
+  // 1. Fetch System Settings for authoritative currency
   const { data: systemPlatformSettings } = useQuery({
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
@@ -155,7 +419,6 @@ function MarketplaceAdmin() {
     },
   });
 
-  // Effective Authoritative Currency Settings
   const activeCurrencyConfig = useMemo<Partial<SystemCurrencySettings>>(() => {
     return {
       defaultCurrency: systemPlatformSettings?.defaultCurrency || "INR",
@@ -192,69 +455,167 @@ function MarketplaceAdmin() {
     },
   });
 
-  // Unique list of category names
-  const categoryNames = useMemo(() => {
-    return ["All", ...categoryDetails.map((c) => c.name).sort()];
+  // Ordered Category list ensuring Free Addons is first, matching WorkDo reference
+  const preferredCategoryOrder = [
+    "free add-ons",
+    "free addons",
+    "free",
+    "social media",
+    "integration",
+    "integrations",
+    "e-commerces and saas",
+    "e-commerce & sales",
+    "e-commerce",
+    "content management",
+    "finance",
+    "hr",
+    "industrial solutions",
+    "communication",
+    "mobility",
+    "ai",
+    "security",
+    "mobile app",
+    "payment gateways",
+    "accounting",
+    "operations",
+  ];
+
+  const orderedCategoryDetails = useMemo(() => {
+    const sorted = [...categoryDetails].sort((a, b) => {
+      const aLower = a.name.toLowerCase();
+      const bLower = b.name.toLowerCase();
+      const aIdx = preferredCategoryOrder.findIndex((p) => aLower.includes(p) || p.includes(aLower));
+      const bIdx = preferredCategoryOrder.findIndex((p) => bLower.includes(p) || p.includes(bLower));
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    return sorted;
   }, [categoryDetails]);
 
-  // Computed summary metrics from live data
+  // Sort items within each category matching canonical reference order
+  function sortAddonsByReference(items: Addon[]): Addon[] {
+    const preferredOrder = [
+      "ai business advisor",
+      "smart dashboard",
+      "smart reports",
+      "suggestion box",
+      "notice board",
+      "instagram chat",
+      "facebook chat",
+      "instagram post",
+      "facebook post",
+      "whatsapp chat",
+      "youtube content",
+      "telegram",
+      "twilio",
+      "slack",
+      "discord",
+    ];
+
+    return [...items].sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aIdx = preferredOrder.findIndex((p) => aName.includes(p));
+      const bIdx = preferredOrder.findIndex((p) => bName.includes(p));
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Computed summary metrics
   const metrics = useMemo(() => {
     const total = addons.length;
     const categoriesCount = categoryDetails.length;
     const published = addons.filter((a) => a.status === "available" || a.status === "active").length;
-    const beta = addons.filter((a) => a.status === "beta").length;
-    const draftOrArchived = addons.filter((a) => a.status === "draft" || a.status === "archived").length;
-    const featuredCount = addons.filter((a) => Boolean(a.featured)).length;
-    return { total, categoriesCount, published, beta, draftOrArchived, featuredCount };
+    const freeCount = addons.filter((a) => Number(a.price_monthly ?? 0) === 0).length;
+    return { total, categoriesCount, published, freeCount };
   }, [addons, categoryDetails]);
 
-  // Filtered and sorted addons list
-  const filteredAddons = useMemo(() => {
-    let result = addons.filter((a) => {
+  // Group addons by Category for multi-section presentation
+  const groupedAddonsByCategory = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    const map = new Map<string, Addon[]>();
+
+    orderedCategoryDetails.forEach((cat) => {
+      map.set(cat.name, []);
+    });
+
+    addons.forEach((a) => {
       const matchesSearch =
-        !searchQuery ||
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.tagline ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.developer ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+        !query ||
+        a.name.toLowerCase().includes(query) ||
+        a.slug.toLowerCase().includes(query) ||
+        (a.tagline ?? "").toLowerCase().includes(query) ||
+        (a.category ?? "").toLowerCase().includes(query) ||
+        (Array.isArray(a.features) && a.features.some((f) => f.toLowerCase().includes(query)));
 
-      const matchesCat =
-        categoryFilter === "All" || a.category.toLowerCase() === categoryFilter.toLowerCase();
+      if (!matchesSearch) return;
 
-      let matchesStatus = true;
-      if (statusFilter === "featured") matchesStatus = Boolean(a.featured);
-      else if (statusFilter === "free") matchesStatus = Number(a.price_monthly ?? 0) === 0;
-      else if (statusFilter === "paid") matchesStatus = Number(a.price_monthly ?? 0) > 0;
-      else if (statusFilter !== "all") matchesStatus = a.status === statusFilter;
-
-      return matchesSearch && matchesCat && matchesStatus;
+      const catName = a.category;
+      if (!map.has(catName)) {
+        map.set(catName, []);
+      }
+      map.get(catName)!.push(a);
     });
 
-    // Sorting
-    result = [...result].sort((a, b) => {
-      if (sortBy === "featured") {
-        if (a.featured !== b.featured) return a.featured ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      }
-      if (sortBy === "name_asc") return a.name.localeCompare(b.name);
-      if (sortBy === "name_desc") return b.name.localeCompare(a.name);
-      if (sortBy === "price_asc") return Number(a.price_monthly) - Number(b.price_monthly);
-      if (sortBy === "price_desc") return Number(b.price_monthly) - Number(a.price_monthly);
-      if (sortBy === "newest") {
-        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return db - da;
-      }
-      return 0;
-    });
+    return map;
+  }, [addons, orderedCategoryDetails, searchQuery]);
 
-    return result;
-  }, [addons, searchQuery, categoryFilter, statusFilter, sortBy]);
+  // Filtered addons for single selected category view
+  const activeCategoryAddons = useMemo(() => {
+    if (selectedCategory === "All") {
+      return addons;
+    }
+    return groupedAddonsByCategory.get(selectedCategory) || [];
+  }, [selectedCategory, groupedAddonsByCategory, addons]);
 
   // ==========================================
-  // ADDON MUTATIONS
+  // SYNC CANONICAL 133 ADDONS MUTATION
   // ==========================================
+  const syncCanonicalMutation = useMutation({
+    mutationFn: async () => {
+      return await api.post<{ message: string; createdCount: number; updatedCount: number; total: number }>(
+        "/super/addons/sync-canonical",
+        {}
+      );
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Successfully synchronized 133 canonical add-ons catalog!");
+      qc.invalidateQueries({ queryKey: ["admin-addons"] });
+      qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
+      qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
+      qc.invalidateQueries({ queryKey: ["public-addons"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to synchronize canonical add-ons");
+    },
+  });
 
+  // ==========================================
+  // TOGGLE STATUS (ENABLE / DISABLE) MUTATION
+  // ==========================================
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, newStatus }: { id: string; newStatus: string }) => {
+      return await api.put(`/super/addons/${id}`, { status: newStatus });
+    },
+    onSuccess: (_, variables) => {
+      const isNowActive = variables.newStatus === "active" || variables.newStatus === "available";
+      toast.success(isNowActive ? "Addon enabled successfully" : "Addon disabled");
+      qc.invalidateQueries({ queryKey: ["admin-addons"] });
+      qc.invalidateQueries({ queryKey: ["public-addons"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to update addon status");
+    },
+  });
+
+  // ==========================================
+  // UPSERT ADDON MUTATION
+  // ==========================================
   const upsertAddon = useMutation({
     mutationFn: async (a: Partial<Addon> & { id?: string }) => {
       const payload = {
@@ -273,7 +634,7 @@ function MarketplaceAdmin() {
         docsUrl: a.docs_url || (a as any).docsUrl || null,
         installUrl: a.install_url || (a as any).installUrl || null,
         featured: Boolean(a.featured),
-        status: a.status || "available",
+        status: a.status || "active",
       };
 
       if (a.id && !a.id.startsWith("addon-")) {
@@ -288,14 +649,17 @@ function MarketplaceAdmin() {
       qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
       qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
       qc.invalidateQueries({ queryKey: ["public-addons"] });
-      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
       setAddonModalOpen(false);
+      setDetailsModalOpen(false);
     },
     onError: (e: any) => {
       toast.error(e?.message || "Failed to save addon");
     },
   });
 
+  // ==========================================
+  // DELETE ADDON MUTATION
+  // ==========================================
   const deleteAddon = useMutation({
     mutationFn: async (id: string) => {
       return await api.delete(`/super/addons/${id}`);
@@ -310,9 +674,9 @@ function MarketplaceAdmin() {
       qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
       qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
       qc.invalidateQueries({ queryKey: ["public-addons"] });
-      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
       setDeleteAddonModalOpen(false);
       setAddonToDelete(null);
+      setDetailsModalOpen(false);
     },
     onError: (e: any) => {
       toast.error(e?.message || "Failed to delete addon");
@@ -322,7 +686,6 @@ function MarketplaceAdmin() {
   // ==========================================
   // CATEGORY MUTATIONS
   // ==========================================
-
   const createCategoryMutation = useMutation({
     mutationFn: async (name: string) => {
       return await api.post("/super/addons/categories", { name });
@@ -331,7 +694,6 @@ function MarketplaceAdmin() {
       toast.success(res?.message || "Category created successfully");
       qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
       qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
-      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
       setCategoryModalOpen(false);
       setCategoryInputName("");
     },
@@ -349,8 +711,6 @@ function MarketplaceAdmin() {
       qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
       qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
       qc.invalidateQueries({ queryKey: ["admin-addons"] });
-      qc.invalidateQueries({ queryKey: ["public-addons"] });
-      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
       setCategoryModalOpen(false);
       setCategoryInputName("");
     },
@@ -367,11 +727,10 @@ function MarketplaceAdmin() {
       toast.success(res?.message || "Category deleted successfully");
       qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
       qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
-      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
       setDeleteCategoryModalOpen(false);
       setCategoryToDelete(null);
-      if (categoryFilter === categoryToDelete?.name) {
-        setCategoryFilter("All");
+      if (selectedCategory === categoryToDelete?.name) {
+        setSelectedCategory("Free Addons");
       }
     },
     onError: (e: any) => {
@@ -379,7 +738,7 @@ function MarketplaceAdmin() {
     },
   });
 
-  // Modal openers
+  // Modal Openers
   function openNewAddon() {
     setEditing({ ...emptyAddon });
     setFeaturesText("");
@@ -392,6 +751,11 @@ function MarketplaceAdmin() {
     setFeaturesText((a.features ?? []).join("\n"));
     setScreenshots(a.screenshots ?? []);
     setAddonModalOpen(true);
+  }
+
+  function openViewDetails(a: Addon) {
+    setViewingAddon(a);
+    setDetailsModalOpen(true);
   }
 
   function confirmDeleteAddon(a: Addon) {
@@ -444,7 +808,7 @@ function MarketplaceAdmin() {
     upsertAddon.mutate({ ...editing, features, screenshots } as never);
   }
 
-  // Handle PNG Icon upload to /v1/media/upload
+  // Handle PNG Icon upload to local storage via /v1/media/upload
   async function handleIconFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !editing) return;
@@ -461,19 +825,19 @@ function MarketplaceAdmin() {
       const res = await api.upload<{ url: string }>("/v1/media/upload", fd);
       if (res?.url) {
         setEditing((prev) => (prev ? { ...prev, icon: res.url } : null));
-        toast.success("PNG Icon uploaded successfully! Save changes to apply.");
+        toast.success("Image uploaded to local storage! Click 'Save Addon' to persist.");
       } else {
         toast.error("Upload failed: No URL returned from media server");
       }
     } catch (err: any) {
-      toast.error(err?.message || "Failed to upload icon");
+      toast.error(err?.message || "Failed to upload image to storage");
     } finally {
       setIsUploadingIcon(false);
       if (iconFileInputRef.current) iconFileInputRef.current.value = "";
     }
   }
 
-  // Handle PNG Screenshots multi-upload to /v1/media/upload
+  // Handle PNG Screenshots multi-upload
   async function handleScreenshotFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
@@ -493,7 +857,7 @@ function MarketplaceAdmin() {
       }
       if (uploadedUrls.length > 0) {
         setScreenshots((prev) => [...prev, ...uploadedUrls]);
-        toast.success(`Uploaded ${uploadedUrls.length} screenshot image(s)!`);
+        toast.success(`Uploaded ${uploadedUrls.length} screenshot image(s) to storage!`);
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to upload screenshots");
@@ -504,587 +868,404 @@ function MarketplaceAdmin() {
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6 pb-12">
-      <BreadcrumbNav className="mb-4" />
-      {/* 1. HEADER SECTION */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-              Marketplace Addons
-            </h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono font-bold">
-              {metrics.total} Extensions
-            </Badge>
-          </div>
-          <p className="text-muted-foreground text-xs md:text-sm mt-1">
-            Manage ecosystem extensions, categories, media assets, pricing tiers, and public store availability.
-          </p>
-        </div>
+    <div className="w-full min-w-0 space-y-6 pb-20">
+      {/* 1. TOP BREADCRUMB NAV */}
+      <BreadcrumbNav className="mb-2" />
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* View Public Store Action */}
-          <Button variant="outline" size="sm" asChild className="gap-1.5 text-xs h-9">
-            <Link to="/addons" target="_blank">
-              <Globe className="size-3.5 text-primary" /> Public Store
-              <ExternalLink className="size-3 text-muted-foreground ml-0.5" />
-            </Link>
-          </Button>
-
-          {/* Refresh Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchAddons();
-              refetchCategories();
-            }}
-            className="gap-1.5 text-xs h-9"
-            title="Refresh database records"
-          >
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
-
-          {/* New Addon Primary Action */}
-          <Button size="sm" onClick={openNewAddon} className="gap-1.5 text-xs h-9 font-semibold">
-            <Plus className="size-4" /> New Addon
-          </Button>
-        </div>
-      </div>
-
-      {/* 2. SUMMARY METRICS CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Total Extensions</span>
-            <Package className="size-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold mt-2">{metrics.total}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-            <span className="text-emerald-600 font-bold">{metrics.published} live</span> • {metrics.draftOrArchived} draft/archived
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Addon Categories</span>
-            <Layers className="size-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold mt-2">{metrics.categoriesCount}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Distinct taxonomy domains
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Published & Active</span>
-            <CheckCircle2 className="size-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-emerald-700">{metrics.published}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Visible on public /addons catalog
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Featured Addons</span>
-            <Star className="size-4 text-amber-500 fill-amber-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-amber-600">{metrics.featuredCount}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Highlighted with spotlight badge
-          </p>
-        </Card>
-      </div>
-
-      {/* 3. PROMINENT ADDON CATEGORIES MANAGEMENT PANEL */}
-      <Card className="border shadow-2xs overflow-hidden">
-        <CardHeader className="p-4 pb-3 border-b bg-secondary/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Layers className="size-4 text-primary" />
-              Addon Categories
-              <Badge variant="outline" className="text-[10px] font-mono">
-                {categoryDetails.length} Categories
-              </Badge>
-            </CardTitle>
-            <CardDescription className="text-xs mt-0.5">
-              Select a category to filter extensions below, or create, rename, and manage taxonomy categories.
-            </CardDescription>
-          </div>
-
-          <Button size="sm" variant="outline" onClick={openNewCategory} className="gap-1.5 h-8 text-xs font-semibold shrink-0">
-            <FolderPlus className="size-3.5 text-primary" /> New Category
-          </Button>
-        </CardHeader>
-
-        <CardContent className="p-4">
-          {isLoadingCategories ? (
-            <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-4 animate-spin text-primary" /> Loading category taxonomy...
+      {/* 2. TOP BANNER (EXACT WORKDO HERO STYLE) */}
+      <div className="relative overflow-hidden rounded-2xl border border-emerald-200/80 dark:border-emerald-800/40 bg-gradient-to-r from-emerald-50/50 via-background to-emerald-50/20 dark:from-emerald-950/20 dark:via-background dark:to-emerald-950/10 p-6 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-start gap-4">
+            {/* Green Icon Box */}
+            <div className="size-13 rounded-2xl bg-emerald-100/90 dark:bg-emerald-900/60 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
+              <Sparkles className="size-6" />
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-              {/* "All Categories" Pill/Card */}
-              <div
-                onClick={() => setCategoryFilter("All")}
-                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group ${
-                  categoryFilter === "All"
-                    ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
-                    : "bg-background hover:bg-secondary/40 border-border text-foreground"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold line-clamp-1">All Categories</span>
-                  <Tag className={`size-3.5 ${categoryFilter === "All" ? "text-primary-foreground" : "text-muted-foreground"}`} />
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className={`text-[11px] font-mono font-semibold ${categoryFilter === "All" ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
-                    {metrics.total} Addons
-                  </span>
-                  {categoryFilter === "All" && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Active</span>
-                  )}
-                </div>
+
+            <div className="space-y-1">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                PREMIUM MARKETPLACE
               </div>
 
-              {/* Dynamic Categorized Cards with Edit and Delete actions */}
-              {categoryDetails.map((cat) => {
-                const isSelected = categoryFilter.toLowerCase() === cat.name.toLowerCase();
-                return (
-                  <div
-                    key={cat.name}
-                    className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between group relative ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
-                        : "bg-background hover:border-primary/40 border-border text-foreground"
-                    }`}
-                  >
-                    {/* Header Row: Title & Action Controls */}
-                    <div className="flex items-start justify-between gap-1">
-                      <span
-                        onClick={() => setCategoryFilter(cat.name)}
-                        className="text-xs font-bold line-clamp-1 cursor-pointer hover:underline"
-                        title={cat.name}
-                      >
-                        {cat.name}
-                      </span>
+              {/* Title */}
+              <h1 className="text-xl md:text-2xl font-extrabold text-foreground tracking-tight">
+                {metrics.total}+ Premium Add-ons Available
+              </h1>
 
-                      {/* Edit / Delete action icons */}
-                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditCategory(cat);
-                          }}
-                          className={`p-1 rounded hover:bg-secondary/80 transition-colors ${
-                            isSelected ? "text-primary-foreground hover:text-white hover:bg-white/20" : "text-muted-foreground hover:text-foreground"
-                          }`}
-                          title={`Edit ${cat.name}`}
-                        >
-                          <Pencil className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDeleteCategory(cat);
-                          }}
-                          className={`p-1 rounded hover:bg-destructive/10 transition-colors ${
-                            isSelected ? "text-primary-foreground hover:text-destructive-foreground hover:bg-destructive" : "text-muted-foreground hover:text-destructive"
-                          }`}
-                          title={`Delete ${cat.name}`}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
+              {/* Subtitle */}
+              <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+                Supercharge your workspace with powerful integrations, automation tools, and industry-specific solutions.
+              </p>
+            </div>
+          </div>
+
+          {/* Right Action Buttons */}
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => {
+                const el = document.getElementById("marketplace-explorer-content");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="bg-[#00a86b] hover:bg-[#008f5b] text-white gap-2 text-xs h-10 font-bold rounded-xl px-5 shadow-xs"
+            >
+              Browse All Add-ons <ArrowRight className="size-4" />
+            </Button>
+
+            {/* Sync Canonical 133 Catalog Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncCanonicalMutation.mutate()}
+              disabled={syncCanonicalMutation.isPending}
+              className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl px-3"
+              title="Ensure all 133 canonical addons from documentation matrix are synchronized"
+            >
+              {syncCanonicalMutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin text-emerald-600" />
+              ) : (
+                <RefreshCw className="size-3.5 text-emerald-600" />
+              )}
+              Sync 133 Addons
+            </Button>
+
+            {/* New Addon Action Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openNewAddon}
+              className="border-slate-200 hover:bg-slate-50 gap-1.5 text-xs h-10 font-semibold rounded-xl px-3"
+            >
+              <Plus className="size-3.5 text-[#00a86b]" /> New Addon
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. MAIN EXPLORER LAYOUT: 2 COLUMNS (SIDEBAR + CONTENT) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+        {/* LEFT SIDEBAR: CATEGORY NAVIGATION (WORKDO EXACT STYLE) */}
+        <div className="w-full lg:w-64 xl:w-72 shrink-0 space-y-3">
+          {/* Search Box in Sidebar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-3 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search add-ons..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-8 h-10 text-xs rounded-xl bg-card border-border/80"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-3 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Category List */}
+          <Card className="border border-border/80 shadow-xs overflow-hidden rounded-2xl bg-card">
+            <div className="p-2 space-y-1">
+
+
+              {/* Dynamic Categories List */}
+              {isLoadingCategories ? (
+                <div className="py-6 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin text-[#00a86b]" /> Loading categories...
+                </div>
+              ) : (
+                orderedCategoryDetails.map((cat) => {
+                  const isSelected = selectedCategory.toLowerCase() === cat.name.toLowerCase();
+
+                  return (
+                    <button
+                      key={cat.name}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory(cat.name);
+                        const targetId = "section-" + cat.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                        const el = document.getElementById(targetId);
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left group ${
+                        isSelected
+                          ? "bg-[#00a86b] text-white shadow-xs font-bold"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                    >
+                      <span className="truncate pr-2">{cat.name}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-mono shrink-0 ${
+                          isSelected
+                            ? "bg-white/20 text-white font-bold"
+                            : "bg-secondary text-muted-foreground group-hover:bg-secondary/90"
+                        }`}
+                      >
+                        {cat.count}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Manage Categories Action at Bottom of Sidebar */}
+            <div className="p-2 border-t bg-secondary/10 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground px-2 font-medium">Categories</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={openNewCategory}
+                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground gap-1"
+              >
+                <FolderPlus className="size-3 text-[#00a86b]" /> Manage
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {/* RIGHT MAIN SHOWCASE: ADDON CARDS GRID */}
+        <div id="marketplace-explorer-content" className="flex-1 w-full min-w-0 space-y-8">
+          {isLoadingAddons ? (
+            <div className="py-32 grid place-items-center">
+              <Loader2 className="size-8 animate-spin text-[#00a86b]" />
+              <p className="text-xs text-muted-foreground font-mono mt-3">Loading marketplace extensions...</p>
+            </div>
+          ) : isErrorAddons ? (
+            <Card className="p-12 text-center text-muted-foreground space-y-3 rounded-2xl">
+              <AlertTriangle className="size-10 mx-auto text-destructive" />
+              <p className="text-sm font-semibold text-foreground">Failed to load marketplace catalog</p>
+              <p className="text-xs max-w-md mx-auto">
+                {(addonsError as any)?.message || "A network or authentication error occurred."}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => refetchAddons()} className="mt-2">
+                Retry Loading
+              </Button>
+            </Card>
+          ) : (
+            <div className="space-y-8">
+              {orderedCategoryDetails.map((cat) => {
+                const rawItems = groupedAddonsByCategory.get(cat.name) || [];
+                const items = sortAddonsByReference(rawItems);
+                if (items.length === 0) return null;
+                const sectionId = "section-" + cat.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+                return (
+                  <div key={cat.name} id={sectionId} className="space-y-4 scroll-mt-6">
+                    {/* Section Header: Green dot + Category Name + Count */}
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="size-2.5 rounded-full bg-[#00a86b]" />
+                        <h2 className="text-base font-bold text-foreground tracking-tight">{cat.name}</h2>
+                        <span className="text-xs text-muted-foreground font-normal">
+                          {items.length} {items.length === 1 ? "add-on" : "add-ons"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground font-medium">
+                        {items.filter((a) => a.status !== "disabled").length} Active
                       </div>
                     </div>
 
-                    {/* Footer Row: Count & Selection Pill */}
-                    <div
-                      onClick={() => setCategoryFilter(cat.name)}
-                      className="mt-2 flex items-center justify-between cursor-pointer"
-                    >
-                      <span className={`text-[11px] font-mono font-semibold ${isSelected ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
-                        {cat.count} {cat.count === 1 ? "Addon" : "Addons"}
-                      </span>
-                      {isSelected && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Active</span>
-                      )}
+                    {/* Responsive Grid of Cards (5 Columns on Desktop) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                      {items.map((addon) => (
+                        <AddonCard
+                          key={addon.id}
+                          addon={addon}
+                          onViewDetails={() => openViewDetails(addon)}
+                          onEdit={() => openEditAddon(addon)}
+                          onToggleStatus={(newStatus) =>
+                            toggleStatusMutation.mutate({ id: addon.id, newStatus })
+                          }
+                          onDelete={() => confirmDeleteAddon(addon)}
+                          isToggling={
+                            toggleStatusMutation.isPending &&
+                            toggleStatusMutation.variables?.id === addon.id
+                          }
+                        />
+                      ))}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* 4. SEARCH, FILTER & VIEW CONTROLS TOOLBAR */}
-      <Card className="p-4 shadow-2xs border space-y-3">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, slug, tagline, developer..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </div>
+      {/* 4. ADDON VIEW DETAILS MODAL */}
+      {/* ========================================== */}
+      {viewingAddon && (
+        <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <div className="flex items-start gap-4 pt-2">
+                <div className="size-16 rounded-2xl border bg-secondary/30 grid place-items-center p-2 shadow-xs shrink-0">
+                  <AddonIconRenderer
+                    icon={viewingAddon.icon}
+                    name={viewingAddon.name}
+                    category={viewingAddon.category}
+                    className="size-10"
+                  />
+                </div>
 
-          {/* Filters & View Mode Controls */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Category Filter Dropdown */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-9 w-[150px] text-xs">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categoryNames.map((cat) => (
-                  <SelectItem key={cat} value={cat} className="text-xs">
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center justify-between">
+                    <DialogTitle className="text-lg font-bold text-foreground">
+                      {viewingAddon.name}
+                    </DialogTitle>
+                    <Badge
+                      variant={
+                        viewingAddon.status === "active" || viewingAddon.status === "available"
+                          ? "default"
+                          : "outline"
+                      }
+                      className={
+                        viewingAddon.status === "active" || viewingAddon.status === "available"
+                          ? "bg-emerald-600 text-white capitalize text-[10px]"
+                          : "text-muted-foreground capitalize text-[10px]"
+                      }
+                    >
+                      {viewingAddon.status}
+                    </Badge>
+                  </div>
 
-            {/* Status Filter Dropdown */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-[140px] text-xs">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                <SelectItem value="available" className="text-xs">Available (Live)</SelectItem>
-                <SelectItem value="featured" className="text-xs">Featured Only</SelectItem>
-                <SelectItem value="beta" className="text-xs">Beta Testing</SelectItem>
-                <SelectItem value="coming_soon" className="text-xs">Coming Soon</SelectItem>
-                <SelectItem value="free" className="text-xs">Free ($0)</SelectItem>
-                <SelectItem value="paid" className="text-xs">Paid Extensions</SelectItem>
-              </SelectContent>
-            </Select>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground font-mono">/{viewingAddon.slug}</span>
+                    <span className="text-muted-foreground">•</span>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {viewingAddon.category}
+                    </Badge>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="font-semibold text-emerald-600 font-mono">
+                      {Number(viewingAddon.price_monthly) === 0
+                        ? "Free"
+                        : `${formatSystemAmount(Number(viewingAddon.price_monthly), activeCurrencyConfig)} / mo`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </DialogHeader>
 
-            {/* Sorting Dropdown */}
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="h-9 w-[140px] text-xs">
-                <ArrowUpDown className="size-3 mr-1 text-muted-foreground" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="featured" className="text-xs">Featured First</SelectItem>
-                <SelectItem value="newest" className="text-xs">Newest First</SelectItem>
-                <SelectItem value="name_asc" className="text-xs">Name: A to Z</SelectItem>
-                <SelectItem value="name_desc" className="text-xs">Name: Z to A</SelectItem>
-                <SelectItem value="price_asc" className="text-xs">Price: Low to High</SelectItem>
-                <SelectItem value="price_desc" className="text-xs">Price: High to Low</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-5 py-4 border-t text-xs">
+              {/* Pitch & Descriptions */}
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-foreground">Overview & Capabilities</Label>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {viewingAddon.tagline || viewingAddon.description || "Enterprise modular extension capability."}
+                </p>
+                {viewingAddon.long_description && (
+                  <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+                    {viewingAddon.long_description}
+                  </p>
+                )}
+              </div>
 
-            {/* View Switcher Toggle */}
-            <div className="flex items-center border p-0.5 rounded-lg bg-secondary/30">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded text-xs transition-all ${
-                  viewMode === "grid"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
-                    : "hover:bg-secondary text-muted-foreground"
-                }`}
-                title="Grid View"
-              >
-                <LayoutGrid className="size-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`p-1.5 rounded text-xs transition-all ${
-                  viewMode === "table"
-                    ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
-                    : "hover:bg-secondary text-muted-foreground"
-                }`}
-                title="Table/List View"
-              >
-                <ListIcon className="size-4" />
-              </button>
+              {/* Features List */}
+              {Array.isArray(viewingAddon.features) && viewingAddon.features.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-foreground">Key Features & Inclusions</Label>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {viewingAddon.features.map((feat, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 rounded-xl border bg-secondary/15">
+                        <CheckCircle className="size-3.5 text-[#00a86b] shrink-0" />
+                        <span className="text-xs text-foreground truncate">{feat}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Screenshots Gallery if available */}
+              {Array.isArray(viewingAddon.screenshots) && viewingAddon.screenshots.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-foreground">Module Screenshots</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {viewingAddon.screenshots.map((s, idx) => (
+                      <div key={idx} className="rounded-xl border bg-background overflow-hidden aspect-video shadow-2xs">
+                        <img src={s} alt="Screenshot" className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Metadata Bar */}
+              <div className="p-3.5 rounded-xl border bg-secondary/10 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <span className="text-[11px] text-muted-foreground">Developer: </span>
+                  <span className="text-xs font-semibold text-foreground">
+                    {viewingAddon.developer || "Master ERP Core Team"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground">SemVer Version: </span>
+                  <span className="text-xs font-mono font-semibold text-foreground">
+                    v{viewingAddon.version || "1.0.0"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-muted-foreground">Action Route: </span>
+                  <span className="text-xs font-mono font-semibold text-foreground">
+                    {viewingAddon.install_url || `/addons/${viewingAddon.slug}`}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Results Count & Active Filter Pills */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t">
-          <span>
-            Showing <strong className="text-foreground">{filteredAddons.length}</strong> of {addons.length} extensions
-          </span>
-          {categoryFilter !== "All" && (
-            <Badge variant="secondary" className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive" onClick={() => setCategoryFilter("All")}>
-              Category: {categoryFilter}
-              <X className="size-3" />
-            </Badge>
-          )}
-        </div>
-      </Card>
-
-      {/* 6. MAIN CONTENT VIEW: GRID VS TABLE */}
-      {isLoadingAddons ? (
-        <div className="py-24 grid place-items-center">
-          <Loader2 className="size-8 animate-spin text-primary" />
-          <p className="text-xs text-muted-foreground font-mono mt-2">Loading marketplace extensions...</p>
-        </div>
-      ) : isErrorAddons ? (
-        <Card className="p-12 text-center text-muted-foreground space-y-3">
-          <AlertTriangle className="size-10 mx-auto text-destructive" />
-          <p className="text-sm font-semibold text-foreground">Failed to load marketplace catalog</p>
-          <p className="text-xs max-w-md mx-auto">{(addonsError as any)?.message || "A network or authentication error occurred."}</p>
-          <Button variant="outline" size="sm" onClick={() => refetchAddons()} className="mt-2">
-            Retry Loading
-          </Button>
-        </Card>
-      ) : filteredAddons.length === 0 ? (
-        <Card className="p-12 text-center text-muted-foreground space-y-3 border-dashed">
-          <Package className="size-10 mx-auto opacity-40 text-primary" />
-          <p className="text-sm font-medium text-foreground">No addons match your current filters.</p>
-          <p className="text-xs">Try clearing the search query or reset category filter.</p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setSearchQuery("");
-              setCategoryFilter("All");
-              setStatusFilter("all");
-            }}
-          >
-            Reset Filters
-          </Button>
-        </Card>
-      ) : viewMode === "grid" ? (
-        /* GRID VIEW */
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredAddons.map((a) => {
-            const hasIcon = a.icon && (a.icon.startsWith("http") || a.icon.startsWith("data:") || a.icon.startsWith("/"));
-            const formattedPrice = a.price_monthly === 0
-              ? "Free"
-              : `${formatSystemAmount(Number(a.price_monthly), activeCurrencyConfig)} / mo`;
-
-            return (
-              <Card
-                key={a.id}
-                className="group hover:border-primary/50 transition-all flex flex-col justify-between shadow-2xs border bg-card"
+            <DialogFooter className="flex flex-row items-center justify-between border-t pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="gap-1.5 text-xs rounded-xl"
               >
-                <CardContent className="p-5 space-y-4">
-                  {/* Top Row: Icon, Status Badges */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="size-13 shrink-0 rounded-xl border bg-secondary/30 grid place-items-center overflow-hidden p-1 shadow-2xs">
-                      {hasIcon ? (
-                        <img src={a.icon!} alt={a.name} className="size-11 object-contain rounded" loading="lazy" />
-                      ) : (
-                        <div className="size-11 rounded-lg bg-primary/10 text-primary font-bold grid place-items-center text-base">
-                          {a.name?.[0] || "A"}
-                        </div>
-                      )}
-                    </div>
+                <Link href={`/addons/${viewingAddon.slug}`} target="_blank">
+                  <Globe className="size-3.5 text-[#00a86b]" /> Public Store
+                  <ExternalLink className="size-3 text-muted-foreground ml-0.5" />
+                </Link>
+              </Button>
 
-                    <div className="flex flex-wrap gap-1 justify-end">
-                      {a.featured && (
-                        <Badge className="bg-amber-500 text-white text-[10px] gap-1 shadow-2xs">
-                          <Star className="size-3 fill-white" /> Featured
-                        </Badge>
-                      )}
-                      <Badge
-                        variant={a.status === "available" || a.status === "active" ? "secondary" : "outline"}
-                        className="text-[10px] capitalize"
-                      >
-                        {a.status}
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px] font-mono">
-                        v{a.version ?? "1.0.0"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors">
-                        {a.name}
-                      </h3>
-                      <span className="font-bold text-xs text-emerald-600 font-mono shrink-0">
-                        {formattedPrice}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {a.category}
-                      </Badge>
-                      <span className="text-[11px] font-mono text-muted-foreground truncate">
-                        /{a.slug}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
-                      {a.tagline || a.description || "No description provided."}
-                    </p>
-                  </div>
-
-                  {/* Footer Action Buttons */}
-                  <div className="pt-3 border-t flex items-center justify-between gap-2 text-xs">
-                    <div className="text-[11px] text-muted-foreground truncate max-w-[120px]">
-                      {a.developer || "Master ERP"}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        title="View Public Store Page"
-                      >
-                        <Link to="/addons/$slug" params={{ slug: a.slug }} target="_blank">
-                          <Eye className="size-3.5 mr-1" /> Store
-                        </Link>
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditAddon(a)}
-                        className="h-8 px-2.5 text-xs font-semibold"
-                      >
-                        <Pencil className="size-3.5 mr-1" /> Edit
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => confirmDeleteAddon(a)}
-                        className="h-8 px-2 text-destructive hover:bg-destructive/10"
-                        title="Delete or Archive Addon"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      ) : (
-        /* TABLE/LIST VIEW */
-        <Card className="border shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-secondary/40 border-b text-muted-foreground uppercase text-[10px] font-bold">
-                <tr>
-                  <th className="p-3 pl-4">Extension</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Version</th>
-                  <th className="p-3">Monthly Price</th>
-                  <th className="p-3 text-right pr-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredAddons.map((a) => {
-                  const hasIcon = a.icon && (a.icon.startsWith("http") || a.icon.startsWith("data:") || a.icon.startsWith("/"));
-                  const formattedPrice = a.price_monthly === 0
-                    ? "Free"
-                    : `${formatSystemAmount(Number(a.price_monthly), activeCurrencyConfig)} / mo`;
-
-                  return (
-                    <tr key={a.id} className="hover:bg-secondary/20 transition-colors">
-                      <td className="p-3 pl-4">
-                        <div className="flex items-center gap-3">
-                          <div className="size-9 shrink-0 rounded-lg border bg-background grid place-items-center overflow-hidden p-0.5 shadow-2xs">
-                            {hasIcon ? (
-                              <img src={a.icon!} alt={a.name} className="size-8 object-contain rounded" loading="lazy" />
-                            ) : (
-                              <div className="size-7 rounded bg-primary/10 text-primary font-bold text-xs grid place-items-center">
-                                {a.name?.[0] || "A"}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-xs flex items-center gap-1.5">
-                              {a.name}
-                              {a.featured && <Star className="size-3 text-amber-500 fill-amber-500" />}
-                            </div>
-                            <span className="font-mono text-[11px] text-muted-foreground">/{a.slug}</span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="p-3">
-                        <Badge variant="secondary" className="text-[10px]">
-                          {a.category}
-                        </Badge>
-                      </td>
-
-                      <td className="p-3">
-                        <Badge
-                          variant={a.status === "available" || a.status === "active" ? "secondary" : "outline"}
-                          className="text-[10px] capitalize"
-                        >
-                          {a.status}
-                        </Badge>
-                      </td>
-
-                      <td className="p-3 font-mono text-[11px]">v{a.version ?? "1.0.0"}</td>
-
-                      <td className="p-3 font-mono font-bold text-emerald-600">{formattedPrice}</td>
-
-                      <td className="p-3 text-right pr-4">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button variant="ghost" size="sm" asChild className="h-7 px-2 text-xs">
-                            <Link to="/addons/$slug" params={{ slug: a.slug }} target="_blank">
-                              <Eye className="size-3 mr-1" /> View
-                            </Link>
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => openEditAddon(a)} className="h-7 px-2 text-xs font-semibold">
-                            <Pencil className="size-3 mr-1" /> Edit
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => confirmDeleteAddon(a)} className="h-7 px-1.5 text-destructive hover:bg-destructive/10">
-                            <Trash2 className="size-3" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setDetailsModalOpen(false);
+                    openEditAddon(viewingAddon);
+                  }}
+                  className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 rounded-xl font-semibold"
+                >
+                  <Pencil className="size-3.5" /> Edit Addon
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDetailsModalOpen(false)} className="rounded-xl text-xs">
+                  Close
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ========================================== */}
-      {/* 7. ADDON CREATE / EDIT MODAL DIALOG */}
+      {/* 5. ADDON CREATE / EDIT MODAL DIALOG */}
       {/* ========================================== */}
       {editing && (
         <Dialog open={addonModalOpen} onOpenChange={setAddonModalOpen}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Store className="size-5 text-primary" />
+                <div className="size-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Pencil className="size-4" />
+                </div>
                 {"id" in editing && editing.id ? `Edit Addon — ${editing.name}` : "Create New Addon"}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Configure extension metadata, real PNG icon, media gallery, pricing, and availability.
+                Upload image icons to storage, configure pricing, enable/disable status, and write feature copy.
               </DialogDescription>
             </DialogHeader>
 
@@ -1101,6 +1282,7 @@ function MarketplaceAdmin() {
                     setEditing({ ...editing, name, slug: editing.slug || autoSlug });
                   }}
                   placeholder="e.g. WhatsApp Instant Alerts"
+                  className="rounded-xl text-xs h-9"
                 />
               </Field>
 
@@ -1109,22 +1291,22 @@ function MarketplaceAdmin() {
                   value={editing.slug ?? ""}
                   onChange={(e) => setEditing({ ...editing, slug: e.target.value })}
                   placeholder="e.g. whatsapp-alerts"
-                  className="font-mono text-xs"
+                  className="font-mono text-xs rounded-xl h-9"
                 />
               </Field>
 
               <Field label="Category *">
                 <Select
-                  value={editing.category || "Productivity"}
+                  value={editing.category || "HR"}
                   onValueChange={(val) => setEditing({ ...editing, category: val })}
                 >
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 text-xs rounded-xl">
                     <SelectValue placeholder="Select Category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categoryNames.filter((c) => c !== "All").map((cat) => (
-                      <SelectItem key={cat} value={cat} className="text-xs">
-                        {cat}
+                    {categoryDetails.map((cat) => (
+                      <SelectItem key={cat.name} value={cat.name} className="text-xs">
+                        {cat.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1136,27 +1318,58 @@ function MarketplaceAdmin() {
                   type="number"
                   step="1"
                   value={editing.price_monthly ?? 0}
-                  onChange={(e) => setEditing({ ...editing, price_monthly: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setEditing({ ...editing, price_monthly: parseFloat(e.target.value) || 0 })
+                  }
                   placeholder="0"
+                  className="rounded-xl text-xs h-9"
                 />
               </Field>
 
-              {/* PNG ICON UPLOAD & DIRECT URL FIELD */}
-              <div className="md:col-span-2 p-4 rounded-xl border bg-secondary/10 space-y-3">
+              {/* Status & Enable Switch */}
+              <div className="md:col-span-2 p-3.5 rounded-xl border bg-secondary/15 flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-bold text-foreground">Addon Entitlement Status</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {editing.status === "disabled"
+                      ? "Currently Disabled (Tenants cannot subscribe or access this module)"
+                      : "Currently Active & Discoverable in Marketplace"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold font-mono text-foreground">
+                    {editing.status === "disabled" ? "Disabled" : "Active"}
+                  </span>
+                  <Switch
+                    checked={editing.status !== "disabled"}
+                    onCheckedChange={(checked) =>
+                      setEditing({ ...editing, status: checked ? "active" : "disabled" })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* REAL IMAGE UPLOAD INTO STORAGE */}
+              <div className="md:col-span-2 p-4 rounded-xl border border-dashed bg-secondary/10 space-y-3">
                 <Label className="text-xs font-bold flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <ImageIcon className="size-4 text-primary" /> PNG Icon Image (Upload file or URL)
+                    <ImageIcon className="size-4 text-[#00a86b]" /> Icon Image (Upload to Local Storage)
                   </span>
-                  {editing.icon && <span className="text-[10px] text-emerald-600 font-semibold">Icon Configured</span>}
+                  {editing.icon && (
+                    <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-100 px-2 py-0.5 rounded-full">
+                      Image Configured
+                    </span>
+                  )}
                 </Label>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <div className="size-16 shrink-0 rounded-xl border bg-background grid place-items-center overflow-hidden p-1 shadow-2xs">
-                    {editing.icon && (editing.icon.startsWith("http") || editing.icon.startsWith("data:") || editing.icon.startsWith("/")) ? (
-                      <img src={editing.icon} alt="Preview" className="size-14 object-contain rounded" loading="lazy" />
-                    ) : (
-                      <div className="text-center text-[10px] text-muted-foreground p-1">No PNG Icon</div>
-                    )}
+                  <div className="size-16 shrink-0 rounded-2xl border bg-card grid place-items-center overflow-hidden p-1 shadow-xs">
+                    <AddonIconRenderer
+                      icon={editing.icon ?? null}
+                      name={editing.name || "Addon"}
+                      category={editing.category || "HR"}
+                      className="size-8"
+                    />
                   </div>
 
                   <div className="flex-1 w-full space-y-2">
@@ -1164,8 +1377,8 @@ function MarketplaceAdmin() {
                       <Input
                         value={editing.icon ?? ""}
                         onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
-                        placeholder="Paste image URL (/uploads/... or https://...)"
-                        className="text-xs font-mono h-9"
+                        placeholder="Saved storage URL (/uploads/addons/icons/...) or image link"
+                        className="text-xs font-mono h-9 rounded-xl"
                       />
                       <input
                         type="file"
@@ -1180,10 +1393,14 @@ function MarketplaceAdmin() {
                         size="sm"
                         disabled={isUploadingIcon}
                         onClick={() => iconFileInputRef.current?.click()}
-                        className="gap-1.5 shrink-0 h-9 text-xs"
+                        className="gap-1.5 shrink-0 h-9 text-xs font-semibold rounded-xl"
                       >
-                        {isUploadingIcon ? <Loader2 className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
-                        {isUploadingIcon ? "Uploading..." : "Upload PNG"}
+                        {isUploadingIcon ? (
+                          <Loader2 className="size-3.5 animate-spin text-[#00a86b]" />
+                        ) : (
+                          <Upload className="size-3.5 text-[#00a86b]" />
+                        )}
+                        {isUploadingIcon ? "Uploading..." : "Upload PNG/JPG"}
                       </Button>
                       {editing.icon && (
                         <Button
@@ -1191,7 +1408,7 @@ function MarketplaceAdmin() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setEditing({ ...editing, icon: null })}
-                          className="h-9 px-2 text-destructive hover:bg-destructive/10"
+                          className="h-9 px-2 text-destructive hover:bg-destructive/10 rounded-xl"
                           title="Remove icon"
                         >
                           <X className="size-3.5" />
@@ -1199,7 +1416,7 @@ function MarketplaceAdmin() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Upload a local PNG file via real Media File API, or paste a canonical storage path.
+                      Uploaded images are stored directly in your server's local media storage directory and served with permanent URLs.
                     </p>
                   </div>
                 </div>
@@ -1210,6 +1427,7 @@ function MarketplaceAdmin() {
                   value={editing.developer ?? ""}
                   onChange={(e) => setEditing({ ...editing, developer: e.target.value })}
                   placeholder="Master ERP Core Team"
+                  className="rounded-xl text-xs h-9"
                 />
               </Field>
 
@@ -1218,38 +1436,17 @@ function MarketplaceAdmin() {
                   value={editing.version ?? ""}
                   onChange={(e) => setEditing({ ...editing, version: e.target.value })}
                   placeholder="1.0.0"
-                />
-              </Field>
-
-              <Field label="Availability Status">
-                <Select value={editing.status || "available"} onValueChange={(val) => setEditing({ ...editing, status: val })}>
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="available">Available (Public)</SelectItem>
-                    <SelectItem value="beta">Beta Testing</SelectItem>
-                    <SelectItem value="coming_soon">Coming Soon</SelectItem>
-                    <SelectItem value="draft">Draft (Hidden)</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Install Route / Action URL">
-                <Input
-                  value={editing.install_url ?? ""}
-                  onChange={(e) => setEditing({ ...editing, install_url: e.target.value })}
-                  placeholder="/dashboard/addons/install"
+                  className="rounded-xl text-xs h-9 font-mono"
                 />
               </Field>
 
               <div className="md:col-span-2">
-                <Field label="Tagline (Pitch)">
+                <Field label="Tagline (Brief Pitch)">
                   <Input
                     value={editing.tagline ?? ""}
                     onChange={(e) => setEditing({ ...editing, tagline: e.target.value })}
-                    placeholder="Automated workforce alerts via WhatsApp Business Cloud API"
+                    placeholder="Short 1-sentence value proposition"
+                    className="rounded-xl text-xs h-9"
                   />
                 </Field>
               </div>
@@ -1260,39 +1457,28 @@ function MarketplaceAdmin() {
                     rows={2}
                     value={editing.description ?? ""}
                     onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                    className="text-xs"
+                    className="text-xs rounded-xl"
                   />
                 </Field>
               </div>
 
               <div className="md:col-span-2">
-                <Field label="Long Description (Markdown enabled)">
-                  <Textarea
-                    rows={4}
-                    value={editing.long_description ?? ""}
-                    onChange={(e) => setEditing({ ...editing, long_description: e.target.value })}
-                    className="text-xs leading-relaxed"
-                  />
-                </Field>
-              </div>
-
-              <div className="md:col-span-2">
-                <Field label="Features Included (One line per feature)">
+                <Field label="Features Included (One feature per line)">
                   <Textarea
                     rows={3}
                     value={featuresText}
                     onChange={(e) => setFeaturesText(e.target.value)}
                     placeholder={"Real-time sync\nAutomated notifications\nCustom templates"}
-                    className="text-xs font-mono"
+                    className="text-xs font-mono rounded-xl"
                   />
                 </Field>
               </div>
 
-              {/* PNG SCREENSHOTS GALLERY UPLOAD & MANAGER */}
+              {/* PNG SCREENSHOTS GALLERY UPLOAD */}
               <div className="md:col-span-2 p-4 rounded-xl border bg-secondary/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-bold flex items-center gap-1.5">
-                    <ImageIcon className="size-4 text-primary" /> PNG Screenshots Gallery ({screenshots.length})
+                    <ImageIcon className="size-4 text-[#00a86b]" /> Screenshots Gallery ({screenshots.length})
                   </Label>
                   <input
                     type="file"
@@ -1308,18 +1494,25 @@ function MarketplaceAdmin() {
                     size="sm"
                     disabled={isUploadingScreenshots}
                     onClick={() => screenshotFileInputRef.current?.click()}
-                    className="gap-1.5 text-xs h-8"
+                    className="gap-1.5 text-xs h-8 rounded-xl"
                   >
-                    {isUploadingScreenshots ? <Loader2 className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
-                    {isUploadingScreenshots ? "Uploading..." : "Upload PNG Screenshots"}
+                    {isUploadingScreenshots ? (
+                      <Loader2 className="size-3.5 animate-spin text-[#00a86b]" />
+                    ) : (
+                      <Upload className="size-3.5 text-[#00a86b]" />
+                    )}
+                    {isUploadingScreenshots ? "Uploading..." : "Upload Screenshots"}
                   </Button>
                 </div>
 
                 {screenshots.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
                     {screenshots.map((src, idx) => (
-                      <div key={idx} className="relative group rounded-lg border bg-background overflow-hidden aspect-video shadow-2xs">
-                        <img src={src} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                      <div
+                        key={idx}
+                        className="relative group rounded-xl border bg-background overflow-hidden aspect-video shadow-2xs"
+                      >
+                        <img src={src} alt="Screenshot" className="w-full h-full object-cover" loading="lazy" />
                         <button
                           type="button"
                           onClick={() => setScreenshots((prev) => prev.filter((_, i) => i !== idx))}
@@ -1331,8 +1524,8 @@ function MarketplaceAdmin() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                    No screenshots added yet. Click "Upload PNG Screenshots" to persist previews.
+                  <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-xl">
+                    No screenshots added yet. Click "Upload Screenshots" to persist previews.
                   </p>
                 )}
               </div>
@@ -1343,27 +1536,27 @@ function MarketplaceAdmin() {
                     type="checkbox"
                     checked={Boolean(editing.featured)}
                     onChange={(e) => setEditing({ ...editing, featured: e.target.checked })}
-                    className="size-4 rounded accent-primary"
+                    className="size-4 rounded accent-[#00a86b]"
                   />
                   <span>Spotlight Feature on Public Marketplace & CMS Pages</span>
                 </label>
               </div>
-
-              {/* Version History & Changelog */}
-              <AddonReleaseHistorySection
-                addon={editing}
-                onVersionPublished={(newVer) =>
-                  setEditing((prev) => (prev ? { ...prev, version: newVer } : null))
-                }
-              />
             </div>
 
-            <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setAddonModalOpen(false)}>
+            <DialogFooter className="mt-4 border-t pt-4">
+              <Button variant="outline" onClick={() => setAddonModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button onClick={saveAddon} disabled={upsertAddon.isPending} className="gap-2 font-semibold">
-                {upsertAddon.isPending ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              <Button
+                onClick={saveAddon}
+                disabled={upsertAddon.isPending}
+                className="bg-[#00a86b] hover:bg-[#008f5b] text-white gap-2 font-semibold rounded-xl"
+              >
+                {upsertAddon.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-4" />
+                )}
                 Save Addon
               </Button>
             </DialogFooter>
@@ -1372,18 +1565,20 @@ function MarketplaceAdmin() {
       )}
 
       {/* ========================================== */}
-      {/* 8. CATEGORY CREATE / EDIT MODAL DIALOG */}
+      {/* 6. CATEGORY MANAGEMENT DIALOG */}
       {/* ========================================== */}
       <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Layers className="size-5 text-primary" />
-              {categoryModalMode === "create" ? "Create New Category" : `Edit Category — ${targetCategoryOldName}`}
+              <Layers className="size-5 text-[#00a86b]" />
+              {categoryModalMode === "create"
+                ? "Create New Category"
+                : `Edit Category — ${targetCategoryOldName}`}
             </DialogTitle>
             <DialogDescription className="text-xs">
               {categoryModalMode === "create"
-                ? "Add a new domain category to organize extensions in the marketplace."
+                ? "Add a new domain taxonomy category to organize add-on modules."
                 : `Renaming will safely update all associated add-ons assigned to '${targetCategoryOldName}'.`}
             </DialogDescription>
           </DialogHeader>
@@ -1395,20 +1590,21 @@ function MarketplaceAdmin() {
                 onChange={(e) => setCategoryInputName(e.target.value)}
                 placeholder="e.g. Communication, Hardware, AI & ML"
                 autoFocus
+                className="rounded-xl text-xs"
               />
             </Field>
           </div>
 
           <DialogFooter className="mt-2">
-            <Button variant="outline" onClick={() => setCategoryModalOpen(false)}>
+            <Button variant="outline" onClick={() => setCategoryModalOpen(false)} className="rounded-xl">
               Cancel
             </Button>
             <Button
               onClick={handleSaveCategory}
               disabled={createCategoryMutation.isPending || updateCategoryMutation.isPending}
-              className="gap-2 font-semibold"
+              className="bg-[#00a86b] hover:bg-[#008f5b] text-white gap-2 font-semibold rounded-xl"
             >
-              {(createCategoryMutation.isPending || updateCategoryMutation.isPending) ? (
+              {createCategoryMutation.isPending || updateCategoryMutation.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <CheckCircle2 className="size-4" />
@@ -1420,11 +1616,11 @@ function MarketplaceAdmin() {
       </Dialog>
 
       {/* ========================================== */}
-      {/* 9. DELETE CATEGORY CONFIRMATION DIALOG */}
+      {/* 7. DELETE CATEGORY CONFIRMATION DIALOG */}
       {/* ========================================== */}
       {categoryToDelete && (
         <Dialog open={deleteCategoryModalOpen} onOpenChange={setDeleteCategoryModalOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="size-5" />
@@ -1445,16 +1641,20 @@ function MarketplaceAdmin() {
             </DialogHeader>
 
             <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setDeleteCategoryModalOpen(false)}>
+              <Button variant="outline" onClick={() => setDeleteCategoryModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
               <Button
                 variant="destructive"
                 disabled={categoryToDelete.count > 0 || deleteCategoryMutation.isPending}
                 onClick={() => deleteCategoryMutation.mutate(categoryToDelete.name)}
-                className="gap-2"
+                className="gap-2 rounded-xl"
               >
-                {deleteCategoryMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                {deleteCategoryMutation.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Trash2 className="size-4" />
+                )}
                 Delete Category
               </Button>
             </DialogFooter>
@@ -1463,11 +1663,11 @@ function MarketplaceAdmin() {
       )}
 
       {/* ========================================== */}
-      {/* 10. DELETE ADDON CONFIRMATION DIALOG */}
+      {/* 8. DELETE ADDON CONFIRMATION DIALOG */}
       {/* ========================================== */}
       {addonToDelete && (
         <Dialog open={deleteAddonModalOpen} onOpenChange={setDeleteAddonModalOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md rounded-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
                 <AlertTriangle className="size-5" />
@@ -1478,20 +1678,20 @@ function MarketplaceAdmin() {
                   Are you sure you want to remove <strong className="text-foreground">{addonToDelete.name}</strong> (<code className="font-mono text-foreground">/{addonToDelete.slug}</code>)?
                 </p>
                 <p className="text-muted-foreground">
-                  If this add-on has active tenant entitlements, subscriptions, or historical orders, the system will safely <strong>soft-archive</strong> it to preserve audit records.
+                  If this add-on has active tenant entitlements or historical records, it will be safely <strong>soft-archived</strong>.
                 </p>
               </DialogDescription>
             </DialogHeader>
 
             <DialogFooter className="mt-4">
-              <Button variant="outline" onClick={() => setDeleteAddonModalOpen(false)}>
+              <Button variant="outline" onClick={() => setDeleteAddonModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
               <Button
                 variant="destructive"
                 disabled={deleteAddon.isPending}
                 onClick={() => deleteAddon.mutate(addonToDelete.id)}
-                className="gap-2 font-semibold"
+                className="gap-2 font-semibold rounded-xl"
               >
                 {deleteAddon.isPending ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                 Confirm Delete
@@ -1504,236 +1704,104 @@ function MarketplaceAdmin() {
   );
 }
 
+// ==========================================
+// INDIVIDUAL ADDON CARD COMPONENT (EXACT WORKDO STYLE)
+// ==========================================
+function AddonCard({
+  addon,
+  onViewDetails,
+  onEdit,
+  onToggleStatus,
+  onDelete,
+  isToggling,
+}: {
+  addon: Addon;
+  onViewDetails: () => void;
+  onEdit: () => void;
+  onToggleStatus: (newStatus: string) => void;
+  onDelete: () => void;
+  isToggling?: boolean;
+}) {
+  const isEnabled = addon.status !== "disabled";
+
+  return (
+    <Card
+      className={`border border-border/80 rounded-2xl bg-card p-4 text-center flex flex-col items-center justify-between transition-all duration-200 group relative hover:shadow-md hover:border-[#00a86b]/60 ${
+        !isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
+      }`}
+    >
+      {/* Top Controls: Enable/Disable Switch & Edit Button */}
+      <div className="w-full flex items-center justify-between mb-2">
+        {/* Enable / Disable Switch */}
+        <div className="flex items-center gap-1.5" title={isEnabled ? "Click to disable addon" : "Click to enable addon"}>
+          <Switch
+            checked={isEnabled}
+            disabled={isToggling}
+            onCheckedChange={(checked) => onToggleStatus(checked ? "active" : "disabled")}
+            className="scale-75 origin-left data-[state=checked]:bg-[#00a86b]"
+          />
+          <span className="text-[10px] font-mono text-muted-foreground select-none">
+            {isEnabled ? "Active" : "Disabled"}
+          </span>
+        </div>
+
+        {/* Quick Edit Button */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            title="Edit Addon & Storage Images"
+          >
+            <Pencil className="size-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Centered Icon */}
+      <div
+        onClick={onViewDetails}
+        className="cursor-pointer group-hover:scale-105 transition-transform my-1"
+      >
+        <AddonIconRenderer
+          icon={addon.icon}
+          name={addon.name}
+          category={addon.category}
+          className="size-11"
+        />
+      </div>
+
+      {/* Centered Addon Name */}
+      <div className="mt-2 w-full">
+        <h3
+          onClick={onViewDetails}
+          className="text-xs font-bold text-foreground line-clamp-2 min-h-[34px] flex items-center justify-center leading-snug cursor-pointer group-hover:text-[#00a86b] transition-colors"
+          title={addon.name}
+        >
+          {addon.name}
+        </h3>
+      </div>
+
+      {/* View Details Link (Matching WorkDo green link style) */}
+      <div className="mt-2.5 pt-2 border-t border-border/50 w-full flex items-center justify-center">
+        <button
+          type="button"
+          onClick={onViewDetails}
+          className="text-[11px] font-semibold text-[#00a86b] hover:text-[#008f5b] flex items-center gap-1 transition-colors"
+        >
+          <span>View Details</span>
+          <ExternalLink className="size-2.5" />
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-semibold text-foreground">{label}</Label>
       {children}
-    </div>
-  );
-}
-
-type AddonRelease = {
-  id: string;
-  addonId: string;
-  addonSlug: string;
-  version: string;
-  previousVersion: string | null;
-  changeSummary: string;
-  releaseNotes: string | null;
-  isPublic: boolean;
-  actorEmail: string | null;
-  metadataDiff: Record<string, any> | null;
-  createdAt: string;
-};
-
-function AddonReleaseHistorySection({
-  addon,
-  onVersionPublished,
-}: {
-  addon: Partial<Addon>;
-  onVersionPublished: (newVersion: string) => void;
-}) {
-  const qc = useQueryClient();
-  const [isPublishingOpen, setIsPublishingOpen] = useState(false);
-  const [versionInput, setVersionInput] = useState("");
-  const [summaryInput, setSummaryInput] = useState("");
-  const [notesInput, setNotesInput] = useState("");
-  const [isPublic, setIsPublic] = useState(true);
-
-  const { data: releaseData, isLoading, refetch } = useQuery({
-    queryKey: ["super-addon-releases", addon.slug],
-    queryFn: async () => {
-      if (!addon.slug) return { releases: [] };
-      return api.get<{
-        addonSlug: string;
-        currentVersion: string;
-        totalReleases: number;
-        releases: AddonRelease[];
-      }>(`/super/addons/${addon.slug}/releases`);
-    },
-    enabled: Boolean(addon.slug && addon.id),
-  });
-
-  const releases = releaseData?.releases || [];
-
-  const publishMutation = useMutation({
-    mutationFn: async () => {
-      if (!addon.slug) throw new Error("Add-on slug missing");
-      return api.post(`/super/addons/${addon.slug}/releases`, {
-        version: versionInput,
-        changeSummary: summaryInput,
-        releaseNotes: notesInput,
-        isPublic,
-      });
-    },
-    onSuccess: (data: any) => {
-      toast.success(data?.message || "Version published successfully");
-      setIsPublishingOpen(false);
-      setVersionInput("");
-      setSummaryInput("");
-      setNotesInput("");
-      refetch();
-      qc.invalidateQueries({ queryKey: ["admin-addons"] });
-      if (data?.currentVersion) {
-        onVersionPublished(data.currentVersion);
-      }
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.error || err.message || "Failed to publish version");
-    },
-  });
-
-  if (!addon.id) {
-    return (
-      <div className="md:col-span-2 p-3.5 rounded-xl border bg-secondary/10 space-y-1.5">
-        <div className="text-xs font-bold text-foreground flex items-center gap-2">
-          <BookOpen className="size-4 text-primary" /> Version History & Changelog
-        </div>
-        <p className="text-[11px] text-muted-foreground">
-          Save this add-on to database first before recording formal historical release versions.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="md:col-span-2 p-3.5 rounded-xl border bg-secondary/10 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BookOpen className="size-4 text-primary" />
-          <span className="text-xs font-bold text-foreground">Version History & Changelog</span>
-          <Badge variant="outline" className="font-mono text-[10px]">
-            Current: v{addon.version || "1.0.0"}
-          </Badge>
-          <Badge variant="secondary" className="font-mono text-[10px]">
-            {releases.length} {releases.length === 1 ? "Release" : "Releases"}
-          </Badge>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant={isPublishingOpen ? "secondary" : "outline"}
-          onClick={() => {
-            setIsPublishingOpen((prev) => !prev);
-            if (!versionInput && addon.version) {
-              const parts = String(addon.version).replace(/^v/i, "").split(".");
-              if (parts.length === 3 && !isNaN(Number(parts[2]))) {
-                setVersionInput(`${parts[0]}.${parts[1]}.${Number(parts[2]) + 1}`);
-              }
-            }
-          }}
-          className="h-7 text-xs gap-1.5"
-        >
-          <Plus className="size-3" />
-          {isPublishingOpen ? "Cancel" : "Publish New Release"}
-        </Button>
-      </div>
-
-      {isPublishingOpen && (
-        <div className="p-3 rounded-lg border bg-background space-y-3 shadow-xs">
-          <div className="text-xs font-bold text-foreground">Publish New Version Release</div>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-[11px] font-semibold">Release Version (SemVer) *</Label>
-              <Input
-                value={versionInput}
-                onChange={(e) => setVersionInput(e.target.value)}
-                placeholder="e.g. 1.1.0 or 2.0.0"
-                className="h-8 text-xs font-mono mt-1"
-              />
-            </div>
-            <div>
-              <Label className="text-[11px] font-semibold">Change Summary *</Label>
-              <Input
-                value={summaryInput}
-                onChange={(e) => setSummaryInput(e.target.value)}
-                placeholder="e.g. Added thermal printing support and device retry"
-                className="h-8 text-xs mt-1"
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="text-[11px] font-semibold">Detailed Release Notes (Optional)</Label>
-            <Textarea
-              value={notesInput}
-              onChange={(e) => setNotesInput(e.target.value)}
-              placeholder="Full changelog details or release documentation..."
-              className="text-xs mt-1 min-h-[50px]"
-            />
-          </div>
-          <div className="flex items-center justify-between pt-1">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground select-none">
-              <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="rounded border"
-              />
-              <span>Publicly visible on public marketplace store</span>
-            </label>
-            <Button
-              type="button"
-              size="sm"
-              disabled={publishMutation.isPending || !versionInput.trim() || !summaryInput.trim()}
-              onClick={() => publishMutation.mutate()}
-              className="h-8 text-xs font-bold gap-1.5"
-            >
-              {publishMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
-              Publish v{versionInput.trim() || "..."}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Historical Releases List */}
-      <div className="space-y-1.5 pt-1">
-        {isLoading ? (
-          <div className="py-3 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
-            <Loader2 className="size-3.5 animate-spin text-primary" /> Loading release history...
-          </div>
-        ) : releases.length === 0 ? (
-          <div className="py-3 text-center text-[11px] text-muted-foreground border rounded-lg bg-background/50">
-            No historical release records stored for this add-on yet. Use <span className="font-semibold text-foreground">Publish New Release</span> above to record the first immutable changelog entry.
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-            {releases.map((rel) => (
-              <div key={rel.id} className="p-2.5 rounded-lg border bg-background text-xs space-y-1 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-foreground bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[11px]">
-                      v{rel.version}
-                    </span>
-                    {rel.previousVersion && (
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        (prev: v{rel.previousVersion})
-                      </span>
-                    )}
-                    <span className="font-semibold text-foreground">{rel.changeSummary}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>{new Date(rel.createdAt).toLocaleDateString()}</span>
-                    <Badge variant={rel.isPublic ? "outline" : "secondary"} className="text-[9px] py-0">
-                      {rel.isPublic ? "Public" : "Internal"}
-                    </Badge>
-                  </div>
-                </div>
-                {rel.releaseNotes && (
-                  <p className="text-[11px] text-muted-foreground pl-1 border-l-2 border-primary/20 italic mt-1">
-                    {rel.releaseNotes}
-                  </p>
-                )}
-                {rel.actorEmail && (
-                  <div className="text-[10px] text-muted-foreground text-right font-mono">
-                    by {rel.actorEmail}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

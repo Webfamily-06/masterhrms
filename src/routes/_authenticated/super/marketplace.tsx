@@ -1,3 +1,4 @@
+
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,10 +64,10 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { formatSystemAmount, DEFAULT_CURRENCY_SETTINGS, SystemCurrencySettings } from "@/lib/currency";
-
 export const Route = createFileRoute("/_authenticated/super/marketplace")({
   component: MarketplaceAdmin,
 });
+
 
 export type Addon = {
   id: string;
@@ -457,16 +458,75 @@ function MarketplaceAdmin() {
   });
 
   // Ordered Category list ensuring Free Addons is first, matching WorkDo reference
+  const preferredCategoryOrder = [
+    "free add-ons",
+    "free addons",
+    "free",
+    "social media",
+    "integration",
+    "integrations",
+    "e-commerces and saas",
+    "e-commerce & sales",
+    "e-commerce",
+    "content management",
+    "finance",
+    "hr",
+    "industrial solutions",
+    "communication",
+    "mobility",
+    "ai",
+    "security",
+    "mobile app",
+    "payment gateways",
+    "accounting",
+    "operations",
+  ];
+
   const orderedCategoryDetails = useMemo(() => {
     const sorted = [...categoryDetails].sort((a, b) => {
-      if (a.name.toLowerCase().includes("free")) return -1;
-      if (b.name.toLowerCase().includes("free")) return 1;
-      if (a.name.toLowerCase().includes("social")) return -1;
-      if (b.name.toLowerCase().includes("social")) return 1;
+      const aLower = a.name.toLowerCase();
+      const bLower = b.name.toLowerCase();
+      const aIdx = preferredCategoryOrder.findIndex((p) => aLower.includes(p) || p.includes(aLower));
+      const bIdx = preferredCategoryOrder.findIndex((p) => bLower.includes(p) || p.includes(bLower));
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
       return a.name.localeCompare(b.name);
     });
     return sorted;
   }, [categoryDetails]);
+
+  // Sort items within each category matching canonical reference order
+  function sortAddonsByReference(items: Addon[]): Addon[] {
+    const preferredOrder = [
+      "ai business advisor",
+      "smart dashboard",
+      "smart reports",
+      "suggestion box",
+      "notice board",
+      "instagram chat",
+      "facebook chat",
+      "instagram post",
+      "facebook post",
+      "whatsapp chat",
+      "youtube content",
+      "telegram",
+      "twilio",
+      "slack",
+      "discord",
+    ];
+
+    return [...items].sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aIdx = preferredOrder.findIndex((p) => aName.includes(p));
+      const bIdx = preferredOrder.findIndex((p) => bName.includes(p));
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
 
   // Computed summary metrics
   const metrics = useMemo(() => {
@@ -843,13 +903,24 @@ function MarketplaceAdmin() {
 
           {/* Right Action Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => {
+                const el = document.getElementById("marketplace-explorer-content");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="bg-[#00a86b] hover:bg-[#008f5b] text-white gap-2 text-xs h-10 font-bold rounded-xl px-5 shadow-xs"
+            >
+              Browse All Add-ons <ArrowRight className="size-4" />
+            </Button>
+
             {/* Sync Canonical 133 Catalog Button */}
             <Button
               variant="outline"
               size="sm"
               onClick={() => syncCanonicalMutation.mutate()}
               disabled={syncCanonicalMutation.isPending}
-              className="gap-2 text-xs h-9 font-semibold border-emerald-300/80 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-800 dark:hover:bg-emerald-950"
+              className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl px-3"
               title="Ensure all 133 canonical addons from documentation matrix are synchronized"
             >
               {syncCanonicalMutation.isPending ? (
@@ -862,11 +933,12 @@ function MarketplaceAdmin() {
 
             {/* New Addon Action Button */}
             <Button
+              variant="outline"
               size="sm"
               onClick={openNewAddon}
-              className="bg-[#00a86b] hover:bg-[#008f5b] text-white gap-2 text-xs h-9 font-semibold rounded-xl px-4 shadow-xs"
+              className="border-slate-200 hover:bg-slate-50 gap-1.5 text-xs h-10 font-semibold rounded-xl px-3"
             >
-              <Plus className="size-4" /> New Addon
+              <Plus className="size-3.5 text-[#00a86b]" /> New Addon
             </Button>
           </div>
         </div>
@@ -899,27 +971,7 @@ function MarketplaceAdmin() {
           {/* Category List */}
           <Card className="border border-border/80 shadow-xs overflow-hidden rounded-2xl bg-card">
             <div className="p-2 space-y-1">
-              {/* "All Add-ons" Row */}
-              <button
-                type="button"
-                onClick={() => setSelectedCategory("All")}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  selectedCategory === "All"
-                    ? "bg-[#00a86b] text-white shadow-xs font-bold"
-                    : "text-foreground hover:bg-secondary/60 text-left"
-                }`}
-              >
-                <span>All Add-ons</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-mono ${
-                    selectedCategory === "All"
-                      ? "bg-white/20 text-white font-bold"
-                      : "bg-secondary text-muted-foreground"
-                  }`}
-                >
-                  {metrics.total}
-                </span>
-              </button>
+
 
               {/* Dynamic Categories List */}
               {isLoadingCategories ? (
@@ -934,11 +986,18 @@ function MarketplaceAdmin() {
                     <button
                       key={cat.name}
                       type="button"
-                      onClick={() => setSelectedCategory(cat.name)}
+                      onClick={() => {
+                        setSelectedCategory(cat.name);
+                        const targetId = "section-" + cat.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                        const el = document.getElementById(targetId);
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "start" });
+                        }
+                      }}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all text-left group ${
                         isSelected
                           ? "bg-[#00a86b] text-white shadow-xs font-bold"
-                          : "text-foreground hover:bg-secondary/60"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                       }`}
                     >
                       <span className="truncate pr-2">{cat.name}</span>
@@ -973,7 +1032,7 @@ function MarketplaceAdmin() {
         </div>
 
         {/* RIGHT MAIN SHOWCASE: ADDON CARDS GRID */}
-        <div className="flex-1 w-full min-w-0 space-y-8">
+        <div id="marketplace-explorer-content" className="flex-1 w-full min-w-0 space-y-8">
           {isLoadingAddons ? (
             <div className="py-32 grid place-items-center">
               <Loader2 className="size-8 animate-spin text-[#00a86b]" />
@@ -991,86 +1050,32 @@ function MarketplaceAdmin() {
               </Button>
             </Card>
           ) : (
-            <>
-              {/* If "All" is selected, render grouped sections like in WorkDo Explore page */}
-              {selectedCategory === "All" ? (
-                orderedCategoryDetails.map((cat) => {
-                  const items = groupedAddonsByCategory.get(cat.name) || [];
-                  if (items.length === 0) return null;
+            <div className="space-y-8">
+              {orderedCategoryDetails.map((cat) => {
+                const rawItems = groupedAddonsByCategory.get(cat.name) || [];
+                const items = sortAddonsByReference(rawItems);
+                if (items.length === 0) return null;
+                const sectionId = "section-" + cat.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-                  return (
-                    <div key={cat.name} className="space-y-4">
-                      {/* Section Header: Green dot + Category Name + Count */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="size-2 rounded-full bg-[#00a86b]" />
-                          <h2 className="text-base font-bold text-foreground">{cat.name}</h2>
-                          <span className="text-xs text-muted-foreground">
-                            {items.length} {items.length === 1 ? "add-on" : "add-ons"}
-                          </span>
-                        </div>
+                return (
+                  <div key={cat.name} id={sectionId} className="space-y-4 scroll-mt-6">
+                    {/* Section Header: Green dot + Category Name + Count */}
+                    <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="size-2.5 rounded-full bg-[#00a86b]" />
+                        <h2 className="text-base font-bold text-foreground tracking-tight">{cat.name}</h2>
+                        <span className="text-xs text-muted-foreground font-normal">
+                          {items.length} {items.length === 1 ? "add-on" : "add-ons"}
+                        </span>
                       </div>
-
-                      {/* Responsive Grid of Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {items.map((addon) => (
-                          <AddonCard
-                            key={addon.id}
-                            addon={addon}
-                            onViewDetails={() => openViewDetails(addon)}
-                            onEdit={() => openEditAddon(addon)}
-                            onToggleStatus={(newStatus) =>
-                              toggleStatusMutation.mutate({ id: addon.id, newStatus })
-                            }
-                            onDelete={() => confirmDeleteAddon(addon)}
-                            isToggling={
-                              toggleStatusMutation.isPending &&
-                              toggleStatusMutation.variables?.id === addon.id
-                            }
-                          />
-                        ))}
+                      <div className="text-xs text-muted-foreground font-medium">
+                        {items.filter((a) => a.status !== "disabled").length} Active
                       </div>
                     </div>
-                  );
-                })
-              ) : (
-                /* Single Selected Category View */
-                <div className="space-y-4">
-                  {/* Section Header */}
-                  <div className="flex items-center justify-between border-b pb-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="size-2.5 rounded-full bg-[#00a86b]" />
-                      <h2 className="text-lg font-bold text-foreground">{selectedCategory}</h2>
-                      <span className="text-xs text-muted-foreground">
-                        {activeCategoryAddons.length}{" "}
-                        {activeCategoryAddons.length === 1 ? "add-on" : "add-ons"}
-                      </span>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs font-mono">
-                        {activeCategoryAddons.filter((a) => a.status === "active" || a.status === "available").length} Active
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedCategory("All")}
-                        className="text-xs h-7 text-muted-foreground hover:text-foreground"
-                      >
-                        View All
-                      </Button>
-                    </div>
-                  </div>
-
-                  {activeCategoryAddons.length === 0 ? (
-                    <Card className="p-12 text-center text-muted-foreground space-y-2 border-dashed rounded-2xl">
-                      <Package className="size-8 mx-auto opacity-40 text-[#00a86b]" />
-                      <p className="text-sm font-medium text-foreground">No add-ons found in this category.</p>
-                      <p className="text-xs">Try resetting your search query or create a new addon.</p>
-                    </Card>
-                  ) : (
+                    {/* Responsive Grid of Cards (5 Columns on Desktop) */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {activeCategoryAddons.map((addon) => (
+                      {items.map((addon) => (
                         <AddonCard
                           key={addon.id}
                           addon={addon}
@@ -1087,15 +1092,14 @@ function MarketplaceAdmin() {
                         />
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
-            </>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
 
-      {/* ========================================== */}
       {/* 4. ADDON VIEW DETAILS MODAL */}
       {/* ========================================== */}
       {viewingAddon && (
