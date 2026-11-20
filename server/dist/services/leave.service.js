@@ -1513,7 +1513,7 @@ class LeaveService {
     /**
      * Authoritative Leave Approval / Rejection with concurrency guard and exact single ledger DEBIT.
      */
-    static async decideApplication(tenantId, requestId, action, reviewerId, comments, reviewerRoles) {
+    static async decideApplication(tenantId, requestId, action, reviewerId, comments, reviewerRoles, options) {
         const request = await prisma_1.rawPrisma.leaveRequest.findUnique({
             where: { id: requestId },
             include: { leaveType: true, employee: true },
@@ -1535,7 +1535,7 @@ class LeaveService {
         }
         await this.assertReviewerAuthorized(tenantId, reviewerId, effectiveRoles, request.employee);
         if (action === "reject") {
-            const updated = await prisma_1.rawPrisma.$transaction(async (tx) => {
+            const executeReject = async (tx) => {
                 const claimed = await tx.leaveRequest.updateMany({
                     where: { id: requestId, tenantId, status: "pending" },
                     data: {
@@ -1562,8 +1562,11 @@ class LeaveService {
                     payload: { employeeId: request.employeeId, comments },
                 }, tx);
                 return req;
-            });
-            if (request.employee?.userId) {
+            };
+            const updated = options?.tx
+                ? await executeReject(options.tx)
+                : await prisma_1.rawPrisma.$transaction(executeReject);
+            if (!options?.suppressNotifications && request.employee?.userId) {
                 notification_service_1.NotificationService.createNotification({
                     tenantId,
                     userId: request.employee.userId,
@@ -1606,7 +1609,7 @@ class LeaveService {
         const holidayDates = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
         const end = new Date(request.endDate);
         end.setUTCHours(0, 0, 0, 0);
-        const approved = await prisma_1.rawPrisma.$transaction(async (tx) => {
+        const executeApprove = async (tx) => {
             if (isCompOff) {
                 await tx.$queryRaw `SELECT id FROM employees WHERE id = ${request.employeeId} AND tenant_id = ${tenantId} FOR UPDATE`;
             }
@@ -1815,8 +1818,11 @@ class LeaveService {
                 },
             }, tx);
             return req;
-        });
-        if (request.employee?.userId) {
+        };
+        const approved = options?.tx
+            ? await executeApprove(options.tx)
+            : await prisma_1.rawPrisma.$transaction(executeApprove);
+        if (!options?.suppressNotifications && request.employee?.userId) {
             notification_service_1.NotificationService.createNotification({
                 tenantId,
                 userId: request.employee.userId,
@@ -2260,6 +2266,13 @@ class LeaveService {
         });
     }
     /**
+     * Synchronize initial yearly accrual leave balances for a newly created or target employee.
+     * Delegates to syncTenantBalances with tenant scoping and idempotency.
+     */
+    static async synchronizeEmployeeYearlyAccruals(tenantId, year, actorId, employeeId) {
+        return this.syncTenantBalances(tenantId, actorId, year, employeeId);
+    }
+    /**
      * Year-aware, idempotent Balance Synchronization for active employees and active leave types.
      * Checks ONLY `entryType = "ACCRUAL"` within `targetYear` so:
      * - Manual CREDIT/DEBIT adjustments never block initial entitlement sync
@@ -2273,9 +2286,13 @@ class LeaveService {
         const accrualEffectiveDate = targetYear === new Date().getUTCFullYear()
             ? new Date()
             : new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
-        const empWhere = { tenantId, status: "active" };
+        const empWhere = { tenantId };
         if (targetEmployeeId && targetEmployeeId !== "all") {
             empWhere.id = targetEmployeeId;
+            empWhere.status = { not: "terminated" };
+        }
+        else {
+            empWhere.status = "active";
         }
         const [employees, leaveTypes, existingAccruals, existingYearAdjustments] = await Promise.all([
             prisma_1.rawPrisma.employee.findMany({

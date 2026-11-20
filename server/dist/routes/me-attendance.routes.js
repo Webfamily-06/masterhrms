@@ -26,8 +26,10 @@ exports.meAttendanceRouter.get("/status", async (req, res) => {
         const tenantId = req.tenantId;
         const employee = await getSelfEmployee(req);
         const now = new Date();
-        const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-        const [attendance, roster, policy] = await Promise.all([
+        const timeZone = await attendance_service_1.AttendanceService.resolveTenantTimezone(tenantId);
+        const zoned = attendance_service_1.AttendanceService.getZonedParts(now, timeZone);
+        const today = attendance_service_1.AttendanceService.toPrismaDate(zoned.year, zoned.month, zoned.day);
+        let [attendance, roster, policy] = await Promise.all([
             prisma_1.rawPrisma.attendance.findUnique({
                 where: {
                     tenantId_employeeId_date: {
@@ -59,6 +61,35 @@ exports.meAttendanceRouter.get("/status", async (req, res) => {
                 orderBy: { isDefault: "asc" },
             }),
         ]);
+        // Overnight shift support: check if yesterday has an open check-in
+        if (!attendance || !attendance.checkIn) {
+            const yesterday = new Date(today.getTime() - 86400000);
+            const openYesterday = await prisma_1.rawPrisma.attendance.findUnique({
+                where: {
+                    tenantId_employeeId_date: {
+                        tenantId,
+                        employeeId: employee.id,
+                        date: yesterday,
+                    },
+                },
+            });
+            if (openYesterday && openYesterday.checkIn && !openYesterday.checkOut) {
+                attendance = openYesterday;
+                const yesterdayRoster = await prisma_1.rawPrisma.shiftRoster.findUnique({
+                    where: {
+                        tenantId_employeeId_rosterDate: {
+                            tenantId,
+                            employeeId: employee.id,
+                            rosterDate: yesterday,
+                        },
+                    },
+                    include: { shift: true },
+                });
+                if (yesterdayRoster?.shift) {
+                    roster = yesterdayRoster;
+                }
+            }
+        }
         let elapsedSeconds = 0;
         if (attendance?.checkIn && !attendance?.checkOut) {
             elapsedSeconds = Math.round((now.getTime() - attendance.checkIn.getTime()) / 1000);

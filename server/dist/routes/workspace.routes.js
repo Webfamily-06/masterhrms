@@ -32,9 +32,13 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.workspaceRouter = void 0;
 const express_1 = require("express");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
@@ -792,6 +796,238 @@ exports.workspaceRouter.put("/users/:userId/role", requireWorkspaceAdminGuard, a
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to assign role to user" });
+    }
+});
+// -------------------------------------------------------------
+// 11.1 POST /api/workspace/users - Create/Provision User in workspace
+// -------------------------------------------------------------
+exports.workspaceRouter.post("/users", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const { fullName, email, password, roleId, employeeId, legacyRole } = req.body;
+        if (!email || typeof email !== "string" || !email.includes("@")) {
+            return res.status(400).json({ error: "Valid email address is required" });
+        }
+        const cleanEmail = email.trim().toLowerCase();
+        // Check if user already exists in platform
+        const existingUser = await prisma_1.prisma.user.findUnique({
+            where: { email: cleanEmail },
+            include: {
+                profile: true,
+                roles: true,
+            },
+        });
+        if (existingUser) {
+            if (existingUser.profile?.tenantId === tenantId) {
+                return res.status(400).json({ error: "User is already registered in this workspace" });
+            }
+            return res.status(400).json({ error: "Email address is already in use by another account" });
+        }
+        const initialPassword = password && typeof password === "string" && password.trim().length >= 6
+            ? password.trim()
+            : `User#${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+        const passwordHash = await bcryptjs_1.default.hash(initialPassword, 10);
+        // Create User, Profile, and default UserRole atomically
+        const newUser = await prisma_1.prisma.user.create({
+            data: {
+                email: cleanEmail,
+                passwordHash,
+                profile: {
+                    create: {
+                        fullName: (fullName || cleanEmail.split("@")[0]).trim(),
+                        email: cleanEmail,
+                        tenantId,
+                    },
+                },
+                roles: {
+                    create: {
+                        role: (legacyRole === "hr_admin" || legacyRole === "manager") ? legacyRole : "employee",
+                        tenantId,
+                    },
+                },
+            },
+            include: {
+                profile: true,
+            },
+        });
+        // If custom workspace role specified, assign it
+        if (roleId) {
+            const role = await prisma_1.prisma.workspaceRole.findFirst({
+                where: { id: roleId, tenantId },
+            });
+            if (role) {
+                await prisma_1.prisma.userRoleAssignment.create({
+                    data: {
+                        userId: newUser.id,
+                        tenantId,
+                        roleId: role.id,
+                    },
+                });
+            }
+        }
+        // If employee specified, map it
+        if (employeeId) {
+            await prisma_1.prisma.employee.updateMany({
+                where: { id: employeeId, tenantId },
+                data: { userId: newUser.id },
+            });
+        }
+        (0, auth_1.invalidateAuthCache)(newUser.id, tenantId);
+        return res.status(201).json({
+            message: "User account created successfully",
+            user: {
+                id: newUser.id,
+                email: newUser.email,
+                fullName: newUser.profile?.fullName,
+            },
+            temporaryPassword: password ? undefined : initialPassword,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to create user account" });
+    }
+});
+// -------------------------------------------------------------
+// 11.2 PUT /api/workspace/users/:userId - Update user profile & mapping
+// -------------------------------------------------------------
+exports.workspaceRouter.put("/users/:userId", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const { userId } = req.params;
+        const { fullName, roleId, employeeId } = req.body;
+        const profile = await prisma_1.prisma.profile.findFirst({
+            where: { userId, tenantId },
+            include: { user: { include: { roles: true } } },
+        });
+        if (!profile) {
+            return res.status(404).json({ error: "User not found in this workspace" });
+        }
+        // Safety: Protect super_admin
+        const isSuperAdmin = profile.user?.roles?.some((r) => r.role === "super_admin");
+        if (isSuperAdmin) {
+            return res.status(403).json({ error: "Cannot modify Super-Admin account from workspace console" });
+        }
+        if (fullName && typeof fullName === "string") {
+            await prisma_1.prisma.profile.update({
+                where: { id: profile.id },
+                data: { fullName: fullName.trim() },
+            });
+        }
+        if (roleId) {
+            const role = await prisma_1.prisma.workspaceRole.findFirst({
+                where: { id: roleId, tenantId },
+            });
+            if (role) {
+                await prisma_1.prisma.userRoleAssignment.upsert({
+                    where: { userId_tenantId: { userId, tenantId } },
+                    update: { roleId },
+                    create: { userId, tenantId, roleId },
+                });
+            }
+        }
+        if (employeeId !== undefined) {
+            // Unlink any currently linked employee for this user
+            await prisma_1.prisma.employee.updateMany({
+                where: { userId, tenantId },
+                data: { userId: null },
+            });
+            if (employeeId) {
+                await prisma_1.prisma.employee.updateMany({
+                    where: { id: employeeId, tenantId },
+                    data: { userId },
+                });
+            }
+        }
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        return res.json({ message: "User profile updated successfully" });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update user profile" });
+    }
+});
+// -------------------------------------------------------------
+// 11.3 POST /api/workspace/users/:userId/reset-password - Reset password
+// -------------------------------------------------------------
+exports.workspaceRouter.post("/users/:userId/reset-password", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const { userId } = req.params;
+        const { newPassword } = req.body;
+        const profile = await prisma_1.prisma.profile.findFirst({
+            where: { userId, tenantId },
+            include: { user: { include: { roles: true } } },
+        });
+        if (!profile) {
+            return res.status(404).json({ error: "User not found in this workspace" });
+        }
+        // Safety: Protect super_admin
+        const isSuperAdmin = profile.user?.roles?.some((r) => r.role === "super_admin");
+        if (isSuperAdmin) {
+            return res.status(403).json({ error: "Cannot reset password of Super-Admin account" });
+        }
+        const tempPassword = newPassword && typeof newPassword === "string" && newPassword.trim().length >= 6
+            ? newPassword.trim()
+            : `Pass#${Math.random().toString(36).slice(2, 8).toUpperCase()}${Math.floor(10 + Math.random() * 90)}`;
+        const passwordHash = await bcryptjs_1.default.hash(tempPassword, 10);
+        await prisma_1.prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash },
+        });
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        return res.json({
+            message: "Password reset successfully",
+            temporaryPassword: tempPassword,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to reset user password" });
+    }
+});
+// -------------------------------------------------------------
+// 11.4 DELETE /api/workspace/users/:userId - Remove User from workspace
+// -------------------------------------------------------------
+exports.workspaceRouter.delete("/users/:userId", requireWorkspaceAdminGuard, async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const { userId } = req.params;
+        if (userId === req.user.id) {
+            return res.status(400).json({ error: "Cannot delete your own administrator account" });
+        }
+        const profile = await prisma_1.prisma.profile.findFirst({
+            where: { userId, tenantId },
+            include: { user: { include: { roles: true } } },
+        });
+        if (!profile) {
+            return res.status(404).json({ error: "User not found in this workspace" });
+        }
+        const isSuperAdmin = profile.user?.roles?.some((r) => r.role === "super_admin");
+        if (isSuperAdmin) {
+            return res.status(403).json({ error: "Cannot remove Super-Admin from workspace" });
+        }
+        // Unlink any associated employees
+        await prisma_1.prisma.employee.updateMany({
+            where: { userId, tenantId },
+            data: { userId: null },
+        });
+        // Remove workspace role assignments
+        await prisma_1.prisma.userRoleAssignment.deleteMany({
+            where: { userId, tenantId },
+        });
+        // Remove profile for this tenant
+        await prisma_1.prisma.profile.delete({
+            where: { id: profile.id },
+        });
+        // If user has no other profiles or roles, delete User record cleanly
+        const otherProfiles = await prisma_1.prisma.profile.count({ where: { userId } });
+        if (otherProfiles === 0) {
+            await prisma_1.prisma.userRole.deleteMany({ where: { userId } });
+            await prisma_1.prisma.user.delete({ where: { id: userId } }).catch(() => { });
+        }
+        (0, auth_1.invalidateAuthCache)(userId, tenantId);
+        return res.json({ message: "User removed from workspace successfully" });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to remove user from workspace" });
     }
 });
 // -------------------------------------------------------------

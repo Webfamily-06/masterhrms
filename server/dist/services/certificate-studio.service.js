@@ -15,7 +15,13 @@ const certificate_folder_service_1 = require("./files/certificate-folder.service
 const files_service_1 = require("./files/files.service");
 const qrcode_1 = __importDefault(require("qrcode"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
-const sharp_1 = __importDefault(require("sharp"));
+let sharp;
+try {
+    sharp = require("sharp");
+}
+catch {
+    sharp = null;
+}
 const certificate_verification_resolver_1 = require("../lib/certificate-verification-resolver");
 // Dynamic Placeholder Registry
 exports.PLACEHOLDER_REGISTRY = [
@@ -154,7 +160,7 @@ class CertificateStudioService {
                         if (fs_1.default.existsSync(filePath)) {
                             imageBuffer = fs_1.default.readFileSync(filePath);
                             if (brandingAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
-                                imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                                imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
                             }
                         }
                     }
@@ -173,7 +179,7 @@ class CertificateStudioService {
                         if (fs_1.default.existsSync(filePath)) {
                             imageBuffer = fs_1.default.readFileSync(filePath);
                             if (signatory.signatureAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
-                                imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                                imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
                             }
                         }
                     }
@@ -194,7 +200,7 @@ class CertificateStudioService {
                     const lower = (resolvedUrl || "").toLowerCase();
                     if (lower.endsWith(".svg") || lower.endsWith(".webp") || lower.includes(".svg") || lower.includes(".webp")) {
                         try {
-                            imageBuffer = await (0, sharp_1.default)(imageBuffer).png().toBuffer();
+                            imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
                         }
                         catch (sharpErr) {
                             console.warn("[resolveAssetBuffer] sharp conversion to PNG failed:", sharpErr);
@@ -1354,7 +1360,7 @@ class CertificateStudioService {
                             if (!imageBuffer) {
                                 const defaultLogo = path_1.default.resolve(process.cwd(), "public", "logo.webp");
                                 if (fs_1.default.existsSync(defaultLogo)) {
-                                    imageBuffer = await (0, sharp_1.default)(fs_1.default.readFileSync(defaultLogo)).png().toBuffer();
+                                    imageBuffer = sharp ? await sharp(fs_1.default.readFileSync(defaultLogo)).png().toBuffer() : fs_1.default.readFileSync(defaultLogo);
                                 }
                             }
                             if (imageBuffer) {

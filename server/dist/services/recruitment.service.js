@@ -5,6 +5,7 @@ const tenant_context_1 = require("../context/tenant-context");
 const audit_service_1 = require("./audit.service");
 const outbox_service_1 = require("./outbox.service");
 const employee_service_1 = require("./employee.service");
+const leave_service_1 = require("./leave.service");
 class RecruitmentService {
     // =========================================================================
     // 1. DUPLICATE DETECTION (P5-BR-003)
@@ -548,8 +549,17 @@ class RecruitmentService {
             bankBranch,
             documents: allDocuments,
         };
-        // 1. Call authoritative P2 Employee Service
-        const createdEmployee = await employee_service_1.EmployeeService.createEmployeeAtomic(tenantId, actorId, createInput);
+        // 1. Call authoritative P2 Employee Service (with idempotency handling for conversion retries)
+        let createdEmployee = null;
+        const existingEmployee = candidate.convertedEmployeeId
+            ? await db.employee.findFirst({ where: { id: candidate.convertedEmployeeId, tenantId } })
+            : await db.employee.findFirst({ where: { email: candidate.email.toLowerCase().trim(), tenantId } });
+        if (existingEmployee) {
+            createdEmployee = existingEmployee;
+        }
+        else {
+            createdEmployee = await employee_service_1.EmployeeService.createEmployeeAtomic(tenantId, actorId, createInput);
+        }
         // 2. Transactionally update Candidate and Onboarding records
         await db.$transaction(async (tx) => {
             await tx.jobCandidate.update({
@@ -569,7 +579,13 @@ class RecruitmentService {
                 });
             }
         });
-        // 3. Log Audit & Outbox Events
+        // 3. Synchronize Initial Leave Balances from tenant's active configured leave types
+        const joinedDateObj = new Date(targetJoinedAt);
+        const targetYear = !isNaN(joinedDateObj.getTime())
+            ? joinedDateObj.getUTCFullYear()
+            : new Date().getUTCFullYear();
+        await leave_service_1.LeaveService.synchronizeEmployeeYearlyAccruals(tenantId, targetYear, actorId, createdEmployee.id);
+        // 4. Log Audit & Outbox Events
         await audit_service_1.AuditService.logMutation({
             tenantId,
             actorId,

@@ -32,9 +32,6 @@ async function runProbationContractExpiryCron(options = {}) {
         }
         else {
             const tenants = await db.tenant.findMany({
-                where: {
-                    status: { notIn: ["suspended", "archived"] },
-                },
                 select: { id: true },
             });
             tenantIds = tenants.map((t) => t.id);

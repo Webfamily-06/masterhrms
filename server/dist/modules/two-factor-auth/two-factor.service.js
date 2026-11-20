@@ -124,7 +124,13 @@ class TwoFactorService {
             name: `MasterHRMS (${user.email})`,
             issuer: "MasterHRMS",
         });
-        const qrCodeDataUrl = await qrcode_1.default.toDataURL(secret.otpauth_url);
+        const otpauthUrl = speakeasy_1.default.otpauthURL({
+            secret: secret.base32,
+            label: `MasterHRMS (${user.email})`,
+            issuer: "MasterHRMS",
+            encoding: "base32",
+        });
+        const qrCodeDataUrl = await qrcode_1.default.toDataURL(otpauthUrl);
         const rawBackupCodes = generateRandomBackupCodes(8);
         const hashedBackupCodes = rawBackupCodes.map(hashBackupCode);
         const encryptedSecretStr = this.serializeEncryptedSecret(secret.base32);
@@ -153,7 +159,7 @@ class TwoFactorService {
         return {
             secret: secret.base32,
             qrCode: qrCodeDataUrl,
-            otpauthUrl: secret.otpauth_url,
+            otpauthUrl,
             backupCodes: rawBackupCodes,
         };
     }

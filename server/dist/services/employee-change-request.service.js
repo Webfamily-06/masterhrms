@@ -662,7 +662,7 @@ class EmployeeChangeRequestService {
      * Atomic Prisma Transaction, and Authoritative Employee Record Update.
      */
     static async processReviewDecision(input) {
-        const db = prisma_1.rawPrisma || prisma_1.prisma || (0, tenant_context_1.getTenantDb)();
+        const db = input.tx || prisma_1.rawPrisma || prisma_1.prisma || (0, tenant_context_1.getTenantDb)();
         // 1. Fetch request with relations
         const changeReq = await db.employeeChangeRequest.findUnique({
             where: { id: input.requestId },
@@ -713,7 +713,7 @@ class EmployeeChangeRequestService {
                 },
             });
             // Notify employee
-            if (changeReq.employee?.userId) {
+            if (!input.suppressNotifications && changeReq.employee?.userId) {
                 await notification_service_1.NotificationService.createNotification({
                     tenantId: input.tenantId,
                     userId: changeReq.employee.userId,
@@ -735,7 +735,7 @@ class EmployeeChangeRequestService {
                 entityType: "EmployeeChangeRequest",
                 entityId: changeReq.id,
                 newState: { status: "CORRECTION_REQUESTED", comments: reviewComments },
-            });
+            }, input.tx);
             return {
                 success: true,
                 message: "Change request returned to employee for correction.",
@@ -776,7 +776,7 @@ class EmployeeChangeRequestService {
                 console.warn("[EmployeeChangeRequestService] Workflow reject notice:", wfErr);
             }
             // Notify employee
-            if (changeReq.employee?.userId) {
+            if (!input.suppressNotifications && changeReq.employee?.userId) {
                 await notification_service_1.NotificationService.createNotification({
                     tenantId: input.tenantId,
                     userId: changeReq.employee.userId,
@@ -798,7 +798,7 @@ class EmployeeChangeRequestService {
                 entityType: "EmployeeChangeRequest",
                 entityId: changeReq.id,
                 newState: { status: "REJECTED", comments: reviewComments },
-            });
+            }, input.tx);
             return {
                 success: true,
                 message: "Change request rejected.",
@@ -838,7 +838,7 @@ class EmployeeChangeRequestService {
             // 2. Apply updates to authoritative Employee record
             // 3. Mark EmployeeChangeRequest as APPROVED
             // 4. Record Audit Log and Outbox Event
-            const result = await db.$transaction(async (tx) => {
+            const runTransactionLogic = async (tx) => {
                 // Concurrency Conflict Check:
                 const currentEmp = await tx.employee.findUnique({
                     where: { id: changeReq.employeeId },
@@ -932,9 +932,12 @@ class EmployeeChangeRequestService {
                     },
                 }, tx);
                 return { approvedReq, updatedEmployee };
-            });
+            };
+            const result = input.tx
+                ? await runTransactionLogic(input.tx)
+                : await db.$transaction(runTransactionLogic);
             // Dispatch confirmation notification to employee
-            if (changeReq.employee?.userId) {
+            if (!input.suppressNotifications && changeReq.employee?.userId) {
                 await notification_service_1.NotificationService.createNotification({
                     tenantId: input.tenantId,
                     userId: changeReq.employee.userId,

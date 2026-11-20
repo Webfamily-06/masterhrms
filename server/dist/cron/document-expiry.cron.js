@@ -30,10 +30,6 @@ async function runDocumentExpiryCron(options = {}) {
         }
         else {
             const tenants = await db.tenant.findMany({
-                where: {
-                    // Process all non-suspended tenants
-                    status: { notIn: ["suspended", "archived"] },
-                },
                 select: { id: true },
             });
             tenantIds = tenants.map((t) => t.id);

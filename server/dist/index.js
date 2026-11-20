@@ -528,7 +528,7 @@ app.use("/api/invoices", invoices_routes_1.invoicesRouter);
 app.use("/api/crm", crm_routes_1.crmRouter);
 app.use("/api/super", super_routes_1.superRouter);
 app.use("/api/addons", addons_routes_1.addonsRouter);
-app.use("/api/addons/okr", okr_routes_1.okrRouter);
+app.use(["/api/addons/okr", "/api/okr"], okr_routes_1.okrRouter);
 app.use("/api/addons/assets", assets_routes_1.assetsRouter);
 app.use("/api/assets", assets_routes_1.assetsRouter);
 app.use("/api/v1/two-factor-auth", two_factor_routes_1.twoFactorRouter);

@@ -261,8 +261,8 @@ exports.offboardingRouter.put("/exits/:id/checklist/:itemId", auth_1.requireAuth
         return res.status(500).json({ error: err.message || "Failed to update checklist item." });
     }
 });
-// POST /api/offboarding/exits/:id/settle-fnf (1-Click Full & Final Settlement & Relieving)
-exports.offboardingRouter.post("/exits/:id/settle-fnf", auth_1.requireAuth, async (req, res) => {
+// POST /api/offboarding/exits/:id/settle-fnf & /api/offboarding/exits/:id/settle (1-Click Full & Final Settlement & Relieving - FN-057)
+const handleFnfSettlement = async (req, res) => {
     try {
         const { id } = req.params;
         const { fnfSettlementAmount, exitInterviewNotes } = req.body;
@@ -326,7 +326,9 @@ exports.offboardingRouter.post("/exits/:id/settle-fnf", auth_1.requireAuth, asyn
         console.error("[settle-fnf] error:", err);
         return res.status(500).json({ error: err.message || "Failed to settle FnF." });
     }
-});
+};
+exports.offboardingRouter.post("/exits/:id/settle-fnf", auth_1.requireAuth, handleFnfSettlement);
+exports.offboardingRouter.post("/exits/:id/settle", auth_1.requireAuth, handleFnfSettlement);
 // GET /api/offboarding/exits/:id/relieving-letter (Retrieve or regenerate formal relieving letter metadata)
 exports.offboardingRouter.get("/exits/:id/relieving-letter", auth_1.requireAuth, async (req, res) => {
     try {

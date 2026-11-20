@@ -859,6 +859,38 @@ exports.biometricRouter.get("/logs", auth_1.requireAuth, async (req, res) => {
     }
 });
 /**
+ * POST /api/biometric/punch (FN-008 Canonical Route Alias)
+ * Direct biometric device punch ingestion endpoint
+ */
+exports.biometricRouter.post("/punch", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const { deviceId, employeeCode, verificationMode, punchType, punchTime } = req.body;
+        if (!employeeCode) {
+            return res.status(400).json({ error: "Employee Code is required." });
+        }
+        const punchLog = await processBiometricPunch({
+            tenantId,
+            deviceId,
+            employeeCode: String(employeeCode),
+            punchTime: punchTime ? new Date(punchTime) : new Date(),
+            punchType: punchType || "auto",
+            verificationMode: verificationMode || "fingerprint",
+            rawPayload: JSON.stringify(req.body),
+        });
+        return res.status(201).json({
+            success: true,
+            message: "Biometric punch successfully recorded and synchronized.",
+            punchLog,
+        });
+    }
+    catch (err) {
+        return res.status(err.status || 500).json({ error: err.message || "Failed to record biometric punch." });
+    }
+});
+/**
  * POST /api/biometric/probe
  * Auto-Probe IP & Port: Tests connection and automatically registers/discovers any hardware machine
  */

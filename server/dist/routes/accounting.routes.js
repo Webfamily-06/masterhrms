@@ -9,6 +9,7 @@ const tenant_1 = require("../lib/tenant");
 const pagination_1 = require("../lib/pagination");
 const fiscal_period_service_1 = require("../services/fiscal-period.service");
 const entitlements_1 = require("../middleware/entitlements");
+const bank_reconciliation_service_1 = require("../services/bank-reconciliation.service");
 exports.accountingRouter = (0, express_1.Router)();
 // Enforce Request-Scoped Tenant Context and Product Finance Entitlement on all accounting endpoints
 exports.accountingRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, (0, entitlements_1.requireEntitlement)("product_finance"));
@@ -1860,4 +1861,42 @@ exports.accountingRouter.post("/reconcile", auth_1.requireAuth, async (req, res)
         return res.status(500).json({ error: err.message || "Failed to process bank statement reconciliation" });
     }
 });
+/**
+ * POST /api/accounting/bank-reconciliation/match
+ * POST /api/accounting/bank-statement/reconcile
+ * Algorithmic Bank Statement Multi-Tier Reconciliation Engine (FN-039)
+ */
+const handleBankReconcileMatch = async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required" });
+        const { statementRows, csvText, bankAccountId, startDate, endDate, autoMatchThreshold } = req.body;
+        let rows = statementRows;
+        if (!rows && csvText) {
+            rows = bank_reconciliation_service_1.BankReconciliationService.parseBankCsv(csvText);
+        }
+        if (!rows || !Array.isArray(rows) || rows.length === 0) {
+            return res.status(400).json({ error: "statementRows array or csvText is required" });
+        }
+        const report = await bank_reconciliation_service_1.BankReconciliationService.reconcile({
+            tenantId,
+            bankAccountId,
+            startDate,
+            endDate,
+            statementRows: rows,
+            autoMatchThreshold: autoMatchThreshold || 75,
+        });
+        return res.json({
+            success: true,
+            report,
+        });
+    }
+    catch (err) {
+        console.error("POST /api/accounting/bank-reconciliation/match error:", err);
+        return res.status(500).json({ error: err.message || "Failed to run bank reconciliation match" });
+    }
+};
+exports.accountingRouter.post("/bank-reconciliation/match", handleBankReconcileMatch);
+exports.accountingRouter.post("/bank-statement/reconcile", handleBankReconcileMatch);
 exports.default = exports.accountingRouter;

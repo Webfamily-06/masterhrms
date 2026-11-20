@@ -393,8 +393,8 @@ exports.shiftsRouter.put("/swaps/:id/peer-action", auth_1.requireAuth, async (re
         return res.status(500).json({ error: err.message || "Failed to process peer action." });
     }
 });
-// PUT /api/shifts/swaps/:id/manager-action (Manager approves and executes swap)
-exports.shiftsRouter.put("/swaps/:id/manager-action", auth_1.requireAuth, async (req, res) => {
+// Handler for Shift Swap Manager Decision (Approve or Reject)
+async function handleShiftSwapManagerAction(req, res) {
     try {
         const { id } = req.params;
         const { action, managerNotes } = req.body; // approve or reject
@@ -463,12 +463,33 @@ exports.shiftsRouter.put("/swaps/:id/manager-action", auth_1.requireAuth, async 
         return res.json({
             success: true,
             message: `Shift swap approved and executed between ${swap.requesterEmployee.firstName} and ${swap.targetEmployee.firstName}!`,
+            swapId: id,
         });
     }
     catch (err) {
         console.error("[manager-action] error:", err);
         return res.status(500).json({ error: err.message || "Failed to process manager action." });
     }
+}
+// PUT /api/shifts/swaps/:id/manager-action (Manager approves and executes swap)
+exports.shiftsRouter.put("/swaps/:id/manager-action", auth_1.requireAuth, handleShiftSwapManagerAction);
+// PUT & POST /api/shifts/swaps/:id/approve (FN-017 Canonical Route Alias)
+exports.shiftsRouter.put("/swaps/:id/approve", auth_1.requireAuth, async (req, res) => {
+    req.body = { ...req.body, action: "approve" };
+    return handleShiftSwapManagerAction(req, res);
+});
+exports.shiftsRouter.post("/swaps/:id/approve", auth_1.requireAuth, async (req, res) => {
+    req.body = { ...req.body, action: "approve" };
+    return handleShiftSwapManagerAction(req, res);
+});
+// PUT & POST /api/shifts/swaps/:id/reject (Canonical Rejection Route Alias)
+exports.shiftsRouter.put("/swaps/:id/reject", auth_1.requireAuth, async (req, res) => {
+    req.body = { ...req.body, action: "reject" };
+    return handleShiftSwapManagerAction(req, res);
+});
+exports.shiftsRouter.post("/swaps/:id/reject", auth_1.requireAuth, async (req, res) => {
+    req.body = { ...req.body, action: "reject" };
+    return handleShiftSwapManagerAction(req, res);
 });
 // POST /api/shifts/reconcile (Roster-to-Attendance Auto-Reconciliation)
 exports.shiftsRouter.post("/reconcile", auth_1.requireAuth, async (req, res) => {

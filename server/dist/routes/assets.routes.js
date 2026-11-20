@@ -10,11 +10,12 @@ const outbox_service_1 = require("../services/outbox.service");
 exports.assetsRouter = (0, express_1.Router)();
 /**
  * -------------------------------------------------------------
- * PUBLIC QR / SCAN ENDPOINT (No auth required for camera scan)
+ * PUBLIC QR / SCAN ENDPOINT (No auth required for camera scan - FN-047 / GAP-10)
  * -------------------------------------------------------------
  * GET /api/addons/assets/public/tag/:assetTag
+ * GET /api/addons/assets/tag/:assetTag
  */
-exports.assetsRouter.get("/public/tag/:assetTag", async (req, res) => {
+const handlePublicAssetTagLookup = async (req, res) => {
     try {
         const { assetTag } = req.params;
         const asset = await prisma_1.prisma.asset.findFirst({
@@ -53,7 +54,10 @@ exports.assetsRouter.get("/public/tag/:assetTag", async (req, res) => {
         console.error("[assets/public-tag] error:", err);
         return res.status(500).json({ error: "Failed to fetch asset details for tag." });
     }
-});
+};
+exports.assetsRouter.get("/public/tag/:assetTag", handlePublicAssetTagLookup);
+exports.assetsRouter.get("/tag/:assetTag", handlePublicAssetTagLookup);
+exports.assetsRouter.get("/tags/:assetTag", handlePublicAssetTagLookup);
 // All subsequent routes require Tenant Auth and Asset Management Add-on entitlement
 exports.assetsRouter.use(auth_1.requireAuth);
 exports.assetsRouter.use((0, addons_1.requireAddon)("asset-management"));

@@ -70,11 +70,15 @@ async function resolveEffectiveUserRoles(user, tenantId) {
     return baseRoles;
 }
 const registerSchema = zod_1.z.object({
-    email: zod_1.z.string().email(),
-    password: zod_1.z.string().min(6),
+    email: zod_1.z.string().email("Please enter a valid work email address"),
+    password: zod_1.z.string().min(8, "Password must be at least 8 characters long"),
+    confirmPassword: zod_1.z.string().optional(),
     fullName: zod_1.z.string().optional(),
     companyName: zod_1.z.string().optional(),
+    country: zod_1.z.string().optional().default("India"),
     workspaceSlug: zod_1.z.string().optional(),
+    termsAccepted: zod_1.z.boolean().optional(),
+    autoVerify: zod_1.z.boolean().optional(),
 });
 const loginSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
@@ -87,13 +91,18 @@ const resetPasswordSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
     code: zod_1.z.string().optional(),
     token: zod_1.z.string().optional(),
-    newPassword: zod_1.z.string().min(6),
+    newPassword: zod_1.z.string().min(8, "New password must be at least 8 characters long"),
 }).refine((data) => Boolean(data.code || data.token), {
     message: "Either verification code or reset token is required",
 });
 const verifyEmailSchema = zod_1.z.object({
     email: zod_1.z.string().email(),
-    code: zod_1.z.string().min(4).max(10),
+    code: zod_1.z.string().optional(),
+    token: zod_1.z.string().optional(),
+    companyName: zod_1.z.string().optional(),
+    slug: zod_1.z.string().optional(),
+}).refine((data) => Boolean(data.code || data.token), {
+    message: "Either 6-digit verification code or verification token is required",
 });
 // GET /api/auth/public/tenant/resolve
 exports.authRouter.get("/public/tenant/resolve", async (req, res) => {
@@ -300,10 +309,26 @@ exports.authRouter.get("/public/tenant/credentials", async (req, res) => {
 // POST /api/auth/register
 exports.authRouter.post("/register", (0, turnstile_middleware_1.requireTurnstile)("signup"), async (req, res) => {
     try {
-        const { email, password, fullName, companyName, workspaceSlug } = registerSchema.parse(req.body);
-        const existing = await prisma.user.findUnique({ where: { email } });
+        const { email, password, confirmPassword, fullName, companyName, country, workspaceSlug, termsAccepted, autoVerify, } = registerSchema.parse(req.body);
+        if (termsAccepted === false) {
+            return res.status(400).json({
+                error: "You must accept the MasterHRMS Terms of Service and Privacy Policy to register.",
+                code: "TERMS_NOT_ACCEPTED",
+            });
+        }
+        if (confirmPassword && password !== confirmPassword) {
+            return res.status(400).json({
+                error: "Passwords do not match.",
+                code: "PASSWORD_MISMATCH",
+            });
+        }
+        const normalizedEmail = email.toLowerCase().trim();
+        const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existing) {
-            return res.status(400).json({ error: "User with this email already exists." });
+            return res.status(400).json({
+                error: "An account with this email address already exists. Please sign in or use another email.",
+                code: "EMAIL_TAKEN",
+            });
         }
         // Determine and validate workspace slug (Flow 1: 3-30 chars, lowercase, RFC)
         let finalSlug = "";
@@ -333,7 +358,7 @@ exports.authRouter.post("/register", (0, turnstile_middleware_1.requireTurnstile
             }
         }
         else {
-            finalSlug = (0, workspace_host_1.suggestWorkspaceSlug)(companyName || fullName || email.split("@")[0]);
+            finalSlug = (0, workspace_host_1.suggestWorkspaceSlug)(companyName || fullName || normalizedEmail.split("@")[0]);
             let candidate = finalSlug;
             let counter = 2;
             while ((await prisma.tenant.findUnique({ where: { slug: candidate } })) ||
@@ -345,65 +370,123 @@ exports.authRouter.post("/register", (0, turnstile_middleware_1.requireTurnstile
         const passwordHash = await bcryptjs_1.default.hash(password, 10);
         const user = await prisma.user.create({
             data: {
-                email,
+                email: normalizedEmail,
                 passwordHash,
+                profile: {
+                    create: {
+                        fullName: fullName || normalizedEmail.split("@")[0],
+                    },
+                },
             },
-        });
-        // SaaS Lifecycle Flow 1.1: Provision Tenant, admin User, TenantSubscription(status=trialing, trialEndsAt), seeds 17 accounts
-        const provisionResult = await (0, tenant_provisioning_1.provisionTenantWithTrial)({
-            name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${email.split("@")[0]}'s Org`),
-            adminEmail: email,
-            adminFullName: fullName,
-            userId: user.id,
-            slug: finalSlug,
-        });
-        const updatedUser = await prisma.user.findUnique({
-            where: { id: user.id },
             include: {
                 profile: true,
-                roles: true,
             },
         });
-        const roles = updatedUser?.roles.map((r) => r.role) || ["admin"];
-        let sessionResult = null;
-        try {
-            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
-            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
-            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+        // Generate cryptographic random email verification token & OTP code
+        const rawToken = crypto_1.default.randomBytes(32).toString("hex");
+        const tokenHash = crypto_1.default.createHash("sha256").update(rawToken).digest("hex");
+        const verificationKey = `verify:${tokenHash}`;
+        const tokenId = crypto_1.default.randomUUID();
+        const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+        await prisma.$executeRawUnsafe(`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`, tokenId, user.id, verificationKey, tokenExpiresAt).catch((dbErr) => {
+            console.warn("[Register] verification token persistence:", dbErr.message);
+        });
+        const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
+        const origin = req.headers.origin ||
+            (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+            `http://${(0, workspace_host_1.getEffectiveRequestHost)(req)}`;
+        const verificationUrl = `${origin}/auth?mode=verify&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+        // Dispatch verification email
+        await (0, email_1.sendEmailVerificationEmail)({
+            toEmail: user.email,
+            userName: fullName || user.email.split("@")[0],
+            verificationUrl,
+            otpCode: otp,
+            expiryMinutes: 60,
+        }).catch((emailErr) => {
+            console.warn("[Register] verification email dispatch:", emailErr.message);
+        });
+        // Check if immediate auto-verification is enabled (e.g. testing or explicit autoVerify)
+        const shouldAutoVerify = autoVerify === true ||
+            process.env.REQUIRE_EMAIL_VERIFICATION === "false";
+        if (shouldAutoVerify) {
+            // SaaS Lifecycle: Provision Tenant, admin User, TenantSubscription(status=trialing), seed accounts
+            const provisionResult = await (0, tenant_provisioning_1.provisionTenantWithTrial)({
+                name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${normalizedEmail.split("@")[0]}'s Org`),
+                adminEmail: normalizedEmail,
+                adminFullName: fullName,
                 userId: user.id,
+                slug: finalSlug,
+                currency: country === "United States" ? "USD" : "INR",
+            });
+            const updatedUser = await prisma.user.findUnique({
+                where: { id: user.id },
+                include: {
+                    profile: true,
+                    roles: true,
+                },
+            });
+            const roles = await resolveEffectiveUserRoles(updatedUser || { ...user, roles: [] }, provisionResult.tenant.id);
+            let sessionResult = null;
+            try {
+                const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+                const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+                sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                    userId: user.id,
+                    tenantId: provisionResult.tenant.id,
+                    ipAddress: clientIp,
+                    userAgent: req.headers["user-agent"],
+                });
+            }
+            catch (err) {
+                console.warn("[Register] Device session create failure:", err?.message);
+            }
+            const token = (0, jwt_1.generateToken)({
+                userId: user.id,
+                email: user.email,
                 tenantId: provisionResult.tenant.id,
-                ipAddress: clientIp,
-                userAgent: req.headers["user-agent"],
+                roles,
+                sessionId: sessionResult?.sessionId,
+            });
+            await (0, email_1.sendWelcomeEmail)({
+                toEmail: user.email,
+                userName: fullName || user.email.split("@")[0],
+                companyName: provisionResult.tenant.name,
+                workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
+                loginUrl: `${origin}/auth`,
+                trialDays: 14,
+                tenantId: provisionResult.tenant.id,
+            }).catch((wErr) => console.warn("[Register] welcome mail dispatch:", wErr.message));
+            return res.status(201).json({
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    profile: updatedUser?.profile,
+                    roles,
+                },
+                tenant: {
+                    id: provisionResult.tenant.id,
+                    name: provisionResult.tenant.name,
+                    slug: provisionResult.tenant.slug,
+                },
+                workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
+                subscription: {
+                    status: provisionResult.subscription.status,
+                    trialEndsAt: provisionResult.trialEndsAt,
+                },
+                token,
             });
         }
-        catch (err) {
-            console.warn("[Register] Device session create failure:", err?.message);
-        }
-        const token = (0, jwt_1.generateToken)({
-            userId: user.id,
-            email: user.email,
-            tenantId: provisionResult.tenant.id,
-            roles,
-            sessionId: sessionResult?.sessionId,
-        });
+        // Standard secure flow: Return pending verification state
         return res.status(201).json({
-            user: {
-                id: user.id,
-                email: user.email,
-                profile: updatedUser?.profile,
-                roles,
-            },
-            tenant: {
-                id: provisionResult.tenant.id,
-                name: provisionResult.tenant.name,
-                slug: provisionResult.tenant.slug,
-            },
-            workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
-            subscription: {
-                status: provisionResult.subscription.status,
-                trialEndsAt: provisionResult.trialEndsAt,
-            },
-            token,
+            requiresVerification: true,
+            email: user.email,
+            maskedEmail: (0, otp_1.maskEmail)(user.email),
+            message: "Registration successful. A verification code and activation link have been dispatched to your email.",
+            workspaceSlug: finalSlug,
+            companyName: companyName?.trim() || `${user.email.split("@")[0]}'s Org`,
+            previewToken: process.env.NODE_ENV !== "production" ? rawToken : undefined,
+            previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
         });
     }
     catch (err) {
@@ -522,6 +605,40 @@ const loginHandler = async (req, res) => {
         });
         if (!user)
             return res.status(401).json({ error: "Invalid email or password." });
+        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
+        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
+        // 1. Super Admin Host/Portal isolation:
+        // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+            if (hasSuperPortalSignal) {
+                return res.status(404).json({
+                    error: "Not Found",
+                    code: "NOT_FOUND",
+                });
+            }
+        }
+        const isSuperPortal = hostContext.type === "super" ||
+            req.headers["x-auth-portal"] === "super" ||
+            req.body.portal === "super";
+        // Enforcement of Super Admin / Tenant Login Separation:
+        if (!isSuperPortal) {
+            const isPlatformSuperAdmin = user.roles.some((r) => r.role === "super_admin" && !r.tenantId);
+            if (isPlatformSuperAdmin) {
+                // Platform Super Admin must NOT authenticate via normal /login endpoint.
+                // Return generic 401 without leaking identity or super admin existence.
+                return res.status(401).json({ error: "Invalid email or password." });
+            }
+        }
+        if (isSuperPortal) {
+            const isSuper = user.roles.some((r) => r.role === "super_admin");
+            if (!isSuper || user.email !== "admin@masterhrms.com") {
+                return res.status(403).json({
+                    error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+                    code: "SUPER_ADMIN_ONLY",
+                });
+            }
+        }
         const isValid = await bcryptjs_1.default.compare(password, user.passwordHash);
         if (!isValid) {
             return res.status(400).json({ error: "Invalid email or password." });
@@ -563,32 +680,6 @@ const loginHandler = async (req, res) => {
                 return res.status(403).json({
                     error: "Access denied. Your account does not have an active Employee, HR, or Tenant Administrator role.",
                     code: "MOBILE_ROLE_NOT_AUTHORIZED",
-                });
-            }
-        }
-        // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
-        const hostContext = req.hostContext || (0, workspace_host_1.resolveHostContext)(rawHost);
-        // 1. Super Admin Host/Portal isolation:
-        // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
-        if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
-            const hasSuperPortalSignal = req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
-            if (hasSuperPortalSignal) {
-                return res.status(404).json({
-                    error: "Not Found",
-                    code: "NOT_FOUND",
-                });
-            }
-        }
-        const isSuperPortal = hostContext.type === "super" ||
-            req.headers["x-auth-portal"] === "super" ||
-            req.body.portal === "super";
-        if (isSuperPortal) {
-            const isSuper = user.roles.some((r) => r.role === "super_admin");
-            if (!isSuper) {
-                return res.status(403).json({
-                    error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
-                    code: "SUPER_ADMIN_ONLY",
                 });
             }
         }
@@ -813,10 +904,12 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             where: { email: normalizedEmail },
             include: { profile: true, roles: true },
         });
+        // PWD-001 & Enumeration Resistance: Return generic success response even if user is not found
         if (!user) {
-            return res.status(404).json({
-                error: "No account found with this email address. Please enter a valid registered work email or contact your administrator.",
-                code: "USER_NOT_FOUND",
+            return res.json({
+                success: true,
+                message: "If an account with that email exists, password reset instructions have been dispatched.",
+                maskedEmail: (0, otp_1.maskEmail)(normalizedEmail),
             });
         }
         let tenantName;
@@ -863,7 +956,7 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
         console.log(`[PASSWORD RESET CODE] OTP for ${user.email}: [${otp}]`);
         return res.json({
             success: true,
-            message: "6-digit verification code has been dispatched to your email.",
+            message: "If an account with that email exists, password reset instructions have been dispatched.",
             maskedEmail: (0, otp_1.maskEmail)(user.email),
             resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
             previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
@@ -966,9 +1059,25 @@ exports.authRouter.post("/reset-password", async (req, res) => {
             where: { id: user.id },
             data: { passwordHash },
         });
+        // PWD-003: Invalidate ALL active device sessions for this user
+        await (0, device_session_service_1.revokeAllSessions)(user.id).catch((revErr) => {
+            console.warn("[ResetPassword] revokeAllSessions warning:", revErr.message);
+        });
+        // Send Password Changed confirmation notification email
+        const origin = req.headers.origin ||
+            (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+            `http://${(0, workspace_host_1.getEffectiveRequestHost)(req)}`;
+        await (0, email_1.sendPasswordChangedEmail)({
+            toEmail: user.email,
+            userName: user.profile?.fullName || user.email.split("@")[0],
+            changedAt: new Date().toUTCString(),
+            loginUrl: `${origin}/auth`,
+        }).catch((emailErr) => {
+            console.warn("[ResetPassword] password changed email warning:", emailErr.message);
+        });
         return res.json({
             success: true,
-            message: "Password has been successfully updated. You can now sign in with your new credentials.",
+            message: "Password has been successfully updated. All active sessions have been terminated. You can now sign in with your new credentials.",
         });
     }
     catch (err) {
@@ -981,21 +1090,131 @@ exports.authRouter.post("/reset-password", async (req, res) => {
 // POST /api/auth/verify-email
 exports.authRouter.post("/verify-email", async (req, res) => {
     try {
-        const { email, code } = verifyEmailSchema.parse(req.body);
+        const { email, code, token, companyName, slug } = verifyEmailSchema.parse(req.body);
         const normalizedEmail = email.toLowerCase().trim();
         const user = await prisma.user.findUnique({
             where: { email: normalizedEmail },
+            include: {
+                profile: { include: { tenant: { include: { subscription: true } } } },
+                roles: true,
+            },
         });
         if (!user) {
             return res.status(404).json({ error: "User account not found." });
         }
-        const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
-        if (!verification.valid) {
-            return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+        // 1. Verify token or code
+        let isVerified = false;
+        if (token) {
+            const tokenHash = crypto_1.default.createHash("sha256").update(token.trim()).digest("hex");
+            const verificationKey = `verify:${tokenHash}`;
+            const tokenRecords = await prisma.$queryRawUnsafe(`SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > NOW() LIMIT 1`, verificationKey, user.id);
+            if (tokenRecords && tokenRecords.length > 0) {
+                await prisma.$executeRawUnsafe(`UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`, tokenRecords[0].id);
+                isVerified = true;
+            }
         }
+        if (!isVerified && code) {
+            const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
+            if (verification.valid) {
+                isVerified = true;
+            }
+            else if (!token) {
+                return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+            }
+        }
+        if (!isVerified) {
+            return res.status(400).json({
+                error: "This email verification link or code is invalid, expired, or has already been used.",
+                code: "INVALID_VERIFICATION",
+            });
+        }
+        // 2. Ensure tenant workspace & free trial are provisioned
+        let tenantId = user.profile?.tenantId;
+        let provisionResult = null;
+        if (!tenantId || !user.profile?.tenant) {
+            const targetSlug = slug || (0, workspace_host_1.suggestWorkspaceSlug)(companyName || user.profile?.fullName || normalizedEmail.split("@")[0]);
+            const orgName = companyName?.trim() || (user.profile?.fullName ? `${user.profile.fullName}'s Organization` : `${normalizedEmail.split("@")[0]}'s Org`);
+            provisionResult = await (0, tenant_provisioning_1.provisionTenantWithTrial)({
+                name: orgName,
+                adminEmail: user.email,
+                adminFullName: user.profile?.fullName || undefined,
+                userId: user.id,
+                slug: targetSlug,
+            });
+            tenantId = provisionResult.tenant.id;
+        }
+        else {
+            provisionResult = {
+                tenant: user.profile.tenant,
+                subscription: user.profile.tenant.subscription,
+                trialEndsAt: user.profile.tenant.subscription?.trialEndsAt || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+            };
+        }
+        const roles = await resolveEffectiveUserRoles(user, tenantId);
+        // 3. Issue authenticated session
+        let sessionResult = null;
+        try {
+            const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+            const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+            sessionResult = await (0, device_session_service_1.createDeviceSession)({
+                userId: user.id,
+                tenantId,
+                ipAddress: clientIp,
+                userAgent: req.headers["user-agent"],
+            });
+        }
+        catch (err) {
+            console.warn("[VerifyEmail] Device session create warning:", err.message);
+        }
+        const authToken = (0, jwt_1.generateToken)({
+            userId: user.id,
+            email: user.email,
+            tenantId,
+            roles,
+            sessionId: sessionResult?.sessionId,
+        });
+        const origin = req.headers.origin ||
+            (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+            `http://${(0, workspace_host_1.getEffectiveRequestHost)(req)}`;
+        // 4. Dispatch Welcome and Trial Activated emails
+        await (0, email_1.sendWelcomeEmail)({
+            toEmail: user.email,
+            userName: user.profile?.fullName || user.email.split("@")[0],
+            companyName: provisionResult.tenant.name,
+            workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
+            loginUrl: `${origin}/auth`,
+            trialDays: 14,
+            tenantId,
+        }).catch((wErr) => console.warn("[VerifyEmail] welcome mail warning:", wErr.message));
+        await (0, email_1.sendTrialActivatedEmail)({
+            toEmail: user.email,
+            adminName: user.profile?.fullName || user.email.split("@")[0],
+            companyName: provisionResult.tenant.name,
+            trialEndsAt: provisionResult.trialEndsAt.toISOString(),
+            trialDays: 14,
+            dashboardUrl: `${(0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug)}/tenant/dashboard`,
+            tenantId,
+        }).catch((tErr) => console.warn("[VerifyEmail] trial activated warning:", tErr.message));
         return res.json({
             success: true,
-            message: "Email address verified successfully!",
+            message: "Email address verified successfully! Welcome to MasterHRMS.",
+            token: authToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                profile: user.profile,
+                roles,
+            },
+            tenant: {
+                id: provisionResult.tenant.id,
+                name: provisionResult.tenant.name,
+                slug: provisionResult.tenant.slug,
+            },
+            workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(provisionResult.tenant.slug),
+            subscription: {
+                status: provisionResult.subscription?.status || "trialing",
+                trialEndsAt: provisionResult.trialEndsAt,
+            },
         });
     }
     catch (err) {
@@ -1017,18 +1236,40 @@ exports.authRouter.post("/resend-verification", async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: "User account not found." });
         }
+        // Cooldown check (30s)
+        const eligibility = await (0, otp_1.checkResendEligibility)(user.id);
+        if (!eligibility.allowed) {
+            return res.status(429).json({
+                error: `Please wait ${eligibility.secondsRemaining} second${eligibility.secondsRemaining === 1 ? "" : "s"} before requesting a new verification code.`,
+                secondsRemaining: eligibility.secondsRemaining,
+            });
+        }
+        // Generate fresh token and code
+        const rawToken = crypto_1.default.randomBytes(32).toString("hex");
+        const tokenHash = crypto_1.default.createHash("sha256").update(rawToken).digest("hex");
+        const verificationKey = `verify:${tokenHash}`;
+        const tokenId = crypto_1.default.randomUUID();
+        const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await prisma.$executeRawUnsafe(`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`, tokenId, user.id, verificationKey, tokenExpiresAt).catch(() => { });
         const { otp } = await (0, otp_1.createOrReplaceOtp)(user.id);
-        const emailResult = await (0, email_1.sendTwoFactorOtpEmail)({
+        const origin = req.headers.origin ||
+            (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+            `http://${(0, workspace_host_1.getEffectiveRequestHost)(req)}`;
+        const verificationUrl = `${origin}/auth?mode=verify&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+        await (0, email_1.sendEmailVerificationEmail)({
             toEmail: user.email,
-            otp,
-            fullName: user.profile?.fullName || undefined,
-            isSetup: false,
+            userName: user.profile?.fullName || user.email.split("@")[0],
+            verificationUrl,
+            otpCode: otp,
+            expiryMinutes: 60,
         });
         return res.json({
             success: true,
-            message: "New verification code has been dispatched.",
+            message: "A fresh verification code and link have been dispatched to your email.",
             maskedEmail: (0, otp_1.maskEmail)(user.email),
-            ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+            cooldownSeconds: 30,
+            previewToken: process.env.NODE_ENV !== "production" ? rawToken : undefined,
+            previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
         });
     }
     catch (err) {
@@ -1124,11 +1365,20 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
         const isSuperPortal = hostContext.type === "super" ||
             req.headers["x-auth-portal"] === "super" ||
             req.body.portal === "super";
+        // Enforcement of Super Admin / Tenant Login Separation:
+        if (!isSuperPortal) {
+            const isPlatformSuperAdmin = user.roles.some((r) => r.role === "super_admin" && !r.tenantId);
+            if (isPlatformSuperAdmin) {
+                // Platform Super Admin must NOT authenticate via normal /login endpoint.
+                // Return generic 401 without leaking identity or super admin existence.
+                return res.status(401).json({ error: "Invalid email or password." });
+            }
+        }
         if (isSuperPortal) {
             const isSuper = user.roles.some((r) => r.role === "super_admin");
-            if (!isSuper) {
+            if (!isSuper || user.email !== "admin@masterhrms.com") {
                 return res.status(403).json({
-                    error: "Access denied. Only Super Administrators can log in through the Super Admin portal.",
+                    error: "Access denied. Only the designated Super Administrator can log in through this portal.",
                     code: "SUPER_ADMIN_ONLY",
                 });
             }
@@ -1337,8 +1587,9 @@ exports.authRouter.post("/2fa/resend", async (req, res) => {
 // GET /api/auth/2fa/status
 exports.authRouter.get("/2fa/status", auth_1.requireAuth, async (req, res) => {
     try {
+        const userId = req.user.userId;
         const user = await prisma.user.findUnique({
-            where: { id: req.user.userId },
+            where: { id: userId },
             select: {
                 id: true,
                 email: true,
@@ -1349,10 +1600,12 @@ exports.authRouter.get("/2fa/status", auth_1.requireAuth, async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: "User not found." });
         }
+        const status = await two_factor_service_1.TwoFactorService.getStatus(userId);
         return res.json({
-            twoFactorEnabled: Boolean(user.twoFactorEnabled),
-            twoFactorMethod: "EMAIL_OTP",
-            confirmedAt: user.twoFactorConfirmedAt,
+            twoFactorEnabled: status.twoFactorEnabled,
+            twoFactorMethod: status.twoFactorMethod,
+            backupCodesRemaining: status.backupCodesRemaining,
+            confirmedAt: status.confirmedAt,
             registeredEmail: user.email,
             maskedEmail: (0, otp_1.maskEmail)(user.email),
         });
@@ -1361,7 +1614,141 @@ exports.authRouter.get("/2fa/status", auth_1.requireAuth, async (req, res) => {
         return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to get 2FA status." });
     }
 });
-// POST /api/auth/2fa/setup-initiate
+// POST /api/auth/2fa/totp/initiate
+exports.authRouter.post("/2fa/totp/initiate", auth_1.requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || undefined;
+        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        const setupResult = await two_factor_service_1.TwoFactorService.initiateTotpSetup(userId, tenantId, {
+            ipAddress: clientIp,
+            userAgent: req.headers["user-agent"],
+        });
+        return res.json({
+            success: true,
+            secret: setupResult.secret,
+            qrCode: setupResult.qrCode,
+            otpauthUrl: setupResult.otpauthUrl,
+            backupCodes: setupResult.backupCodes,
+            issuer: "MasterHRMS",
+            message: "Scan the QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator) and enter the 6-digit code.",
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to initiate TOTP setup." });
+    }
+});
+// POST /api/auth/2fa/totp/confirm
+exports.authRouter.post("/2fa/totp/confirm", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { token } = req.body;
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || undefined;
+        if (!token) {
+            return res.status(400).json({ error: "6-digit TOTP verification code is required." });
+        }
+        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        const confirmResult = await two_factor_service_1.TwoFactorService.confirmTotpSetup(userId, String(token), tenantId, {
+            ipAddress: clientIp,
+            userAgent: req.headers["user-agent"],
+        });
+        if (!confirmResult.success) {
+            return res.status(400).json({ error: confirmResult.error });
+        }
+        // Dispatch security notification email
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
+        if (user) {
+            await (0, email_1.sendTwoFactorSecurityEmail)({
+                toEmail: user.email,
+                userName: user.profile?.fullName || user.email.split("@")[0],
+                action: "ENABLED",
+                tenantId,
+            }).catch((emailErr) => console.warn("[2FA Confirm] security email warning:", emailErr.message));
+        }
+        return res.json({
+            success: true,
+            twoFactorEnabled: true,
+            message: "Two-Factor Authentication is now active on your account.",
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to confirm TOTP setup." });
+    }
+});
+// POST /api/auth/2fa/backup-codes/regenerate
+exports.authRouter.post("/2fa/backup-codes/regenerate", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { currentTotp } = req.body;
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || undefined;
+        if (!currentTotp) {
+            return res.status(400).json({ error: "Current 6-digit TOTP code is required to regenerate backup codes." });
+        }
+        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        const result = await two_factor_service_1.TwoFactorService.regenerateBackupCodes(userId, String(currentTotp), tenantId, {
+            ipAddress: clientIp,
+            userAgent: req.headers["user-agent"],
+        });
+        if (!result.success) {
+            return res.status(400).json({ error: result.error });
+        }
+        return res.json({
+            success: true,
+            backupCodes: result.backupCodes,
+            message: "8 fresh backup recovery codes generated. Please store them securely.",
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to regenerate backup codes." });
+    }
+});
+// POST /api/auth/2fa/disable
+exports.authRouter.post("/2fa/disable", auth_1.requireAuth, async (req, res) => {
+    try {
+        const { currentTotp } = req.body;
+        const userId = req.user.userId;
+        const tenantId = req.user.tenantId || undefined;
+        if (!currentTotp) {
+            return res.status(400).json({ error: "Current 6-digit TOTP code is required to disable 2FA." });
+        }
+        const rawIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "127.0.0.1";
+        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        const result = await two_factor_service_1.TwoFactorService.disableTwoFactor(userId, String(currentTotp), tenantId, {
+            ipAddress: clientIp,
+            userAgent: req.headers["user-agent"],
+        });
+        if (!result.success) {
+            return res.status(400).json({ error: result.error });
+        }
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            include: { profile: true },
+        });
+        if (user) {
+            await (0, email_1.sendTwoFactorSecurityEmail)({
+                toEmail: user.email,
+                userName: user.profile?.fullName || user.email.split("@")[0],
+                action: "DISABLED",
+                tenantId,
+            }).catch((emailErr) => console.warn("[2FA Disable] security email warning:", emailErr.message));
+        }
+        return res.json({
+            success: true,
+            twoFactorEnabled: false,
+            message: "Two-Factor Authentication has been disabled.",
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to disable 2FA." });
+    }
+});
+// POST /api/auth/2fa/setup-initiate (Legacy Email OTP compatibility)
 exports.authRouter.post("/2fa/setup-initiate", auth_1.requireAuth, async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
@@ -1397,7 +1784,7 @@ exports.authRouter.post("/2fa/setup-initiate", auth_1.requireAuth, async (req, r
         return res.status(err instanceof zod_1.z.ZodError ? 400 : err.status || (err.code === "P2002" ? 409 : 500)).json({ error: err.message || "Failed to initiate 2FA setup." });
     }
 });
-// POST /api/auth/2fa/setup-confirm
+// POST /api/auth/2fa/setup-confirm (Legacy Email OTP compatibility)
 exports.authRouter.post("/2fa/setup-confirm", auth_1.requireAuth, async (req, res) => {
     try {
         const { code } = req.body;
@@ -1724,9 +2111,11 @@ exports.authRouter.post("/bootstrap-tenant", auth_1.requireAuth, async (req, res
             if (profile?.tenantId)
                 throw Object.assign(new Error("Your account already belongs to a workspace."), { status: 409 });
             const created = await tx.tenant.create({ data: { name, slug } });
-            await tx.profile.upsert({ where: { userId: req.user.userId },
+            await tx.profile.upsert({
+                where: { userId: req.user.userId },
                 create: { userId: req.user.userId, email: req.user.email, tenantId: created.id },
-                update: { tenantId: created.id }, });
+                update: { tenantId: created.id },
+            });
             await tx.userRole.create({ data: { userId: req.user.userId, tenantId: created.id, role: "hr_admin" } });
             const role = await tx.workspaceRole.create({ data: { tenantId: created.id, name: "Workspace Admin", isSystem: true, isActive: true } });
             await tx.userRoleAssignment.create({ data: { tenantId: created.id, userId: req.user.userId, roleId: role.id } });

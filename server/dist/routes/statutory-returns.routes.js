@@ -11,6 +11,9 @@ const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const statutory_return_service_1 = require("../services/statutory-return.service");
+const form_16_service_1 = require("../services/form-16.service");
+const form_24q_service_1 = require("../services/form-24q.service");
+const epfo_esic_service_1 = require("../services/epfo-esic.service");
 exports.statutoryReturnsRouter = (0, express_1.Router)();
 // Enforce authentication, tenant isolation, and strict role boundaries
 exports.statutoryReturnsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, (0, auth_1.requireRole)('super_admin', 'tenant_admin', 'hr_admin', 'hr_manager', 'admin'));
@@ -192,5 +195,95 @@ exports.statutoryReturnsRouter.post('/filings/:id/record-challan', async (req, r
     }
     catch (err) {
         return res.status(500).json({ error: err.message || 'Failed to record challan' });
+    }
+});
+/**
+ * 6. POST /api/payroll/statutory/form16/generate
+ * Generate Annual Form 16 Part A & Part B PDF (FN-022)
+ */
+exports.statutoryReturnsRouter.post('/form16/generate', async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: 'Tenant context required' });
+        const { employeeId, financialYear = '2025-2026', regime = 'new' } = req.body;
+        if (!employeeId) {
+            return res.status(400).json({ error: 'employeeId is required for Form 16 generation' });
+        }
+        const result = await form_16_service_1.Form16Service.generateForm16({
+            tenantId,
+            employeeId,
+            financialYear,
+            regime,
+            generatedBy: req.user?.email || 'admin',
+        });
+        return res.status(201).json({
+            success: true,
+            message: `Form 16 generated successfully for ${result.employeeName} (${result.employeeCode})`,
+            form16: result,
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || 'Failed to generate Form 16' });
+    }
+});
+/**
+ * 7. POST /api/payroll/statutory/form24q/generate
+ * Generate NSDL e-TDS FVU text return for Form 24Q (FN-023)
+ */
+exports.statutoryReturnsRouter.post('/form24q/generate', async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: 'Tenant context required' });
+        const { financialYear = '2025-2026', quarter = 'Q1', payrollRunId } = req.body;
+        const result = await form_24q_service_1.Form24QService.generateQuarterlyReturn({
+            tenantId,
+            financialYear,
+            quarter,
+            payrollRunId,
+            generatedBy: req.user?.email || 'admin',
+        });
+        return res.status(201).json({
+            success: true,
+            message: `Form 24Q Quarterly Return generated for ${result.quarter} (${result.financialYear})`,
+            form24q: result,
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || 'Failed to generate Form 24Q return' });
+    }
+});
+/**
+ * 8. POST /api/payroll/statutory/claims/generate
+ * Generate EPFO Form 19/10C/31 & ESIC Form 1 Claims (FN-024)
+ */
+exports.statutoryReturnsRouter.post('/claims/generate', async (req, res) => {
+    try {
+        const tenantId = req.tenantId || req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: 'Tenant context required' });
+        const { employeeId, claimType, reason, requestedAmount, bankAccountNumber, ifscCode } = req.body;
+        if (!employeeId || !claimType) {
+            return res.status(400).json({ error: 'employeeId and claimType are required (FORM_19, FORM_10C, FORM_31, ESIC_FORM_1)' });
+        }
+        const result = await epfo_esic_service_1.EpfoEsicService.generateClaim({
+            tenantId,
+            employeeId,
+            claimType,
+            reason,
+            requestedAmount,
+            bankAccountNumber,
+            ifscCode,
+            generatedBy: req.user?.email || 'admin',
+        });
+        return res.status(201).json({
+            success: true,
+            message: `${result.claimTitle} generated successfully for ${result.employeeName}`,
+            claim: result,
+        });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || 'Failed to generate statutory claim' });
     }
 });
