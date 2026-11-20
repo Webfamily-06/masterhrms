@@ -79,7 +79,7 @@ function TenantDashboardPage() {
               Company Profile
             </Button>
           </Link>
-          <Link to="/tenant/addons">
+          <Link to="/tenant/modules">
             <Button variant="outline" size="sm" className="gap-2">
               <Sparkles className="h-4 w-4" />
               Add-on Store
@@ -160,7 +160,7 @@ function TenantDashboardPage() {
             </Link>
 
             <Link
-              to="/tenant/addons"
+              to="/tenant/modules"
               className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
             >
               <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
