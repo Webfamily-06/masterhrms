@@ -32,6 +32,12 @@ import {
   UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ModernDialog,
+  ModernDialogContent,
+  ModernDialogTitle,
+  ModernDialogDescription,
+} from "@/components/ui/modern-dialog";
 
 export const Route = createFileRoute("/_authenticated/super/tenant-usage-metrics")({
   component: TenantUsageMetricsPage,
@@ -915,37 +921,47 @@ export default function TenantUsageMetricsPage() {
         )}
       </div>
 
-      {/* ─── TENANT USAGE DETAIL MODAL / DRAWER (Reference UI Match) ─── */}
-      {selectedTenantId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
-              <div className="flex items-center gap-3">
-                <h4 className="font-bold text-lg text-slate-900 dark:text-slate-100">Tenant Usage Detail</h4>
-                {/* Period Selector inside drawer */}
-                <select
-                  value={detailPeriod}
-                  onChange={(e) => setDetailPeriod(e.target.value as any)}
-                  className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-                  title="Change Reporting Period"
-                >
-                  <option value="7d">Period: 7 Days</option>
-                  <option value="30d">Period: 30 Days</option>
-                  <option value="90d">Period: 90 Days</option>
-                  <option value="1y">Period: 1 Year</option>
-                  <option value="all">Period: All Time</option>
-                </select>
-              </div>
-
-              <button
-                onClick={() => setSelectedTenantId(null)}
-                className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Close Modal"
+      {/* ─── TENANT USAGE DETAIL MODAL / DRAWER - Modern Native <dialog> ─── */}
+      <ModernDialog
+        open={Boolean(selectedTenantId)}
+        onOpenChange={(isOpen) => !isOpen && setSelectedTenantId(null)}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-3xl w-[calc(100vw-2rem)] p-0 max-h-[92vh] overflow-y-auto flex flex-col" showCloseButton={false}>
+          {/* Modal Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0">
+            <div className="flex items-center gap-3">
+              <ModernDialogTitle className="font-bold text-lg text-slate-900 dark:text-slate-100">
+                Tenant Usage Detail
+              </ModernDialogTitle>
+              {/* Period Selector inside drawer */}
+              <select
+                value={detailPeriod}
+                onChange={(e) => setDetailPeriod(e.target.value as any)}
+                className="text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+                title="Change Reporting Period"
               >
-                <X className="w-5 h-5" />
-              </button>
+                <option value="7d">Period: 7 Days</option>
+                <option value="30d">Period: 30 Days</option>
+                <option value="90d">Period: 90 Days</option>
+                <option value="1y">Period: 1 Year</option>
+                <option value="all">Period: All Time</option>
+              </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedTenantId(null)}
+              className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close Modal"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <ModernDialogDescription className="sr-only">
+            Inspect detailed resource utilization, file storage distribution, user counts, and audit logs for the selected tenant.
+          </ModernDialogDescription>
 
             {/* Modal Body */}
             {isDetailLoading || !detailData ? (
@@ -1260,7 +1276,7 @@ export default function TenantUsageMetricsPage() {
             )}
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between sticky bottom-0">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between sticky bottom-0 shrink-0">
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Created on: {detailData ? formatDate(detailData.profile.createdAt) : "—"}
               </span>
@@ -1272,9 +1288,8 @@ export default function TenantUsageMetricsPage() {
                 Close
               </button>
             </div>
-          </div>
-        </div>
-      )}
+        </ModernDialogContent>
+      </ModernDialog>
     </div>
   );
 }

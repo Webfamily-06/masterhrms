@@ -181,6 +181,10 @@ const socket_1 = require("./socket");
 const biometric_sync_1 = require("./cron/biometric-sync");
 const biometric_reconcile_cron_1 = require("./cron/biometric-reconcile.cron");
 const subscription_reminder_cron_1 = require("./cron/subscription-reminder.cron");
+const document_expiry_cron_1 = require("./cron/document-expiry.cron");
+const probation_contract_expiry_cron_1 = require("./cron/probation-contract-expiry.cron");
+const reporting_manager_change_cron_1 = require("./cron/reporting-manager-change.cron");
+const saas_billing_cron_1 = require("./cron/saas-billing.cron");
 const calendar_reminder_scheduler_1 = require("./services/calendar-reminder.scheduler");
 const background_tasks_1 = require("./lib/background-tasks");
 const app = (0, express_1.default)();
@@ -526,6 +530,7 @@ app.use("/api/super", super_routes_1.superRouter);
 app.use("/api/addons", addons_routes_1.addonsRouter);
 app.use("/api/addons/okr", okr_routes_1.okrRouter);
 app.use("/api/addons/assets", assets_routes_1.assetsRouter);
+app.use("/api/assets", assets_routes_1.assetsRouter);
 app.use("/api/v1/two-factor-auth", two_factor_routes_1.twoFactorRouter);
 app.use("/api/two-factor-auth", two_factor_routes_1.twoFactorRouter);
 app.use("/api/v1/backup-restore", backup_restore_routes_1.backupRestoreRouter);
@@ -575,6 +580,7 @@ app.use("/api/sales", sales_routes_1.salesRouter);
 app.use("/api/customers", customers_routes_1.customersRouter);
 app.use("/api/chat", chat_routes_1.chatRouter);
 app.use("/api/notifications/push", push_routes_1.pushRouter);
+app.use("/api/push", push_routes_1.pushRouter);
 app.use("/api/calls", call_routes_1.callRouter);
 app.use("/api/biometric", biometric_routes_1.biometricRouter);
 app.use("/api/public/biometric", biometric_routes_1.publicBiometricRouter);
@@ -714,6 +720,99 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
         console.log(`⏰ Daily Comp-Off Expiry Sweep scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:30 UTC)`);
     }
     scheduleDailyCompOffExpirySweep();
+    // Schedule daily Document Expiry & Compliance Monitoring Cron (01:00 UTC daily)
+    function scheduleDailyDocumentExpiry() {
+        const now = new Date();
+        const nextRun = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 0, 0, 0));
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily document expiry & compliance check...");
+                const result = await (0, document_expiry_cron_1.runDocumentExpiryCron)();
+                console.log("✅ [CRON] Daily document expiry check finished:", result);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Daily document expiry check failed:", err?.message);
+            }
+            scheduleDailyDocumentExpiry();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily Document Expiry Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:00 UTC)`);
+    }
+    scheduleDailyDocumentExpiry();
+    // Schedule daily Probation Review & Contract Expiry Cron (01:15 UTC daily)
+    function scheduleDailyProbationContractExpiry() {
+        const now = new Date();
+        const nextRun = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 15, 0, 0));
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily probation & contract expiry check...");
+                const result = await (0, probation_contract_expiry_cron_1.runProbationContractExpiryCron)();
+                console.log("✅ [CRON] Daily probation & contract expiry check finished:", result);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Daily probation & contract expiry check failed:", err?.message);
+            }
+            scheduleDailyProbationContractExpiry();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily Probation & Contract Expiry Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:15 UTC)`);
+    }
+    scheduleDailyProbationContractExpiry();
+    // Schedule daily Reporting Manager Change Scheduler (02:30 UTC daily)
+    function scheduleDailyReportingManagerChanges() {
+        const now = new Date();
+        const nextRun = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 2, 30, 0, 0));
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily reporting manager change sweep...");
+                const result = await (0, reporting_manager_change_cron_1.runReportingManagerChangeScheduler)();
+                console.log("✅ [CRON] Reporting manager change sweep finished:", result);
+            }
+            catch (err) {
+                console.error("❌ [CRON] Reporting manager change sweep failed:", err?.message);
+            }
+            scheduleDailyReportingManagerChanges();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily Reporting Manager Change Scheduler scheduled in ${Math.round(msUntilNext / 60000)} min (target: 02:30 UTC)`);
+    }
+    scheduleDailyReportingManagerChanges();
+    // Schedule daily SaaS Billing: Trial Expiration & Grace Enforcement (03:00 UTC daily)
+    function scheduleDailySaasBilling() {
+        const now = new Date();
+        const nextRun = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 3, 0, 0, 0));
+        let msUntilNext = nextRun.getTime() - now.getTime();
+        if (msUntilNext <= 0)
+            msUntilNext += 24 * 60 * 60 * 1000;
+        const timer = setTimeout(async () => {
+            try {
+                console.log("⏰ [CRON] Executing scheduled daily SaaS billing crons...");
+                const trialsResult = await (0, saas_billing_cron_1.runExpireTrialsCron)();
+                const renewalsResult = await (0, saas_billing_cron_1.runRenewalsAndGraceCron)();
+                console.log("✅ [CRON] SaaS billing crons finished:", { trialsResult, renewalsResult });
+            }
+            catch (err) {
+                console.error("❌ [CRON] SaaS billing crons failed:", err?.message);
+            }
+            scheduleDailySaasBilling();
+        }, msUntilNext);
+        if (timer.unref)
+            timer.unref();
+        console.log(`⏰ Daily SaaS Billing Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 03:00 UTC)`);
+    }
+    scheduleDailySaasBilling();
     server.listen(Number(PORT), HOST, async () => {
         console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);
         console.log(`🔌 Database Provider: Supabase PostgreSQL (Prisma ORM connected)`);

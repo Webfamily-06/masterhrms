@@ -253,6 +253,82 @@ crmRouter.delete("/leads/:id", requireAuth, resolveTenantContext, requirePermiss
   }
 });
 
+// POST /api/crm/leads/:id/convert - Convert qualified lead into active CrmDeal (FN-041)
+crmRouter.post("/leads/:id/convert", requireAuth, resolveTenantContext, requirePermission("crm.leads.edit"), async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const { dealName, customerName, stage = "Proposal", value, closeDate, owner, notes } = req.body;
+
+    const lead = await prisma.crmLead.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!lead) {
+      return res.status(404).json({ error: "CRM lead not found" });
+    }
+
+    if (lead.stage === "converted") {
+      return res.status(400).json({ error: "Lead is already converted." });
+    }
+
+    const result = await prisma.$transaction(async (tx: any) => {
+      // 1. Create active CrmDeal linked to lead
+      const deal = await tx.crmDeal.create({
+        data: {
+          tenantId,
+          leadId: lead.id,
+          name: dealName || lead.title || `Deal - ${lead.contactName}`,
+          customer: customerName || lead.company || lead.contactName || "Client Account",
+          stage: stage || "Proposal",
+          value: value !== undefined ? Number(value) : (lead.value ? Number(lead.value) : 0),
+          closeDate: closeDate ? new Date(closeDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          owner: owner || lead.assignedTo || (req.user as any)?.email || "Sales Team",
+          status: "Open",
+          notes: notes ? `${notes}\n[Converted from Lead]: ${lead.title}` : (lead.notes || `Converted from Lead ${lead.title}`),
+        },
+      });
+
+      // 2. Transition lead stage to converted
+      const updatedLead = await tx.crmLead.update({
+        where: { id: lead.id },
+        data: {
+          stage: "converted",
+          notes: lead.notes ? `${lead.notes}\n[System]: Converted to Deal ID ${deal.id} on ${new Date().toISOString()}` : `Converted to Deal ID ${deal.id}`,
+        },
+      });
+
+      return { deal, lead: updatedLead };
+    });
+
+    broadcastToTenant(tenantId, "lead:converted", {
+      leadId: lead.id,
+      dealId: result.deal.id,
+      dealName: result.deal.name,
+    });
+
+    await AuditService.logMutation({
+      tenantId,
+      actorId: (req.user as any)?.userId || (req.user as any)?.id,
+      actorEmail: req.user?.email,
+      action: "crm.lead.converted",
+      entityType: "CrmLead",
+      entityId: id,
+      newState: { dealId: result.deal.id, dealName: result.deal.name },
+    }).catch(() => {});
+
+    return res.status(201).json({
+      success: true,
+      message: `Lead successfully converted to Deal '${result.deal.name}'`,
+      deal: result.deal,
+      lead: result.lead,
+    });
+  } catch (err: any) {
+    console.error("CRM Lead Convert error:", err);
+    return res.status(500).json({ error: err.message || "Failed to convert CRM lead" });
+  }
+});
+
 // ==========================================
 // CRM DEALS (Relational DB backed)
 // ==========================================

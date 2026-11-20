@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
 import http from "http";
 import express from "express";
 import { rawPrisma as prisma } from "../prisma";
@@ -16,27 +17,14 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
   const alphaUserId = "w3_acc_alpha_user";
   const betaUserId = "w3_acc_beta_user";
 
-  const alphaToken = generateToken({
-    userId: alphaUserId,
-    email: "alpha@w3-acc.local",
-    tenantId: tenantAlphaId,
-    roles: ["admin", "super_admin"],
-    permissions: ["accounting.view", "accounting.create", "accounting.manage", "finance.invoices.view"],
-  });
-
-  const betaToken = generateToken({
-    userId: betaUserId,
-    email: "beta@w3-acc.local",
-    tenantId: tenantBetaId,
-    roles: ["admin"],
-    permissions: ["accounting.view", "accounting.create", "accounting.manage"],
-  });
+  let alphaToken: string;
+  let betaToken: string;
 
   let alphaBankAcc1Id: string;
   let alphaBankAcc2Id: string;
   let betaBankAccId: string;
 
-  beforeAll(async () => {
+  before(async () => {
     // 1. Setup tenants
     await prisma.tenant.upsert({
       where: { id: tenantAlphaId },
@@ -86,12 +74,56 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
 
     // Provision accounting entitlement for both test tenants
     for (const tId of [tenantAlphaId, tenantBetaId]) {
-      await prisma.tenantModule.upsert({
-        where: { tenantId_moduleKey: { tenantId: tId, moduleKey: "accounting" } },
-        create: { tenantId: tId, moduleKey: "accounting", isEnabled: true },
-        update: { isEnabled: true },
-      });
+      for (const modKey of ["accounting", "product_accounting", "finance", "product_finance"]) {
+        await prisma.tenantModule.upsert({
+          where: { tenantId_moduleKey: { tenantId: tId, moduleKey: modKey } },
+          create: { tenantId: tId, moduleKey: modKey, isEnabled: true },
+          update: { isEnabled: true },
+        });
+      }
     }
+
+    // Authoritative device sessions
+    const expiresNextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const alphaSession = await prisma.deviceSession.create({
+      data: {
+        userId: alphaUserId,
+        tenantId: tenantAlphaId,
+        deviceName: "Acc Test Runner Alpha",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const betaSession = await prisma.deviceSession.create({
+      data: {
+        userId: betaUserId,
+        tenantId: tenantBetaId,
+        deviceName: "Acc Test Runner Beta",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    alphaToken = generateToken({
+      userId: alphaUserId,
+      email: "alpha@w3-acc.local",
+      tenantId: tenantAlphaId,
+      roles: ["admin", "super_admin"],
+      permissions: ["accounting.view", "accounting.create", "accounting.manage", "finance.invoices.view"],
+      sessionId: alphaSession.id,
+    });
+
+    betaToken = generateToken({
+      userId: betaUserId,
+      email: "beta@w3-acc.local",
+      tenantId: tenantBetaId,
+      roles: ["admin"],
+      permissions: ["accounting.view", "accounting.create", "accounting.manage"],
+      sessionId: betaSession.id,
+    });
 
     // Clean previous test data
     await prisma.journalItem.deleteMany({
@@ -117,7 +149,7 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
     baseUrl = `http://127.0.0.1:${addr.port}`;
   });
 
-  afterAll(async () => {
+  after(async () => {
     if (server) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
@@ -130,32 +162,35 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
     await prisma.chartOfAccount.deleteMany({
       where: { tenantId: { in: [tenantAlphaId, tenantBetaId] } },
     });
+    await prisma.deviceSession.deleteMany({
+      where: { userId: { in: [alphaUserId, betaUserId] } },
+    }).catch(() => {});
   });
 
   it("1. Automatically seeds and retrieves Chart of Accounts for Tenant Alpha with strict tenant isolation", async () => {
     const resAlpha = await fetch(`${baseUrl}/api/accounting/accounts`, {
       headers: { Authorization: `Bearer ${alphaToken}` },
     });
-    expect(resAlpha.status).toBe(200);
-    const bodyAlpha = await resAlpha.json();
-    expect(bodyAlpha.data.length).toBeGreaterThanOrEqual(17);
+    assert.equal(resAlpha.status, 200);
+    const bodyAlpha = (await resAlpha.json()) as any;
+    assert.ok(bodyAlpha.data.length >= 17);
 
     // Verify all seeded accounts belong strictly to Tenant Alpha
     bodyAlpha.data.forEach((acc: any) => {
-      expect(acc.tenantId).toBe(tenantAlphaId);
+      assert.equal(acc.tenantId, tenantAlphaId);
     });
 
     // Now call for Tenant Beta
     const resBeta = await fetch(`${baseUrl}/api/accounting/accounts`, {
       headers: { Authorization: `Bearer ${betaToken}` },
     });
-    expect(resBeta.status).toBe(200);
-    const bodyBeta = await resBeta.json();
-    expect(bodyBeta.data.length).toBeGreaterThanOrEqual(17);
+    assert.equal(resBeta.status, 200);
+    const bodyBeta = (await resBeta.json()) as any;
+    assert.ok(bodyBeta.data.length >= 17);
 
     // Verify all seeded accounts belong strictly to Tenant Beta
     bodyBeta.data.forEach((acc: any) => {
-      expect(acc.tenantId).toBe(tenantBetaId);
+      assert.equal(acc.tenantId, tenantBetaId);
     });
   });
 
@@ -175,19 +210,19 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         balance: 50000,
       }),
     });
-    expect(createRes.status).toBe(201);
-    const createdBody = await createRes.json();
+    assert.equal(createRes.status, 201);
+    const createdBody = (await createRes.json()) as any;
     alphaBankAcc1Id = createdBody.data.id;
-    expect(createdBody.data.accountCode).toBe("1099");
-    expect(createdBody.data.tenantId).toBe(tenantAlphaId);
+    assert.equal(createdBody.data.accountCode, "1099");
+    assert.equal(createdBody.data.tenantId, tenantAlphaId);
 
     // Verify Tenant Beta cannot see Alpha's custom account
     const betaListRes = await fetch(`${baseUrl}/api/accounting/accounts`, {
       headers: { Authorization: `Bearer ${betaToken}` },
     });
-    const betaList = await betaListRes.json();
+    const betaList = (await betaListRes.json()) as any;
     const foundInBeta = betaList.data.some((a: any) => a.id === alphaBankAcc1Id || a.accountCode === "1099");
-    expect(foundInBeta).toBe(false);
+    assert.equal(foundInBeta, false);
   });
 
   it("3. Creates a secondary account for Tenant Alpha and prepares for bank transfer", async () => {
@@ -205,10 +240,10 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         balance: 1000,
       }),
     });
-    expect(createRes.status).toBe(201);
-    const body = await createRes.json();
+    assert.equal(createRes.status, 201);
+    const body = (await createRes.json()) as any;
     alphaBankAcc2Id = body.data.id;
-    expect(body.data.accountCode).toBe("1098");
+    assert.equal(body.data.accountCode, "1098");
 
     // Maintain GAAP double-entry parity: offset initial injected assets (50,000 + 1,000 = 51,000) with Owner's Equity credit
     await prisma.chartOfAccount.updateMany({
@@ -232,9 +267,9 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         notes: "Invalid self transfer",
       }),
     });
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toMatch(/same/i);
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as any;
+    assert.match(body.error, /same/i);
   });
 
   it("5. Rejects cross-tenant transfer: Tenant Beta cannot transfer funds out of Tenant Alpha's account", async () => {
@@ -253,8 +288,8 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         balance: 2000,
       }),
     });
-    expect(betaAccRes.status).toBe(201);
-    const betaAccBody = await betaAccRes.json();
+    assert.equal(betaAccRes.status, 201);
+    const betaAccBody = (await betaAccRes.json()) as any;
     betaBankAccId = betaAccBody.data.id;
 
     // Tenant Beta attempts to transfer FROM Alpha's account (alphaBankAcc1Id) to Beta's account (betaBankAccId)
@@ -271,7 +306,7 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         reference: "CROSS-TENANT-ATTEMPT",
       }),
     });
-    expect([400, 403, 404]).toContain(stealRes.status);
+    assert.ok([400, 403, 404].includes(stealRes.status));
   });
 
   it("6. Executes valid internal bank transfer between Tenant Alpha accounts and posts balanced journal entry", async () => {
@@ -289,18 +324,18 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         notes: "Transfer for operational payroll",
       }),
     });
-    expect(transferRes.status).toBe(201);
-    const body = await transferRes.json();
-    expect(body.success).toBe(true);
+    assert.equal(transferRes.status, 201);
+    const body = (await transferRes.json()) as any;
+    assert.equal(body.success, true);
 
     // Verify account balances in database
     const acc1 = await prisma.chartOfAccount.findUnique({ where: { id: alphaBankAcc1Id } });
     const acc2 = await prisma.chartOfAccount.findUnique({ where: { id: alphaBankAcc2Id } });
 
     // 50000 - 5000 = 45000
-    expect(Number(acc1?.balance)).toBe(45000);
+    assert.equal(Number(acc1?.balance), 45000);
     // 1000 + 5000 = 6000
-    expect(Number(acc2?.balance)).toBe(6000);
+    assert.equal(Number(acc2?.balance), 6000);
   });
 
   it("7. Rejects posting unbalanced journal entries (Debits != Credits)", async () => {
@@ -320,9 +355,9 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         ],
       }),
     });
-    expect(unbalRes.status).toBe(400);
-    const body = await unbalRes.json();
-    expect(body.error).toMatch(/equal|balance/i);
+    assert.equal(unbalRes.status, 400);
+    const body = (await unbalRes.json()) as any;
+    assert.match(body.error, /equal|balance/i);
   });
 
   it("8. Successfully posts balanced journal entry and updates ledger statement", async () => {
@@ -342,44 +377,44 @@ describe("Tier 3 (P1) Group 3.1: Accounting Suite Modularization & Isolation", (
         ],
       }),
     });
-    expect(balRes.status).toBe(201);
-    const body = await balRes.json();
-    expect(body.success).toBe(true);
-    expect(body.data.entryNumber).toBeDefined();
+    assert.equal(balRes.status, 201);
+    const body = (await balRes.json()) as any;
+    assert.equal(body.success, true);
+    assert.ok(body.data.entryNumber !== undefined);
   });
 
   it("9. Generates accurate Financial Statements (Balance Sheet & P&L) verifying equation balance", async () => {
     const res = await fetch(`${baseUrl}/api/accounting/reports/financial-statements`, {
       headers: { Authorization: `Bearer ${alphaToken}` },
     });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as any;
+    assert.equal(body.success, true);
 
     const bs = body.data.balanceSheet;
-    expect(bs).toBeDefined();
-    expect(typeof bs.totalAssets).toBe("number");
-    expect(typeof bs.totalLiabilities).toBe("number");
-    expect(typeof bs.totalEquity).toBe("number");
-    expect(typeof bs.balancedTotalLiabEquity).toBe("number");
+    assert.ok(bs !== undefined);
+    assert.equal(typeof bs.totalAssets, "number");
+    assert.equal(typeof bs.totalLiabilities, "number");
+    assert.equal(typeof bs.totalEquity, "number");
+    assert.equal(typeof bs.balancedTotalLiabEquity, "number");
 
     const pl = body.data.profitAndLoss;
-    expect(pl).toBeDefined();
-    expect(typeof pl.totalRevenue).toBe("number");
-    expect(typeof pl.totalExpenses).toBe("number");
-    expect(typeof pl.netProfit).toBe("number");
+    assert.ok(pl !== undefined);
+    assert.equal(typeof pl.totalRevenue, "number");
+    assert.equal(typeof pl.totalExpenses, "number");
+    assert.equal(typeof pl.netProfit, "number");
   });
 
   it("10. Generates Comprehensive Trial Balance verifying Sum(Debits) equals Sum(Credits)", async () => {
     const res = await fetch(`${baseUrl}/api/accounting/reports/trial-balance`, {
       headers: { Authorization: `Bearer ${alphaToken}` },
     });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.accounts.length).toBeGreaterThan(0);
-    expect(typeof body.data.totalDebits).toBe("number");
-    expect(typeof body.data.totalCredits).toBe("number");
-    expect(body.data.isBalanced).toBe(true);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as any;
+    assert.equal(body.success, true);
+    assert.ok(body.data.accounts.length > 0);
+    assert.equal(typeof body.data.totalDebits, "number");
+    assert.equal(typeof body.data.totalCredits, "number");
+    assert.equal(body.data.isBalanced, true);
   });
 });

@@ -37,6 +37,7 @@ class RealtimeFactory {
         const payload = {
             scope,
             tenantId: scope === "TENANT" ? tenantId : null,
+            userId: scope === "USER" ? tenantId : null,
             group,
             keys: keys.map((k) => k.replace(/[^a-zA-Z0-9_.-]/g, "")),
             version,
@@ -45,7 +46,7 @@ class RealtimeFactory {
         let targetRoom = "all";
         if (scope === "PLATFORM") {
             // Public platform groups go to all connected clients; private groups to platform:admin only
-            if (group === "branding" || group === "locale") {
+            if (group === "branding" || group === "locale" || group === "pusher" || group === "firebase") {
                 (0, socket_1.broadcastToAll)("settings.updated", payload);
                 targetRoom = "all";
             }
@@ -57,6 +58,10 @@ class RealtimeFactory {
         else if (scope === "TENANT" && tenantId) {
             (0, socket_1.broadcastToTenant)(tenantId, "settings.updated", payload);
             targetRoom = `tenant:${tenantId}`;
+        }
+        else if (scope === "USER" && tenantId) {
+            (0, socket_1.broadcastToUser)(tenantId, "settings.updated", payload);
+            targetRoom = `user:${tenantId}`;
         }
         return { broadcasted: true, targetRoom };
     }

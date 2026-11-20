@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.dashboardRouter = void 0;
 const express_1 = require("express");
@@ -1179,11 +1212,13 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
     if (!tenantId)
         return;
     try {
-        const [tenant, userCount, employeeCount, subscription, activeAddonsCount,] = await Promise.all([
+        const { resolveBranding } = await Promise.resolve().then(() => __importStar(require("../services/branding/branding-resolver.service")));
+        const [tenant, branding, userCount, employeeCount, subscription, activeAddonsCount, rolesCount, tenantMods,] = await Promise.all([
             withRetry(() => prisma_1.rawPrisma.tenant.findUnique({
                 where: { id: tenantId },
-                select: { id: true, name: true, slug: true, createdAt: true },
+                select: { id: true, name: true, slug: true, timezone: true, currency: true, createdAt: true },
             })).catch(() => null),
+            resolveBranding({ scope: "TENANT", tenantId }).catch(() => null),
             withRetry(() => prisma_1.rawPrisma.userRole.count({ where: { tenantId } })).catch(() => 0),
             withRetry(() => prisma_1.rawPrisma.employee.count({ where: { tenantId } })).catch(() => 0),
             withRetry(() => prisma_1.rawPrisma.tenantSubscription.findFirst({
@@ -1193,17 +1228,39 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             withRetry(() => prisma_1.rawPrisma.tenantAddon.count({
                 where: { tenantId, status: "active" },
             })).catch(() => 0),
+            withRetry(() => prisma_1.rawPrisma.workspaceRole.count({ where: { tenantId, isActive: true } })).catch(() => 0),
+            withRetry(() => prisma_1.rawPrisma.tenantModule.findMany({ where: { tenantId } })).catch(() => []),
         ]);
         const recentAudits = await withRetry(() => prisma_1.rawPrisma.settingAudit.findMany({
             where: { scope: "TENANT", scopeId: tenantId },
             orderBy: { createdAt: "desc" },
-            take: 5,
+            take: 6,
             select: { id: true, key: true, changedBy: true, createdAt: true },
         })).catch(() => []);
         const totalStorageGb = subscription?.storageLimitGb ? Number(subscription.storageLimitGb) : 10;
         const usedGb = 0;
+        const disabledModsCount = Array.isArray(tenantMods)
+            ? tenantMods.filter((m) => m.isEnabled === false).length
+            : 0;
+        const resolvedTenantName = branding?.appName || tenant?.name || "Enterprise Workspace";
+        const resolvedTimezone = branding?.locale?.timezone || tenant?.timezone || "Asia/Kolkata";
+        const resolvedCurrency = branding?.locale?.defaultCurrency || tenant?.currency || "INR";
+        const resolvedCurrencySymbol = branding?.locale?.currencySymbol || "₹";
         return res.json({
-            workspace: tenant,
+            workspace: tenant
+                ? {
+                    ...tenant,
+                    name: resolvedTenantName,
+                    timezone: resolvedTimezone,
+                    currency: resolvedCurrency,
+                    currencySymbol: resolvedCurrencySymbol,
+                }
+                : null,
+            tenantName: resolvedTenantName,
+            timezone: resolvedTimezone,
+            currency: resolvedCurrency,
+            currencySymbol: resolvedCurrencySymbol,
+            primaryColor: branding?.primaryColor || "#2563EB",
             planName: subscription?.planType || "Starter",
             subscriptionStatus: subscription?.status || "active",
             planType: subscription?.planType || "Starter",
@@ -1213,6 +1270,8 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             totalEmployees: employeeCount,
             maxEmployees: subscription?.employeeLimit ? Number(subscription.employeeLimit) : 50,
             activeAddonsCount,
+            rolesCount,
+            disabledModulesCount: disabledModsCount,
             storageUsage: {
                 usedGB: usedGb,
                 totalGB: totalStorageGb,
@@ -1222,8 +1281,11 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             systemHealth: "100.0%",
             recentAudits: recentAudits.map((a) => ({
                 id: a.id,
+                key: a.key,
                 action: `Updated ${a.key} configuration`,
+                changedBy: a.changedBy || "Tenant Admin",
                 user: a.changedBy || "Tenant Admin",
+                createdAt: a.createdAt,
                 timestamp: a.createdAt,
             })),
         });

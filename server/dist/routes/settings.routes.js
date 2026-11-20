@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.settingsRouter = void 0;
 const express_1 = require("express");
@@ -35,9 +68,13 @@ function resolveScopeAndId(req, requestedScope, isMutation = false) {
         }
         if (isMutation) {
             const roles = (req.user?.roles || []).map((r) => r.toLowerCase());
+            const wsRole = req.user?.workspaceRole?.toLowerCase();
+            const permissions = req.user?.permissions || [];
             const isTenantAdmin = isSuper ||
                 roles.some((r) => ["admin", "tenant_admin", "hr_admin", "owner", "settings_admin"].includes(r)) ||
-                Boolean(req.user?.isOwner);
+                (wsRole ? ["owner", "admin", "hr_admin"].includes(wsRole) : false) ||
+                permissions.includes("settings.manage") ||
+                permissions.includes("*");
             if (!isTenantAdmin) {
                 const err = new Error("Forbidden: Administrative privilege required to modify TENANT settings");
                 err.status = 403;
@@ -212,6 +249,99 @@ exports.settingsRouter.post("/:scope/:group/test", auth_1.requireAuth, async (re
                 provider: "razorpay",
                 keyIdPrefix: typeof rzpKey === "string" ? rzpKey.slice(0, 8) + "..." : "configured",
                 latencyMs,
+            });
+        }
+        if (group === "pusher") {
+            const latencyMs = Date.now() - startTime;
+            if (scope !== "PLATFORM") {
+                return res.status(403).json({
+                    success: false,
+                    error: "Pusher settings can only be tested in PLATFORM scope",
+                    latencyMs,
+                });
+            }
+            const pusherSettings = await settings_service_1.SettingsService.getGroup("PLATFORM", null, "pusher", { decryptSecrets: true });
+            const values = pusherSettings?.values || {};
+            const appId = req.body?.["pusher.app_id"] || req.body?.appId || values["pusher.app_id"];
+            const key = req.body?.["pusher.key"] || req.body?.key || values["pusher.key"];
+            const rawBodySecret = req.body?.["pusher.secret"] || req.body?.secret;
+            const secret = rawBodySecret && !String(rawBodySecret).includes("••••") ? rawBodySecret : values["pusher.secret"];
+            const cluster = req.body?.["pusher.cluster"] || req.body?.cluster || values["pusher.cluster"] || "ap2";
+            if (!appId || !key || !secret) {
+                return res.status(400).json({
+                    success: false,
+                    error: "Pusher App ID, Key, and Secret must all be configured before testing",
+                    latencyMs,
+                });
+            }
+            const PusherClass = (await Promise.resolve().then(() => __importStar(require("pusher")))).default;
+            const testClient = new PusherClass({
+                appId: String(appId),
+                key: String(key),
+                secret: String(secret),
+                cluster: String(cluster),
+                useTLS: true,
+            });
+            await testClient.trigger("system-test-channel", "test-connection", {
+                message: "Pusher connection verified via Settings Platform",
+                timestamp: new Date().toISOString(),
+            });
+            return res.json({
+                success: true,
+                message: `Pusher Channels verified on cluster [${cluster}]`,
+                provider: "pusher",
+                cluster,
+                latencyMs: Date.now() - startTime,
+            });
+        }
+        if (group === "firebase") {
+            const latencyMs = Date.now() - startTime;
+            if (scope !== "PLATFORM") {
+                return res.status(403).json({
+                    success: false,
+                    error: "Firebase settings can only be tested in PLATFORM scope",
+                    latencyMs,
+                });
+            }
+            const fbSettings = await settings_service_1.SettingsService.getGroup("PLATFORM", null, "firebase", { decryptSecrets: true });
+            const values = fbSettings?.values || {};
+            const apiKey = req.body?.["firebase.api_key"] || values["firebase.api_key"];
+            const projectId = req.body?.["firebase.project_id"] || values["firebase.project_id"];
+            const senderId = req.body?.["firebase.messaging_sender_id"] || values["firebase.messaging_sender_id"];
+            const appId = req.body?.["firebase.app_id"] || values["firebase.app_id"];
+            const serviceAccountRaw = req.body?.["firebase.service_account_json"] || values["firebase.service_account_json"];
+            if (!apiKey || !projectId || !senderId || !appId) {
+                return res.status(400).json({
+                    success: false,
+                    error: "Firebase API Key, Project ID, Messaging Sender ID, and App ID are required",
+                    latencyMs,
+                });
+            }
+            if (serviceAccountRaw && typeof serviceAccountRaw === "string" && !serviceAccountRaw.includes("••••")) {
+                try {
+                    const parsed = JSON.parse(serviceAccountRaw);
+                    if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+                        return res.status(400).json({
+                            success: false,
+                            error: "Firebase Service Account JSON must contain project_id, client_email, and private_key",
+                            latencyMs,
+                        });
+                    }
+                }
+                catch {
+                    return res.status(400).json({
+                        success: false,
+                        error: "Firebase Service Account JSON is not valid JSON",
+                        latencyMs,
+                    });
+                }
+            }
+            return res.json({
+                success: true,
+                message: `Firebase configuration verified for project [${projectId}]`,
+                provider: "firebase",
+                projectId,
+                latencyMs: Date.now() - startTime,
             });
         }
         return res.status(400).json({

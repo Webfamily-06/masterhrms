@@ -99,50 +99,58 @@ class PusherService {
         let cluster = process.env.PUSHER_CLUSTER || process.env.VITE_PUSHER_CLUSTER || "ap2";
         let enabled = process.env.VITE_PUSHER_ENABLED !== "false";
         try {
-            // 1. Authoritative SettingsService check (PLATFORM scope)
+            // 1. Legacy CMS platform settings fallback ("system-platform-settings" / "global-super-settings")
+            try {
+                const page = await prisma_1.prisma.cmsPage.findFirst({
+                    where: { slug: { in: ["system-platform-settings", "global-super-settings"] } },
+                    orderBy: { updatedAt: "desc" },
+                });
+                if (page?.content) {
+                    const c = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+                    if (c.pusherAppId)
+                        appId = c.pusherAppId;
+                    if (c.pusherKey)
+                        key = c.pusherKey;
+                    const secretCandidate = c.pusherSecret || c.pusherAppSecret;
+                    if (secretCandidate && secretCandidate !== "••••••••••••••••" && !secretCandidate.includes("••••")) {
+                        secret = secretCandidate;
+                    }
+                    if (c.pusherCluster)
+                        cluster = c.pusherCluster;
+                    if (typeof c.pusherEnabled === "boolean")
+                        enabled = c.pusherEnabled;
+                }
+            }
+            catch {
+                // Non-fatal fallback
+            }
+            // 2. Authoritative SettingsService (PLATFORM scope) — takes highest priority over .env and CMS
             try {
                 const { SettingsService } = await Promise.resolve().then(() => __importStar(require("./settings/settings.service")));
-                const pusherGroup = await SettingsService.getGroup("pusher", "PLATFORM", null, { decryptSecrets: true });
+                const pusherGroup = await SettingsService.getGroup("PLATFORM", null, "pusher", { decryptSecrets: true });
                 if (pusherGroup?.values) {
                     const pv = pusherGroup.values;
+                    const sources = pusherGroup.sources || {};
                     if (pv["pusher.app_id"])
                         appId = pv["pusher.app_id"];
                     if (pv["pusher.key"])
                         key = pv["pusher.key"];
-                    if (pv["pusher.secret"] && !pv["pusher.secret"].includes("••••"))
+                    if (pv["pusher.secret"] && typeof pv["pusher.secret"] === "string" && !pv["pusher.secret"].includes("••••")) {
                         secret = pv["pusher.secret"];
+                    }
                     if (pv["pusher.cluster"])
                         cluster = pv["pusher.cluster"];
-                    if (typeof pv["pusher.enabled"] === "boolean")
+                    if (sources["pusher.enabled"] === "PLATFORM" && typeof pv["pusher.enabled"] === "boolean") {
                         enabled = pv["pusher.enabled"];
+                    }
                 }
             }
             catch {
-                // Fall through to cmsPage check
-            }
-            // 2. Canonical CMS platform settings page ("system-platform-settings", fallback "global-super-settings")
-            const page = await prisma_1.prisma.cmsPage.findFirst({
-                where: { slug: { in: ["system-platform-settings", "global-super-settings"] } },
-                orderBy: { updatedAt: "desc" },
-            });
-            if (page?.content) {
-                const c = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
-                if (c.pusherAppId)
-                    appId = c.pusherAppId;
-                if (c.pusherKey)
-                    key = c.pusherKey;
-                const secretCandidate = c.pusherSecret || c.pusherAppSecret;
-                if (secretCandidate && secretCandidate !== "••••••••••••••••" && !secretCandidate.includes("••••")) {
-                    secret = secretCandidate;
-                }
-                if (c.pusherCluster)
-                    cluster = c.pusherCluster;
-                if (typeof c.pusherEnabled === "boolean")
-                    enabled = c.pusherEnabled;
+                // Fall back to CMS / env values already loaded above
             }
         }
         catch (err) {
-            console.warn(`[PusherService] Error reading CMS Pusher config: ${err.message}`);
+            console.warn(`[PusherService] Error reading Pusher config: ${err.message}`);
         }
         return {
             appId,

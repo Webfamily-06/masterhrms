@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { parsePaginationParams, formatPaginatedResponse } from "../lib/pagination";
+import { RelievingLetterService } from "../services/relieving-letter.service";
 
 export const offboardingRouter = Router();
 
@@ -346,14 +347,88 @@ offboardingRouter.post("/exits/:id/settle-fnf", requireAuth, async (req: AuthReq
       return updatedExit;
     });
 
+    // Formal Relieving Letter PDF Generation, Encryption & Storage (FN-057 / GAP-01)
+    let relievingDocument = null;
+    try {
+      relievingDocument = await RelievingLetterService.generateAndStoreRelievingLetter(
+        exit.tenantId,
+        result.id,
+        req.user?.id
+      );
+    } catch (docErr: any) {
+      console.warn(`[settle-fnf] Warning: Relieving letter PDF auto-generation deferred: ${docErr?.message}`);
+    }
+
     return res.json({
       success: true,
       message: `Full & Final settlement of ₹${result.fnfSettlementAmount} completed for ${result.employee.firstName}! Relieving Letter code ${result.relievingLetterCode} generated.`,
       exit: result,
+      relievingDocument,
     });
   } catch (err: any) {
     console.error("[settle-fnf] error:", err);
     return res.status(500).json({ error: err.message || "Failed to settle FnF." });
+  }
+});
+
+// GET /api/offboarding/exits/:id/relieving-letter (Retrieve or regenerate formal relieving letter metadata)
+offboardingRouter.get("/exits/:id/relieving-letter", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const exit = await prisma.employeeExit.findUnique({
+      where: { id },
+      include: { employee: true },
+    });
+
+    if (!exit || exit.tenantId !== tenantId) {
+      return res.status(404).json({ error: "Exit record not found." });
+    }
+
+    // Look up existing StoredDocument or CompanyDocument
+    const existingCompanyDoc = await prisma.companyDocument.findFirst({
+      where: {
+        tenantId,
+        employeeId: exit.employeeId,
+        category: "Exit & Relieving",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existingCompanyDoc) {
+      return res.json({
+        success: true,
+        relievingLetterCode: exit.relievingLetterCode || existingCompanyDoc.documentCode,
+        companyDocumentId: existingCompanyDoc.id,
+        downloadUrl: existingCompanyDoc.fileUrl,
+        fileName: existingCompanyDoc.fileName,
+        status: existingCompanyDoc.status,
+        issuedAt: existingCompanyDoc.createdAt,
+      });
+    }
+
+    // If exit is completed or settled, generate and store on-demand
+    if (exit.status === "completed" || exit.fnfSettlementStatus === "paid") {
+      const generated = await RelievingLetterService.generateAndStoreRelievingLetter(
+        tenantId,
+        exit.id,
+        req.user?.id
+      );
+      return res.json({
+        success: true,
+        ...generated,
+      });
+    }
+
+    return res.status(400).json({
+      error: "Relieving letter cannot be issued until Full & Final settlement is completed.",
+      status: exit.status,
+    });
+  } catch (err: any) {
+    console.error("[get-relieving-letter] error:", err);
+    return res.status(500).json({ error: err.message || "Failed to fetch relieving letter." });
   }
 });
 

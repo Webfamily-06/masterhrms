@@ -20,6 +20,12 @@ import {
   Headphones
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ModernDialog,
+  ModernDialogContent,
+  ModernDialogTitle,
+  ModernDialogDescription,
+} from "@/components/ui/modern-dialog";
 
 export const Route = createFileRoute("/_authenticated/super/agents")({
   component: SuperAgentsPage,
@@ -390,127 +396,151 @@ export default function SuperAgentsPage() {
         </div>
       </div>
 
-      {/* Add New Agent Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-semibold text-base text-slate-900 dark:text-white">Add New Support Agent</h4>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              >
-                <X className="w-4 h-4" />
-              </button>
+      {/* Add New Agent Modal - Modern Native <dialog> */}
+      <ModernDialog
+        open={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-md p-0 overflow-hidden" showCloseButton={false}>
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+            <div>
+              <ModernDialogTitle className="font-semibold text-base text-slate-900 dark:text-white">
+                Add New Support Agent
+              </ModernDialogTitle>
+              <ModernDialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Register a new support specialist in the tenant administration directory.
+              </ModernDialogDescription>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(false)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newAgent.name || !newAgent.email) {
+                toast.error("Please fill in agent name and email");
+                return;
+              }
+              createMutation.mutate(newAgent);
+            }}
+            className="p-5 space-y-4 text-xs"
+          >
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
+                Full Name *
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. William Parsons"
+                value={newAgent.name}
+                onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+                required
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
+              />
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!newAgent.name || !newAgent.email) {
-                  toast.error("Please fill in agent name and email");
-                  return;
-                }
-                createMutation.mutate(newAgent);
-              }}
-              className="p-5 space-y-4 text-xs"
-            >
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
+                Email Address *
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. william@example.com"
+                value={newAgent.email}
+                onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
+                required
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Full Name *
+                  Role
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. William Parsons"
-                  value={newAgent.name}
-                  onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
-                  required
+                <select
+                  value={newAgent.role}
+                  onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                />
+                >
+                  <option value="Senior Support Agent">Senior Support Agent</option>
+                  <option value="Junior Support Agent">Junior Support Agent</option>
+                  <option value="Technical Lead">Technical Lead</option>
+                  <option value="Billing Specialist">Billing Specialist</option>
+                  <option value="Customer Success">Customer Success</option>
+                </select>
               </div>
-
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                  Email Address *
+                  Availability
                 </label>
-                <input
-                  type="email"
-                  placeholder="e.g. william@example.com"
-                  value={newAgent.email}
-                  onChange={(e) => setNewAgent({ ...newAgent, email: e.target.value })}
-                  required
+                <select
+                  value={newAgent.availability}
+                  onChange={(e) =>
+                    setNewAgent({
+                      ...newAgent,
+                      availability: e.target.value as "Available" | "Not Available",
+                    })
+                  }
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Role
-                  </label>
-                  <select
-                    value={newAgent.role}
-                    onChange={(e) => setNewAgent({ ...newAgent, role: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Senior Support Agent">Senior Support Agent</option>
-                    <option value="Junior Support Agent">Junior Support Agent</option>
-                    <option value="Technical Lead">Technical Lead</option>
-                    <option value="Billing Specialist">Billing Specialist</option>
-                    <option value="Customer Success">Customer Success</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 dark:text-slate-300 font-medium mb-1">
-                    Availability
-                  </label>
-                  <select
-                    value={newAgent.availability}
-                    onChange={(e) =>
-                      setNewAgent({
-                        ...newAgent,
-                        availability: e.target.value as "Available" | "Not Available",
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-slate-100 focus:outline-none"
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Not Available">Not Available</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20"
-                >
-                  {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Register Agent
-                </button>
+                  <option value="Available">Available</option>
+                  <option value="Not Available">Not Available</option>
+                </select>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* Edit Agent Modal */}
-      {editAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h4 className="font-semibold text-base text-slate-900 dark:text-white">Edit Agent: {editAgent.name}</h4>
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
               <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer"
+              >
+                {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Register Agent
+              </button>
+            </div>
+          </form>
+        </ModernDialogContent>
+      </ModernDialog>
+
+      {/* Edit Agent Modal - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(editAgent)}
+        onOpenChange={(isOpen) => !isOpen && setEditAgent(null)}
+        closedBy="any"
+      >
+        {editAgent && (
+          <ModernDialogContent className="max-w-md p-0 overflow-hidden" showCloseButton={false}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <ModernDialogTitle className="font-semibold text-base text-slate-900 dark:text-white">
+                  Edit Agent: {editAgent.name}
+                </ModernDialogTitle>
+                <ModernDialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Update role, contact details, and current support availability.
+                </ModernDialogDescription>
+              </div>
+              <button
+                type="button"
                 onClick={() => setEditAgent(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md cursor-pointer"
+                aria-label="Close"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -594,58 +624,64 @@ export default function SuperAgentsPage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setEditAgent(null)}
-                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={updateMutation.isPending}
-                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20"
+                  className="px-4 py-2 text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer"
                 >
                   {updateMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Save Changes
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModernDialogContent>
+        )}
+      </ModernDialog>
 
-      {/* Delete Confirmation Modal */}
-      {deleteAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-3">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-            <h4 className="font-semibold text-base text-slate-900 dark:text-white">Delete Agent?</h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Are you sure you want to remove <strong className="text-slate-700 dark:text-slate-200">{deleteAgent.name}</strong> ({deleteAgent.agentId}) from the staff directory?
-            </p>
-            <div className="flex items-center justify-center gap-2 mt-5">
-              <button
-                onClick={() => setDeleteAgent(null)}
-                className="px-4 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate(deleteAgent.id)}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-rose-600/20"
-              >
-                {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
-                Confirm Delete
-              </button>
-            </div>
+      {/* Delete Confirmation Modal - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(deleteAgent)}
+        onOpenChange={(isOpen) => !isOpen && setDeleteAgent(null)}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-sm p-5 text-center space-y-3" showCloseButton={false}>
+          <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertTriangle className="w-6 h-6" />
           </div>
-        </div>
-      )}
+          <ModernDialogTitle className="font-semibold text-base text-slate-900 dark:text-white text-center">
+            Delete Agent?
+          </ModernDialogTitle>
+          <ModernDialogDescription className="text-xs text-slate-500 mt-1 text-center">
+            Are you sure you want to remove <strong className="text-slate-700 dark:text-slate-200">{deleteAgent?.name}</strong> ({deleteAgent?.agentId}) from the staff directory?
+          </ModernDialogDescription>
+          <div className="flex items-center justify-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setDeleteAgent(null)}
+              className="px-4 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteAgent && deleteMutation.mutate(deleteAgent.id)}
+              disabled={deleteMutation.isPending}
+              className="px-4 py-1.5 text-xs font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-rose-600/20 cursor-pointer"
+            >
+              {deleteMutation.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+              Confirm Delete
+            </button>
+          </div>
+        </ModernDialogContent>
+      </ModernDialog>
     </div>
   );
 }

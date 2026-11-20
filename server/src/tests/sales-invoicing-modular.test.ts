@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
 import http from "http";
 import express from "express";
 import { rawPrisma as prisma } from "../prisma";
@@ -16,26 +17,13 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
   const alphaUserId = "w3_inv_alpha_user";
   const betaUserId = "w3_inv_beta_user";
 
-  const alphaToken = generateToken({
-    userId: alphaUserId,
-    email: "alpha@w3-inv.local",
-    tenantId: tenantAlphaId,
-    roles: ["admin"],
-    permissions: ["finance.invoices.view", "finance.invoices.create", "finance.invoices.edit"],
-  });
-
-  const betaToken = generateToken({
-    userId: betaUserId,
-    email: "beta@w3-inv.local",
-    tenantId: tenantBetaId,
-    roles: ["admin"],
-    permissions: ["finance.invoices.view", "finance.invoices.create"],
-  });
+  let alphaToken: string;
+  let betaToken: string;
 
   let intraStateInvoiceId: string;
   let interStateInvoiceId: string;
 
-  beforeAll(async () => {
+  before(async () => {
     // 1. Setup tenants
     await prisma.tenant.upsert({
       where: { id: tenantAlphaId },
@@ -82,6 +70,59 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
       });
     }
 
+    // 3. Provision modules for entitlement checks
+    for (const tId of [tenantAlphaId, tenantBetaId]) {
+      for (const modKey of ["finance", "product_finance"]) {
+        await prisma.tenantModule.upsert({
+          where: { tenantId_moduleKey: { tenantId: tId, moduleKey: modKey } },
+          create: { tenantId: tId, moduleKey: modKey, isEnabled: true },
+          update: { isEnabled: true },
+        });
+      }
+    }
+
+    // 4. Create authoritative device sessions
+    const expiresNextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const alphaSession = await prisma.deviceSession.create({
+      data: {
+        userId: alphaUserId,
+        tenantId: tenantAlphaId,
+        deviceName: "Sales Invoicing Test Runner Alpha",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    const betaSession = await prisma.deviceSession.create({
+      data: {
+        userId: betaUserId,
+        tenantId: tenantBetaId,
+        deviceName: "Sales Invoicing Test Runner Beta",
+        deviceType: "desktop",
+        expiresAt: expiresNextWeek,
+        revoked: false,
+      },
+    });
+
+    alphaToken = generateToken({
+      userId: alphaUserId,
+      email: "alpha@w3-inv.local",
+      tenantId: tenantAlphaId,
+      roles: ["admin"],
+      permissions: ["finance.invoices.view", "finance.invoices.create", "finance.invoices.edit"],
+      sessionId: alphaSession.id,
+    });
+
+    betaToken = generateToken({
+      userId: betaUserId,
+      email: "beta@w3-inv.local",
+      tenantId: tenantBetaId,
+      roles: ["admin"],
+      permissions: ["finance.invoices.view", "finance.invoices.create"],
+      sessionId: betaSession.id,
+    });
+
     // Clean prior sales data
     const existingSales = await prisma.sale.findMany({
       where: { tenantId: { in: [tenantAlphaId, tenantBetaId] } },
@@ -107,7 +148,7 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
     baseUrl = `http://127.0.0.1:${addr.port}`;
   });
 
-  afterAll(async () => {
+  after(async () => {
     if (server) {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
@@ -121,6 +162,9 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
       await prisma.salePayment.deleteMany({ where: { saleId: { in: saleIds } } });
       await prisma.sale.deleteMany({ where: { id: { in: saleIds } } });
     }
+    await prisma.deviceSession.deleteMany({
+      where: { userId: { in: [alphaUserId, betaUserId] } },
+    }).catch(() => {});
   });
 
   it("1. Creates an Intra-State sales invoice with CGST + SGST split and relational line items", async () => {
@@ -156,42 +200,42 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
       }),
     });
 
-    expect(res.status).toBe(201);
-    const body = await res.json();
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as any;
     intraStateInvoiceId = body.id;
 
-    expect(body.id).toBeDefined();
-    expect(body.number).toMatch(/^INV-/);
-    expect(body.tax_mode).toBe("sgst_cgst");
+    assert.ok(body.id !== undefined);
+    assert.match(body.number, /^INV-/);
+    assert.equal(body.tax_mode, "sgst_cgst");
 
     // Subtotal: 2 * 10000 + 1 * 20000 = 40000
-    expect(body.subtotal).toBe(40000);
+    assert.equal(body.subtotal, 40000);
 
     // Total tax at 18%: 40000 * 0.18 = 7200
     // CGST: 3600, SGST: 3600, IGST: 0
-    expect(body.total_gst).toBe(7200);
-    expect(body.cgst).toBe(3600);
-    expect(body.sgst).toBe(3600);
-    expect(body.igst).toBe(0);
-    expect(body.total).toBe(47200);
+    assert.equal(body.total_gst, 7200);
+    assert.equal(body.cgst, 3600);
+    assert.equal(body.sgst, 3600);
+    assert.equal(body.igst, 0);
+    assert.equal(body.total, 47200);
 
     // Verify lines in response
-    expect(body.lines).toHaveLength(2);
-    expect(body.lines[0].description).toBe("Cloud Server Hosting & Maintenance");
-    expect(body.lines[0].rate).toBe(10000);
-    expect(body.lines[0].qty).toBe(2);
+    assert.equal(body.lines.length, 2);
+    assert.equal(body.lines[0].description, "Cloud Server Hosting & Maintenance");
+    assert.equal(body.lines[0].rate, 10000);
+    assert.equal(body.lines[0].qty, 2);
 
     // Verify lines persisted to MySQL database
     const dbDetails = await prisma.saleDetail.findMany({
       where: { saleId: intraStateInvoiceId },
       orderBy: { price: "asc" },
     });
-    expect(dbDetails).toHaveLength(2);
-    expect(dbDetails[0].productName).toBe("Cloud Server Hosting & Maintenance");
-    expect(Number(dbDetails[0].price)).toBe(10000);
-    expect(dbDetails[0].quantity).toBe(2);
-    expect(dbDetails[1].productName).toBe("Database Security Audit");
-    expect(Number(dbDetails[1].price)).toBe(20000);
+    assert.equal(dbDetails.length, 2);
+    assert.equal(dbDetails[0].productName, "Cloud Server Hosting & Maintenance");
+    assert.equal(Number(dbDetails[0].price), 10000);
+    assert.equal(dbDetails[0].quantity, 2);
+    assert.equal(dbDetails[1].productName, "Database Security Audit");
+    assert.equal(Number(dbDetails[1].price), 20000);
   });
 
   it("2. Creates an Inter-State sales invoice with 100% IGST applied", async () => {
@@ -220,44 +264,44 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
       }),
     });
 
-    expect(res.status).toBe(201);
-    const body = await res.json();
+    assert.equal(res.status, 201);
+    const body = (await res.json()) as any;
     interStateInvoiceId = body.id;
 
-    expect(body.tax_mode).toBe("igst");
-    expect(body.subtotal).toBe(50000);
+    assert.equal(body.tax_mode, "igst");
+    assert.equal(body.subtotal, 50000);
     // IGST: 50000 * 0.18 = 9000
-    expect(body.igst).toBe(9000);
-    expect(body.cgst).toBe(0);
-    expect(body.sgst).toBe(0);
-    expect(body.total_gst).toBe(9000);
-    expect(body.total).toBe(59000);
+    assert.equal(body.igst, 9000);
+    assert.equal(body.cgst, 0);
+    assert.equal(body.sgst, 0);
+    assert.equal(body.total_gst, 9000);
+    assert.equal(body.total, 59000);
   });
 
   it("3. Retrieves invoice details for printing with all persisted line items and customer information", async () => {
     const res = await fetch(`${baseUrl}/api/invoices/${intraStateInvoiceId}`, {
       headers: { Authorization: `Bearer ${alphaToken}` },
     });
-    expect(res.status).toBe(200);
-    const body = await res.json();
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as any;
 
-    expect(body.id).toBe(intraStateInvoiceId);
-    expect(body.client).toBe("Bangalore Digital Works Pvt Ltd");
-    expect(body.client_gstin).toBe("29ABCDE1234F1Z5");
-    expect(body.lines).toHaveLength(2);
-    expect(body.subtotal).toBe(40000);
-    expect(body.cgst).toBe(3600);
-    expect(body.sgst).toBe(3600);
-    expect(body.total).toBe(47200);
+    assert.equal(body.id, intraStateInvoiceId);
+    assert.equal(body.client, "Bangalore Digital Works Pvt Ltd");
+    assert.equal(body.client_gstin, "29ABCDE1234F1Z5");
+    assert.equal(body.lines.length, 2);
+    assert.equal(body.subtotal, 40000);
+    assert.equal(body.cgst, 3600);
+    assert.equal(body.sgst, 3600);
+    assert.equal(body.total, 47200);
   });
 
   it("4. Enforces strict Multi-Tenant Isolation: Tenant Beta cannot access Tenant Alpha's invoice for viewing or printing", async () => {
     const res = await fetch(`${baseUrl}/api/invoices/${intraStateInvoiceId}`, {
       headers: { Authorization: `Bearer ${betaToken}` },
     });
-    expect(res.status).toBe(404);
-    const body = await res.json();
-    expect(body.error).toMatch(/not found/i);
+    assert.equal(res.status, 404);
+    const body = (await res.json()) as any;
+    assert.match(body.error, /not found/i);
   });
 
   it("5. Tenant Beta creates their own isolated invoice without cross-tenant interference", async () => {
@@ -281,23 +325,23 @@ describe("Tier 3 (P1) Group 3.2: Sales Invoicing & GST Modular Isolation", () =>
         ],
       }),
     });
-    expect(betaCreateRes.status).toBe(201);
-    const betaBody = await betaCreateRes.json();
+    assert.equal(betaCreateRes.status, 201);
+    const betaBody = (await betaCreateRes.json()) as any;
     const betaInvoiceId = betaBody.id;
 
     // Tenant Alpha cannot access Beta's invoice
     const alphaAccessRes = await fetch(`${baseUrl}/api/invoices/${betaInvoiceId}`, {
       headers: { Authorization: `Bearer ${alphaToken}` },
     });
-    expect(alphaAccessRes.status).toBe(404);
+    assert.equal(alphaAccessRes.status, 404);
 
     // Tenant Beta can access their own invoice
     const betaAccessRes = await fetch(`${baseUrl}/api/invoices/${betaInvoiceId}`, {
       headers: { Authorization: `Bearer ${betaToken}` },
     });
-    expect(betaAccessRes.status).toBe(200);
-    const betaData = await betaAccessRes.json();
-    expect(betaData.client).toBe("Beta Isolated Client Ltd");
-    expect(betaData.lines).toHaveLength(1);
+    assert.equal(betaAccessRes.status, 200);
+    const betaData = (await betaAccessRes.json()) as any;
+    assert.equal(betaData.client, "Beta Isolated Client Ltd");
+    assert.equal(betaData.lines.length, 1);
   });
 });

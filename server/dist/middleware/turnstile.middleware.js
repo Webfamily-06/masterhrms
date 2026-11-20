@@ -12,6 +12,21 @@ const turnstile_service_1 = require("../services/security/turnstile.service");
 function requireTurnstile(actionOrResolver) {
     return async (req, res, next) => {
         const expectedAction = typeof actionOrResolver === "function" ? actionOrResolver(req) : actionOrResolver;
+        // Native mobile app clients do not run web Cloudflare Turnstile widgets
+        const userAgent = req.headers["user-agent"] || "";
+        const isMobileClient = req.headers["x-client-platform"] === "mobile" ||
+            req.headers["x-mobile-app"] === "true" ||
+            userAgent.includes("MasterHRMS-Mobile") ||
+            userAgent.includes("Expo");
+        if (isMobileClient) {
+            req.turnstile = {
+                success: true,
+                status: "bypassed",
+                reason: "Native mobile client bypasses web Turnstile challenge.",
+                action: expectedAction,
+            };
+            return next();
+        }
         // Extract token from standard Cloudflare form field or API JSON payload or header
         const token = req.body?.["cf-turnstile-response"] ||
             req.body?.turnstileToken ||

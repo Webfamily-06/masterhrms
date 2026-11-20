@@ -503,8 +503,21 @@ const loginHandler = async (req, res) => {
             include: {
                 profile: true,
                 roles: true,
-                employees: { select: { id: true, tenantId: true, status: true } },
-                workspaceRoleAssignments: true,
+                employees: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        status: true,
+                        position: true,
+                        designation: { select: { id: true, name: true } },
+                        department: { select: { id: true, name: true } },
+                    },
+                },
+                workspaceRoleAssignments: {
+                    include: {
+                        role: { select: { id: true, name: true } },
+                    },
+                },
             },
         });
         if (!user)
@@ -512,6 +525,46 @@ const loginHandler = async (req, res) => {
         const isValid = await bcryptjs_1.default.compare(password, user.passwordHash);
         if (!isValid) {
             return res.status(400).json({ error: "Invalid email or password." });
+        }
+        // ── Mobile App Persona Restriction ────────────────────────────
+        // The mobile application is exclusively for Employee, HR, and Tenant Administrator roles.
+        // Super Administrator accounts are strictly forbidden from logging in via the mobile application.
+        const userAgent = req.headers["user-agent"] || "";
+        const isMobileClient = req.headers["x-client-platform"] === "mobile" ||
+            req.headers["x-mobile-app"] === "true" ||
+            userAgent.includes("MasterHRMS-Mobile") ||
+            userAgent.includes("Expo");
+        if (isMobileClient) {
+            const hasSuperAdminRole = user.roles.some((r) => r.role === "super_admin");
+            if (hasSuperAdminRole) {
+                return res.status(403).json({
+                    error: "Access denied. Super Administrator accounts cannot log in to the mobile application. This mobile app is exclusively for Employees, HR, and Tenant Administrators. Please use the Web Super Admin portal.",
+                    code: "SUPER_ADMIN_MOBILE_ACCESS_DENIED",
+                });
+            }
+            // Check if user has at least one tenant-level role (employee, hr_admin, hr, manager, tenant_admin, admin)
+            const allowedMobileRoles = [
+                "employee",
+                "staff",
+                "hr_admin",
+                "hr",
+                "hr_manager",
+                "manager",
+                "team_lead",
+                "tenant_admin",
+                "workspace_admin",
+                "admin",
+            ];
+            const hasAllowedRole = user.roles.some((r) => allowedMobileRoles.includes(r.role?.toLowerCase())) ||
+                (user.workspaceRoleAssignments &&
+                    user.workspaceRoleAssignments.some((a) => allowedMobileRoles.includes(a.role?.toLowerCase()))) ||
+                (user.employees && user.employees.length > 0);
+            if (!hasAllowedRole) {
+                return res.status(403).json({
+                    error: "Access denied. Your account does not have an active Employee, HR, or Tenant Administrator role.",
+                    code: "MOBILE_ROLE_NOT_AUTHORIZED",
+                });
+            }
         }
         // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const rawHost = (0, workspace_host_1.getEffectiveRequestHost)(req.headers);
@@ -667,6 +720,24 @@ const loginHandler = async (req, res) => {
                     }
                 }
             }
+            const matchingEmployee = user.employees?.find((e) => e.tenantId === effectiveTenantId) || user.employees?.[0];
+            const matchingAssignment = user.workspaceRoleAssignments?.find((a) => a.tenantId === effectiveTenantId) || user.workspaceRoleAssignments?.[0];
+            const resolvedDesignation = matchingEmployee?.designation?.name ||
+                matchingEmployee?.position ||
+                matchingAssignment?.role?.name ||
+                (roles.includes("hr_admin")
+                    ? "HR Administrator"
+                    : roles.includes("tenant_admin")
+                        ? "Organization Administrator"
+                        : roles.includes("manager")
+                            ? "Team Manager"
+                            : "Employee");
+            const enhancedProfile = {
+                ...user.profile,
+                designation: resolvedDesignation,
+                position: matchingEmployee?.position || resolvedDesignation,
+                department: matchingEmployee?.department?.name || null,
+            };
             return res.json({
                 token,
                 refreshToken: sessionResult?.refreshToken,
@@ -674,7 +745,8 @@ const loginHandler = async (req, res) => {
                 user: {
                     id: user.id,
                     email: user.email,
-                    profile: user.profile,
+                    profile: enhancedProfile,
+                    designation: resolvedDesignation,
                     roles,
                 },
                 roles,
@@ -742,10 +814,9 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             include: { profile: true, roles: true },
         });
         if (!user) {
-            return res.json({
-                success: true,
-                message: "If an account exists with this email, a password reset link has been dispatched.",
-                maskedEmail: (0, otp_1.maskEmail)(normalizedEmail),
+            return res.status(404).json({
+                error: "No account found with this email address. Please enter a valid registered work email or contact your administrator.",
+                code: "USER_NOT_FOUND",
             });
         }
         let tenantName;
@@ -777,23 +848,22 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             user.roles?.some((r) => r.role === "super_admin" || r.role === "SUPER_ADMIN"));
         const resetBasePath = isSuperPortal ? "/super06" : "/auth";
         const resetUrl = `${origin}${resetBasePath}?mode=reset&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
-        // Dispatch email loading PASSWORD_RESET template from /super/email-templates (CMS system-email-templates)
+        // Dispatch email loading PASSWORD_RESET template with OTP & reset link
         const emailResult = await (0, email_1.sendPasswordResetEmail)({
             toEmail: user.email,
             userName: user.profile?.fullName || user.email.split("@")[0],
             resetUrl,
+            otp,
             expiryMinutes,
             tenantId: user.profile?.tenantId ?? undefined,
             companyName: tenantName,
             scope: isSuperPortal ? "PLATFORM" : user.profile?.tenantId ? "TENANT" : "PLATFORM",
         });
-        console.log(`ðŸ”— [PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
-        if (!emailResult.success) {
-            console.log(`ðŸ”‘ [PASSWORD RESET CODE] Backup OTP for ${user.email}: [${otp}]`);
-        }
+        console.log(`[PASSWORD RESET LINK] Generated for ${user.email}: ${resetUrl}`);
+        console.log(`[PASSWORD RESET CODE] OTP for ${user.email}: [${otp}]`);
         return res.json({
             success: true,
-            message: "Password reset link sent to your registered email.",
+            message: "6-digit verification code has been dispatched to your email.",
             maskedEmail: (0, otp_1.maskEmail)(user.email),
             resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
             previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
@@ -804,6 +874,56 @@ exports.authRouter.post("/forgot-password", async (req, res) => {
             return res.status(400).json({ error: err.errors[0].message });
         }
         return res.status(500).json({ error: err.message || "Failed to process forgot password request." });
+    }
+});
+const verifyResetOtpSchema = zod_1.z.object({
+    email: zod_1.z.string().email(),
+    code: zod_1.z.string().min(4).max(10),
+});
+// POST /api/auth/verify-reset-otp
+exports.authRouter.post("/verify-reset-otp", async (req, res) => {
+    try {
+        const { email, code } = verifyResetOtpSchema.parse(req.body);
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+        });
+        if (!user) {
+            return res.status(404).json({
+                error: "No account found with this email address.",
+                code: "USER_NOT_FOUND",
+            });
+        }
+        const verification = await (0, otp_1.verifyOtpCode)(user.id, code);
+        if (!verification.valid) {
+            return res.status(400).json({
+                error: verification.error || "Invalid or expired verification code. Please check and try again.",
+                code: "INVALID_OTP",
+            });
+        }
+        // Generate verified one-time reset token valid for 15 minutes
+        const rawToken = crypto_1.default.randomBytes(32).toString("hex");
+        const tokenHash = crypto_1.default.createHash("sha256").update(rawToken).digest("hex");
+        const tokenId = crypto_1.default.randomUUID();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        try {
+            await prisma.$executeRawUnsafe(`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`, tokenId, user.id, tokenHash, expiresAt);
+        }
+        catch (err) {
+            console.error("Failed to insert verified reset token:", err);
+        }
+        return res.json({
+            success: true,
+            valid: true,
+            resetToken: rawToken,
+            message: "Verification code verified successfully. Please set your new password.",
+        });
+    }
+    catch (err) {
+        if (err instanceof zod_1.z.ZodError) {
+            return res.status(400).json({ error: err.errors[0].message });
+        }
+        return res.status(500).json({ error: err.message || "Failed to verify reset code." });
     }
 });
 // POST /api/auth/reset-password
@@ -946,7 +1066,16 @@ exports.authRouter.post("/2fa/verify-login", async (req, res) => {
                     },
                 },
                 roles: true,
-                employees: { select: { id: true, tenantId: true, status: true } },
+                employees: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        status: true,
+                        position: true,
+                        designation: { select: { id: true, name: true } },
+                        department: { select: { id: true, name: true } },
+                    },
+                },
                 workspaceRoleAssignments: true,
             },
         });
@@ -1310,6 +1439,16 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
                     },
                 },
                 roles: true,
+                employees: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        status: true,
+                        position: true,
+                        designation: { select: { id: true, name: true } },
+                        department: { select: { id: true, name: true } },
+                    },
+                },
             },
         });
         if (!user) {
@@ -1508,10 +1647,28 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res) => {
             }).map((m) => m.key);
             activeAddons = Array.from(activeAddonSlugs);
         }
+        const matchingEmployee = user.employees?.find((e) => e.tenantId === tenantId) || user.employees?.[0];
+        const resolvedDesignation = matchingEmployee?.designation?.name ||
+            matchingEmployee?.position ||
+            workspaceRole?.name ||
+            (roles.includes("hr_admin")
+                ? "HR Administrator"
+                : roles.includes("tenant_admin")
+                    ? "Organization Administrator"
+                    : roles.includes("manager")
+                        ? "Team Manager"
+                        : "Employee");
+        const enhancedProfile = {
+            ...user.profile,
+            designation: resolvedDesignation,
+            position: matchingEmployee?.position || resolvedDesignation,
+            department: matchingEmployee?.department?.name || null,
+        };
         return res.json({
             id: user.id,
             email: user.email,
-            profile: user.profile,
+            profile: enhancedProfile,
+            designation: resolvedDesignation,
             roles,
             workspaceRole,
             permissions,
@@ -1617,6 +1774,16 @@ exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res) => {
                     },
                 },
                 roles: true,
+                employees: {
+                    select: {
+                        id: true,
+                        tenantId: true,
+                        status: true,
+                        position: true,
+                        designation: { select: { id: true, name: true } },
+                        department: { select: { id: true, name: true } },
+                    },
+                },
             },
         });
         // Invalidate 60-second auth cache and 5-minute chat profile cache immediately on profile/password change

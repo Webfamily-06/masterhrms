@@ -18,7 +18,28 @@ const invoice_engine_service_1 = require("../services/invoice-engine.service");
 const invoice_pdf_service_1 = require("../services/invoice-pdf.service");
 const email_1 = require("../lib/email");
 const gateway_verification_service_1 = require("../services/gateway-verification.service");
+const branding_resolver_service_1 = require("../services/branding/branding-resolver.service");
+const settings_service_1 = require("../services/settings/settings.service");
 exports.billingRouter = (0, express_1.Router)();
+async function resolveWorkspaceBillingContext(tenantId) {
+    const scope = tenantId ? "TENANT" : "PLATFORM";
+    const [branding, paymentsGroup] = await Promise.all([
+        (0, branding_resolver_service_1.resolveBranding)({ scope, tenantId: tenantId || null }).catch(() => null),
+        settings_service_1.SettingsService.getGroup(scope, tenantId || null, "payments").catch(() => null),
+    ]);
+    const pv = paymentsGroup?.values || {};
+    const ps = paymentsGroup?.sources || {};
+    const workspaceCurrency = branding?.locale?.defaultCurrency || "INR";
+    const currency = (ps["payments.currency"] === "TENANT" || ps["payments.currency"] === "PLATFORM") && pv["payments.currency"]
+        ? String(pv["payments.currency"]).toUpperCase()
+        : workspaceCurrency.toUpperCase();
+    const currencySymbol = branding?.locale?.currencySymbol || (currency === "USD" ? "$" : currency === "EUR" ? "€" : "₹");
+    const keyId = pv["payments.razorpay_key_id"] ||
+        process.env.RAZORPAY_KEY_ID ||
+        "rzp_test_MasterHRMSKey";
+    const appName = branding?.appName || "Master HRMS & ERP";
+    return { currency, currencySymbol, keyId, appName };
+}
 // ---------------------------------------------------------------------------
 // 0.0 GET /api/billing/durations - Authoritative billing durations source of truth
 // ---------------------------------------------------------------------------
@@ -35,19 +56,19 @@ exports.billingRouter.get("/durations", (_req, res) => {
 exports.billingRouter.get("/public-plans", async (_req, res) => {
     try {
         const db = prisma_1.rawPrisma || prisma_1.prisma;
-        // Fetch dynamic company details from system-platform-settings CMS page
-        const settingsPage = await db.cmsPage.findUnique({
-            where: { slug: "system-platform-settings" },
-        });
+        const [settingsPage, platformBilling] = await Promise.all([
+            db.cmsPage.findUnique({ where: { slug: "system-platform-settings" } }),
+            resolveWorkspaceBillingContext(null),
+        ]);
         const settingsContent = settingsPage?.content || {};
         const companyDetails = {
-            companyName: settingsContent.platformName || settingsContent.companyName || "Master ERP & HRMS",
+            companyName: platformBilling.appName || settingsContent.platformName || settingsContent.companyName || "Master ERP & HRMS",
             supportEmail: settingsContent.supportEmail || settingsContent.contactEmail || `support@${(0, workspace_host_1.getBaseDomain)()}`,
             contactNumber: settingsContent.contactNumber || settingsContent.contactPhone || "+91 98765 43210",
             companyAddress: settingsContent.companyAddress || settingsContent.address || "DLF Cyber City, Gurugram, India",
             taxGstNumber: settingsContent.taxGstNumber || settingsContent.gstNumber || null,
-            currency: settingsContent.defaultCurrency || "INR",
-            currencySymbol: settingsContent.currencySymbol || "₹",
+            currency: platformBilling.currency || settingsContent.defaultCurrency || "INR",
+            currencySymbol: platformBilling.currencySymbol || settingsContent.currencySymbol || "₹",
         };
         const plans = await db.subscriptionPlan.findMany({
             where: {
@@ -307,7 +328,7 @@ exports.billingRouter.get("/preview", auth_1.requireAuth, async (req, res) => {
             discountAmount,
             amountDueToday: finalAmount,
             coupon: couponInfo,
-            currency: "INR",
+            currency: (await resolveWorkspaceBillingContext(tenantId)).currency,
         });
     }
     catch (err) {
@@ -380,13 +401,14 @@ exports.billingRouter.post("/change-plan", auth_1.requireAuth, async (req, res) 
         }
         const count = await db.billingInvoice.count({ where: { tenantId } });
         const invoiceNo = `SUB-INV-${now.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+        const billingCtx = await resolveWorkspaceBillingContext(tenantId);
         const invoice = await db.billingInvoice.create({
             data: {
                 tenantId,
                 subscriptionId,
                 invoiceNo,
                 amount: finalAmount,
-                currency: "INR",
+                currency: billingCtx.currency,
                 status: finalAmount === 0 ? "paid" : "open",
                 pricingModel: plan.pricingModel || "fixed",
                 pricePerUser: plan.pricePerUser ? Number(plan.pricePerUser) : null,
@@ -559,13 +581,17 @@ exports.billingRouter.post("/checkout", auth_1.requireAuth, async (req, res) => 
         if (invoice.status === "paid") {
             return res.status(400).json({ error: "This invoice is already paid." });
         }
-        // Razorpay order creation in INR
+        const billingCtx = await resolveWorkspaceBillingContext(tenantId);
+        const checkoutCurrency = (invoice.currency && invoice.currency !== "INR")
+            ? invoice.currency
+            : billingCtx.currency || invoice.currency || "INR";
         const orderId = `order_${crypto_1.default.randomBytes(8).toString("hex")}`;
         const amountInPaise = Math.round(Number(invoice.amount) * 100);
         await db.billingInvoice.update({
             where: { id: invoice.id },
             data: {
                 gatewayOrderId: orderId,
+                currency: checkoutCurrency,
                 status: "open",
             },
         });
@@ -574,9 +600,9 @@ exports.billingRouter.post("/checkout", auth_1.requireAuth, async (req, res) => 
             orderId,
             amount: Number(invoice.amount),
             amountInPaise,
-            currency: "INR",
-            keyId: process.env.RAZORPAY_KEY_ID || "rzp_test_MasterHRMSKey",
-            name: "Master HRMS & ERP",
+            currency: checkoutCurrency,
+            keyId: billingCtx.keyId,
+            name: billingCtx.appName,
             description: `Subscription: ${invoice.invoiceNo}`,
         });
     }
@@ -937,11 +963,15 @@ exports.billingRouter.post("/submit-offline-payment", auth_1.requireAuth, async 
             if (!resolvedPlan && sub.planId) {
                 resolvedPlan = await db.subscriptionPlan.findUnique({ where: { id: sub.planId } });
             }
+            const billingCtx = await resolveWorkspaceBillingContext(tenantId);
             let authoritativeAmount = 0;
-            let authoritativeCurrency = "INR";
+            let authoritativeCurrency = billingCtx.currency || "INR";
             if (resolvedPlan) {
                 authoritativeAmount = Number(resolvedPlan.priceMonthly) || Number(resolvedPlan.priceAnnual) || 0;
-                authoritativeCurrency = resolvedPlan.currency || "INR";
+                authoritativeCurrency =
+                    billingCtx.currency !== "INR"
+                        ? billingCtx.currency
+                        : resolvedPlan.currency || billingCtx.currency || "INR";
             }
             if (authoritativeAmount > 0) {
                 if (amount !== undefined && amount !== null) {
@@ -1054,17 +1084,21 @@ exports.billingRouter.post("/retry/:invoiceId", auth_1.requireAuth, async (req, 
             return res.status(404).json({ error: "Invoice not found." });
         if (invoice.status === "paid")
             return res.status(400).json({ error: "Invoice is already paid." });
+        const billingCtx = await resolveWorkspaceBillingContext(tenantId);
+        const retryCurrency = invoice.currency && invoice.currency !== "INR"
+            ? invoice.currency
+            : billingCtx.currency || invoice.currency || "INR";
         const orderId = `order_retry_${crypto_1.default.randomBytes(8).toString("hex")}`;
         const updated = await db.billingInvoice.update({
             where: { id: invoice.id },
-            data: { gatewayOrderId: orderId, status: "open" },
+            data: { gatewayOrderId: orderId, currency: retryCurrency, status: "open" },
         });
         return res.json({
             invoice: updated,
             orderId,
             amount: Number(updated.amount),
-            currency: "INR",
-            keyId: process.env.RAZORPAY_KEY_ID || "rzp_test_MasterHRMSKey",
+            currency: retryCurrency,
+            keyId: billingCtx.keyId,
         });
     }
     catch (err) {

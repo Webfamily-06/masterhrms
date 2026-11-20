@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, before } from "node:test";
+import assert from "node:assert/strict";
 import { SuggestionBoxService } from "../services/suggestion-box.service";
 import { AiDocumentService } from "../services/ai-document.service";
 
@@ -7,13 +8,25 @@ describe("Addon Modules Verification Test Suite", () => {
   const userId = `user-${Date.now()}`;
   const otherUserId = `other-user-${Date.now()}`;
 
+  before(async () => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await SuggestionBoxService.getCategories("warmup-tenant");
+        break;
+      } catch (e) {
+        if (attempt === 3) throw e;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+  });
+
   describe("1. Suggestion Box Addon Verification", () => {
     it("should fetch and seed default categories", async () => {
       const categories = await SuggestionBoxService.getCategories(tenantId);
-      expect(Array.isArray(categories)).toBe(true);
-      expect(categories.length).toBeGreaterThan(0);
-      expect(categories[0]).toHaveProperty("name");
-      expect(categories[0]).toHaveProperty("color");
+      assert.equal(Array.isArray(categories), true);
+      assert.ok(categories.length > 0);
+      assert.ok("name" in categories[0]);
+      assert.ok("color" in categories[0]);
     });
 
     it("should allow creating a custom category", async () => {
@@ -29,12 +42,12 @@ describe("Addon Modules Verification Test Suite", () => {
         userId
       );
 
-      expect(newCategory).toBeDefined();
-      expect(newCategory.name).toBe("Sustainability & Green Initiatives");
-      expect(newCategory.color).toBe("#10b981");
+      assert.ok(newCategory !== undefined);
+      assert.equal(newCategory.name, "Sustainability & Green Initiatives");
+      assert.equal(newCategory.color, "#10b981");
 
       const all = await SuggestionBoxService.getCategories(tenantId);
-      expect(all.some((c) => c.name === "Sustainability & Green Initiatives")).toBe(true);
+      assert.ok(all.some((c) => c.name === "Sustainability & Green Initiatives"));
     });
 
     it("should create suggestions with anonymous toggle and persist them", async () => {
@@ -53,12 +66,12 @@ describe("Addon Modules Verification Test Suite", () => {
         "John Doe"
       );
 
-      expect(suggestion.id).toBeDefined();
-      expect(suggestion.title).toBe("Install Solar Panels on Rooftop");
-      expect(suggestion.isAnonymous).toBe(true);
-      expect(suggestion.status).toBe("New");
-      expect(suggestion.viewCount).toBeGreaterThanOrEqual(1);
-      expect(suggestion.voteCount).toBe(0);
+      assert.ok(suggestion.id !== undefined);
+      assert.equal(suggestion.title, "Install Solar Panels on Rooftop");
+      assert.equal(suggestion.isAnonymous, true);
+      assert.equal(suggestion.status, "New");
+      assert.ok(suggestion.viewCount >= 1);
+      assert.equal(suggestion.voteCount, 0);
     });
 
     it("should enforce vote toggle and prevent self-voting", async () => {
@@ -78,19 +91,22 @@ describe("Addon Modules Verification Test Suite", () => {
       );
 
       // Self-voting should throw error
-      await expect(
-        SuggestionBoxService.toggleVote(tenantId, suggestion.id, userId)
-      ).rejects.toThrow(/self-voting/i);
+      await assert.rejects(
+        async () => {
+          await SuggestionBoxService.toggleVote(tenantId, suggestion.id, userId);
+        },
+        /self-voting/i
+      );
 
       // Other user can vote
       const voted = await SuggestionBoxService.toggleVote(tenantId, suggestion.id, otherUserId);
-      expect(voted.voted).toBe(true);
-      expect(voted.voteCount).toBe(1);
+      assert.equal(voted.voted, true);
+      assert.equal(voted.voteCount, 1);
 
       // Other user voting again removes vote (toggle)
       const unvoted = await SuggestionBoxService.toggleVote(tenantId, suggestion.id, otherUserId);
-      expect(unvoted.voted).toBe(false);
-      expect(unvoted.voteCount).toBe(0);
+      assert.equal(unvoted.voted, false);
+      assert.equal(unvoted.voteCount, 0);
     });
 
     it("should track view counts when retrieved", async () => {
@@ -110,8 +126,8 @@ describe("Addon Modules Verification Test Suite", () => {
       );
 
       const retrieved = await SuggestionBoxService.getSuggestionById(tenantId, suggestion.id, otherUserId);
-      expect(retrieved).not.toBeNull();
-      expect(retrieved?.viewCount).toBeGreaterThanOrEqual(1);
+      assert.ok(retrieved !== null);
+      assert.ok((retrieved?.viewCount ?? 0) >= 1);
     });
 
     it("should add admin response and record status history log", async () => {
@@ -139,35 +155,35 @@ describe("Addon Modules Verification Test Suite", () => {
         "HR Director"
       );
 
-      expect(updated.status).toBe("Accepted");
-      expect(updated.adminResponse?.responseNotes).toContain("Engineering leadership has approved");
+      assert.equal(updated.status, "Accepted");
+      assert.ok(updated.adminResponse?.responseNotes?.includes("Engineering leadership has approved"));
 
       // Check status histories audit log
       const histories = await SuggestionBoxService.getStatusHistories(tenantId, suggestion.id);
-      expect(histories.length).toBeGreaterThan(0);
-      expect(histories[0].newStatus).toBe("Accepted");
-      expect(histories[0].notes).toContain("Great idea");
+      assert.ok(histories.length > 0);
+      assert.equal(histories[0].newStatus, "Accepted");
+      assert.ok(histories[0].notes.includes("Great idea"));
     });
 
     it("should compute accurate KPI statistics", async () => {
       const stats = await SuggestionBoxService.getStats(tenantId);
-      expect(stats.total).toBeGreaterThanOrEqual(4);
-      expect(stats.accepted).toBeGreaterThanOrEqual(1);
-      expect(typeof stats.totalVotes).toBe("number");
-      expect(typeof stats.totalViews).toBe("number");
+      assert.ok(stats.total >= 4);
+      assert.ok(stats.accepted >= 1);
+      assert.equal(typeof stats.totalVotes, "number");
+      assert.equal(typeof stats.totalViews, "number");
     });
   });
 
   describe("2. AI Document Studio Verification", () => {
     it("should fetch and seed default prompt templates", async () => {
       const templates = await AiDocumentService.getTemplates(tenantId);
-      expect(Array.isArray(templates)).toBe(true);
-      expect(templates.length).toBeGreaterThanOrEqual(5);
+      assert.equal(Array.isArray(templates), true);
+      assert.ok(templates.length >= 5);
 
       const blogTpl = templates.find((t) => t.category === "Blog");
-      expect(blogTpl).toBeDefined();
-      expect(blogTpl?.promptTemplate).toContain("{title}");
-      expect(blogTpl?.promptTemplate).toContain("{keywords}");
+      assert.ok(blogTpl !== undefined);
+      assert.ok(blogTpl?.promptTemplate.includes("{title}"));
+      assert.ok(blogTpl?.promptTemplate.includes("{keywords}"));
     });
 
     it("should create custom prompt templates with placeholders", async () => {
@@ -179,12 +195,12 @@ describe("Addon Modules Verification Test Suite", () => {
         promptTemplate: "Generate a quarterly financial summary for {title}. Keywords: {keywords}. Tone: {tone}. Language: {language}.",
       });
 
-      expect(customTpl.id).toBeDefined();
-      expect(customTpl.title).toBe("Quarterly Financial Executive Summary");
-      expect(customTpl.status).toBe("Active");
+      assert.ok(customTpl.id !== undefined);
+      assert.equal(customTpl.title, "Quarterly Financial Executive Summary");
+      assert.equal(customTpl.status, "Active");
 
       const all = await AiDocumentService.getTemplates(tenantId, { category: "Content" });
-      expect(all.some((t) => t.id === customTpl.id)).toBe(true);
+      assert.ok(all.some((t) => t.id === customTpl.id));
     });
 
     it("should update and delete prompt templates", async () => {
@@ -200,14 +216,14 @@ describe("Addon Modules Verification Test Suite", () => {
         status: "Active",
         description: "Updated description",
       });
-      expect(updated?.status).toBe("Active");
-      expect(updated?.description).toBe("Updated description");
+      assert.equal(updated?.status, "Active");
+      assert.equal(updated?.description, "Updated description");
 
       const deleted = await AiDocumentService.deleteTemplate(tenantId, tpl.id);
-      expect(deleted).toBe(true);
+      assert.equal(deleted, true);
 
       const allAfter = await AiDocumentService.getTemplates(tenantId);
-      expect(allAfter.some((t) => t.id === tpl.id)).toBe(false);
+      assert.equal(allAfter.some((t) => t.id === tpl.id), false);
     });
 
     it("should save generated documents to history archive and calculate metrics", async () => {
@@ -223,22 +239,22 @@ describe("Addon Modules Verification Test Suite", () => {
         createdBy: userId,
       });
 
-      expect(savedDoc.id).toBeDefined();
-      expect(savedDoc.title).toBe("2026 AI Strategy Roadmap");
-      expect(savedDoc.wordCount).toBeGreaterThan(10);
-      expect(savedDoc.characterCount).toBeGreaterThan(50);
-      expect(savedDoc.preview).toBeDefined();
+      assert.ok(savedDoc.id !== undefined);
+      assert.equal(savedDoc.title, "2026 AI Strategy Roadmap");
+      assert.ok(savedDoc.wordCount > 10);
+      assert.ok(savedDoc.characterCount > 50);
+      assert.ok(savedDoc.preview !== undefined);
 
       const history = await AiDocumentService.getHistory(tenantId);
-      expect(history.length).toBeGreaterThanOrEqual(1);
-      expect(history[0].id).toBe(savedDoc.id);
+      assert.ok(history.length >= 1);
+      assert.equal(history[0].id, savedDoc.id);
 
       // Delete from history
       const deleted = await AiDocumentService.deleteHistoryItem(tenantId, savedDoc.id);
-      expect(deleted).toBe(true);
+      assert.equal(deleted, true);
 
       const historyAfter = await AiDocumentService.getHistory(tenantId);
-      expect(historyAfter.some((h) => h.id === savedDoc.id)).toBe(false);
+      assert.equal(historyAfter.some((h) => h.id === savedDoc.id), false);
     });
   });
 });

@@ -1,6 +1,26 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { WorkflowService } from "../services/workflow.service";
 import { runWithTenantContext } from "../context/tenant-context";
+
+function createMockFn(impl?: (...args: any[]) => any) {
+  let currentImpl = impl;
+  const calls: any[][] = [];
+  const fn = ((...args: any[]) => {
+    calls.push(args);
+    return currentImpl ? currentImpl(...args) : undefined;
+  }) as any;
+  fn.calls = calls;
+  fn.mockResolvedValue = (val: any) => {
+    currentImpl = async () => val;
+    return fn;
+  };
+  fn.mockReturnValue = (val: any) => {
+    currentImpl = () => val;
+    return fn;
+  };
+  return fn;
+}
 
 describe("P1 Shared Workflow & Approval Engine", () => {
   const tenantId = "tenant-workflow-test";
@@ -15,12 +35,12 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       entityId: "leave-101",
       requesterId: userId,
       status: "PENDING",
-      currentStepOrder: 1,
+      currentStep: 1,
     };
 
     const mockDb: any = {
       workflowDefinition: {
-        findFirst: vi.fn().mockResolvedValue({
+        findFirst: createMockFn().mockResolvedValue({
           id: "wf-1",
           steps: [
             { id: "step-1", stepOrder: 1, name: "Manager Approval" },
@@ -29,13 +49,13 @@ describe("P1 Shared Workflow & Approval Engine", () => {
         }),
       },
       approvalRequest: {
-        create: vi.fn().mockResolvedValue(mockRequest),
+        create: createMockFn().mockResolvedValue(mockRequest),
       },
       auditLog: {
-        create: vi.fn().mockResolvedValue({ id: "audit-1" }),
+        create: createMockFn().mockResolvedValue({ id: "audit-1" }),
       },
       outboxEvent: {
-        create: vi.fn().mockResolvedValue({ id: "outbox-1" }),
+        create: createMockFn().mockResolvedValue({ id: "outbox-1" }),
       },
       $transaction: async (cb: any) => cb(mockDb),
     };
@@ -50,7 +70,7 @@ describe("P1 Shared Workflow & Approval Engine", () => {
         db: mockDb,
       },
       async () => {
-        return await WorkflowService.submitRequest({
+        return await WorkflowService.submit({
           tenantId,
           entityType: "LeaveRequest",
           entityId: "leave-101",
@@ -60,11 +80,11 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       }
     );
 
-    expect(result.id).toBe("req-1");
-    expect(result.status).toBe("PENDING");
-    expect(mockDb.approvalRequest.create).toHaveBeenCalled();
-    expect(mockDb.auditLog.create).toHaveBeenCalled();
-    expect(mockDb.outboxEvent.create).toHaveBeenCalled();
+    assert.equal(result.id, "req-1");
+    assert.equal(result.status, "PENDING");
+    assert.ok(mockDb.approvalRequest.create.calls.length > 0);
+    assert.ok(mockDb.auditLog.create.calls.length > 0);
+    assert.ok(mockDb.outboxEvent.create.calls.length > 0);
   });
 
   it("advances step on approveStep when multi-step", async () => {
@@ -75,7 +95,7 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       entityId: "leave-101",
       requesterId: userId,
       status: "PENDING",
-      currentStepOrder: 1,
+      currentStep: 1,
       workflow: {
         steps: [
           { id: "step-1", stepOrder: 1 },
@@ -86,21 +106,21 @@ describe("P1 Shared Workflow & Approval Engine", () => {
 
     const mockDb: any = {
       approvalRequest: {
-        findFirst: vi.fn().mockResolvedValue(mockExistingRequest),
-        update: vi.fn().mockResolvedValue({
+        findFirst: createMockFn().mockResolvedValue(mockExistingRequest),
+        update: createMockFn().mockResolvedValue({
           ...mockExistingRequest,
-          currentStepOrder: 2,
+          currentStep: 2,
           status: "PENDING",
         }),
       },
       approvalAction: {
-        create: vi.fn().mockResolvedValue({ id: "act-1" }),
+        create: createMockFn().mockResolvedValue({ id: "act-1" }),
       },
       auditLog: {
-        create: vi.fn().mockResolvedValue({ id: "audit-2" }),
+        create: createMockFn().mockResolvedValue({ id: "audit-2" }),
       },
       outboxEvent: {
-        create: vi.fn().mockResolvedValue({ id: "outbox-2" }),
+        create: createMockFn().mockResolvedValue({ id: "outbox-2" }),
       },
       $transaction: async (cb: any) => cb(mockDb),
     };
@@ -124,9 +144,9 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       }
     );
 
-    expect(result.currentStepOrder).toBe(2);
-    expect(result.status).toBe("PENDING");
-    expect(mockDb.approvalAction.create).toHaveBeenCalled();
+    assert.equal(result.currentStep, 2);
+    assert.equal(result.status, "PENDING");
+    assert.ok(mockDb.approvalAction.create.calls.length > 0);
   });
 
   it("finalizes to APPROVED when last step is approved", async () => {
@@ -137,7 +157,7 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       entityId: "leave-101",
       requesterId: userId,
       status: "PENDING",
-      currentStepOrder: 2,
+      currentStep: 2,
       workflow: {
         steps: [
           { id: "step-1", stepOrder: 1 },
@@ -148,20 +168,20 @@ describe("P1 Shared Workflow & Approval Engine", () => {
 
     const mockDb: any = {
       approvalRequest: {
-        findFirst: vi.fn().mockResolvedValue(mockExistingRequest),
-        update: vi.fn().mockResolvedValue({
+        findFirst: createMockFn().mockResolvedValue(mockExistingRequest),
+        update: createMockFn().mockResolvedValue({
           ...mockExistingRequest,
           status: "APPROVED",
         }),
       },
       approvalAction: {
-        create: vi.fn().mockResolvedValue({ id: "act-2" }),
+        create: createMockFn().mockResolvedValue({ id: "act-2" }),
       },
       auditLog: {
-        create: vi.fn().mockResolvedValue({ id: "audit-3" }),
+        create: createMockFn().mockResolvedValue({ id: "audit-3" }),
       },
       outboxEvent: {
-        create: vi.fn().mockResolvedValue({ id: "outbox-3" }),
+        create: createMockFn().mockResolvedValue({ id: "outbox-3" }),
       },
       $transaction: async (cb: any) => cb(mockDb),
     };
@@ -185,7 +205,7 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       }
     );
 
-    expect(result.status).toBe("APPROVED");
+    assert.equal(result.status, "APPROVED");
   });
 
   it("transitions to REJECTED and denies further state mutations", async () => {
@@ -196,25 +216,25 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       entityId: "leave-102",
       requesterId: userId,
       status: "PENDING",
-      currentStepOrder: 1,
+      currentStep: 1,
     };
 
     const mockDb: any = {
       approvalRequest: {
-        findFirst: vi.fn().mockResolvedValue(mockExistingRequest),
-        update: vi.fn().mockResolvedValue({
+        findFirst: createMockFn().mockResolvedValue(mockExistingRequest),
+        update: createMockFn().mockResolvedValue({
           ...mockExistingRequest,
           status: "REJECTED",
         }),
       },
       approvalAction: {
-        create: vi.fn().mockResolvedValue({ id: "act-3" }),
+        create: createMockFn().mockResolvedValue({ id: "act-3" }),
       },
       auditLog: {
-        create: vi.fn().mockResolvedValue({ id: "audit-4" }),
+        create: createMockFn().mockResolvedValue({ id: "audit-4" }),
       },
       outboxEvent: {
-        create: vi.fn().mockResolvedValue({ id: "outbox-4" }),
+        create: createMockFn().mockResolvedValue({ id: "outbox-4" }),
       },
       $transaction: async (cb: any) => cb(mockDb),
     };
@@ -238,6 +258,6 @@ describe("P1 Shared Workflow & Approval Engine", () => {
       }
     );
 
-    expect(result.status).toBe("REJECTED");
+    assert.equal(result.status, "REJECTED");
   });
 });

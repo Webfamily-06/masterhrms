@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompanyProfileService = exports.GSTRegistrationSchema = exports.CompanyProfileSchema = exports.INDIAN_GSTIN_REGEX = exports.INDIAN_CIN_REGEX = exports.INDIAN_TAN_REGEX = exports.INDIAN_PAN_REGEX = void 0;
 exports.splitAddressLines = splitAddressLines;
@@ -320,6 +353,30 @@ class CompanyProfileService {
                 gstRegistrations: true,
             },
         });
+        // Synchronize core legal name, phone, and billing/registered address onto Tenant row
+        // so dashboards, subscription invoices, and workspace headers reflect updates immediately.
+        try {
+            const formattedAddr = formatAddress({
+                addressLine1: validated.billingAddress || validated.registeredAddress,
+                city: validated.billingCity || validated.registeredCity,
+                state: validated.billingState || validated.registeredState,
+                postalCode: validated.billingPostalCode || validated.registeredPostalCode,
+                country: validated.billingCountry || validated.registeredCountry,
+            });
+            await db.tenant.update({
+                where: { id: tenantId },
+                data: {
+                    name: validated.legalName,
+                    ...(validated.phone !== undefined ? { phone: validated.phone || null } : {}),
+                    ...(formattedAddr ? { address: formattedAddr.slice(0, 500) } : {}),
+                },
+            });
+            const { RealtimeFactory } = await Promise.resolve().then(() => __importStar(require("../factories/realtime.factory")));
+            RealtimeFactory.broadcastSettingsUpdate("TENANT", tenantId, "company", ["company.profile"], Date.now());
+        }
+        catch {
+            // Non-fatal sync
+        }
         // Write audit log
         try {
             await db.settingAudit.create({

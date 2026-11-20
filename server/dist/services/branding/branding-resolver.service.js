@@ -144,6 +144,7 @@ class BrandingResolverService {
                         slug: true,
                         logoUrl: true,
                         timezone: true,
+                        currency: true,
                     },
                 });
             }
@@ -191,13 +192,38 @@ class BrandingResolverService {
                 : null) ||
             "/favicon.webp";
         const rawFooter = brandingData.values["branding.footer_text"];
-        const footerText = rawFooter && !rawFooter.includes("Apex HRMS") && !rawFooter.includes("Persisted Forever")
-            ? rawFooter
-            : "© 2026 Webfamily Tech Solutions. All rights reserved.";
+        const footerText = rawFooter || "© 2026 Webfamily Tech Solutions. All rights reserved.";
+        const CURRENCY_SYMBOL_MAP = {
+            INR: "₹",
+            USD: "$",
+            EUR: "€",
+            GBP: "£",
+            AED: "د.إ",
+            SGD: "S$",
+            AUD: "A$",
+            CAD: "C$",
+            JPY: "¥",
+            SAR: "﷼",
+        };
+        const resolvedCurrency = localeData.sources["locale.default_currency"] === "TENANT"
+            ? localeData.values["locale.default_currency"]
+            : tenantMeta?.currency && localeData.sources["locale.default_currency"] === "DEFAULT"
+                ? tenantMeta.currency
+                : localeData.values["locale.default_currency"] || tenantMeta?.currency || "INR";
+        const resolvedCurrencySymbol = localeData.sources["locale.currency_symbol"] === "TENANT"
+            ? localeData.values["locale.currency_symbol"]
+            : CURRENCY_SYMBOL_MAP[String(resolvedCurrency).toUpperCase()] ||
+                localeData.values["locale.currency_symbol"] ||
+                "₹";
+        const resolvedTimezone = localeData.sources["locale.timezone"] === "TENANT"
+            ? localeData.values["locale.timezone"]
+            : tenantMeta?.timezone && localeData.sources["locale.timezone"] === "DEFAULT"
+                ? tenantMeta.timezone
+                : localeData.values["locale.timezone"] || tenantMeta?.timezone || "Asia/Kolkata";
         const locale = {
-            defaultCurrency: localeData.values["locale.default_currency"] || "INR",
-            currencySymbol: localeData.values["locale.currency_symbol"] || "₹",
-            timezone: localeData.values["locale.timezone"] || tenantMeta?.timezone || "Asia/Kolkata",
+            defaultCurrency: resolvedCurrency || "INR",
+            currencySymbol: resolvedCurrencySymbol || "₹",
+            timezone: resolvedTimezone || "Asia/Kolkata",
             dateFormat: localeData.values["locale.date_format"] || "DD/MM/YYYY",
             timeFormat: localeData.values["locale.time_format"] || "12",
         };

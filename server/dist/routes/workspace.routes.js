@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.workspaceRouter = void 0;
 const express_1 = require("express");
@@ -245,8 +278,12 @@ exports.workspaceRouter.post("/subscription/cancel", async (req, res) => {
 async function checkIsWorkspaceAdmin(req, tenantId) {
     if (req.user?.roles?.includes("super_admin"))
         return true;
-    if (req.user?.roles?.includes("admin") || req.user?.roles?.includes("workspace_admin"))
+    if (req.user?.roles?.some((r) => ["admin", "tenant_admin", "workspace_admin", "owner"].includes(r))) {
         return true;
+    }
+    if (req.user?.workspaceRole === "owner" || req.user?.workspaceRole === "admin") {
+        return true;
+    }
     const assignment = await prisma_1.prisma.userRoleAssignment.findUnique({
         where: {
             userId_tenantId: {
@@ -256,7 +293,8 @@ async function checkIsWorkspaceAdmin(req, tenantId) {
         },
         include: { role: true },
     });
-    return assignment?.role?.name === "Workspace Admin" && assignment?.role?.isActive === true;
+    return (Boolean(assignment?.role?.isActive) &&
+        ["Workspace Admin", "Tenant Admin", "Administrator", "Owner"].includes(assignment?.role?.name || ""));
 }
 // Middleware guard for Workspace Admin endpoints
 async function requireWorkspaceAdminGuard(req, res, next) {
@@ -623,6 +661,13 @@ exports.workspaceRouter.put("/modules", requireWorkspaceAdminGuard, async (req, 
                 isEnabled,
             },
         });
+        // Invalidate auth/permission cache & broadcast workspace module toggle to all active dashboards
+        (0, auth_1.invalidateAuthCache)(undefined, tenantId);
+        try {
+            const { RealtimeFactory } = await Promise.resolve().then(() => __importStar(require("../services/factories/realtime.factory")));
+            RealtimeFactory.broadcastSettingsUpdate("TENANT", tenantId, "modules", [moduleKey], Date.now());
+        }
+        catch { }
         return res.json({
             message: "Module " + moduleKey + " " + (isEnabled ? "enabled" : "disabled") + " for workspace",
             module: updated,
@@ -1227,9 +1272,7 @@ exports.workspaceRouter.get("/settings", async (req, res) => {
         const brandingGroup = await settings_service_1.SettingsService.getGroup("TENANT", tenantId, "branding");
         const defaultBrand = {
             titleText: brandingGroup.values["branding.app_name"] || tenant.name,
-            footerText: brandingGroup.values["branding.footer_text"] &&
-                !brandingGroup.values["branding.footer_text"].includes("Apex HRMS") &&
-                !brandingGroup.values["branding.footer_text"].includes("Persisted Forever")
+            footerText: brandingGroup.values["branding.footer_text"]
                 ? brandingGroup.values["branding.footer_text"]
                 : `© ${new Date().getFullYear()} Webfamily Tech Solutions. All rights reserved.`,
             logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl,

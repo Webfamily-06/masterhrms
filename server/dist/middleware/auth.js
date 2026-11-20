@@ -262,6 +262,7 @@ async function requireAuth(req, res, next) {
             userId,
             tenantId: tenantId ?? null,
             roles,
+            workspaceRole: resolvedAssignment?.role?.name || decoded.workspaceRole,
             permissions: userPermissions,
             isImpersonating,
             profile: account.profile

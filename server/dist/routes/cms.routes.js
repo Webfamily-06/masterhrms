@@ -859,6 +859,7 @@ exports.cmsRouter.get(["/pages/:slug", "/page/:slug"], async (req, res) => {
                 "pusherAppSecret",
                 "pusherSecret",
                 "slackClientSecret",
+                "firebaseServiceAccountJson",
             ];
             const maskedContent = { ...(page.content || {}) };
             for (const sk of SENSITIVE_KEYS) {
@@ -940,6 +941,7 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                 "pusherAppSecret",
                 "pusherSecret",
                 "slackClientSecret",
+                "firebaseServiceAccountJson",
             ];
             const mergedContent = { ...existingContent, ...(content || {}) };
             for (const sk of SENSITIVE_KEYS) {
@@ -1071,13 +1073,62 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                     toSet["email.ignore_tls"] = Boolean(content.smtpIgnoreTls);
                 if (content.smtpProvider !== undefined)
                     toSet["email.provider_type"] = content.smtpProvider;
+                // Sync Locale & Currency to SettingsService
+                if (content.defaultCurrency)
+                    toSet["locale.default_currency"] = String(content.defaultCurrency).toUpperCase();
+                if (content.currencySymbol)
+                    toSet["locale.currency_symbol"] = String(content.currencySymbol);
+                if (content.timezone)
+                    toSet["locale.timezone"] = String(content.timezone);
+                if (content.dateFormat)
+                    toSet["locale.date_format"] = String(content.dateFormat);
+                if (content.timeFormat)
+                    toSet["locale.time_format"] = String(content.timeFormat);
+                // Sync Firebase Push & FCM to SettingsService
+                if (content.firebaseEnabled !== undefined)
+                    toSet["firebase.enabled"] = Boolean(content.firebaseEnabled);
+                if (content.firebaseApiKey !== undefined)
+                    toSet["firebase.api_key"] = String(content.firebaseApiKey).trim();
+                if (content.firebaseAuthDomain !== undefined)
+                    toSet["firebase.auth_domain"] = String(content.firebaseAuthDomain).trim();
+                if (content.firebaseProjectId !== undefined)
+                    toSet["firebase.project_id"] = String(content.firebaseProjectId).trim();
+                if (content.firebaseStorageBucket !== undefined)
+                    toSet["firebase.storage_bucket"] = String(content.firebaseStorageBucket).trim();
+                if (content.firebaseMessagingSenderId !== undefined)
+                    toSet["firebase.messaging_sender_id"] = String(content.firebaseMessagingSenderId).trim();
+                if (content.firebaseAppId !== undefined)
+                    toSet["firebase.app_id"] = String(content.firebaseAppId).trim();
+                if (content.firebaseMeasurementId !== undefined)
+                    toSet["firebase.measurement_id"] = String(content.firebaseMeasurementId).trim();
+                if (content.firebaseVapidKey !== undefined)
+                    toSet["firebase.vapid_key"] = String(content.firebaseVapidKey).trim();
+                if (content.firebaseServiceAccountJson &&
+                    typeof content.firebaseServiceAccountJson === "string" &&
+                    !content.firebaseServiceAccountJson.includes("••••")) {
+                    toSet["firebase.service_account_json"] = content.firebaseServiceAccountJson.trim();
+                }
                 if (Object.keys(toSet).length > 0) {
                     await settings_service_1.SettingsService.setMany(toSet, "PLATFORM", null, req.user?.userId || null);
                 }
-                // Reset singleton Pusher instance so fresh credentials take effect immediately
+                // Reset singleton Pusher & Mailer instances and synchronize process.env + local .env
                 try {
                     const { PusherService } = await Promise.resolve().then(() => __importStar(require("../services/pusher.service")));
                     PusherService.resetInstance();
+                }
+                catch { }
+                try {
+                    const { MailerFactory } = await Promise.resolve().then(() => __importStar(require("../services/factories/mailer.factory")));
+                    MailerFactory.invalidate("PLATFORM", null);
+                }
+                catch { }
+                try {
+                    const { EnvSyncService } = await Promise.resolve().then(() => __importStar(require("../services/settings/env-sync.service")));
+                    await Promise.all([
+                        EnvSyncService.syncPlatformGroup("pusher"),
+                        EnvSyncService.syncPlatformGroup("firebase"),
+                        EnvSyncService.syncPlatformGroup("email"),
+                    ]);
                 }
                 catch { }
             }
@@ -1097,6 +1148,7 @@ exports.cmsRouter.put(["/pages/:slug", "/page/:slug"], auth_1.requireAuth, async
                 "pusherAppSecret",
                 "pusherSecret",
                 "slackClientSecret",
+                "firebaseServiceAccountJson",
             ];
             for (const sk of SENSITIVE_KEYS) {
                 if (maskedContent[sk]) {

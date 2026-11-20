@@ -56,6 +56,7 @@ import {
 } from "../services/unified-catalog.service";
 
 import { complianceControlRouter } from "./compliance-control.routes";
+import { QuotaGovernanceService } from "../services/files/quota-governance.service";
 
 export const superRouter = Router();
 
@@ -139,6 +140,105 @@ superRouter.put("/tenants/:id/policy", requireAuth, requireSuperAdmin, async (re
     return res.json(result);
   } catch (error: any) {
     return res.status(error instanceof z.ZodError ? 400 : error.status || 500).json({ error: error instanceof z.ZodError ? error.errors[0].message : error.message });
+  }
+});
+
+// PUT /api/super/tenants/:id/quota - Tenant Resource Quota Management (FN-061)
+superRouter.put("/tenants/:id/quota", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      storageQuotaGb,
+      quotaBytes,
+      maxUsers,
+      maxEmployees,
+      reason = "Super Admin quota allocation",
+    } = req.body;
+
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: { subscription: true },
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found." });
+    }
+
+    // Resolve target storage quota in bytes
+    let targetQuotaBytes: bigint | null = null;
+    if (quotaBytes) {
+      targetQuotaBytes = BigInt(quotaBytes);
+    } else if (storageQuotaGb !== undefined && storageQuotaGb !== null) {
+      targetQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGb))) * BigInt(1024 * 1024 * 1024);
+    }
+
+    let quotaResult = null;
+    if (targetQuotaBytes && targetQuotaBytes > BigInt(0)) {
+      quotaResult = await QuotaGovernanceService.setTenantQuotaOverride(
+        id,
+        targetQuotaBytes,
+        (req.user as any)?.userId || (req.user as any)?.id,
+        reason
+      );
+    }
+
+    // If maxUsers or maxEmployees or storageLimitGb are provided, update active tenant subscription
+    let updatedSubscription = null;
+    const activeSub = tenant.subscription;
+    if (activeSub && (maxUsers !== undefined || maxEmployees !== undefined || storageQuotaGb !== undefined)) {
+      const subUpdateData: any = {};
+      if (maxUsers !== undefined) subUpdateData.maxUsers = maxUsers === null ? null : Number(maxUsers);
+      if (maxEmployees !== undefined) subUpdateData.maxEmployees = maxEmployees === null ? null : Number(maxEmployees);
+      if (storageQuotaGb !== undefined) subUpdateData.storageLimitGb = Number(storageQuotaGb);
+
+      updatedSubscription = await prisma.tenantSubscription.update({
+        where: { id: activeSub.id },
+        data: subUpdateData,
+      });
+    }
+
+    // Fetch refreshed governance summary
+    const summary = await QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
+
+    return res.json({
+      success: true,
+      message: `Tenant quota successfully updated for workspace '${tenant.name}'`,
+      tenantId: id,
+      quota: quotaResult,
+      subscription: updatedSubscription,
+      summary,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/quota error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to update tenant quota." });
+  }
+});
+
+// GET /api/super/tenants/:id/quota - Retrieve Tenant Resource Quota Governance Summary (FN-061)
+superRouter.get("/tenants/:id/quota", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const tenant = await prisma.tenant.findUnique({
+      where: { id },
+      include: { subscription: true },
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found." });
+    }
+
+    const summary = await QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
+
+    return res.json({
+      success: true,
+      tenantId: id,
+      tenantName: tenant.name,
+      subscription: tenant.subscription || null,
+      summary,
+    });
+  } catch (err: any) {
+    console.error("[super/tenants/:id/quota get error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to retrieve tenant quota." });
   }
 });
 

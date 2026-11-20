@@ -182,6 +182,10 @@ import { initSocket } from "./socket";
 import { runBiometricAutoSync } from "./cron/biometric-sync";
 import { runBiometricReconciliation } from "./cron/biometric-reconcile.cron";
 import { runSubscriptionExpiryRemindersCron } from "./cron/subscription-reminder.cron";
+import { runDocumentExpiryCron } from "./cron/document-expiry.cron";
+import { runProbationContractExpiryCron } from "./cron/probation-contract-expiry.cron";
+import { runReportingManagerChangeScheduler } from "./cron/reporting-manager-change.cron";
+import { runExpireTrialsCron, runRenewalsAndGraceCron } from "./cron/saas-billing.cron";
 import { CalendarReminderScheduler } from "./services/calendar-reminder.scheduler";
 import { backgroundTaskMiddleware } from "./lib/background-tasks";
 
@@ -561,6 +565,7 @@ app.use("/api/super", superRouter);
 app.use("/api/addons", addonsRouter);
 app.use("/api/addons/okr", okrRouter);
 app.use("/api/addons/assets", assetsRouter);
+app.use("/api/assets", assetsRouter);
 app.use("/api/v1/two-factor-auth", twoFactorRouter);
 app.use("/api/two-factor-auth", twoFactorRouter);
 app.use("/api/v1/backup-restore", backupRestoreRouter);
@@ -775,6 +780,115 @@ if (!isServerless && process.env.NODE_ENV !== "test") {
     );
   }
   scheduleDailyCompOffExpirySweep();
+
+  // Schedule daily Document Expiry & Compliance Monitoring Cron (01:00 UTC daily)
+  function scheduleDailyDocumentExpiry() {
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 0, 0, 0)
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing scheduled daily document expiry & compliance check...");
+        const result = await runDocumentExpiryCron();
+        console.log("✅ [CRON] Daily document expiry check finished:", result);
+      } catch (err: any) {
+        console.error("❌ [CRON] Daily document expiry check failed:", err?.message);
+      }
+      scheduleDailyDocumentExpiry();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily Document Expiry Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:00 UTC)`
+    );
+  }
+  scheduleDailyDocumentExpiry();
+
+  // Schedule daily Probation Review & Contract Expiry Cron (01:15 UTC daily)
+  function scheduleDailyProbationContractExpiry() {
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 1, 15, 0, 0)
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing scheduled daily probation & contract expiry check...");
+        const result = await runProbationContractExpiryCron();
+        console.log("✅ [CRON] Daily probation & contract expiry check finished:", result);
+      } catch (err: any) {
+        console.error("❌ [CRON] Daily probation & contract expiry check failed:", err?.message);
+      }
+      scheduleDailyProbationContractExpiry();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily Probation & Contract Expiry Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 01:15 UTC)`
+    );
+  }
+  scheduleDailyProbationContractExpiry();
+
+  // Schedule daily Reporting Manager Change Scheduler (02:30 UTC daily)
+  function scheduleDailyReportingManagerChanges() {
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 2, 30, 0, 0)
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing scheduled daily reporting manager change sweep...");
+        const result = await runReportingManagerChangeScheduler();
+        console.log("✅ [CRON] Reporting manager change sweep finished:", result);
+      } catch (err: any) {
+        console.error("❌ [CRON] Reporting manager change sweep failed:", err?.message);
+      }
+      scheduleDailyReportingManagerChanges();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily Reporting Manager Change Scheduler scheduled in ${Math.round(msUntilNext / 60000)} min (target: 02:30 UTC)`
+    );
+  }
+  scheduleDailyReportingManagerChanges();
+
+  // Schedule daily SaaS Billing: Trial Expiration & Grace Enforcement (03:00 UTC daily)
+  function scheduleDailySaasBilling() {
+    const now = new Date();
+    const nextRun = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 3, 0, 0, 0)
+    );
+    let msUntilNext = nextRun.getTime() - now.getTime();
+    if (msUntilNext <= 0) msUntilNext += 24 * 60 * 60 * 1000;
+
+    const timer = setTimeout(async () => {
+      try {
+        console.log("⏰ [CRON] Executing scheduled daily SaaS billing crons...");
+        const trialsResult = await runExpireTrialsCron();
+        const renewalsResult = await runRenewalsAndGraceCron();
+        console.log("✅ [CRON] SaaS billing crons finished:", { trialsResult, renewalsResult });
+      } catch (err: any) {
+        console.error("❌ [CRON] SaaS billing crons failed:", err?.message);
+      }
+      scheduleDailySaasBilling();
+    }, msUntilNext);
+    if (timer.unref) timer.unref();
+
+    console.log(
+      `⏰ Daily SaaS Billing Cron scheduled in ${Math.round(msUntilNext / 60000)} min (target: 03:00 UTC)`
+    );
+  }
+  scheduleDailySaasBilling();
 
   server.listen(Number(PORT), HOST, async () => {
     console.log(`🚀 Master HRMS Backend Server running on http://${HOST}:${PORT}`);

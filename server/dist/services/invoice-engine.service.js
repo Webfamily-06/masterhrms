@@ -246,21 +246,25 @@ async function getAuthoritativeCustomerInfo(tenantId, tenant) {
     });
     const content = page?.content || {};
     const company = content.company || {};
-    const tenantEmail = tenant?.profiles?.find((p) => p.email)?.email ||
-        identity?.email ||
+    const tenantEmail = identity?.email ||
         company.email ||
+        tenant?.profiles?.find((p) => p.email)?.email ||
         customerBranding.supportEmail ||
         `billing@${tenant?.slug || "tenant"}.masterhrms.com`;
-    let fullAddress = identity?.billingOffice?.formatted || identity?.registeredOffice?.formatted || company.address || null;
+    let fullAddress = identity?.billingOffice?.formatted ||
+        identity?.registeredOffice?.formatted ||
+        company.address ||
+        tenant?.address ||
+        null;
     if (!fullAddress && (company.city || company.state || company.country)) {
         fullAddress = [company.city, company.state, company.country].filter(Boolean).join(", ");
     }
     const customerName = identity?.legalName ||
         identity?.tradeName ||
-        customerBranding.appName ||
-        tenant?.name ||
         company.name ||
         company.companyName ||
+        customerBranding.appName ||
+        tenant?.name ||
         "Enterprise Customer";
     const taxId = identity?.primaryGst?.gstin ||
         identity?.pan ||

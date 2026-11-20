@@ -514,6 +514,41 @@ exports.expensesRouter.put("/claims/:id/status", auth_1.requireAuth, async (req,
         return res.status(500).json({ error: err.message || "Failed to update claim status." });
     }
 });
+// FN-055: Multi-Level Expense Approval / Quick Approval Endpoints
+const handleExpenseApprove = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { action, approverNotes, reimbursementMethod } = req.body;
+        const tenantId = req.user?.tenantId;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context is required." });
+        const userRole = req.user?.role || "manager";
+        const userName = req.user?.email || "Manager";
+        let approvalAction = action || (userRole === "finance" || userRole === "admin" ? "finance_approve" : "manager_approve");
+        const result = await approvalService.processApproval({
+            tenantId,
+            claimId: id,
+            action: approvalAction,
+            approverRole: userRole,
+            approverName: userName,
+            approverNotes,
+            reimbursementMethod,
+        });
+        return res.json({
+            success: true,
+            message: result.message,
+            claim: result.claim,
+            requiresSecondaryApproval: result.requiresSecondaryApproval,
+        });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to approve expense." });
+    }
+};
+exports.expensesRouter.put("/:id/approve", auth_1.requireAuth, handleExpenseApprove);
+exports.expensesRouter.post("/:id/approve", auth_1.requireAuth, handleExpenseApprove);
+exports.expensesRouter.put("/claims/:id/approve", auth_1.requireAuth, handleExpenseApprove);
+exports.expensesRouter.post("/claims/:id/approve", auth_1.requireAuth, handleExpenseApprove);
 // GET /api/expenses/claims/authorized-for-payroll (List claims ready for payroll payout batch)
 exports.expensesRouter.get("/claims/authorized-for-payroll", auth_1.requireAuth, async (req, res) => {
     try {

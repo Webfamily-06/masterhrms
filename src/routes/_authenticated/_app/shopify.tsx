@@ -47,6 +47,12 @@ import {
 } from "lucide-react";
 import { useNavigationResolver } from "@/lib/navigation-resolver";
 import { AddonNotInstalled } from "@/components/addon-not-installed";
+import {
+  ModernDialog,
+  ModernDialogContent,
+  ModernDialogTitle,
+  ModernDialogDescription,
+} from "@/components/ui/modern-dialog";
 
 export const Route = createFileRoute("/_authenticated/_app/shopify")({
   component: ShopifyHubPage,
@@ -1021,33 +1027,37 @@ export default function ShopifyHubPage() {
       </Tabs>
 
       {/* ==========================================
-          CONNECT / EDIT STORE MODAL
+          CONNECT / EDIT STORE MODAL - Modern Native <dialog>
       ========================================== */}
-      {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-xl bg-card border border-border/60 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-5 border-b border-border/40 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-[#008060]/10 text-[#008060]">
-                  <Store className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground text-base">
-                    {editingStoreId ? "Edit Shopify Store" : "Connect Shopify Store"}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Authenticate using your Custom App Admin API Access Token
-                  </p>
-                </div>
+      <ModernDialog
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-xl p-0 overflow-hidden" showCloseButton={false}>
+          <div className="p-5 border-b border-border/40 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-[#008060]/10 text-[#008060]">
+                <Store className="w-5 h-5" />
               </div>
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <ModernDialogTitle className="font-semibold text-foreground text-base">
+                  {editingStoreId ? "Edit Shopify Store" : "Connect Shopify Store"}
+                </ModernDialogTitle>
+                <ModernDialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Authenticate using your Custom App Admin API Access Token
+                </ModernDialogDescription>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsFormOpen(false)}
+              className="text-muted-foreground hover:text-foreground p-1 rounded-md cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
             <form onSubmit={handleSaveStore} className="p-5 space-y-4">
               {testResult && (
@@ -1213,16 +1223,15 @@ export default function ShopifyHubPage() {
                     type="submit"
                     size="sm"
                     disabled={saveStoreMutation.isPending}
-                    className="bg-[#008060] hover:bg-[#008060]/90 text-white text-xs h-9 font-medium"
+                    className="bg-[#008060] hover:bg-[#008060]/90 text-white text-xs h-9 font-medium cursor-pointer"
                   >
                     {saveStoreMutation.isPending ? "Saving..." : "Save Store"}
                   </Button>
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModernDialogContent>
+        </ModernDialog>
     </div>
   );
 }

@@ -576,10 +576,10 @@ assetsRouter.delete("/:id", async (req: AuthRequest, res: Response) => {
 
 /**
  * -------------------------------------------------------------
- * 3. MULTI-TARGET ALLOCATIONS (Employee, Department, Warehouse)
+ * 3. MULTI-TARGET ALLOCATIONS & ASSIGNMENT (FN-046)
  * -------------------------------------------------------------
  */
-assetsRouter.post("/:id/allocate", async (req: AuthRequest, res: Response) => {
+const handleAssetAllocation = async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId!;
     const { id } = req.params;
@@ -652,15 +652,20 @@ assetsRouter.post("/:id/allocate", async (req: AuthRequest, res: Response) => {
     });
 
     return res.json({
-      message: `Successfully allocated ${allocQty} ${asset.unit} of ${asset.assetTag}!`,
+      success: true,
+      message: `Successfully assigned ${allocQty} ${asset.unit} of ${asset.assetTag}!`,
       asset: updatedAsset,
       assignment,
     });
   } catch (err: any) {
-    console.error("[assets/allocate] error:", err);
-    return res.status(500).json({ error: err.message || "Failed to allocate asset." });
+    console.error("[assets/assign] error:", err);
+    return res.status(500).json({ error: err.message || "Failed to assign asset." });
   }
-});
+};
+
+assetsRouter.post("/:id/allocate", handleAssetAllocation);
+// POST /api/addons/assets/:id/assign - WorkDo SaaS canonical asset assignment (FN-046)
+assetsRouter.post("/:id/assign", handleAssetAllocation);
 
 assetsRouter.post("/assignments/:assignmentId/return", async (req: AuthRequest, res: Response) => {
   try {

@@ -469,8 +469,8 @@ class SettingsService {
                     },
                     include: { secret: true },
                 });
-                // If in TENANT scope and value is null/undefined/empty string, REMOVE the override
-                if (scope === "TENANT" && (rawValue === null || rawValue === undefined || rawValue === "")) {
+                // If in TENANT or USER scope and value is null/undefined/empty string, REMOVE the override
+                if ((scope === "TENANT" || scope === "USER") && (rawValue === null || rawValue === undefined || rawValue === "")) {
                     if (existing) {
                         if (def.type === "media") {
                             await tx.mediaUsage.deleteMany({

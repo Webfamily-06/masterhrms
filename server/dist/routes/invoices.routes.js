@@ -197,7 +197,7 @@ exports.invoicesRouter.post("/", auth_1.requireAuth, (0, auth_1.requirePermissio
                         data: {
                             tenantId,
                             name: lineName,
-                            sku: l.sku || `INV-${Date.now().toString().slice(-6)}`,
+                            sku: l.sku || `INV-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 6)}`,
                             purchasePrice: 0,
                             salePrice: Number(l.rate || l.unitPrice || 0),
                             lowStockThreshold: 0,

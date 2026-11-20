@@ -39,6 +39,12 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  ModernDialog,
+  ModernDialogContent,
+  ModernDialogTitle,
+  ModernDialogDescription,
+} from "@/components/ui/modern-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -785,22 +791,27 @@ export default function SuperDomainsPage() {
         )}
       </Card>
 
-      {/* DETAIL MODAL / DRAWER */}
-      {detailDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-xl w-full overflow-hidden max-h-[90vh] flex flex-col">
+      {/* DETAIL MODAL / DRAWER - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(detailDomain)}
+        onOpenChange={(isOpen) => !isOpen && setDetailDomain(null)}
+        closedBy="any"
+      >
+        {detailDomain && (
+          <ModernDialogContent className="max-w-xl p-0 overflow-hidden max-h-[90vh] flex flex-col" showCloseButton={false}>
             {/* Modal Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border-color">
               <div className="flex items-center gap-2">
                 <Globe className="size-5 text-primary" />
                 <div>
-                  <h4 className="font-semibold text-sm text-foreground">Custom Domain Details</h4>
-                  <p className="text-[11px] text-muted-foreground font-mono">{detailDomain.domain}</p>
+                  <ModernDialogTitle className="font-semibold text-sm text-foreground">Custom Domain Details</ModernDialogTitle>
+                  <ModernDialogDescription className="text-[11px] text-muted-foreground font-mono">{detailDomain.domain}</ModernDialogDescription>
                 </div>
               </div>
               <button
                 onClick={() => setDetailDomain(null)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
+                className="text-muted-foreground hover:text-foreground p-1 rounded-md cursor-pointer"
+                aria-label="Close"
               >
                 <X className="size-4" />
               </button>
@@ -998,21 +1009,33 @@ export default function SuperDomainsPage() {
                 </Button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </ModernDialogContent>
+        )}
+      </ModernDialog>
 
-      {/* REJECT MODAL */}
-      {isRejectModalOpen && targetRejectDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full p-5 space-y-4">
+      {/* REJECT MODAL - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(isRejectModalOpen && targetRejectDomain)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setIsRejectModalOpen(false);
+            setRejectReason("");
+            setTargetRejectDomain(null);
+          }
+        }}
+        closedBy="any"
+      >
+        {targetRejectDomain && (
+          <ModernDialogContent className="max-w-md p-5 space-y-4" showCloseButton={false}>
             <div className="flex items-center gap-2.5 text-rose-600">
-              <AlertTriangle className="size-5" />
-              <h4 className="font-bold text-base text-foreground">Reject Custom Domain Request</h4>
+              <AlertTriangle className="size-5 shrink-0" />
+              <ModernDialogTitle className="font-bold text-base text-foreground">
+                Reject Custom Domain Request
+              </ModernDialogTitle>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <ModernDialogDescription className="text-xs text-muted-foreground leading-relaxed">
               Please state the reason for rejecting <strong className="text-foreground">{targetRejectDomain.domain}</strong>. The tenant admin will see this reason in their workspace settings.
-            </p>
+            </ModernDialogDescription>
             <textarea
               placeholder="e.g. Hostname does not match corporate registration, CNAME proxying misconfigured, or offensive wording..."
               value={rejectReason}
@@ -1021,11 +1044,11 @@ export default function SuperDomainsPage() {
               className="w-full p-2.5 text-xs bg-muted/30 border rounded-lg focus:outline-none focus:ring-1 focus:ring-rose-500"
               autoFocus
             />
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-color">
               <Button
                 variant="outline"
                 size="sm"
-                className="text-xs h-8"
+                className="text-xs h-8 cursor-pointer"
                 onClick={() => {
                   setIsRejectModalOpen(false);
                   setRejectReason("");
@@ -1037,7 +1060,7 @@ export default function SuperDomainsPage() {
               <Button
                 size="sm"
                 variant="destructive"
-                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
+                className="text-xs h-8 bg-rose-600 hover:bg-rose-700 cursor-pointer"
                 disabled={rejectMutation.isPending || !rejectReason.trim()}
                 onClick={() =>
                   rejectMutation.mutate({
@@ -1050,44 +1073,48 @@ export default function SuperDomainsPage() {
                 Confirm Rejection
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </ModernDialogContent>
+        )}
+      </ModernDialog>
 
-      {/* DELETE CONFIRMATION MODAL */}
-      {deleteDomain && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="size-6" />
-            </div>
-            <h4 className="font-semibold text-base text-foreground">Remove Custom Domain?</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Are you sure you want to remove <strong className="text-foreground">{deleteDomain.domain}</strong>? The vanity routing will be detached. The tenant&apos;s default Flow 1 workspace will remain completely active.
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setDeleteDomain(null)}
-                className="text-xs h-8"
-              >
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteDomain.id)}
-                className="text-xs h-8 bg-rose-600 hover:bg-rose-700"
-              >
-                {deleteMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
-                Confirm Removal
-              </Button>
-            </div>
+      {/* DELETE CONFIRMATION MODAL - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(deleteDomain)}
+        onOpenChange={(isOpen) => !isOpen && setDeleteDomain(null)}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-sm p-5 text-center space-y-3" showCloseButton={false}>
+          <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertTriangle className="size-6" />
           </div>
-        </div>
-      )}
+          <ModernDialogTitle className="font-semibold text-base text-foreground text-center">
+            Remove Custom Domain?
+          </ModernDialogTitle>
+          <ModernDialogDescription className="text-xs text-muted-foreground leading-relaxed text-center">
+            Are you sure you want to remove <strong className="text-foreground">{deleteDomain?.domain}</strong>? The vanity routing will be detached. The tenant&apos;s default Flow 1 workspace will remain completely active.
+          </ModernDialogDescription>
+          <div className="flex items-center justify-center gap-2 pt-3 border-t border-border-color">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteDomain(null)}
+              className="text-xs h-8 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteDomain && deleteMutation.mutate(deleteDomain.id)}
+              className="text-xs h-8 bg-rose-600 hover:bg-rose-700 cursor-pointer text-white"
+            >
+              {deleteMutation.isPending && <Loader2 className="size-3 animate-spin mr-1" />}
+              Confirm Removal
+            </Button>
+          </div>
+        </ModernDialogContent>
+      </ModernDialog>
     </div>
   );
 }

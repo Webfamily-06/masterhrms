@@ -603,6 +603,47 @@ expensesRouter.put("/claims/:id/status", requireAuth, async (req: AuthRequest, r
   }
 });
 
+// FN-055: Multi-Level Expense Approval / Quick Approval Endpoints
+const handleExpenseApprove = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { action, approverNotes, reimbursementMethod } = req.body;
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const userRole = (req.user as any)?.role || "manager";
+    const userName = (req.user as any)?.email || "Manager";
+
+    let approvalAction: "manager_approve" | "finance_approve" | "reject" =
+      action || (userRole === "finance" || userRole === "admin" ? "finance_approve" : "manager_approve");
+
+    const result = await approvalService.processApproval({
+      tenantId,
+      claimId: id,
+      action: approvalAction,
+      approverRole: userRole,
+      approverName: userName,
+      approverNotes,
+      reimbursementMethod,
+    });
+
+    return res.json({
+      success: true,
+      message: result.message,
+      claim: result.claim,
+      requiresSecondaryApproval: result.requiresSecondaryApproval,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to approve expense." });
+  }
+};
+
+expensesRouter.put("/:id/approve", requireAuth, handleExpenseApprove);
+expensesRouter.post("/:id/approve", requireAuth, handleExpenseApprove);
+expensesRouter.put("/claims/:id/approve", requireAuth, handleExpenseApprove);
+expensesRouter.post("/claims/:id/approve", requireAuth, handleExpenseApprove);
+
 // GET /api/expenses/claims/authorized-for-payroll (List claims ready for payroll payout batch)
 expensesRouter.get("/claims/authorized-for-payroll", requireAuth, async (req: AuthRequest, res: Response) => {
   try {

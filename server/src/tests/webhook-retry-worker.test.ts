@@ -1,9 +1,37 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, beforeEach, afterEach } from "node:test";
+import assert from "node:assert/strict";
 import { WebhookRetryWorker } from "../modules/outbound-webhooks/webhook-retry.worker";
 import { OutboundWebhooksService, WebhookDeliveryLog } from "../modules/outbound-webhooks/outbound-webhooks.service";
 import { rawPrisma, prisma as proxiedPrisma } from "../prisma";
 
 const db = rawPrisma || proxiedPrisma;
+
+function spyOnMethod<T extends object, K extends keyof T>(obj: T, method: K) {
+  const original = obj[method];
+  const calls: any[][] = [];
+  let impl: any = original;
+
+  const spy: any = (...args: any[]) => {
+    calls.push(args);
+    return impl(...args);
+  };
+  spy.calls = calls;
+  spy.mockResolvedValue = (val: any) => {
+    impl = async () => val;
+    return spy;
+  };
+  spy.mockImplementation = (fn: any) => {
+    impl = fn;
+    return spy;
+  };
+  spy.mockRestore = () => {
+    obj[method] = original;
+  };
+  spy.getCallCount = () => calls.length;
+
+  obj[method] = spy;
+  return spy;
+}
 
 describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", () => {
   const tenantAId = "tenant_webhook_worker_a";
@@ -39,36 +67,36 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       // Attempt 3: ~8000ms
       // Attempt 4: ~16000ms
       // Attempt 5: ~32000ms
-      expect(delays[0]).toBeGreaterThanOrEqual(2000);
-      expect(delays[0]).toBeLessThanOrEqual(2300);
+      assert.ok(delays[0] >= 2000, "delays[0] >= 2000");
+      assert.ok(delays[0] <= 2300, "delays[0] <= 2300");
 
-      expect(delays[1]).toBeGreaterThanOrEqual(4000);
-      expect(delays[1]).toBeLessThanOrEqual(4600);
+      assert.ok(delays[1] >= 4000, "delays[1] >= 4000");
+      assert.ok(delays[1] <= 4600, "delays[1] <= 4600");
 
-      expect(delays[2]).toBeGreaterThanOrEqual(8000);
-      expect(delays[2]).toBeLessThanOrEqual(9200);
+      assert.ok(delays[2] >= 8000, "delays[2] >= 8000");
+      assert.ok(delays[2] <= 9200, "delays[2] <= 9200");
 
-      expect(delays[3]).toBeGreaterThanOrEqual(16000);
-      expect(delays[4]).toBeGreaterThan(delays[3]);
+      assert.ok(delays[3] >= 16000, "delays[3] >= 16000");
+      assert.ok(delays[4] > delays[3], "delays[4] > delays[3]");
     });
 
     it("should classify 5xx, 429, and network timeouts as retryable, but 4xx and SSRF as terminal", () => {
       // Retryable
-      expect(WebhookRetryWorker.isRetryableError(500, null)).toBe(true);
-      expect(WebhookRetryWorker.isRetryableError(502, null)).toBe(true);
-      expect(WebhookRetryWorker.isRetryableError(503, null)).toBe(true);
-      expect(WebhookRetryWorker.isRetryableError(429, null)).toBe(true);
-      expect(WebhookRetryWorker.isRetryableError(null, "ETIMEDOUT")).toBe(true);
-      expect(WebhookRetryWorker.isRetryableError(null, "ECONNREFUSED")).toBe(true);
+      assert.equal(WebhookRetryWorker.isRetryableError(500, null), true);
+      assert.equal(WebhookRetryWorker.isRetryableError(502, null), true);
+      assert.equal(WebhookRetryWorker.isRetryableError(503, null), true);
+      assert.equal(WebhookRetryWorker.isRetryableError(429, null), true);
+      assert.equal(WebhookRetryWorker.isRetryableError(null, "ETIMEDOUT"), true);
+      assert.equal(WebhookRetryWorker.isRetryableError(null, "ECONNREFUSED"), true);
 
       // Non-retryable / Terminal
-      expect(WebhookRetryWorker.isRetryableError(400, "Bad Request")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(401, "Unauthorized")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(403, "Forbidden")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(404, "Not Found")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(422, "Unprocessable Entity")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(null, "SSRF_BLOCKED")).toBe(false);
-      expect(WebhookRetryWorker.isRetryableError(null, "ENDPOINT_INACTIVE")).toBe(false);
+      assert.equal(WebhookRetryWorker.isRetryableError(400, "Bad Request"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(401, "Unauthorized"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(403, "Forbidden"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(404, "Not Found"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(422, "Unprocessable Entity"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(null, "SSRF_BLOCKED"), false);
+      assert.equal(WebhookRetryWorker.isRetryableError(null, "ENDPOINT_INACTIVE"), false);
     });
   });
 
@@ -82,7 +110,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       });
 
       // 2. Persist a mock delivery log in 'retrying' state due now
-      const logId = `del_${Date.now()}_concurrency`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_concurrency`;
       const deliveryLog: WebhookDeliveryLog = {
         id: logId,
         endpointId: endpoint.id,
@@ -119,7 +147,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       });
 
       // 3. Mock safeDispatchHttp to return 200 OK
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
         ok: true,
         statusCode: 200,
         durationMs: 45,
@@ -136,15 +164,15 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       const totalClaimed = resultA.claimed + resultB.claimed;
       const totalSucceeded = resultA.succeeded + resultB.succeeded;
 
-      expect(totalClaimed).toBe(1);
-      expect(totalSucceeded).toBe(1);
-      expect(dispatchSpy).toHaveBeenCalledTimes(1);
+      assert.equal(totalClaimed, 1);
+      assert.equal(totalSucceeded, 1);
+      assert.equal(dispatchSpy.getCallCount(), 1);
 
       // Verify the persisted state is now success
       const updatedLog = await OutboundWebhooksService.getLogDetail(tenantAId, logId);
-      expect(updatedLog?.status).toBe("success");
-      expect(updatedLog?.attempt).toBe(2);
-      expect(updatedLog?.claimedAt).toBeNull();
+      assert.equal(updatedLog?.status, "success");
+      assert.equal(updatedLog?.attempt, 2);
+      assert.equal(updatedLog?.claimedAt, null);
 
       dispatchSpy.mockRestore();
     });
@@ -160,7 +188,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       });
 
       // Fraudulent delivery log in Tenant B pointing to Tenant A endpoint ID
-      const spoofedLogId = `del_${Date.now()}_spoofed`;
+      const spoofedLogId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_spoofed`;
       const spoofedLog: WebhookDeliveryLog = {
         id: spoofedLogId,
         endpointId: endpoint.id,
@@ -195,18 +223,18 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
         },
       });
 
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp");
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp");
 
       // Execute sweep
       const sweep = await WebhookRetryWorker.processPendingRetries("worker_test", 10);
-      expect(sweep.dead).toBeGreaterThanOrEqual(1);
+      assert.ok(sweep.dead >= 1);
 
       // Verify dispatch was NEVER called because Tenant B does not own endpoint in Tenant A
-      expect(dispatchSpy).not.toHaveBeenCalled();
+      assert.equal(dispatchSpy.getCallCount(), 0);
 
       const deadLog = await OutboundWebhooksService.getLogDetail(tenantBId, spoofedLogId);
-      expect(deadLog?.status).toBe("dead");
-      expect(deadLog?.errorCode).toBe("ENDPOINT_NOT_FOUND");
+      assert.equal(deadLog?.status, "dead");
+      assert.equal(deadLog?.errorCode, "ENDPOINT_NOT_FOUND");
 
       dispatchSpy.mockRestore();
     });
@@ -266,7 +294,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
         },
       });
 
-      const logId = `del_${Date.now()}_ssrf_retry`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_ssrf_retry`;
       const retryLog: WebhookDeliveryLog = {
         id: logId,
         endpointId: endpoint.id,
@@ -297,18 +325,18 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
         },
       });
 
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp");
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp");
 
       // Execute sweep
       const sweep = await WebhookRetryWorker.processPendingRetries("worker_test", 10);
-      expect(sweep.dead).toBeGreaterThanOrEqual(1);
+      assert.ok(sweep.dead >= 1);
 
       // Verify dispatch was NEVER invoked for SSRF destination
-      expect(dispatchSpy).not.toHaveBeenCalled();
+      assert.equal(dispatchSpy.getCallCount(), 0);
 
       const deadLog = await OutboundWebhooksService.getLogDetail(tenantAId, logId);
-      expect(deadLog?.status).toBe("dead");
-      expect(deadLog?.errorCode).toBe("SSRF_BLOCKED");
+      assert.equal(deadLog?.status, "dead");
+      assert.equal(deadLog?.errorCode, "SSRF_BLOCKED");
 
       dispatchSpy.mockRestore();
     });
@@ -322,9 +350,9 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
 
       // Rotate secret
       const rotation = await OutboundWebhooksService.rotateSecret(tenantAId, endpoint.id, testUserId);
-      expect(rotation.rawSecret).not.toBe(rawSecret);
+      assert.notEqual(rotation.rawSecret, rawSecret);
 
-      const logId = `del_${Date.now()}_rotation_test`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_rotation_test`;
       const retryLog: WebhookDeliveryLog = {
         id: logId,
         endpointId: endpoint.id,
@@ -357,8 +385,8 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
 
       let capturedHeaders: Record<string, string> = {};
       let capturedBody = "";
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp").mockImplementation(
-        async (_url, opts) => {
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp").mockImplementation(
+        async (_url: string, opts: any) => {
           capturedHeaders = (opts?.headers as any) || {};
           capturedBody = (opts?.body as string) || "";
           return { ok: true, statusCode: 200, durationMs: 40 };
@@ -367,14 +395,14 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
 
       await WebhookRetryWorker.processPendingRetries("worker_test", 10);
 
-      expect(dispatchSpy).toHaveBeenCalledTimes(1);
-      expect(capturedHeaders["X-Webhook-Signature"]).toBeDefined();
-      expect(capturedHeaders["X-Webhook-Attempt"]).toBe("2");
+      assert.equal(dispatchSpy.getCallCount(), 1);
+      assert.ok(capturedHeaders["X-Webhook-Signature"] !== undefined);
+      assert.equal(capturedHeaders["X-Webhook-Attempt"], "2");
 
       // Verify the signature validates with the NEW rotated secret
       const rawSig = capturedHeaders["X-Webhook-Signature"];
       const isValid = OutboundWebhooksService.verifySignature(capturedBody, rawSig, rotation.rawSecret);
-      expect(isValid).toBe(true);
+      assert.equal(isValid, true);
 
       dispatchSpy.mockRestore();
     });
@@ -388,7 +416,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
         events: ["test.event"],
       });
 
-      const logId = `del_${Date.now()}_terminal_test`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_terminal_test`;
       const retryLog: WebhookDeliveryLog = {
         id: logId,
         endpointId: endpoint.id,
@@ -420,7 +448,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       });
 
       // Mock failure on attempt 3
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
         ok: false,
         statusCode: 504,
         durationMs: 5000,
@@ -428,13 +456,13 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       });
 
       const sweep = await WebhookRetryWorker.processPendingRetries("worker_test", 10);
-      expect(sweep.dead).toBe(1);
+      assert.equal(sweep.dead, 1);
 
       const updated = await OutboundWebhooksService.getLogDetail(tenantAId, logId);
-      expect(updated?.status).toBe("dead");
-      expect(updated?.attempt).toBe(3);
-      expect(updated?.errorCode).toBe("HTTP_504");
-      expect(updated?.nextAttemptAt).toBeNull();
+      assert.equal(updated?.status, "dead");
+      assert.equal(updated?.attempt, 3);
+      assert.equal(updated?.errorCode, "HTTP_504");
+      assert.equal(updated?.nextAttemptAt, null);
 
       dispatchSpy.mockRestore();
     });
@@ -450,7 +478,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
       WebhookRetryWorker.stop();
 
       // 2. Insert pending delivery log that was queued before restart
-      const logId = `del_${Date.now()}_restart_survivor`;
+      const logId = `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_restart_survivor`;
       const retryLog: WebhookDeliveryLog = {
         id: logId,
         endpointId: endpoint.id,
@@ -481,7 +509,7 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
         },
       });
 
-      const dispatchSpy = vi.spyOn(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
+      const dispatchSpy = spyOnMethod(OutboundWebhooksService, "safeDispatchHttp").mockResolvedValue({
         ok: true,
         statusCode: 200,
         durationMs: 50,
@@ -489,15 +517,15 @@ describe("WH-16 — Durable Background Webhook Retry Worker Acceptance Suite", (
 
       // 3. Simulate process restart: start worker afresh
       WebhookRetryWorker.start(2000);
-      expect(WebhookRetryWorker.getStats().isRunning).toBe(true);
+      assert.equal(WebhookRetryWorker.getStats().isRunning, true);
 
       // 4. Trigger sweep
       const sweep = await WebhookRetryWorker.processPendingRetries("new_worker_after_boot", 10);
-      expect(sweep.succeeded).toBe(1);
+      assert.equal(sweep.succeeded, 1);
 
       const completed = await OutboundWebhooksService.getLogDetail(tenantAId, logId);
-      expect(completed?.status).toBe("success");
-      expect(completed?.attempt).toBe(2);
+      assert.equal(completed?.status, "success");
+      assert.equal(completed?.attempt, 2);
 
       WebhookRetryWorker.stop();
       dispatchSpy.mockRestore();

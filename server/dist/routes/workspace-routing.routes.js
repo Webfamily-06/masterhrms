@@ -7,7 +7,7 @@ const prisma = prisma_1.rawPrisma || prisma_1.prisma;
 const workspace_host_1 = require("../lib/workspace-host");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
-const settings_service_1 = require("../services/settings/settings.service");
+const branding_resolver_service_1 = require("../services/branding/branding-resolver.service");
 exports.workspaceRoutingRouter = (0, express_1.Router)();
 // ─────────────────────────────────────────────
 // 1. PUBLIC: Live Workspace Availability Check
@@ -98,19 +98,21 @@ exports.workspaceRoutingRouter.get("/public/workspace", async (req, res) => {
                 });
             }
             const tenant = req.resolvedTenant;
-            const brandingGroup = await settings_service_1.SettingsService.getGroup("TENANT", tenant.id, "branding");
+            const resolved = await (0, branding_resolver_service_1.resolveBranding)({ scope: "TENANT", tenantId: tenant.id });
             return res.json({
                 resolved: true,
                 id: tenant.id,
                 tenantId: tenant.id,
-                name: brandingGroup.values["branding.app_name"] || tenant.name,
+                name: resolved.appName || tenant.name,
                 slug: tenant.slug,
-                logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
-                logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
-                faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
-                primaryColor: brandingGroup.values["branding.primary_color"] || null,
-                footerText: brandingGroup.values["branding.footer_text"] || null,
-                timezone: tenant.timezone || "Asia/Kolkata",
+                logoUrl: resolved.logoLightUrl || tenant.logoUrl || null,
+                logoDark: resolved.logoDarkUrl || tenant.logoUrl || null,
+                faviconUrl: resolved.faviconUrl || null,
+                primaryColor: resolved.primaryColor || null,
+                footerText: resolved.footerText || null,
+                timezone: resolved.locale.timezone || tenant.timezone || "Asia/Kolkata",
+                currency: resolved.locale.defaultCurrency || "INR",
+                currencySymbol: resolved.locale.currencySymbol || "₹",
                 status: tenant.status,
                 baseDomain: hostContext.baseDomain,
                 workspaceUrl: (0, workspace_host_1.getWorkspaceUrl)(tenant.slug),
@@ -126,20 +128,23 @@ exports.workspaceRoutingRouter.get("/public/workspace", async (req, res) => {
                 });
             }
             const tenant = req.resolvedTenant;
-            const brandingGroup = await settings_service_1.SettingsService.getGroup("TENANT", tenant.id, "branding");
+            const resolved = await (0, branding_resolver_service_1.resolveBranding)({ scope: "TENANT", tenantId: tenant.id });
             return res.json({
                 resolved: true,
                 isCustomDomain: true,
                 customDomain: hostContext.domain,
                 id: tenant.id,
                 tenantId: tenant.id,
-                name: brandingGroup.values["branding.app_name"] || tenant.name,
+                name: resolved.appName || tenant.name,
                 slug: tenant.slug,
-                logoUrl: brandingGroup.mediaUrls["branding.logo_light_id"] || tenant.logoUrl || null,
-                logoDark: brandingGroup.mediaUrls["branding.logo_dark_id"] || tenant.logoUrl || null,
-                faviconUrl: brandingGroup.mediaUrls["branding.favicon_id"] || null,
-                primaryColor: brandingGroup.values["branding.primary_color"] || null,
-                timezone: tenant.timezone || "Asia/Kolkata",
+                logoUrl: resolved.logoLightUrl || tenant.logoUrl || null,
+                logoDark: resolved.logoDarkUrl || tenant.logoUrl || null,
+                faviconUrl: resolved.faviconUrl || null,
+                primaryColor: resolved.primaryColor || null,
+                footerText: resolved.footerText || null,
+                timezone: resolved.locale.timezone || tenant.timezone || "Asia/Kolkata",
+                currency: resolved.locale.defaultCurrency || "INR",
+                currencySymbol: resolved.locale.currencySymbol || "₹",
                 status: tenant.status,
                 baseDomain: hostContext.baseDomain,
                 workspaceUrl: (0, workspace_host_1.getCustomDomainUrl)(hostContext.domain),

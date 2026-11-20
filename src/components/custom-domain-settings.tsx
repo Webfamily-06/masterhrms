@@ -8,6 +8,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  ModernDialog,
+  ModernDialogContent,
+  ModernDialogTitle,
+  ModernDialogDescription,
+} from "@/components/ui/modern-dialog";
 import { toast } from "sonner";
 import {
   Globe,
@@ -548,133 +554,132 @@ export function CustomDomainSettings() {
         </div>
       )}
 
-      {/* Connect Domain Modal */}
-      {isRequestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border-color">
-              <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
-                <Globe className="size-4 text-primary" /> Connect Custom Domain
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsRequestModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-md"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRequestSubmit} className="p-5 space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">
-                  Custom Domain Hostname
-                </label>
-                <Input
-                  placeholder="e.g. app.mycompany.com or hr.brand.org"
-                  value={rawInput}
-                  onChange={(e) => setRawInput(e.target.value)}
-                  className="font-mono text-xs h-9"
-                  autoFocus
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Enter your subdomain or domain name. Protocols and trailing slashes will be automatically normalized.
-                </p>
-              </div>
-
-              {/* Dynamic Real-time Normalization Feedback */}
-              {rawInput.trim() && (
-                <div
-                  className={`p-3 rounded-lg border text-[11px] space-y-1 ${
-                    validationPreview?.valid
-                      ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700"
-                      : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300"
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-mono">
-                    <span className="text-muted-foreground">Normalized:</span>
-                    <span className="font-bold text-foreground">
-                      {normalizedPreview || "—"}
-                    </span>
-                  </div>
-                  {!validationPreview?.valid && (
-                    <div className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
-                      <XCircle className="size-3.5 shrink-0" /> {validationPreview?.message}
-                    </div>
-                  )}
-                  {validationPreview?.valid && (
-                    <div className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <CheckCircle2 className="size-3" /> Valid domain format
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Modal Footer */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-color">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsRequestModalOpen(false)}
-                  className="text-xs h-8 cursor-pointer"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={requestMutation.isPending || !validationPreview?.valid}
-                  className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white cursor-pointer"
-                >
-                  {requestMutation.isPending ? (
-                    <RefreshCw className="size-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-3.5" />
-                  )}
-                  Submit Domain Request
-                </Button>
-              </div>
-            </form>
+      {/* Connect Domain Modal - Modern Native <dialog> */}
+      <ModernDialog
+        open={isRequestModalOpen}
+        onOpenChange={setIsRequestModalOpen}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-md p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border-color">
+            <ModernDialogTitle className="font-semibold text-sm text-foreground flex items-center gap-2">
+              <Globe className="size-4 text-primary" /> Connect Custom Domain
+            </ModernDialogTitle>
           </div>
-        </div>
-      )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
-              <AlertTriangle className="size-6" />
+          <form onSubmit={handleRequestSubmit} className="p-5 space-y-4 text-xs">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Custom Domain Hostname
+              </label>
+              <Input
+                placeholder="e.g. app.mycompany.com or hr.brand.org"
+                value={rawInput}
+                onChange={(e) => setRawInput(e.target.value)}
+                className="font-mono text-xs h-9"
+                autoFocus
+              />
+              <ModernDialogDescription className="text-[11px] text-muted-foreground">
+                Enter your subdomain or domain name. Protocols and trailing slashes will be automatically normalized.
+              </ModernDialogDescription>
             </div>
-            <h4 className="font-semibold text-base text-foreground">Remove Custom Domain?</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Are you sure you want to remove{" "}
-              <strong className="text-foreground">{deleteCandidate.domain}</strong>? The domain will no longer route to your workspace. Your default workspace address will remain active.
-            </p>
-            <div className="flex items-center justify-center gap-2 pt-3">
+
+            {/* Dynamic Real-time Normalization Feedback */}
+            {rawInput.trim() && (
+              <div
+                className={`p-3 rounded-lg border text-[11px] space-y-1 ${
+                  validationPreview?.valid
+                    ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700"
+                    : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300"
+                }`}
+              >
+                <div className="flex items-center justify-between font-mono">
+                  <span className="text-muted-foreground">Normalized:</span>
+                  <span className="font-bold text-foreground">
+                    {normalizedPreview || "—"}
+                  </span>
+                </div>
+                {!validationPreview?.valid && (
+                  <div className="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
+                    <XCircle className="size-3.5 shrink-0" /> {validationPreview?.message}
+                  </div>
+                )}
+                {validationPreview?.valid && (
+                  <div className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="size-3" /> Valid domain format
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-color">
               <Button
+                type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setDeleteCandidate(null)}
+                onClick={() => setIsRequestModalOpen(false)}
                 className="text-xs h-8 cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
+                type="submit"
                 size="sm"
-                variant="destructive"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate(deleteCandidate.id)}
-                className="text-xs h-8 gap-1.5 cursor-pointer bg-rose-600 hover:bg-rose-700 text-white"
+                disabled={requestMutation.isPending || !validationPreview?.valid}
+                className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-white cursor-pointer"
               >
-                {deleteMutation.isPending && <RefreshCw className="size-3 animate-spin" />}
-                Confirm Remove
+                {requestMutation.isPending ? (
+                  <RefreshCw className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                Submit Domain Request
               </Button>
             </div>
+          </form>
+        </ModernDialogContent>
+      </ModernDialog>
+
+      {/* Delete Confirmation Modal - Modern Native <dialog> */}
+      <ModernDialog
+        open={Boolean(deleteCandidate)}
+        onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}
+        closedBy="any"
+      >
+        <ModernDialogContent className="max-w-sm p-5 text-center space-y-3" showCloseButton={false}>
+          <div className="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertTriangle className="size-6" />
           </div>
-        </div>
-      )}
+          <ModernDialogTitle className="font-semibold text-base text-foreground text-center">
+            Remove Custom Domain?
+          </ModernDialogTitle>
+          <ModernDialogDescription className="text-xs text-muted-foreground leading-relaxed text-center">
+            Are you sure you want to remove{" "}
+            <strong className="text-foreground">{deleteCandidate?.domain}</strong>? The domain will no longer route to your workspace. Your default workspace address will remain active.
+          </ModernDialogDescription>
+          <div className="flex items-center justify-center gap-2 pt-3 border-t border-border-color">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteCandidate(null)}
+              className="text-xs h-8 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteCandidate && deleteMutation.mutate(deleteCandidate.id)}
+              className="text-xs h-8 gap-1.5 cursor-pointer bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              {deleteMutation.isPending && <RefreshCw className="size-3 animate-spin" />}
+              Confirm Remove
+            </Button>
+          </div>
+        </ModernDialogContent>
+      </ModernDialog>
     </div>
   );
 }

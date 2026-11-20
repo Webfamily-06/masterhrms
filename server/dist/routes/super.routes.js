@@ -57,6 +57,7 @@ const tenant_usage_metrics_service_1 = require("../services/tenant-usage-metrics
 const maintenance_1 = require("../middleware/maintenance");
 const cms_routes_1 = require("./cms.routes");
 const settings_service_1 = require("../services/settings/settings.service");
+const referral_service_1 = require("../services/referral.service");
 const workspace_host_1 = require("../lib/workspace-host");
 const domain_normalization_1 = require("../lib/domain-normalization");
 const domain_dns_service_1 = require("../services/domain-dns.service");
@@ -64,6 +65,7 @@ const invoice_engine_service_1 = require("../services/invoice-engine.service");
 const invoice_pdf_service_1 = require("../services/invoice-pdf.service");
 const unified_catalog_service_1 = require("../services/unified-catalog.service");
 const compliance_control_routes_1 = require("./compliance-control.routes");
+const quota_governance_service_1 = require("../services/files/quota-governance.service");
 exports.superRouter = (0, express_1.Router)();
 // Mount Super Admin Compliance Control Center
 exports.superRouter.use("/compliance", compliance_control_routes_1.complianceControlRouter);
@@ -145,6 +147,87 @@ exports.superRouter.put("/tenants/:id/policy", auth_1.requireAuth, auth_1.requir
     }
     catch (error) {
         return res.status(error instanceof zod_1.z.ZodError ? 400 : error.status || 500).json({ error: error instanceof zod_1.z.ZodError ? error.errors[0].message : error.message });
+    }
+});
+// PUT /api/super/tenants/:id/quota - Tenant Resource Quota Management (FN-061)
+exports.superRouter.put("/tenants/:id/quota", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { storageQuotaGb, quotaBytes, maxUsers, maxEmployees, reason = "Super Admin quota allocation", } = req.body;
+        const tenant = await prisma_1.rawPrisma.tenant.findUnique({
+            where: { id },
+            include: { subscription: true },
+        });
+        if (!tenant) {
+            return res.status(404).json({ error: "Tenant not found." });
+        }
+        // Resolve target storage quota in bytes
+        let targetQuotaBytes = null;
+        if (quotaBytes) {
+            targetQuotaBytes = BigInt(quotaBytes);
+        }
+        else if (storageQuotaGb !== undefined && storageQuotaGb !== null) {
+            targetQuotaBytes = BigInt(Math.max(1, Number(storageQuotaGb))) * BigInt(1024 * 1024 * 1024);
+        }
+        let quotaResult = null;
+        if (targetQuotaBytes && targetQuotaBytes > BigInt(0)) {
+            quotaResult = await quota_governance_service_1.QuotaGovernanceService.setTenantQuotaOverride(id, targetQuotaBytes, req.user?.userId || req.user?.id, reason);
+        }
+        // If maxUsers or maxEmployees or storageLimitGb are provided, update active tenant subscription
+        let updatedSubscription = null;
+        const activeSub = tenant.subscription;
+        if (activeSub && (maxUsers !== undefined || maxEmployees !== undefined || storageQuotaGb !== undefined)) {
+            const subUpdateData = {};
+            if (maxUsers !== undefined)
+                subUpdateData.maxUsers = maxUsers === null ? null : Number(maxUsers);
+            if (maxEmployees !== undefined)
+                subUpdateData.maxEmployees = maxEmployees === null ? null : Number(maxEmployees);
+            if (storageQuotaGb !== undefined)
+                subUpdateData.storageLimitGb = Number(storageQuotaGb);
+            updatedSubscription = await prisma_1.rawPrisma.tenantSubscription.update({
+                where: { id: activeSub.id },
+                data: subUpdateData,
+            });
+        }
+        // Fetch refreshed governance summary
+        const summary = await quota_governance_service_1.QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
+        return res.json({
+            success: true,
+            message: `Tenant quota successfully updated for workspace '${tenant.name}'`,
+            tenantId: id,
+            quota: quotaResult,
+            subscription: updatedSubscription,
+            summary,
+        });
+    }
+    catch (err) {
+        console.error("[super/tenants/:id/quota error]:", err);
+        return res.status(500).json({ error: err.message || "Failed to update tenant quota." });
+    }
+});
+// GET /api/super/tenants/:id/quota - Retrieve Tenant Resource Quota Governance Summary (FN-061)
+exports.superRouter.get("/tenants/:id/quota", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const tenant = await prisma_1.rawPrisma.tenant.findUnique({
+            where: { id },
+            include: { subscription: true },
+        });
+        if (!tenant) {
+            return res.status(404).json({ error: "Tenant not found." });
+        }
+        const summary = await quota_governance_service_1.QuotaGovernanceService.getTenantQuotaGovernanceSummary(id);
+        return res.json({
+            success: true,
+            tenantId: id,
+            tenantName: tenant.name,
+            subscription: tenant.subscription || null,
+            summary,
+        });
+    }
+    catch (err) {
+        console.error("[super/tenants/:id/quota get error]:", err);
+        return res.status(500).json({ error: err.message || "Failed to retrieve tenant quota." });
     }
 });
 // POST /api/super/smtp/test-otp-email
@@ -1525,6 +1608,143 @@ exports.superRouter.delete("/plans/:id", auth_1.requireAuth, auth_1.requireSuper
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to delete subscription plan" });
+    }
+});
+// ==========================================
+// 1.05 REFERRAL & AFFILIATE PROGRAM (SUPER ADMIN)
+// ==========================================
+// GET /api/super/referral
+exports.superRouter.get("/referral", auth_1.requireAuth, auth_1.requireSuperAdmin, async (_req, res) => {
+    try {
+        const overview = await referral_service_1.ReferralService.getOverview();
+        return res.json(overview);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to fetch referral overview" });
+    }
+});
+// PUT /api/super/referral/settings
+exports.superRouter.put("/referral/settings", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const updated = await referral_service_1.ReferralService.updateSettings(req.body, req.user?.id);
+        return res.json({ success: true, settings: updated });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to update referral settings" });
+    }
+});
+// POST /api/super/referral/payout-requests/:id/approve
+exports.superRouter.post("/referral/payout-requests/:id/approve", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { notes } = req.body;
+        const approved = await referral_service_1.ReferralService.approvePayout(id, notes, req.user?.id);
+        return res.json({ success: true, request: approved });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to approve payout request" });
+    }
+});
+// POST /api/super/referral/payout-requests/:id/reject
+exports.superRouter.post("/referral/payout-requests/:id/reject", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        if (!reason || typeof reason !== "string") {
+            return res.status(400).json({ error: "Rejection reason is required." });
+        }
+        const rejected = await referral_service_1.ReferralService.rejectPayout(id, reason, req.user?.id);
+        return res.json({ success: true, request: rejected });
+    }
+    catch (err) {
+        return res.status(400).json({ error: err.message || "Failed to reject payout request" });
+    }
+});
+// POST /api/super/plans/:id/duplicate
+exports.superRouter.post("/plans/:id/duplicate", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const existing = await prisma_1.rawPrisma.subscriptionPlan.findUnique({ where: { id } });
+        if (!existing) {
+            return res.status(404).json({ error: "Subscription plan not found." });
+        }
+        const duplicateName = `${existing.name} (Copy)`;
+        const newPlan = await prisma_1.rawPrisma.subscriptionPlan.create({
+            data: {
+                name: duplicateName,
+                description: existing.description,
+                status: "active",
+                planType: existing.planType,
+                pricingModel: existing.pricingModel,
+                currency: existing.currency,
+                priceMonthly: existing.priceMonthly,
+                priceMonthlyOriginal: existing.priceMonthlyOriginal,
+                priceQuarterly: existing.priceQuarterly,
+                priceSemiAnnual: existing.priceSemiAnnual,
+                priceAnnual: existing.priceAnnual,
+                priceAnnualOriginal: existing.priceAnnualOriginal,
+                pricePerUser: existing.pricePerUser,
+                pricePerUserOriginal: existing.pricePerUserOriginal,
+                billableUsers: existing.billableUsers,
+                durationPrices: existing.durationPrices,
+                isTrial: existing.isTrial,
+                trialDays: existing.trialDays,
+                maxEmployees: existing.maxEmployees,
+                maxUsers: existing.maxUsers,
+                storageLimitGb: existing.storageLimitGb,
+                features: existing.features,
+                includedAddonIds: existing.includedAddonIds,
+                isPopular: false,
+                sortOrder: existing.sortOrder + 1,
+                isPublic: existing.isPublic,
+            },
+        });
+        return res.status(201).json(newPlan);
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to duplicate plan" });
+    }
+});
+// POST /api/super/plans/:id/make-default
+exports.superRouter.post("/plans/:id/make-default", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const targetPlan = await prisma_1.rawPrisma.subscriptionPlan.findUnique({ where: { id } });
+        if (!targetPlan) {
+            return res.status(404).json({ error: "Subscription plan not found." });
+        }
+        const existingSetting = await prisma_1.rawPrisma.setting.findFirst({
+            where: {
+                scope: "PLATFORM",
+                group: "billing",
+                key: "default_signup_plan_id",
+            },
+        });
+        if (existingSetting) {
+            await prisma_1.rawPrisma.setting.update({
+                where: { id: existingSetting.id },
+                data: {
+                    valueJson: { planId: id, planName: targetPlan.name },
+                    updatedBy: req.user?.id || null,
+                },
+            });
+        }
+        else {
+            await prisma_1.rawPrisma.setting.create({
+                data: {
+                    scope: "PLATFORM",
+                    group: "billing",
+                    key: "default_signup_plan_id",
+                    valueType: "json",
+                    valueJson: { planId: id, planName: targetPlan.name },
+                    updatedBy: req.user?.id || null,
+                },
+            });
+        }
+        return res.json({ success: true, message: `Plan "${targetPlan.name}" is now the default signup plan.` });
+    }
+    catch (err) {
+        return res.status(500).json({ error: err.message || "Failed to set default plan" });
     }
 });
 // ==========================================
