@@ -57,6 +57,7 @@ import {
 
 import { complianceControlRouter } from "./compliance-control.routes";
 import { QuotaGovernanceService } from "../services/files/quota-governance.service";
+import { syncCanonical133Addons } from "../seeds/canonical-133-addons.seed";
 
 export const superRouter = Router();
 
@@ -2405,6 +2406,20 @@ superRouter.get("/addons", requireAuth, requireSuperAdmin, async (req: AuthReque
     return res.json(formatted);
   } catch (err: any) {
     return res.status(500).json({ error: err.message || "Failed to fetch addons" });
+  }
+});
+
+// POST /api/super/addons/sync-canonical
+superRouter.post("/addons/sync-canonical", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const result = await syncCanonical133Addons(prisma);
+    return res.json({
+      message: `Successfully synchronized canonical add-on catalog (${result.total} total items).`,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error("[super/addons/sync-canonical error]:", err);
+    return res.status(500).json({ error: err.message || "Failed to synchronize canonical addons" });
   }
 });
 

@@ -56,6 +56,54 @@ import {
   BookOpen,
   Eye,
   ShieldCheck,
+  Share2,
+  Cpu,
+  ShoppingCart,
+  FileText,
+  Landmark,
+  Users,
+  Sliders,
+  Navigation,
+  Bot,
+  Shield,
+  Copy,
+  Check,
+  Zap,
+  PhoneCall,
+  MessageSquare,
+  MessageCircle,
+  Video,
+  Mail,
+  Webhook,
+  Network,
+  Calendar,
+  CheckSquare,
+  TrendingUp,
+  ShoppingBag,
+  Receipt,
+  Boxes,
+  Award,
+  Compass,
+  Folder,
+  Scale,
+  PiggyBank,
+  Laptop,
+  Clock,
+  Fingerprint,
+  Target,
+  GraduationCap,
+  TextSelect,
+  FormInput,
+  GitBranch,
+  CreditCard,
+  Code,
+  LifeBuoy,
+  History,
+  StickyNote,
+  Bell,
+  HardDrive,
+  Key,
+  Lock,
 } from "lucide-react";
 import { formatSystemAmount, DEFAULT_CURRENCY_SETTINGS, SystemCurrencySettings } from "@/lib/currency";
 
@@ -98,7 +146,7 @@ const emptyAddon: Omit<Addon, "id"> = {
   tagline: "",
   description: "",
   long_description: "",
-  category: "Productivity",
+  category: "HR",
   icon: "",
   price_monthly: 0,
   developer: "Master ERP Core Team",
@@ -111,6 +159,183 @@ const emptyAddon: Omit<Addon, "id"> = {
   screenshots: [],
 };
 
+// Category icon & color mapping helper
+function getCategoryMeta(categoryName: string) {
+  const cat = (categoryName || "").toLowerCase();
+  if (cat.includes("free")) {
+    return {
+      icon: Sparkles,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      border: "border-emerald-500/20",
+      accent: "text-emerald-600",
+    };
+  }
+  if (cat.includes("social")) {
+    return {
+      icon: Share2,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      border: "border-blue-500/20",
+      accent: "text-blue-600",
+    };
+  }
+  if (cat.includes("integration")) {
+    return {
+      icon: Cpu,
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10",
+      border: "border-indigo-500/20",
+      accent: "text-indigo-600",
+    };
+  }
+  if (cat.includes("commerce") || cat.includes("sale")) {
+    return {
+      icon: ShoppingCart,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+      border: "border-amber-500/20",
+      accent: "text-amber-600",
+    };
+  }
+  if (cat.includes("content")) {
+    return {
+      icon: FileText,
+      color: "text-cyan-500",
+      bg: "bg-cyan-500/10",
+      border: "border-cyan-500/20",
+      accent: "text-cyan-600",
+    };
+  }
+  if (cat.includes("finance") || cat.includes("account")) {
+    return {
+      icon: Landmark,
+      color: "text-teal-500",
+      bg: "bg-teal-500/10",
+      border: "border-teal-500/20",
+      accent: "text-teal-600",
+    };
+  }
+  if (cat.includes("hr")) {
+    return {
+      icon: Users,
+      color: "text-violet-500",
+      bg: "bg-violet-500/10",
+      border: "border-violet-500/20",
+      accent: "text-violet-600",
+    };
+  }
+  if (cat.includes("communication") || cat.includes("custom")) {
+    return {
+      icon: Sliders,
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      border: "border-purple-500/20",
+      accent: "text-purple-600",
+    };
+  }
+  if (cat.includes("mobility") || cat.includes("operation")) {
+    return {
+      icon: Navigation,
+      color: "text-sky-500",
+      bg: "bg-sky-500/10",
+      border: "border-sky-500/20",
+      accent: "text-sky-600",
+    };
+  }
+  if (cat.includes("ai")) {
+    return {
+      icon: Bot,
+      color: "text-fuchsia-500",
+      bg: "bg-fuchsia-500/10",
+      border: "border-fuchsia-500/20",
+      accent: "text-fuchsia-600",
+    };
+  }
+  if (cat.includes("security")) {
+    return {
+      icon: Shield,
+      color: "text-rose-500",
+      bg: "bg-rose-500/10",
+      border: "border-rose-500/20",
+      accent: "text-rose-600",
+    };
+  }
+  return {
+    icon: Package,
+    color: "text-primary",
+    bg: "bg-primary/10",
+    border: "border-primary/20",
+    accent: "text-primary",
+  };
+}
+
+// Icon name to Lucide Icon component mapping
+const ICON_COMPONENT_MAP: Record<string, any> = {
+  Sparkles,
+  Share2,
+  Cpu,
+  ShoppingCart,
+  FileText,
+  Landmark,
+  Users,
+  Sliders,
+  Navigation,
+  Bot,
+  Shield,
+  Fingerprint,
+  Scale,
+  Award,
+  Zap,
+  PhoneCall,
+  MessageSquare,
+  MessageCircle,
+  Video,
+  Mail,
+  Webhook,
+  Network,
+  Calendar,
+  CheckSquare,
+  TrendingUp,
+  ShoppingBag,
+  Store,
+  Receipt,
+  Boxes,
+  Compass,
+  Folder,
+  PiggyBank,
+  Laptop,
+  Clock,
+  BookOpen,
+  ShieldCheck,
+  Target,
+  GraduationCap,
+  TextSelect,
+  FormInput,
+  GitBranch,
+  CreditCard,
+  Code,
+  LifeBuoy,
+  History,
+  StickyNote,
+  Bell,
+  HardDrive,
+  Key,
+  Lock,
+  Package,
+};
+
+function AddonIconRenderer({ icon, name, category, className = "size-6" }: { icon: string | null; name: string; category: string; className?: string }) {
+  if (icon && (icon.startsWith("http://") || icon.startsWith("https://") || icon.startsWith("/") || icon.startsWith("data:"))) {
+    return <img src={icon} alt={name} className="size-full object-contain rounded" loading="lazy" />;
+  }
+
+  const meta = getCategoryMeta(category);
+  const IconComponent = icon && ICON_COMPONENT_MAP[icon] ? ICON_COMPONENT_MAP[icon] : meta.icon;
+
+  return <IconComponent className={`${className} ${meta.color}`} />;
+}
+
 function MarketplaceAdmin() {
   const qc = useQueryClient();
 
@@ -120,6 +345,7 @@ function MarketplaceAdmin() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState<string>("featured");
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   // Addon Editor State
   const [editing, setEditing] = useState<Partial<Addon> | null>(null);
@@ -143,7 +369,7 @@ function MarketplaceAdmin() {
   const [categoryToDelete, setCategoryToDelete] = useState<CategoryDetail | null>(null);
   const [deleteCategoryModalOpen, setDeleteCategoryModalOpen] = useState(false);
 
-  // 1. Fetch System Settings to derive configured authoritative application currency
+  // 1. Fetch System Settings for authoritative currency
   const { data: systemPlatformSettings } = useQuery({
     queryKey: ["realtime-platform-settings"],
     queryFn: async () => {
@@ -156,7 +382,6 @@ function MarketplaceAdmin() {
     },
   });
 
-  // Effective Authoritative Currency Settings
   const activeCurrencyConfig = useMemo<Partial<SystemCurrencySettings>>(() => {
     return {
       defaultCurrency: systemPlatformSettings?.defaultCurrency || "INR",
@@ -198,26 +423,29 @@ function MarketplaceAdmin() {
     return ["All", ...categoryDetails.map((c) => c.name).sort()];
   }, [categoryDetails]);
 
-  // Computed summary metrics from live data
+  // Computed summary metrics
   const metrics = useMemo(() => {
     const total = addons.length;
     const categoriesCount = categoryDetails.length;
     const published = addons.filter((a) => a.status === "available" || a.status === "active").length;
-    const beta = addons.filter((a) => a.status === "beta").length;
-    const draftOrArchived = addons.filter((a) => a.status === "draft" || a.status === "archived").length;
+    const freeCount = addons.filter((a) => Number(a.price_monthly ?? 0) === 0).length;
     const featuredCount = addons.filter((a) => Boolean(a.featured)).length;
-    return { total, categoriesCount, published, beta, draftOrArchived, featuredCount };
+    return { total, categoriesCount, published, freeCount, featuredCount };
   }, [addons, categoryDetails]);
 
   // Filtered and sorted addons list
   const filteredAddons = useMemo(() => {
     let result = addons.filter((a) => {
+      const query = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        !searchQuery ||
-        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        a.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.tagline ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (a.developer ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+        !query ||
+        a.name.toLowerCase().includes(query) ||
+        a.slug.toLowerCase().includes(query) ||
+        (a.tagline ?? "").toLowerCase().includes(query) ||
+        (a.description ?? "").toLowerCase().includes(query) ||
+        (a.category ?? "").toLowerCase().includes(query) ||
+        (a.developer ?? "").toLowerCase().includes(query) ||
+        (Array.isArray(a.features) && a.features.some((f) => f.toLowerCase().includes(query)));
 
       const matchesCat =
         categoryFilter === "All" || a.category.toLowerCase() === categoryFilter.toLowerCase();
@@ -252,10 +480,37 @@ function MarketplaceAdmin() {
     return result;
   }, [addons, searchQuery, categoryFilter, statusFilter, sortBy]);
 
+  // Copy slug helper
+  const handleCopySlug = (slug: string) => {
+    navigator.clipboard.writeText(slug);
+    setCopiedSlug(slug);
+    toast.success(`Copied slug: /${slug}`);
+    setTimeout(() => setCopiedSlug(null), 2000);
+  };
+
+  // ==========================================
+  // SYNC CANONICAL 133 ADDONS MUTATION
+  // ==========================================
+  const syncCanonicalMutation = useMutation({
+    mutationFn: async () => {
+      return await api.post<{ message: string; createdCount: number; updatedCount: number; total: number }>("/super/addons/sync-canonical", {});
+    },
+    onSuccess: (data) => {
+      toast.success(data?.message || "Successfully synchronized 133 canonical add-ons catalog!");
+      qc.invalidateQueries({ queryKey: ["admin-addons"] });
+      qc.invalidateQueries({ queryKey: ["admin-addon-categories-details"] });
+      qc.invalidateQueries({ queryKey: ["admin-addon-categories"] });
+      qc.invalidateQueries({ queryKey: ["public-addons"] });
+      qc.invalidateQueries({ queryKey: ["public-addon-categories"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to synchronize canonical add-ons");
+    },
+  });
+
   // ==========================================
   // ADDON MUTATIONS
   // ==========================================
-
   const upsertAddon = useMutation({
     mutationFn: async (a: Partial<Addon> & { id?: string }) => {
       const payload = {
@@ -323,7 +578,6 @@ function MarketplaceAdmin() {
   // ==========================================
   // CATEGORY MUTATIONS
   // ==========================================
-
   const createCategoryMutation = useMutation({
     mutationFn: async (name: string) => {
       return await api.post("/super/addons/categories", { name });
@@ -474,7 +728,7 @@ function MarketplaceAdmin() {
     }
   }
 
-  // Handle PNG Screenshots multi-upload to /v1/media/upload
+  // Handle PNG Screenshots multi-upload
   async function handleScreenshotFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
@@ -505,236 +759,254 @@ function MarketplaceAdmin() {
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6 pb-12">
-      <BreadcrumbNav className="mb-4" />
-      {/* 1. HEADER SECTION */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-3">
+    <div className="w-full min-w-0 space-y-6 pb-16">
+      {/* 1. TOP BREADCRUMB */}
+      <BreadcrumbNav className="mb-2" />
+
+      {/* 2. EXECUTIVE HERO HEADER */}
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-card via-card to-secondary/30 p-6 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live Enterprise Catalog
+              </div>
+              <Badge variant="secondary" className="font-mono text-xs font-bold gap-1">
+                <Package className="size-3 text-primary" />
+                {metrics.total} Canonical Modules
+              </Badge>
+              <Badge variant="outline" className="font-mono text-xs">
+                {metrics.categoriesCount} Taxonomy Domains
+              </Badge>
+            </div>
+
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-              Marketplace Addons
+              Marketplace & Modules Catalog
             </h1>
-            <Badge variant="secondary" className="gap-1 text-xs font-mono font-bold">
-              {metrics.total} Extensions
+
+            <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
+              Super Admin control center for all 133 canonical ecosystem extensions across Free Addons, Social Media, Integrations, E-Commerce, Content, Finance, HR, Operations, AI, and Security domains.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Sync Canonical 133 Addons Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => syncCanonicalMutation.mutate()}
+              disabled={syncCanonicalMutation.isPending}
+              className="gap-2 text-xs h-9 border-primary/20 hover:border-primary/40 hover:bg-primary/5 font-semibold"
+              title="Ensure all 133 canonical addons from documentation matrix are synchronized"
+            >
+              {syncCanonicalMutation.isPending ? (
+                <Loader2 className="size-3.5 animate-spin text-primary" />
+              ) : (
+                <Sparkles className="size-3.5 text-primary" />
+              )}
+              Sync 133 Canonical Catalog
+            </Button>
+
+            {/* Public Store Link */}
+            <Button variant="outline" size="sm" asChild className="gap-1.5 text-xs h-9">
+              <Link to="/addons" target="_blank">
+                <Globe className="size-3.5 text-primary" /> Public Store
+                <ExternalLink className="size-3 text-muted-foreground ml-0.5" />
+              </Link>
+            </Button>
+
+            {/* Refresh */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchAddons();
+                refetchCategories();
+              }}
+              className="gap-1.5 text-xs h-9"
+              title="Refresh database records"
+            >
+              <RefreshCw className="size-3.5" /> Refresh
+            </Button>
+
+            {/* Create Addon */}
+            <Button size="sm" onClick={openNewAddon} className="gap-1.5 text-xs h-9 font-semibold shadow-xs">
+              <Plus className="size-4" /> New Addon
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. METRIC KPI CARDS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <Card className="p-4 border shadow-xs bg-card/60 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Total Catalog</span>
+            <div className="size-8 rounded-lg bg-primary/10 grid place-items-center text-primary">
+              <Package className="size-4" />
+            </div>
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold mt-2 text-foreground">{metrics.total}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
+            <span className="text-emerald-600 font-bold">{metrics.published} live</span> • {metrics.freeCount} free tiers
+          </p>
+        </Card>
+
+        <Card className="p-4 border shadow-xs bg-card/60 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Taxonomy Domains</span>
+            <div className="size-8 rounded-lg bg-indigo-500/10 grid place-items-center text-indigo-600">
+              <Layers className="size-4" />
+            </div>
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold mt-2 text-foreground">{metrics.categoriesCount}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Domain categories
+          </p>
+        </Card>
+
+        <Card className="p-4 border shadow-xs bg-card/60 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Active & Published</span>
+            <div className="size-8 rounded-lg bg-emerald-500/10 grid place-items-center text-emerald-600">
+              <CheckCircle2 className="size-4" />
+            </div>
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold mt-2 text-emerald-600">{metrics.published}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Available on public marketplace
+          </p>
+        </Card>
+
+        <Card className="p-4 border shadow-xs bg-card/60 relative overflow-hidden group hover:border-primary/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Spotlight Featured</span>
+            <div className="size-8 rounded-lg bg-amber-500/10 grid place-items-center text-amber-500">
+              <Star className="size-4 fill-amber-500" />
+            </div>
+          </div>
+          <div className="text-2xl md:text-3xl font-extrabold mt-2 text-amber-600">{metrics.featuredCount}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Highlighted with spotlight badges
+          </p>
+        </Card>
+      </div>
+
+      {/* 4. MODERN CATEGORY FILTER RIBBON */}
+      <Card className="border shadow-xs overflow-hidden">
+        <div className="p-3.5 px-4 border-b bg-secondary/15 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Layers className="size-4 text-primary" />
+            <span className="text-xs font-bold text-foreground">Taxonomy Domains & Categories</span>
+            <Badge variant="outline" className="text-[10px] font-mono">
+              {categoryDetails.length} Domains
             </Badge>
           </div>
-          <p className="text-muted-foreground text-xs md:text-sm mt-1">
-            Manage ecosystem extensions, categories, media assets, pricing tiers, and public store availability.
-          </p>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* View Public Store Action */}
-          <Button variant="outline" size="sm" asChild className="gap-1.5 text-xs h-9">
-            <Link to="/addons" target="_blank">
-              <Globe className="size-3.5 text-primary" /> Public Store
-              <ExternalLink className="size-3 text-muted-foreground ml-0.5" />
-            </Link>
-          </Button>
-
-          {/* Refresh Action */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchAddons();
-              refetchCategories();
-            }}
-            className="gap-1.5 text-xs h-9"
-            title="Refresh database records"
-          >
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
-
-          {/* New Addon Primary Action */}
-          <Button size="sm" onClick={openNewAddon} className="gap-1.5 text-xs h-9 font-semibold">
-            <Plus className="size-4" /> New Addon
+          <Button size="sm" variant="ghost" onClick={openNewCategory} className="gap-1.5 h-7 text-xs font-semibold">
+            <FolderPlus className="size-3.5 text-primary" /> New Domain
           </Button>
         </div>
-      </div>
 
-      {/* 2. SUMMARY METRICS CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Total Extensions</span>
-            <Package className="size-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold mt-2">{metrics.total}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-            <span className="text-emerald-600 font-bold">{metrics.published} live</span> • {metrics.draftOrArchived} draft/archived
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Addon Categories</span>
-            <Layers className="size-4 text-primary" />
-          </div>
-          <div className="text-2xl font-bold mt-2">{metrics.categoriesCount}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Distinct taxonomy domains
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Published & Active</span>
-            <CheckCircle2 className="size-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-emerald-700">{metrics.published}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Visible on public /addons catalog
-          </p>
-        </Card>
-
-        <Card className="p-4 border shadow-2xs bg-card/60">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground">Featured Addons</span>
-            <Star className="size-4 text-amber-500 fill-amber-500" />
-          </div>
-          <div className="text-2xl font-bold mt-2 text-amber-600">{metrics.featuredCount}</div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
-            Highlighted with spotlight badge
-          </p>
-        </Card>
-      </div>
-
-      {/* 3. PROMINENT ADDON CATEGORIES MANAGEMENT PANEL */}
-      <Card className="border shadow-2xs overflow-hidden">
-        <CardHeader className="p-4 pb-3 border-b bg-secondary/15 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Layers className="size-4 text-primary" />
-              Addon Categories
-              <Badge variant="outline" className="text-[10px] font-mono">
-                {categoryDetails.length} Categories
-              </Badge>
-            </CardTitle>
-            <CardDescription className="text-xs mt-0.5">
-              Select a category to filter extensions below, or create, rename, and manage taxonomy categories.
-            </CardDescription>
-          </div>
-
-          <Button size="sm" variant="outline" onClick={openNewCategory} className="gap-1.5 h-8 text-xs font-semibold shrink-0">
-            <FolderPlus className="size-3.5 text-primary" /> New Category
-          </Button>
-        </CardHeader>
-
-        <CardContent className="p-4">
+        <div className="p-3">
           {isLoadingCategories ? (
-            <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-4 animate-spin text-primary" /> Loading category taxonomy...
+            <div className="py-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-4 animate-spin text-primary" /> Loading categories...
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-              {/* "All Categories" Pill/Card */}
-              <div
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+              {/* "All" Filter Tab */}
+              <button
+                type="button"
                 onClick={() => setCategoryFilter("All")}
-                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between group ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 border ${
                   categoryFilter === "All"
                     ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
-                    : "bg-background hover:bg-secondary/40 border-border text-foreground"
+                    : "bg-background hover:bg-secondary/60 text-foreground border-border"
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold line-clamp-1">All Categories</span>
-                  <Tag className={`size-3.5 ${categoryFilter === "All" ? "text-primary-foreground" : "text-muted-foreground"}`} />
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className={`text-[11px] font-mono font-semibold ${categoryFilter === "All" ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
-                    {metrics.total} Addons
-                  </span>
-                  {categoryFilter === "All" && (
-                    <span className="text-[10px] font-bold uppercase tracking-wider">Active</span>
-                  )}
-                </div>
-              </div>
+                <Tag className="size-3.5" />
+                <span>All Modules</span>
+                <Badge
+                  variant={categoryFilter === "All" ? "secondary" : "outline"}
+                  className="text-[10px] px-1.5 py-0 font-mono"
+                >
+                  {metrics.total}
+                </Badge>
+              </button>
 
-              {/* Dynamic Categorized Cards with Edit and Delete actions */}
+              {/* Dynamic Category Tabs */}
               {categoryDetails.map((cat) => {
                 const isSelected = categoryFilter.toLowerCase() === cat.name.toLowerCase();
+                const meta = getCategoryMeta(cat.name);
+                const CatIcon = meta.icon;
+
                 return (
-                  <div
-                    key={cat.name}
-                    className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between group relative ${
-                      isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
-                        : "bg-background hover:border-primary/40 border-border text-foreground"
-                    }`}
-                  >
-                    {/* Header Row: Title & Action Controls */}
-                    <div className="flex items-start justify-between gap-1">
-                      <span
-                        onClick={() => setCategoryFilter(cat.name)}
-                        className="text-xs font-bold line-clamp-1 cursor-pointer hover:underline"
-                        title={cat.name}
-                      >
-                        {cat.name}
-                      </span>
-
-                      {/* Edit / Delete action icons */}
-                      <div className="flex items-center gap-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditCategory(cat);
-                          }}
-                          className={`p-1 rounded hover:bg-secondary/80 transition-colors ${
-                            isSelected ? "text-primary-foreground hover:text-white hover:bg-white/20" : "text-muted-foreground hover:text-foreground"
-                          }`}
-                          title={`Edit ${cat.name}`}
-                        >
-                          <Pencil className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDeleteCategory(cat);
-                          }}
-                          className={`p-1 rounded hover:bg-destructive/10 transition-colors ${
-                            isSelected ? "text-primary-foreground hover:text-destructive-foreground hover:bg-destructive" : "text-muted-foreground hover:text-destructive"
-                          }`}
-                          title={`Delete ${cat.name}`}
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Footer Row: Count & Selection Pill */}
-                    <div
+                  <div key={cat.name} className="relative group shrink-0 flex items-center">
+                    <button
+                      type="button"
                       onClick={() => setCategoryFilter(cat.name)}
-                      className="mt-2 flex items-center justify-between cursor-pointer"
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20"
+                          : "bg-background hover:bg-secondary/60 text-foreground border-border"
+                      }`}
                     >
-                      <span className={`text-[11px] font-mono font-semibold ${isSelected ? "text-primary-foreground/90" : "text-muted-foreground"}`}>
-                        {cat.count} {cat.count === 1 ? "Addon" : "Addons"}
-                      </span>
-                      {isSelected && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Active</span>
-                      )}
+                      <CatIcon className={`size-3.5 ${isSelected ? "text-primary-foreground" : meta.color}`} />
+                      <span className="truncate max-w-[140px]">{cat.name}</span>
+                      <Badge
+                        variant={isSelected ? "secondary" : "outline"}
+                        className="text-[10px] px-1.5 py-0 font-mono"
+                      >
+                        {cat.count}
+                      </Badge>
+                    </button>
+
+                    {/* Quick Edit/Delete Category Controls on Hover */}
+                    <div className="hidden group-hover:flex items-center gap-0.5 ml-1 bg-background/80 backdrop-blur-xs p-0.5 rounded-lg border shadow-xs">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditCategory(cat);
+                        }}
+                        className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+                        title={`Rename ${cat.name}`}
+                      >
+                        <Pencil className="size-2.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          confirmDeleteCategory(cat);
+                        }}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                        title={`Delete ${cat.name}`}
+                      >
+                        <Trash2 className="size-2.5" />
+                      </button>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </CardContent>
+        </div>
       </Card>
 
-      {/* 4. SEARCH, FILTER & VIEW CONTROLS TOOLBAR */}
-      <Card className="p-4 shadow-2xs border space-y-3">
+      {/* 5. SEARCH & CONTROLS TOOLBAR */}
+      <Card className="p-4 shadow-xs border space-y-3">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
           {/* Search Box */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, slug, tagline, developer..."
+              placeholder="Search 133 addons by name, slug, tagline, features, category..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-xs"
+              className="pl-9 pr-9 h-9 text-xs rounded-xl"
             />
             {searchQuery && (
               <button
@@ -747,11 +1019,11 @@ function MarketplaceAdmin() {
             )}
           </div>
 
-          {/* Filters & View Mode Controls */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Category Filter Dropdown */}
+          {/* Filter Dropdowns & View Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Category Dropdown */}
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-9 w-[150px] text-xs">
+              <SelectTrigger className="h-9 w-[160px] text-xs rounded-xl">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -763,25 +1035,26 @@ function MarketplaceAdmin() {
               </SelectContent>
             </Select>
 
-            {/* Status Filter Dropdown */}
+            {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-[140px] text-xs">
+              <SelectTrigger className="h-9 w-[140px] text-xs rounded-xl">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                <SelectItem value="available" className="text-xs">Available (Live)</SelectItem>
+                <SelectItem value="active" className="text-xs">Active (Verified)</SelectItem>
+                <SelectItem value="available" className="text-xs">Available</SelectItem>
                 <SelectItem value="featured" className="text-xs">Featured Only</SelectItem>
                 <SelectItem value="beta" className="text-xs">Beta Testing</SelectItem>
                 <SelectItem value="coming_soon" className="text-xs">Coming Soon</SelectItem>
                 <SelectItem value="free" className="text-xs">Free ($0)</SelectItem>
-                <SelectItem value="paid" className="text-xs">Paid Extensions</SelectItem>
+                <SelectItem value="paid" className="text-xs">Paid Tiers</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* Sorting Dropdown */}
+            {/* Sort Dropdown */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="h-9 w-[140px] text-xs">
+              <SelectTrigger className="h-9 w-[140px] text-xs rounded-xl">
                 <ArrowUpDown className="size-3 mr-1 text-muted-foreground" />
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
@@ -796,11 +1069,11 @@ function MarketplaceAdmin() {
             </Select>
 
             {/* View Switcher Toggle */}
-            <div className="flex items-center border p-0.5 rounded-lg bg-secondary/30">
+            <div className="flex items-center border p-0.5 rounded-xl bg-secondary/30">
               <button
                 type="button"
                 onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded text-xs transition-all ${
+                className={`p-1.5 rounded-lg text-xs transition-all ${
                   viewMode === "grid"
                     ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
                     : "hover:bg-secondary text-muted-foreground"
@@ -812,7 +1085,7 @@ function MarketplaceAdmin() {
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
-                className={`p-1.5 rounded text-xs transition-all ${
+                className={`p-1.5 rounded-lg text-xs transition-all ${
                   viewMode === "table"
                     ? "bg-primary text-primary-foreground font-semibold shadow-2xs"
                     : "hover:bg-secondary text-muted-foreground"
@@ -830,12 +1103,27 @@ function MarketplaceAdmin() {
           <span>
             Showing <strong className="text-foreground">{filteredAddons.length}</strong> of {addons.length} extensions
           </span>
-          {categoryFilter !== "All" && (
-            <Badge variant="secondary" className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive" onClick={() => setCategoryFilter("All")}>
-              Category: {categoryFilter}
-              <X className="size-3" />
-            </Badge>
-          )}
+
+          <div className="flex items-center gap-1.5">
+            {categoryFilter !== "All" && (
+              <Badge variant="secondary" className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive" onClick={() => setCategoryFilter("All")}>
+                Category: {categoryFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {statusFilter !== "all" && (
+              <Badge variant="secondary" className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive" onClick={() => setStatusFilter("all")}>
+                Status: {statusFilter}
+                <X className="size-3" />
+              </Badge>
+            )}
+            {searchQuery && (
+              <Badge variant="secondary" className="text-[10px] gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive" onClick={() => setSearchQuery("")}>
+                Search: "{searchQuery}"
+                <X className="size-3" />
+              </Badge>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -872,41 +1160,35 @@ function MarketplaceAdmin() {
           </Button>
         </Card>
       ) : viewMode === "grid" ? (
-        /* GRID VIEW */
+        /* REDESIGNED GRID VIEW */
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredAddons.map((a) => {
-            const hasIcon = a.icon && (a.icon.startsWith("http") || a.icon.startsWith("data:") || a.icon.startsWith("/"));
             const formattedPrice = a.price_monthly === 0
               ? "Free"
               : `${formatSystemAmount(Number(a.price_monthly), activeCurrencyConfig)} / mo`;
+            const meta = getCategoryMeta(a.category);
 
             return (
               <Card
                 key={a.id}
-                className="group hover:border-primary/50 transition-all flex flex-col justify-between shadow-2xs border bg-card"
+                className="group hover:border-primary/50 hover:shadow-md transition-all flex flex-col justify-between border bg-card rounded-2xl overflow-hidden"
               >
                 <CardContent className="p-5 space-y-4">
-                  {/* Top Row: Icon, Status Badges */}
+                  {/* Top Row: Icon, Category Pill, Status Badges */}
                   <div className="flex items-start justify-between gap-3">
-                    <div className="size-13 shrink-0 rounded-xl border bg-secondary/30 grid place-items-center overflow-hidden p-1 shadow-2xs">
-                      {hasIcon ? (
-                        <img src={a.icon!} alt={a.name} className="size-11 object-contain rounded" loading="lazy" />
-                      ) : (
-                        <div className="size-11 rounded-lg bg-primary/10 text-primary font-bold grid place-items-center text-base">
-                          {a.name?.[0] || "A"}
-                        </div>
-                      )}
+                    <div className={`size-13 shrink-0 rounded-2xl border ${meta.border} ${meta.bg} grid place-items-center p-2 shadow-2xs group-hover:scale-105 transition-transform`}>
+                      <AddonIconRenderer icon={a.icon} name={a.name} category={a.category} className="size-6" />
                     </div>
 
-                    <div className="flex flex-wrap gap-1 justify-end">
+                    <div className="flex flex-wrap gap-1 justify-end items-center">
                       {a.featured && (
-                        <Badge className="bg-amber-500 text-white text-[10px] gap-1 shadow-2xs">
-                          <Star className="size-3 fill-white" /> Featured
+                        <Badge className="bg-amber-500 text-white text-[10px] gap-1 shadow-2xs font-semibold">
+                          <Star className="size-2.5 fill-white" /> Featured
                         </Badge>
                       )}
                       <Badge
                         variant={a.status === "available" || a.status === "active" ? "secondary" : "outline"}
-                        className="text-[10px] capitalize"
+                        className="text-[10px] capitalize font-medium"
                       >
                         {a.status}
                       </Badge>
@@ -917,33 +1199,62 @@ function MarketplaceAdmin() {
                   </div>
 
                   {/* Body Content */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors">
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-bold text-base line-clamp-1 group-hover:text-primary transition-colors" title={a.name}>
                         {a.name}
                       </h3>
-                      <span className="font-bold text-xs text-emerald-600 font-mono shrink-0">
+                      <span className={`font-bold text-xs font-mono shrink-0 ${Number(a.price_monthly) === 0 ? "text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full" : "text-foreground"}`}>
                         {formattedPrice}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {/* Category & Slug Row */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${meta.border} ${meta.bg} ${meta.accent}`}>
                         {a.category}
-                      </Badge>
-                      <span className="text-[11px] font-mono text-muted-foreground truncate">
-                        /{a.slug}
                       </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCopySlug(a.slug)}
+                        className="text-[11px] font-mono text-muted-foreground hover:text-foreground flex items-center gap-1 group/btn px-1.5 py-0.5 rounded hover:bg-secondary/60 transition-colors"
+                        title="Click to copy slug"
+                      >
+                        <span>/{a.slug}</span>
+                        {copiedSlug === a.slug ? (
+                          <Check className="size-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="size-3 opacity-0 group-hover/btn:opacity-100 transition-opacity" />
+                        )}
+                      </button>
                     </div>
 
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 leading-relaxed">
-                      {a.tagline || a.description || "No description provided."}
+                    {/* Tagline / Description */}
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed min-h-[32px]">
+                      {a.tagline || a.description || "Enterprise modular add-on capability."}
                     </p>
+
+                    {/* Feature tags */}
+                    {Array.isArray(a.features) && a.features.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {a.features.slice(0, 2).map((feat, idx) => (
+                          <span key={idx} className="text-[10px] text-muted-foreground bg-secondary/40 border border-border/40 px-2 py-0.5 rounded-md truncate max-w-[150px]">
+                            ✓ {feat}
+                          </span>
+                        ))}
+                        {a.features.length > 2 && (
+                          <span className="text-[10px] text-muted-foreground px-1 py-0.5 font-mono">
+                            +{a.features.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Footer Action Buttons */}
                   <div className="pt-3 border-t flex items-center justify-between gap-2 text-xs">
-                    <div className="text-[11px] text-muted-foreground truncate max-w-[120px]">
+                    <div className="text-[11px] text-muted-foreground truncate max-w-[110px]" title={a.developer || "Master ERP"}>
                       {a.developer || "Master ERP"}
                     </div>
 
@@ -964,7 +1275,7 @@ function MarketplaceAdmin() {
                         variant="outline"
                         size="sm"
                         onClick={() => openEditAddon(a)}
-                        className="h-8 px-2.5 text-xs font-semibold"
+                        className="h-8 px-2.5 text-xs font-semibold rounded-xl"
                       >
                         <Pencil className="size-3.5 mr-1" /> Edit
                       </Button>
@@ -973,7 +1284,7 @@ function MarketplaceAdmin() {
                         variant="ghost"
                         size="sm"
                         onClick={() => confirmDeleteAddon(a)}
-                        className="h-8 px-2 text-destructive hover:bg-destructive/10"
+                        className="h-8 px-2 text-destructive hover:bg-destructive/10 rounded-xl"
                         title="Delete or Archive Addon"
                       >
                         <Trash2 className="size-3.5" />
@@ -986,8 +1297,8 @@ function MarketplaceAdmin() {
           })}
         </div>
       ) : (
-        /* TABLE/LIST VIEW */
-        <Card className="border shadow-2xs overflow-hidden">
+        /* REDESIGNED TABLE/LIST VIEW */
+        <Card className="border shadow-xs overflow-hidden rounded-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-secondary/40 border-b text-muted-foreground uppercase text-[10px] font-bold">
@@ -1002,23 +1313,17 @@ function MarketplaceAdmin() {
               </thead>
               <tbody className="divide-y">
                 {filteredAddons.map((a) => {
-                  const hasIcon = a.icon && (a.icon.startsWith("http") || a.icon.startsWith("data:") || a.icon.startsWith("/"));
                   const formattedPrice = a.price_monthly === 0
                     ? "Free"
                     : `${formatSystemAmount(Number(a.price_monthly), activeCurrencyConfig)} / mo`;
+                  const meta = getCategoryMeta(a.category);
 
                   return (
                     <tr key={a.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="p-3 pl-4">
                         <div className="flex items-center gap-3">
-                          <div className="size-9 shrink-0 rounded-lg border bg-background grid place-items-center overflow-hidden p-0.5 shadow-2xs">
-                            {hasIcon ? (
-                              <img src={a.icon!} alt={a.name} className="size-8 object-contain rounded" loading="lazy" />
-                            ) : (
-                              <div className="size-7 rounded bg-primary/10 text-primary font-bold text-xs grid place-items-center">
-                                {a.name?.[0] || "A"}
-                              </div>
-                            )}
+                          <div className={`size-9 shrink-0 rounded-xl border ${meta.border} ${meta.bg} grid place-items-center p-1 shadow-2xs`}>
+                            <AddonIconRenderer icon={a.icon} name={a.name} category={a.category} className="size-4" />
                           </div>
                           <div>
                             <div className="font-semibold text-xs flex items-center gap-1.5">
@@ -1031,15 +1336,15 @@ function MarketplaceAdmin() {
                       </td>
 
                       <td className="p-3">
-                        <Badge variant="secondary" className="text-[10px]">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${meta.border} ${meta.bg} ${meta.accent}`}>
                           {a.category}
-                        </Badge>
+                        </span>
                       </td>
 
                       <td className="p-3">
                         <Badge
                           variant={a.status === "available" || a.status === "active" ? "secondary" : "outline"}
-                          className="text-[10px] capitalize"
+                          className="text-[10px] capitalize font-medium"
                         >
                           {a.status}
                         </Badge>
@@ -1056,10 +1361,10 @@ function MarketplaceAdmin() {
                               <Eye className="size-3 mr-1" /> View
                             </Link>
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => openEditAddon(a)} className="h-7 px-2 text-xs font-semibold">
+                          <Button variant="outline" size="sm" onClick={() => openEditAddon(a)} className="h-7 px-2 text-xs font-semibold rounded-lg">
                             <Pencil className="size-3 mr-1" /> Edit
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => confirmDeleteAddon(a)} className="h-7 px-1.5 text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" size="sm" onClick={() => confirmDeleteAddon(a)} className="h-7 px-1.5 text-destructive hover:bg-destructive/10 rounded-lg">
                             <Trash2 className="size-3" />
                           </Button>
                         </div>
@@ -1116,7 +1421,7 @@ function MarketplaceAdmin() {
 
               <Field label="Category *">
                 <Select
-                  value={editing.category || "Productivity"}
+                  value={editing.category || "HR"}
                   onValueChange={(val) => setEditing({ ...editing, category: val })}
                 >
                   <SelectTrigger className="h-9 text-xs">
@@ -1153,11 +1458,7 @@ function MarketplaceAdmin() {
 
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <div className="size-16 shrink-0 rounded-xl border bg-background grid place-items-center overflow-hidden p-1 shadow-2xs">
-                    {editing.icon && (editing.icon.startsWith("http") || editing.icon.startsWith("data:") || editing.icon.startsWith("/")) ? (
-                      <img src={editing.icon} alt="Preview" className="size-14 object-contain rounded" loading="lazy" />
-                    ) : (
-                      <div className="text-center text-[10px] text-muted-foreground p-1">No PNG Icon</div>
-                    )}
+                    <AddonIconRenderer icon={editing.icon ?? null} name={editing.name || "Addon"} category={editing.category || "HR"} className="size-8" />
                   </div>
 
                   <div className="flex-1 w-full space-y-2">
@@ -1165,7 +1466,7 @@ function MarketplaceAdmin() {
                       <Input
                         value={editing.icon ?? ""}
                         onChange={(e) => setEditing({ ...editing, icon: e.target.value })}
-                        placeholder="Paste image URL (/uploads/... or https://...)"
+                        placeholder="Paste image URL or Lucide icon name (Sparkles, Bot, Users...)"
                         className="text-xs font-mono h-9"
                       />
                       <input
@@ -1181,7 +1482,7 @@ function MarketplaceAdmin() {
                         size="sm"
                         disabled={isUploadingIcon}
                         onClick={() => iconFileInputRef.current?.click()}
-                        className="gap-1.5 shrink-0 h-9 text-xs"
+                        className="gap-1.5 shrink-0 h-9 text-xs font-semibold"
                       >
                         {isUploadingIcon ? <Loader2 className="size-3.5 animate-spin text-primary" /> : <Upload className="size-3.5 text-primary" />}
                         {isUploadingIcon ? "Uploading..." : "Upload PNG"}
@@ -1200,7 +1501,7 @@ function MarketplaceAdmin() {
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      Upload a local PNG file via real Media File API, or paste a canonical storage path.
+                      Upload a local PNG file via real Media File API, paste an image URL, or enter a canonical Lucide icon identifier.
                     </p>
                   </div>
                 </div>
@@ -1228,6 +1529,7 @@ function MarketplaceAdmin() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="active">Active (Verified)</SelectItem>
                     <SelectItem value="available">Available (Public)</SelectItem>
                     <SelectItem value="beta">Beta Testing</SelectItem>
                     <SelectItem value="coming_soon">Coming Soon</SelectItem>
@@ -1241,7 +1543,7 @@ function MarketplaceAdmin() {
                 <Input
                   value={editing.install_url ?? ""}
                   onChange={(e) => setEditing({ ...editing, install_url: e.target.value })}
-                  placeholder="/dashboard/addons/install"
+                  placeholder="/addons/..."
                 />
               </Field>
 
@@ -1250,7 +1552,7 @@ function MarketplaceAdmin() {
                   <Input
                     value={editing.tagline ?? ""}
                     onChange={(e) => setEditing({ ...editing, tagline: e.target.value })}
-                    placeholder="Automated workforce alerts via WhatsApp Business Cloud API"
+                    placeholder="Short 1-sentence enterprise value proposition"
                   />
                 </Field>
               </div>

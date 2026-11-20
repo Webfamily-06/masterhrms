@@ -66,6 +66,7 @@ const invoice_pdf_service_1 = require("../services/invoice-pdf.service");
 const unified_catalog_service_1 = require("../services/unified-catalog.service");
 const compliance_control_routes_1 = require("./compliance-control.routes");
 const quota_governance_service_1 = require("../services/files/quota-governance.service");
+const canonical_133_addons_seed_1 = require("../seeds/canonical-133-addons.seed");
 exports.superRouter = (0, express_1.Router)();
 // Mount Super Admin Compliance Control Center
 exports.superRouter.use("/compliance", compliance_control_routes_1.complianceControlRouter);
@@ -2144,6 +2145,20 @@ exports.superRouter.get("/addons", auth_1.requireAuth, auth_1.requireSuperAdmin,
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to fetch addons" });
+    }
+});
+// POST /api/super/addons/sync-canonical
+exports.superRouter.post("/addons/sync-canonical", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+    try {
+        const result = await (0, canonical_133_addons_seed_1.syncCanonical133Addons)(prisma_1.rawPrisma);
+        return res.json({
+            message: `Successfully synchronized canonical add-on catalog (${result.total} total items).`,
+            ...result,
+        });
+    }
+    catch (err) {
+        console.error("[super/addons/sync-canonical error]:", err);
+        return res.status(500).json({ error: err.message || "Failed to synchronize canonical addons" });
     }
 });
 // POST /api/super/addons
