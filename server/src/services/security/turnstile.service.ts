@@ -68,15 +68,12 @@ export class TurnstileService {
 
     // 1. In production, Turnstile CANNOT be silently disabled via TURNSTILE_ENABLED=false
     if (isProduction) {
-      if (process.env.TURNSTILE_ENABLED === "false") {
-        console.warn("⚠️ [SECURITY] Attempted to disable Turnstile in production via TURNSTILE_ENABLED=false. Ignoring override; enforcement remains mandatory.");
+      if (process.env.TURNSTILE_ENABLED === "false" || process.env.TURNSTILE_ENFORCEMENT_MODE === "off") {
+        console.warn("⚠️ [SECURITY] Attempted to disable Turnstile in production. Ignoring override; enforcement remains mandatory.");
       }
       return "enforce";
     }
 
-    if (process.env.TURNSTILE_ENABLED === "true") {
-      return "enforce";
-    }
     if (process.env.TURNSTILE_ENABLED === "false") {
       return "off";
     }
@@ -84,7 +81,10 @@ export class TurnstileService {
     if (raw === "enforce" || raw === "audit" || raw === "off") {
       return raw as TurnstileEnforcementMode;
     }
-    return "off";
+    if (process.env.TURNSTILE_ENABLED === "true") {
+      return "enforce";
+    }
+    return "audit";
   }
 
   /**
@@ -138,23 +138,18 @@ export class TurnstileService {
       };
     }
 
-    // 2. Canonical test dummy tokens accepted ONLY in non-production environments
+    // 2. Canonical test dummy tokens accepted in non-production environments
     const isTestToken =
       token === this.DUMMY_TEST_TOKEN ||
       token === "1x00000000000000000000AA" ||
       token === "test-valid-token";
 
     if (process.env.NODE_ENV !== "production") {
-      if (
-        (process.env.NODE_ENV === "test" && isTestToken) ||
-        ((process.env.TURNSTILE_SECRET_KEY === "1x0000000000000000000000000000000AA" ||
-          process.env.TURNSTILE_SECRET === "1x0000000000000000000000000000000AA") &&
-          isTestToken)
-      ) {
+      if (isTestToken) {
         return {
           success: true,
           status: "bypassed",
-          reason: "Valid test dummy token accepted in test environment.",
+          reason: "Valid test dummy token accepted in non-production environment.",
           action,
           hostname: "localhost",
         };
@@ -182,6 +177,7 @@ export class TurnstileService {
           code: "AUDIT_MISSING_TOKEN",
           reason: "Audit mode: allowed despite missing token.",
           action,
+          hostname: "localhost",
         };
       }
       return {
@@ -284,6 +280,7 @@ export class TurnstileService {
             reason: "Audit mode: allowed despite challenge failure.",
             action,
             errorCodes,
+            hostname: data.hostname || "localhost",
           };
         }
         return {
@@ -349,6 +346,7 @@ export class TurnstileService {
           code: "AUDIT_PROVIDER_ERROR",
           reason: "Audit mode: allowed despite provider communication error.",
           action,
+          hostname: "localhost",
         };
       }
       return {

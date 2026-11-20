@@ -176,10 +176,12 @@ function Super06AuthContent() {
       router.push('/super');
     } catch (err: any) {
       clearToken();
-      const msg =
-        err?.status === 403 || err?.code === 'SUPER_ADMIN_ONLY'
-          ? 'Access Denied: Only Super Administrators can log in through this portal.'
-          : err?.message || 'Invalid Super Administrator credentials.';
+      let msg = 'Invalid Super Administrator credentials.';
+      if (err?.code === 'SUPER_ADMIN_ONLY') {
+        msg = 'Access Denied: Only Super Administrators can log in through this portal.';
+      } else if (err?.message) {
+        msg = err.message;
+      }
       toast.error(msg);
       turnstileRef.current?.reset();
       setTurnstileToken('');
