@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, test as it, before as beforeAll, after as afterAll } from "node:test";
+import assert from "node:assert/strict";
 import express from "express";
 import { Server } from "http";
 import { rawPrisma } from "../prisma";
@@ -82,15 +83,44 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
       },
     });
 
+    const s1 = await rawPrisma.deviceSession.create({
+      data: {
+        userId: superAdminUserId,
+        tenantId: null,
+        userAgent: "test-runner",
+        expiresAt: new Date(Date.now() + 86400000),
+      },
+    });
+
+    const s2 = await rawPrisma.deviceSession.create({
+      data: {
+        userId: tenantAdminUserId,
+        tenantId: testTenantId,
+        userAgent: "test-runner",
+        expiresAt: new Date(Date.now() + 86400000),
+      },
+    });
+
+    const s3 = await rawPrisma.deviceSession.create({
+      data: {
+        userId: employeeUserId,
+        tenantId: testTenantId,
+        userAgent: "test-runner",
+        expiresAt: new Date(Date.now() + 86400000),
+      },
+    });
+
     // 3. Issue signed JWT tokens
     superAdminToken = generateToken({
       userId: superAdminUserId,
+      sessionId: s1.id,
       email: `super-${Date.now()}@platform.local`,
       roles: ["super_admin"],
     });
 
     tenantAdminToken = generateToken({
       userId: tenantAdminUserId,
+      sessionId: s2.id,
       email: `tenantadmin-${Date.now()}@workspace.local`,
       roles: ["hr_admin"],
       tenantId: testTenantId,
@@ -98,6 +128,7 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
 
     employeeToken = generateToken({
       userId: employeeUserId,
+      sessionId: s3.id,
       email: `employee-${Date.now()}@workspace.local`,
       roles: ["employee"],
       tenantId: testTenantId,
@@ -118,6 +149,9 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
     if (httpServer) {
       await new Promise<void>((resolve) => httpServer.close(() => resolve()));
     }
+    await rawPrisma.deviceSession.deleteMany({
+      where: { userId: { in: [superAdminUserId, tenantAdminUserId, employeeUserId] } },
+    }).catch(() => {});
     await rawPrisma.userRole.deleteMany({
       where: { userId: { in: [superAdminUserId, tenantAdminUserId, employeeUserId] } },
     }).catch(() => {});
@@ -140,45 +174,45 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
       const res = await fetch(`${baseUrl}/api/super/settings`, {
         headers: { Authorization: `Bearer ${superAdminToken}` },
       });
-      expect(res.status).toBe(200);
+      assert.equal(res.status, 200);
       const data = await res.json();
-      expect(data).toHaveProperty("platformName");
-      expect(data).toHaveProperty("defaultCurrency");
+      assert.ok("platformName" in data);
+      assert.ok("defaultCurrency" in data);
     });
 
     it("T1.2: Strictly rejects Tenant Admin access to /api/super/settings with HTTP 403", async () => {
       const res = await fetch(`${baseUrl}/api/super/settings`, {
         headers: { Authorization: `Bearer ${tenantAdminToken}` },
       });
-      expect(res.status).toBe(403);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      expect(data.error).toMatch(/Forbidden|Insufficient permissions/i);
-      expect(data).not.toHaveProperty("systemPlatformSettings");
+      assert.match(data.error, /Forbidden|Insufficient permissions/i);
+      assert.ok(!("systemPlatformSettings" in data));
     });
 
     it("T1.3: Strictly rejects regular Employee access to /api/super/settings with HTTP 403", async () => {
       const res = await fetch(`${baseUrl}/api/super/settings`, {
         headers: { Authorization: `Bearer ${employeeToken}` },
       });
-      expect(res.status).toBe(403);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      expect(data.error).toMatch(/Forbidden|Insufficient permissions/i);
+      assert.match(data.error, /Forbidden|Insufficient permissions/i);
     });
 
     it("T1.4: Strictly rejects unauthenticated request to /api/super/settings with HTTP 401", async () => {
       const res = await fetch(`${baseUrl}/api/super/settings`);
-      expect(res.status).toBe(401);
+      assert.equal(res.status, 401);
       const data = await res.json();
-      expect(data.error).toMatch(/Unauthorized/i);
+      assert.match(data.error, /Unauthorized/i);
     });
 
     it("T1.5: Strictly rejects Tenant Admin access to /api/super/tenants with HTTP 403", async () => {
       const res = await fetch(`${baseUrl}/api/super/tenants`, {
         headers: { Authorization: `Bearer ${tenantAdminToken}` },
       });
-      expect(res.status).toBe(403);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      expect(data.error).toMatch(/Forbidden|Insufficient permissions/i);
+      assert.match(data.error, /Forbidden|Insufficient permissions/i);
     });
 
     it("T1.6: Strictly rejects Tenant Admin updating system-platform-settings with HTTP 403", async () => {
@@ -193,9 +227,9 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
           content: { razorpayKeySecret: "malicious_overwrite" },
         }),
       });
-      expect(res.status).toBe(403);
+      assert.equal(res.status, 403);
       const data = await res.json();
-      expect(data.error).toMatch(/Super Admin|super_admin/i);
+      assert.match(data.error, /Super Admin|super_admin/i);
     });
 
     it("T1.7: Strictly rejects unauthenticated PUT to system-platform-settings with HTTP 401", async () => {
@@ -204,7 +238,7 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "Unauthenticated Tamper" }),
       });
-      expect(res.status).toBe(401);
+      assert.equal(res.status, 401);
     });
   });
 
@@ -222,24 +256,24 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
         const res = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${tenantAdminToken}` },
         });
-        expect(res.status).toBe(403);
+        assert.equal(res.status, 403);
         const text = await res.text();
-        expect(text).not.toContain("node_modules");
-        expect(text).not.toContain("at requireAuth");
-        expect(text).not.toContain("SELECT ");
-        expect(text).not.toContain("prisma");
+        assert.ok(!text.includes("node_modules"));
+        assert.ok(!text.includes("at requireAuth"));
+        assert.ok(!text.includes("SELECT "));
+        assert.ok(!text.includes("prisma"));
       }
     });
 
     it("T2.2: Public GET /api/cms/pages/system-platform-settings strictly omits all payment secrets", async () => {
       const res = await fetch(`${baseUrl}/api/cms/pages/system-platform-settings`);
-      expect(res.status).toBe(200);
+      assert.equal(res.status, 200);
       const data = await res.json();
-      expect(data.content.razorpayKeySecret).toBeUndefined();
-      expect(data.content.razorpayKeyId).toBeUndefined();
-      expect(data.content.stripeSecretKey).toBeUndefined();
-      expect(data.content.smtpPassword).toBeUndefined();
-      expect(JSON.stringify(data)).not.toContain("rzp_");
+      assert.equal(data.content.razorpayKeySecret, undefined);
+      assert.equal(data.content.razorpayKeyId, undefined);
+      assert.equal(data.content.stripeSecretKey, undefined);
+      assert.equal(data.content.smtpPassword, undefined);
+      assert.ok(!JSON.stringify(data).includes("rzp_"));
     });
   });
 
@@ -252,22 +286,22 @@ describe("MASTERHRMS — Super Admin Authorization Guard & Route Protection Regr
       const fileContent = fs.readFileSync(superRoutePath, "utf-8");
 
       // Verify ForbiddenView import
-      expect(fileContent).toContain('import { ForbiddenView } from "@/components/error-pages/forbidden-view";');
+      assert.ok(fileContent.includes('import { ForbiddenView } from "@/components/error-pages/forbidden-view";'));
 
       // Verify mounting ForbiddenView when profile loaded but not super admin
-      expect(fileContent).toContain("if (profile && !isSuperAdmin)");
-      expect(fileContent).toContain("<ForbiddenView");
-      expect(fileContent).toContain('requiredRole="super_admin"');
+      assert.ok(fileContent.includes("if (profile && !isSuperAdmin)"));
+      assert.ok(fileContent.includes("<ForbiddenView"));
+      assert.ok(fileContent.includes('requiredRole="super_admin"'));
 
       // Verify Super06LoginPage is NOT mounted inline in SuperShell
-      expect(fileContent).not.toContain("<Super06LoginPage");
+      assert.ok(!fileContent.includes("<Super06LoginPage"));
     });
 
     it("T3.2: Super route file guarantees programmatic navigation to /super06 when unauthenticated", () => {
       const superRoutePath = path.resolve(__dirname, "../../../src/routes/_authenticated/super/route.tsx");
       const fileContent = fs.readFileSync(superRoutePath, "utf-8");
 
-      expect(fileContent).toContain('navigate({ to: "/super06" })');
+      assert.ok(fileContent.includes('navigate({ to: "/super06" })'));
     });
   });
 });

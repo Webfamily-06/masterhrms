@@ -134,7 +134,14 @@ export class TwoFactorService {
       issuer: "MasterHRMS",
     });
 
-    const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url!);
+    const otpauthUrl = speakeasy.otpauthURL({
+      secret: secret.base32,
+      label: `MasterHRMS (${user.email})`,
+      issuer: "MasterHRMS",
+      encoding: "base32",
+    });
+
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
     const rawBackupCodes = generateRandomBackupCodes(8);
     const hashedBackupCodes = rawBackupCodes.map(hashBackupCode);
 
@@ -167,7 +174,7 @@ export class TwoFactorService {
     return {
       secret: secret.base32,
       qrCode: qrCodeDataUrl,
-      otpauthUrl: secret.otpauth_url,
+      otpauthUrl,
       backupCodes: rawBackupCodes,
     };
   }

@@ -73,20 +73,120 @@ function TenantDashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-2.5">
-          <Link to="/hr/dashboard">
+          <Link to="/tenant/company-profile">
             <Button variant="default" size="sm" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-              <Sparkles className="h-4 w-4" />
-              Open HR Management
-              <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              <Building2 className="h-4 w-4" />
+              Company Profile
             </Button>
           </Link>
-          <Link to="/me/dashboard">
+          <Link to="/tenant/addons">
             <Button variant="outline" size="sm" className="gap-2">
-              Employee View
+              <Sparkles className="h-4 w-4" />
+              Add-on Store
             </Button>
           </Link>
         </div>
       </div>
+
+      {/* Tenant Admin First-Login Onboarding Checklist */}
+      <Card className="border-primary/30 bg-gradient-to-r from-orange-500/5 via-primary/5 to-transparent shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-md bg-primary text-primary-foreground">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-foreground">
+                  Tenant Administrator Setup Checklist
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Complete these recommended setup steps to finalize your organization workspace.
+                </CardDescription>
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[11px] font-semibold border-primary/40 text-primary bg-primary/10">
+              Free Trial: 14 Days Remaining
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80">
+              <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+              <div>
+                <div className="text-xs font-semibold text-foreground">Workspace Created</div>
+                <div className="text-[11px] text-muted-foreground">Dedicated tenant organization & trial active</div>
+              </div>
+            </div>
+
+            <Link
+              to="/tenant/company-profile"
+              className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+            >
+              <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
+                <div className="size-1.5 rounded-full bg-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Set Company Details</div>
+                <div className="text-[11px] text-muted-foreground">Configure legal name, tax IDs, and address</div>
+              </div>
+            </Link>
+
+            <Link
+              to="/tenant/branding"
+              className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+            >
+              <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
+                <div className="size-1.5 rounded-full bg-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Configure Branding</div>
+                <div className="text-[11px] text-muted-foreground">Upload company logo, dark mode & favicon</div>
+              </div>
+            </Link>
+
+            <Link
+              to="/tenant/roles"
+              className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+            >
+              <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
+                <div className="size-1.5 rounded-full bg-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Review Roles & Access</div>
+                <div className="text-[11px] text-muted-foreground">Manage administrative team permissions</div>
+              </div>
+            </Link>
+
+            <Link
+              to="/tenant/addons"
+              className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+            >
+              <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
+                <div className="size-1.5 rounded-full bg-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Enable Workspace Modules</div>
+                <div className="text-[11px] text-muted-foreground">Activate Calendar, Todo, Chat, and integrations</div>
+              </div>
+            </Link>
+
+            <Link
+              to="/tenant/subscription"
+              className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background/80 hover:border-primary/40 hover:bg-muted/30 transition-colors"
+            >
+              <div className="size-4 rounded-full border-2 border-primary/40 flex items-center justify-center mt-0.5 shrink-0">
+                <div className="size-1.5 rounded-full bg-primary" />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-foreground">Review Trial Plan & Quotas</div>
+                <div className="text-[11px] text-muted-foreground">25 employees, 5 admins, 10 GB cloud storage</div>
+              </div>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

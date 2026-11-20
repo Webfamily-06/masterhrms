@@ -1,5 +1,6 @@
 import { prisma, rawPrisma } from "../prisma";
 import crypto from "crypto";
+import { OutboxService } from "../services/outbox.service";
 
 export interface ProvisionTenantInput {
   name: string;
@@ -35,6 +36,22 @@ const STANDARD_ACCOUNTS = [
 export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
   const db = rawPrisma || prisma;
 
+  // Idempotency: check if user is already linked to an active tenant
+  const existingProfile = await db.profile.findUnique({
+    where: { userId: input.userId },
+    include: { tenant: { include: { subscription: true } } },
+  });
+
+  if (existingProfile?.tenantId && existingProfile.tenant) {
+    return {
+      tenant: existingProfile.tenant,
+      subscription: existingProfile.tenant.subscription,
+      trialEndsAt: existingProfile.tenant.subscription?.trialEndsAt || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      accountsSeeded: STANDARD_ACCOUNTS.length,
+      isExisting: true,
+    };
+  }
+
   // Generate unique slug
   let baseSlug = (input.slug || input.name.toLowerCase().replace(/[^a-z0-9]/g, "-")).replace(/-+/g, "-").replace(/^-|-$/g, "");
   if (!baseSlug) baseSlug = "org-" + crypto.randomBytes(4).toString("hex");
@@ -51,10 +68,14 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
       name: input.name,
       slug,
       timezone: input.timezone || "Asia/Kolkata",
+      currency: input.currency || "INR",
+      isOnboarded: false,
     },
   });
 
-  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14 Days Free Trial
+  const now = new Date();
+  const trialDays = 14;
+  const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000); // 14 Days Free Trial
 
   // 2. Create TenantSubscription with trialing status
   const subscription = await db.tenantSubscription.create({
@@ -64,8 +85,12 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
       billingCycle: "monthly",
       maxEmployees: 25,
       maxUsers: 5,
+      storageLimitGb: 10,
+      trialStartedAt: now,
       trialEndsAt,
       expiresAt: trialEndsAt,
+      currentPeriodStart: now,
+      currentPeriodEnd: trialEndsAt,
     },
   });
 
@@ -94,7 +119,7 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
     },
   });
 
-  // 5. Link user profile to tenant and create UserRole "admin"
+  // 5. Link user profile to tenant
   await db.profile.upsert({
     where: { userId: input.userId },
     create: {
@@ -110,7 +135,7 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
     },
   });
 
-  // Assign hr_admin role (Tenant Administrator AppRole)
+  // 6. Assign hr_admin role (Tenant Administrator AppRole)
   await db.userRole.create({
     data: {
       userId: input.userId,
@@ -119,10 +144,75 @@ export async function provisionTenantWithTrial(input: ProvisionTenantInput) {
     },
   });
 
+  // 7. Find or create Workspace Admin WorkspaceRole and assign
+  try {
+    let wsAdminRole = await db.workspaceRole.findFirst({
+      where: {
+        OR: [
+          { tenantId: tenant.id, name: "Workspace Admin" },
+          { name: "Workspace Admin" },
+        ],
+      },
+    });
+
+    if (!wsAdminRole) {
+      wsAdminRole = await db.workspaceRole.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: tenant.id,
+          name: "Workspace Admin",
+          description: "Full administrator privileges for tenant workspace",
+        },
+      });
+    }
+
+    if (wsAdminRole) {
+      await db.userRoleAssignment.upsert({
+        where: {
+          userId_tenantId: {
+            userId: input.userId,
+            tenantId: tenant.id,
+          },
+        },
+        create: {
+          userId: input.userId,
+          tenantId: tenant.id,
+          roleId: wsAdminRole.id,
+        },
+        update: {
+          roleId: wsAdminRole.id,
+        },
+      });
+    }
+  } catch (roleErr: any) {
+    console.warn("[provisionTenantWithTrial] WorkspaceRole assignment warning:", roleErr.message);
+  }
+
+  // 8. Publish domain outbox events
+  try {
+    await OutboxService.createOutboxEvent({
+      tenantId: tenant.id,
+      eventType: "tenant.provisioned",
+      entityType: "Tenant",
+      entityId: tenant.id,
+      actorId: input.userId,
+      payload: {
+        tenantId: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        adminEmail: input.adminEmail,
+        trialEndsAt: trialEndsAt.toISOString(),
+      },
+    });
+  } catch (evtErr: any) {
+    console.warn("[provisionTenantWithTrial] Outbox event create warning:", evtErr.message);
+  }
+
   return {
     tenant,
     subscription,
     trialEndsAt,
     accountsSeeded: STANDARD_ACCOUNTS.length,
+    isExisting: false,
   };
 }

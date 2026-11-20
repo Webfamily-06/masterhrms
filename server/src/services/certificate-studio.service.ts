@@ -9,7 +9,12 @@ import { CertificateFolderService } from "./files/certificate-folder.service";
 import { FilesService } from "./files/files.service";
 import QRCode from "qrcode";
 import PDFDocument from "pdfkit";
-import sharp from "sharp";
+let sharp: any;
+try {
+  sharp = require("sharp");
+} catch {
+  sharp = null;
+}
 import { resolveCertificateVerificationUrl } from "../lib/certificate-verification-resolver";
 
 // Dynamic Placeholder Registry
@@ -214,7 +219,7 @@ export class CertificateStudioService {
             if (fs.existsSync(filePath)) {
               imageBuffer = fs.readFileSync(filePath);
               if (brandingAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
-                imageBuffer = await sharp(imageBuffer).png().toBuffer();
+                imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
               }
             }
           }
@@ -233,7 +238,7 @@ export class CertificateStudioService {
             if (fs.existsSync(filePath)) {
               imageBuffer = fs.readFileSync(filePath);
               if (signatory.signatureAsset.mimeType === "image/svg+xml" || filePath.endsWith(".svg")) {
-                imageBuffer = await sharp(imageBuffer).png().toBuffer();
+                imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
               }
             }
           }
@@ -253,7 +258,7 @@ export class CertificateStudioService {
           const lower = (resolvedUrl || "").toLowerCase();
           if (lower.endsWith(".svg") || lower.endsWith(".webp") || lower.includes(".svg") || lower.includes(".webp")) {
             try {
-              imageBuffer = await sharp(imageBuffer).png().toBuffer();
+              imageBuffer = sharp ? await sharp(imageBuffer).png().toBuffer() : imageBuffer;
             } catch (sharpErr) {
               console.warn("[resolveAssetBuffer] sharp conversion to PNG failed:", sharpErr);
             }
@@ -1494,7 +1499,7 @@ export class CertificateStudioService {
               if (!imageBuffer) {
                 const defaultLogo = path.resolve(process.cwd(), "public", "logo.webp");
                 if (fs.existsSync(defaultLogo)) {
-                  imageBuffer = await sharp(fs.readFileSync(defaultLogo)).png().toBuffer();
+                  imageBuffer = sharp ? await sharp(fs.readFileSync(defaultLogo)).png().toBuffer() : fs.readFileSync(defaultLogo);
                 }
               }
               if (imageBuffer) {

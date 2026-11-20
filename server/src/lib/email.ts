@@ -1784,3 +1784,313 @@ export async function sendTodoNotificationEmail(
 
 
 
+
+
+// ─── MASTERHRMS ONBOARDING & ACCOUNT SECURITY EMAILS ──────────────────────────
+
+import {
+  renderEmailVerificationTemplate,
+  renderWelcomeTemplate,
+  renderPasswordChangedTemplate,
+  renderTwoFactorStatusTemplate,
+  renderTrialActivatedTemplate,
+} from "./branded-email-templates";
+import { EmailOutboxService } from "../services/email-outbox.service";
+
+/**
+ * Send Email Verification Email (Single-use expiring token & 6-digit code)
+ */
+export async function sendEmailVerificationEmail(options: {
+  toEmail: string;
+  userName: string;
+  verificationUrl: string;
+  otpCode: string;
+  expiryMinutes?: number;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, userName, verificationUrl, otpCode, expiryMinutes = 60, tenantId, scope = "PLATFORM" } = options;
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+
+  const html = renderEmailVerificationTemplate({
+    userName,
+    verificationUrl,
+    otpCode,
+    expiryMinutes,
+    options: {
+      appName: config.appName,
+      logoUrl: config.logoUrl,
+      supportEmail: config.smtpFromEmail,
+    },
+  });
+
+  const subject = `Verify Your Email Address — ${config.appName || "MasterHRMS"}`;
+  const text = `Hello ${userName},\n\nPlease verify your email to activate your ${config.appName || "MasterHRMS"} workspace:\n${verificationUrl}\n\nOr enter this 6-digit verification code: ${otpCode} (Valid for ${expiryMinutes} minutes).\n\nIf you did not request this, please ignore this email.`;
+
+  // 1. Dispatch through Outbox for durability
+  await EmailOutboxService.queueEmail({
+    tenantId,
+    to: toEmail,
+    subject,
+    html,
+    text,
+    eventType: "auth.email_verification",
+    idempotencyKey: `verify:${toEmail}:${otpCode}`,
+  }).catch((err) => console.warn("[EmailOutbox] verification enqueue error:", err.message));
+
+  // 2. Direct send attempt
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const hasTestTransport = Boolean((MailerFactory as any).testTransport);
+
+  if (hasSmtp || hasTestTransport) {
+    try {
+      const transporter = await MailerFactory.getTransporter(scope, tenantId);
+      const fromEmail = config.smtpUser && config.smtpUser.includes("@") ? config.smtpUser : config.smtpFromEmail;
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${fromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject,
+        text,
+        html,
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.warn(`[email.ts] Email verification direct delivery failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV EMAIL VERIFICATION]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Verification Link: ${verificationUrl}`);
+    console.log(`   Verification Code: [${otpCode}]`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-verify-${Date.now()}` };
+  }
+}
+
+/**
+ * Send Welcome Email after successful tenant provisioning and trial activation
+ */
+export async function sendWelcomeEmail(options: {
+  toEmail: string;
+  userName: string;
+  companyName: string;
+  workspaceUrl: string;
+  loginUrl: string;
+  trialDays?: number;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, userName, companyName, workspaceUrl, loginUrl, trialDays = 14, tenantId, scope = "PLATFORM" } = options;
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+
+  const html = renderWelcomeTemplate({
+    userName,
+    companyName,
+    workspaceUrl,
+    loginUrl,
+    trialDays,
+    options: {
+      appName: config.appName,
+      logoUrl: config.logoUrl,
+      supportEmail: config.smtpFromEmail,
+    },
+  });
+
+  const subject = `Welcome to MasterHRMS — ${companyName} Workspace Ready!`;
+  const text = `Hello ${userName},\n\nWelcome to MasterHRMS! Your workspace for ${companyName} is ready.\n\nAccess your workspace: ${workspaceUrl || loginUrl}\n\nYour 14-day free trial is active with full access to all features.\n\nBest regards,\nMasterHRMS Team`;
+
+  // Enqueue durably
+  await EmailOutboxService.queueEmail({
+    tenantId,
+    to: toEmail,
+    subject,
+    html,
+    text,
+    eventType: "onboarding.welcome_email",
+    idempotencyKey: `welcome:${tenantId || toEmail}`,
+  }).catch((err) => console.warn("[EmailOutbox] welcome email enqueue error:", err.message));
+
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const hasTestTransport = Boolean((MailerFactory as any).testTransport);
+
+  if (hasSmtp || hasTestTransport) {
+    try {
+      const transporter = await MailerFactory.getTransporter(scope, tenantId);
+      const fromEmail = config.smtpUser && config.smtpUser.includes("@") ? config.smtpUser : config.smtpFromEmail;
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${fromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject,
+        text,
+        html,
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.warn(`[email.ts] Welcome email direct delivery failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV WELCOME EMAIL]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Company: ${companyName}`);
+    console.log(`   Workspace URL: ${workspaceUrl}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-welcome-${Date.now()}` };
+  }
+}
+
+/**
+ * Send Password Changed Confirmation Security Notification
+ */
+export async function sendPasswordChangedEmail(options: {
+  toEmail: string;
+  userName: string;
+  changedAt?: string;
+  loginUrl?: string;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, userName, changedAt = new Date().toUTCString(), loginUrl = "https://app.masterhrms.com/auth", tenantId, scope = "PLATFORM" } = options;
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+
+  const html = renderPasswordChangedTemplate({
+    userName,
+    changedAt,
+    loginUrl,
+    options: {
+      appName: config.appName,
+      logoUrl: config.logoUrl,
+      supportEmail: config.smtpFromEmail,
+    },
+  });
+
+  const subject = `Security Alert: Your ${config.appName || "MasterHRMS"} Password Was Changed`;
+  const text = `Hello ${userName},\n\nThe password for your ${config.appName || "MasterHRMS"} account was updated on ${changedAt}.\n\nAll existing sessions have been terminated. Sign in with your new password: ${loginUrl}\n\nIf you did not make this change, please contact support immediately.`;
+
+  await EmailOutboxService.queueEmail({
+    tenantId,
+    to: toEmail,
+    subject,
+    html,
+    text,
+    eventType: "security.password_changed",
+  }).catch((err) => console.warn("[EmailOutbox] password changed enqueue error:", err.message));
+
+  const hasSmtp = Boolean(config.smtpHost && config.smtpUser && config.smtpPass);
+  const hasTestTransport = Boolean((MailerFactory as any).testTransport);
+
+  if (hasSmtp || hasTestTransport) {
+    try {
+      const transporter = await MailerFactory.getTransporter(scope, tenantId);
+      const fromEmail = config.smtpUser && config.smtpUser.includes("@") ? config.smtpUser : config.smtpFromEmail;
+      const info = await transporter.sendMail({
+        from: `"${config.smtpFromName}" <${fromEmail}>`,
+        to: toEmail,
+        replyTo: config.smtpFromEmail,
+        subject,
+        text,
+        html,
+      });
+      return { success: true, messageId: info.messageId };
+    } catch (err: any) {
+      console.warn(`[email.ts] Password changed notification delivery failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  } else {
+    console.log("==================================================================");
+    console.log(`📨 [DEV PASSWORD CHANGED ALERT]`);
+    console.log(`   To: ${toEmail}`);
+    console.log(`   Timestamp: ${changedAt}`);
+    console.log("==================================================================");
+    return { success: true, messageId: `dev-pwd-change-${Date.now()}` };
+  }
+}
+
+/**
+ * Send Two-Factor Security Notification (Enabled, Disabled, or Backup Code Used)
+ */
+export async function sendTwoFactorSecurityEmail(options: {
+  toEmail: string;
+  userName: string;
+  action: "ENABLED" | "DISABLED" | "BACKUP_USED";
+  timestamp?: string;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, userName, action, timestamp = new Date().toUTCString(), tenantId, scope = "PLATFORM" } = options;
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+
+  const html = renderTwoFactorStatusTemplate({
+    userName,
+    action,
+    timestamp,
+    options: {
+      appName: config.appName,
+      logoUrl: config.logoUrl,
+      supportEmail: config.smtpFromEmail,
+    },
+  });
+
+  const subject = `Security Alert: 2FA ${action === "ENABLED" ? "Activated" : action === "DISABLED" ? "Disabled" : "Backup Code Used"} — ${config.appName || "MasterHRMS"}`;
+  const text = `Hello ${userName},\n\nSecurity Event: Two-Factor Authentication was ${action} on your account at ${timestamp}.\n\nIf you did not perform this action, contact security immediately.`;
+
+  await EmailOutboxService.queueEmail({
+    tenantId,
+    to: toEmail,
+    subject,
+    html,
+    text,
+    eventType: `security.2fa_${action.toLowerCase()}`,
+  }).catch((err) => console.warn("[EmailOutbox] 2FA security enqueue error:", err.message));
+
+  return { success: true, messageId: `dev-2fa-${Date.now()}` };
+}
+
+/**
+ * Send Free Trial Activated Notification
+ */
+export async function sendTrialActivatedEmail(options: {
+  toEmail: string;
+  adminName: string;
+  companyName: string;
+  trialEndsAt: string;
+  trialDays?: number;
+  dashboardUrl: string;
+  tenantId?: string | null;
+  scope?: "PLATFORM" | "TENANT";
+}): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const { toEmail, adminName, companyName, trialEndsAt, trialDays = 14, dashboardUrl, tenantId, scope = "PLATFORM" } = options;
+  const config = await getDynamicEmailConfig({ scope, tenantId });
+
+  const html = renderTrialActivatedTemplate({
+    companyName,
+    adminName,
+    trialEndsAt,
+    trialDays,
+    dashboardUrl,
+    options: {
+      appName: config.appName,
+      logoUrl: config.logoUrl,
+      supportEmail: config.smtpFromEmail,
+    },
+  });
+
+  const subject = `Free Trial Activated for ${companyName} — ${config.appName || "MasterHRMS"}`;
+  const text = `Hello ${adminName},\n\nYour 14-day free trial for ${companyName} is active through ${trialEndsAt}.\n\nAccess Dashboard: ${dashboardUrl}`;
+
+  await EmailOutboxService.queueEmail({
+    tenantId,
+    to: toEmail,
+    subject,
+    html,
+    text,
+    eventType: "billing.trial_activated",
+  }).catch((err) => console.warn("[EmailOutbox] trial activated enqueue error:", err.message));
+
+  return { success: true, messageId: `dev-trial-${Date.now()}` };
+}

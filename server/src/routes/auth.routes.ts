@@ -1,4 +1,13 @@
-import { sendTwoFactorOtpEmail, sendPasswordResetEmail } from "../lib/email";
+import {
+  sendTwoFactorOtpEmail,
+  sendPasswordResetEmail,
+  sendEmailVerificationEmail,
+  sendWelcomeEmail,
+  sendPasswordChangedEmail,
+  sendTwoFactorSecurityEmail,
+  sendTrialActivatedEmail,
+} from "../lib/email";
+import { EmailOutboxService } from "../services/email-outbox.service";
 import { createOrReplaceOtp, verifyOtpCode, checkResendEligibility, maskEmail } from "../lib/otp";
 import { ERP_MODULES } from "../lib/erp-modules";
 import { Router, Request, Response } from "express";
@@ -80,11 +89,15 @@ export async function resolveEffectiveUserRoles(
 }
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().email("Please enter a valid work email address"),
+  password: z.string().min(8, "Password must be at least 8 characters long"),
+  confirmPassword: z.string().optional(),
   fullName: z.string().optional(),
   companyName: z.string().optional(),
+  country: z.string().optional().default("India"),
   workspaceSlug: z.string().optional(),
+  termsAccepted: z.boolean().optional(),
+  autoVerify: z.boolean().optional(),
 });
 
 const loginSchema = z.object({
@@ -100,14 +113,19 @@ const resetPasswordSchema = z.object({
   email: z.string().email(),
   code: z.string().optional(),
   token: z.string().optional(),
-  newPassword: z.string().min(6),
+  newPassword: z.string().min(8, "New password must be at least 8 characters long"),
 }).refine((data) => Boolean(data.code || data.token), {
   message: "Either verification code or reset token is required",
 });
 
 const verifyEmailSchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4).max(10),
+  code: z.string().optional(),
+  token: z.string().optional(),
+  companyName: z.string().optional(),
+  slug: z.string().optional(),
+}).refine((data) => Boolean(data.code || data.token), {
+  message: "Either 6-digit verification code or verification token is required",
 });
 
 // GET /api/auth/public/tenant/resolve
@@ -116,7 +134,7 @@ authRouter.get("/public/tenant/resolve", async (req, res) => {
     const rawHost = getEffectiveRequestHost(req.headers);
     const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
     const requestedSlug = (req.query.slug as string) || (req.headers["x-tenant-slug"] as string) || (req.headers["x-tenant-id"] as string);
-    
+
     let tenant: any = null;
     if (hostContext.type === "tenant") {
       tenant = (req as any).resolvedTenant || await prisma.tenant.findUnique({
@@ -328,11 +346,39 @@ authRouter.get("/public/tenant/credentials", async (req, res) => {
 // POST /api/auth/register
 authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
   try {
-    const { email, password, fullName, companyName, workspaceSlug } = registerSchema.parse(req.body);
+    const {
+      email,
+      password,
+      confirmPassword,
+      fullName,
+      companyName,
+      country,
+      workspaceSlug,
+      termsAccepted,
+      autoVerify,
+    } = registerSchema.parse(req.body);
 
-    const existing = await prisma.user.findUnique({ where: { email } });
+    if (termsAccepted === false) {
+      return res.status(400).json({
+        error: "You must accept the MasterHRMS Terms of Service and Privacy Policy to register.",
+        code: "TERMS_NOT_ACCEPTED",
+      });
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      return res.status(400).json({
+        error: "Passwords do not match.",
+        code: "PASSWORD_MISMATCH",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
-      return res.status(400).json({ error: "User with this email already exists." });
+      return res.status(400).json({
+        error: "An account with this email address already exists. Please sign in or use another email.",
+        code: "EMAIL_TAKEN",
+      });
     }
 
     // Determine and validate workspace slug (Flow 1: 3-30 chars, lowercase, RFC)
@@ -363,7 +409,7 @@ authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
         });
       }
     } else {
-      finalSlug = suggestWorkspaceSlug(companyName || fullName || email.split("@")[0]);
+      finalSlug = suggestWorkspaceSlug(companyName || fullName || normalizedEmail.split("@")[0]);
       let candidate = finalSlug;
       let counter = 2;
       while (
@@ -379,69 +425,144 @@ authRouter.post("/register", requireTurnstile("signup"), async (req, res) => {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: normalizedEmail,
         passwordHash,
+        profile: {
+          create: {
+            fullName: fullName || normalizedEmail.split("@")[0],
+          },
+        },
       },
-    });
-
-    // SaaS Lifecycle Flow 1.1: Provision Tenant, admin User, TenantSubscription(status=trialing, trialEndsAt), seeds 17 accounts
-    const provisionResult = await provisionTenantWithTrial({
-      name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${email.split("@")[0]}'s Org`),
-      adminEmail: email,
-      adminFullName: fullName,
-      userId: user.id,
-      slug: finalSlug,
-    });
-
-    const updatedUser = await prisma.user.findUnique({
-      where: { id: user.id },
       include: {
         profile: true,
-        roles: true,
       },
     });
 
-    const roles = updatedUser?.roles.map((r) => r.role) || ["admin"];
-    let sessionResult: { sessionId: string; refreshToken: string } | null = null;
-    try {
-      const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
-      const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
-      sessionResult = await createDeviceSession({
+    // Generate cryptographic random email verification token & OTP code
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const verificationKey = `verify:${tokenHash}`;
+    const tokenId = crypto.randomUUID();
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+      tokenId,
+      user.id,
+      verificationKey,
+      tokenExpiresAt
+    ).catch((dbErr: any) => {
+      console.warn("[Register] verification token persistence:", dbErr.message);
+    });
+
+    const { otp } = await createOrReplaceOtp(user.id);
+
+    const origin =
+      req.headers.origin ||
+      (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+      `http://${getEffectiveRequestHost(req)}`;
+    const verificationUrl = `${origin}/auth?mode=verify&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+
+    // Dispatch verification email
+    await sendEmailVerificationEmail({
+      toEmail: user.email,
+      userName: fullName || user.email.split("@")[0],
+      verificationUrl,
+      otpCode: otp,
+      expiryMinutes: 60,
+    }).catch((emailErr) => {
+      console.warn("[Register] verification email dispatch:", emailErr.message);
+    });
+
+    // Check if immediate auto-verification is enabled (e.g. testing or explicit autoVerify)
+    const shouldAutoVerify =
+      autoVerify === true ||
+      process.env.REQUIRE_EMAIL_VERIFICATION === "false";
+
+    if (shouldAutoVerify) {
+      // SaaS Lifecycle: Provision Tenant, admin User, TenantSubscription(status=trialing), seed accounts
+      const provisionResult = await provisionTenantWithTrial({
+        name: companyName?.trim() || (fullName ? `${fullName}'s Organization` : `${normalizedEmail.split("@")[0]}'s Org`),
+        adminEmail: normalizedEmail,
+        adminFullName: fullName,
         userId: user.id,
-        tenantId: provisionResult.tenant.id,
-        ipAddress: clientIp,
-        userAgent: req.headers["user-agent"] as string,
+        slug: finalSlug,
+        currency: country === "United States" ? "USD" : "INR",
       });
-    } catch (err: any) {
-      console.warn("[Register] Device session create failure:", err?.message);
+
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          profile: true,
+          roles: true,
+        },
+      });
+
+      const roles = await resolveEffectiveUserRoles(updatedUser || { ...user, roles: [] }, provisionResult.tenant.id);
+
+      let sessionResult: { sessionId: string; refreshToken: string } | null = null;
+      try {
+        const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+        const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+        sessionResult = await createDeviceSession({
+          userId: user.id,
+          tenantId: provisionResult.tenant.id,
+          ipAddress: clientIp,
+          userAgent: req.headers["user-agent"] as string,
+        });
+      } catch (err: any) {
+        console.warn("[Register] Device session create failure:", err?.message);
+      }
+
+      const token = generateToken({
+        userId: user.id,
+        email: user.email,
+        tenantId: provisionResult.tenant.id,
+        roles,
+        sessionId: sessionResult?.sessionId,
+      });
+
+      await sendWelcomeEmail({
+        toEmail: user.email,
+        userName: fullName || user.email.split("@")[0],
+        companyName: provisionResult.tenant.name,
+        workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
+        loginUrl: `${origin}/auth`,
+        trialDays: 14,
+        tenantId: provisionResult.tenant.id,
+      }).catch((wErr) => console.warn("[Register] welcome mail dispatch:", wErr.message));
+
+      return res.status(201).json({
+        user: {
+          id: user.id,
+          email: user.email,
+          profile: updatedUser?.profile,
+          roles,
+        },
+        tenant: {
+          id: provisionResult.tenant.id,
+          name: provisionResult.tenant.name,
+          slug: provisionResult.tenant.slug,
+        },
+        workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
+        subscription: {
+          status: provisionResult.subscription.status,
+          trialEndsAt: provisionResult.trialEndsAt,
+        },
+        token,
+      });
     }
 
-    const token = generateToken({
-      userId: user.id,
-      email: user.email,
-      tenantId: provisionResult.tenant.id,
-      roles,
-      sessionId: sessionResult?.sessionId,
-    });
-
+    // Standard secure flow: Return pending verification state
     return res.status(201).json({
-      user: {
-        id: user.id,
-        email: user.email,
-        profile: updatedUser?.profile,
-        roles,
-      },
-      tenant: {
-        id: provisionResult.tenant.id,
-        name: provisionResult.tenant.name,
-        slug: provisionResult.tenant.slug,
-      },
-      workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
-      subscription: {
-        status: provisionResult.subscription.status,
-        trialEndsAt: provisionResult.trialEndsAt,
-      },
-      token,
+      requiresVerification: true,
+      email: user.email,
+      maskedEmail: maskEmail(user.email),
+      message: "Registration successful. A verification code and activation link have been dispatched to your email.",
+      workspaceSlug: finalSlug,
+      companyName: companyName?.trim() || `${user.email.split("@")[0]}'s Org`,
+      previewToken: process.env.NODE_ENV !== "production" ? rawToken : undefined,
+      previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -471,7 +592,7 @@ authRouter.post("/unlock", async (req, res) => {
           const payload = JSON.parse(Buffer.from(parts[1], "base64").toString());
           userEmail = payload.email?.toLowerCase().trim();
         }
-      } catch {}
+      } catch { }
     }
 
     if (!userEmail) {
@@ -569,6 +690,47 @@ const loginHandler = async (req: any, res: Response) => {
 
     if (!user) return res.status(401).json({ error: "Invalid email or password." });
 
+    const rawHost = getEffectiveRequestHost(req.headers);
+    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
+
+    // 1. Super Admin Host/Portal isolation:
+    // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
+    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
+      const hasSuperPortalSignal =
+        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
+      if (hasSuperPortalSignal) {
+        return res.status(404).json({
+          error: "Not Found",
+          code: "NOT_FOUND",
+        });
+      }
+    }
+
+    const isSuperPortal =
+      hostContext.type === "super" ||
+      req.headers["x-auth-portal"] === "super" ||
+      req.body.portal === "super";
+
+    // Enforcement of Super Admin / Tenant Login Separation:
+    if (!isSuperPortal) {
+      const isPlatformSuperAdmin = user.roles.some((r: any) => r.role === "super_admin" && !r.tenantId);
+      if (isPlatformSuperAdmin) {
+        // Platform Super Admin must NOT authenticate via normal /login endpoint.
+        // Return generic 401 without leaking identity or super admin existence.
+        return res.status(401).json({ error: "Invalid email or password." });
+      }
+    }
+
+    if (isSuperPortal) {
+      const isSuper = user.roles.some((r: any) => r.role === "super_admin");
+      if (!isSuper || user.email !== "admin@masterhrms.com") {
+        return res.status(403).json({
+          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
+          code: "SUPER_ADMIN_ONLY",
+        });
+      }
+    }
+
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       return res.status(400).json({ error: "Invalid email or password." });
@@ -618,50 +780,6 @@ const loginHandler = async (req: any, res: Response) => {
         return res.status(403).json({
           error: "Access denied. Your account does not have an active Employee, HR, or Tenant Administrator role.",
           code: "MOBILE_ROLE_NOT_AUTHORIZED",
-        });
-      }
-    }
-
-    // â”€â”€ Host-Scoped Authentication Enforcement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const rawHost = getEffectiveRequestHost(req.headers);
-    const hostContext = (req as any).hostContext || resolveHostContext(rawHost);
-
-    // 1. Super Admin Host/Portal isolation:
-    // If a request originating from a tenant host or custom domain attempts to use the super portal, return 404 NOT_FOUND.
-    if (hostContext.type === "tenant" || hostContext.type === "custom_domain") {
-      const hasSuperPortalSignal =
-        req.headers["x-auth-portal"] === "super" || req.body.portal === "super";
-      if (hasSuperPortalSignal) {
-        return res.status(404).json({
-          error: "Not Found",
-          code: "NOT_FOUND",
-        });
-      }
-    }
-
-    const isSuperPortal =
-      hostContext.type === "super" ||
-      req.headers["x-auth-portal"] === "super" ||
-      req.body.portal === "super";
-
-    // Enforcement of Super Admin / Tenant Login Separation:
-    if (!isSuperPortal) {
-      const isPlatformSuperAdmin =
-        user.email === "admin@masterhrms.com" ||
-        user.roles.some((r: any) => r.role === "super_admin");
-      if (isPlatformSuperAdmin) {
-        // Platform Super Admin must NOT authenticate via normal /login endpoint.
-        // Return generic 401 without leaking identity or super admin existence.
-        return res.status(401).json({ error: "Invalid email or password." });
-      }
-    }
-
-    if (isSuperPortal) {
-      const isSuper = user.roles.some((r: any) => r.role === "super_admin");
-      if (!isSuper || user.email !== "admin@masterhrms.com") {
-        return res.status(403).json({
-          error: "Access denied. Only the designated Super Administrator can log in through this portal.",
-          code: "SUPER_ADMIN_ONLY",
         });
       }
     }
@@ -810,10 +928,10 @@ const loginHandler = async (req: any, res: Response) => {
         (roles.includes("hr_admin")
           ? "HR Administrator"
           : roles.includes("tenant_admin")
-          ? "Organization Administrator"
-          : roles.includes("manager")
-          ? "Team Manager"
-          : "Employee");
+            ? "Organization Administrator"
+            : roles.includes("manager")
+              ? "Team Manager"
+              : "Employee");
 
       const enhancedProfile = {
         ...user.profile,
@@ -871,8 +989,8 @@ const loginHandler = async (req: any, res: Response) => {
       devOtp: !emailResult.success || process.env.NODE_ENV !== "production" ? otp : undefined,
       message: emailResult.success
         ? (isSetup
-            ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
-            : "A 6-digit verification code has been sent to your registered email.")
+          ? "2FA Setup Required: A 6-digit verification code has been sent to your registered email."
+          : "A 6-digit verification code has been sent to your registered email.")
         : `Verification code generated, but email delivery encountered an issue (${emailResult.error}). Please check server logs or SMTP settings.`,
     });
   } catch (err: any) {
@@ -916,10 +1034,12 @@ authRouter.post("/forgot-password", async (req, res) => {
       include: { profile: true, roles: true },
     });
 
+    // PWD-001 & Enumeration Resistance: Return generic success response even if user is not found
     if (!user) {
-      return res.status(404).json({
-        error: "No account found with this email address. Please enter a valid registered work email or contact your administrator.",
-        code: "USER_NOT_FOUND",
+      return res.json({
+        success: true,
+        message: "If an account with that email exists, password reset instructions have been dispatched.",
+        maskedEmail: maskEmail(normalizedEmail),
       });
     }
 
@@ -985,7 +1105,7 @@ authRouter.post("/forgot-password", async (req, res) => {
 
     return res.json({
       success: true,
-      message: "6-digit verification code has been dispatched to your email.",
+      message: "If an account with that email exists, password reset instructions have been dispatched.",
       maskedEmail: maskEmail(user.email),
       resetUrl: process.env.NODE_ENV !== "production" ? resetUrl : undefined,
       previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
@@ -1105,7 +1225,7 @@ authRouter.post("/reset-password", async (req, res) => {
     await prisma.$executeRawUnsafe(
       `UPDATE password_reset_tokens SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
       user.id
-    ).catch(() => {});
+    ).catch(() => { });
 
     // Update password hash
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -1114,9 +1234,29 @@ authRouter.post("/reset-password", async (req, res) => {
       data: { passwordHash },
     });
 
+    // PWD-003: Invalidate ALL active device sessions for this user
+    await revokeAllSessions(user.id).catch((revErr) => {
+      console.warn("[ResetPassword] revokeAllSessions warning:", revErr.message);
+    });
+
+    // Send Password Changed confirmation notification email
+    const origin =
+      req.headers.origin ||
+      (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+      `http://${getEffectiveRequestHost(req)}`;
+
+    await sendPasswordChangedEmail({
+      toEmail: user.email,
+      userName: (user as any).profile?.fullName || user.email.split("@")[0],
+      changedAt: new Date().toUTCString(),
+      loginUrl: `${origin}/auth`,
+    }).catch((emailErr) => {
+      console.warn("[ResetPassword] password changed email warning:", emailErr.message);
+    });
+
     return res.json({
       success: true,
-      message: "Password has been successfully updated. You can now sign in with your new credentials.",
+      message: "Password has been successfully updated. All active sessions have been terminated. You can now sign in with your new credentials.",
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -1129,24 +1269,150 @@ authRouter.post("/reset-password", async (req, res) => {
 // POST /api/auth/verify-email
 authRouter.post("/verify-email", async (req, res) => {
   try {
-    const { email, code } = verifyEmailSchema.parse(req.body);
+    const { email, code, token, companyName, slug } = verifyEmailSchema.parse(req.body);
     const normalizedEmail = email.toLowerCase().trim();
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
+      include: {
+        profile: { include: { tenant: { include: { subscription: true } } } },
+        roles: true,
+      },
     });
 
     if (!user) {
       return res.status(404).json({ error: "User account not found." });
     }
 
-    const verification = await verifyOtpCode(user.id, code);
-    if (!verification.valid) {
-      return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+    // 1. Verify token or code
+    let isVerified = false;
+    if (token) {
+      const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+      const verificationKey = `verify:${tokenHash}`;
+      const tokenRecords: any[] = await prisma.$queryRawUnsafe(
+        `SELECT id, user_id, expires_at, used_at FROM password_reset_tokens WHERE token_hash = $1 AND user_id = $2 AND used_at IS NULL AND expires_at > NOW() LIMIT 1`,
+        verificationKey,
+        user.id
+      );
+
+      if (tokenRecords && tokenRecords.length > 0) {
+        await prisma.$executeRawUnsafe(
+          `UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1`,
+          tokenRecords[0].id
+        );
+        isVerified = true;
+      }
     }
+
+    if (!isVerified && code) {
+      const verification = await verifyOtpCode(user.id, code);
+      if (verification.valid) {
+        isVerified = true;
+      } else if (!token) {
+        return res.status(400).json({ error: verification.error || "Invalid or expired verification code." });
+      }
+    }
+
+    if (!isVerified) {
+      return res.status(400).json({
+        error: "This email verification link or code is invalid, expired, or has already been used.",
+        code: "INVALID_VERIFICATION",
+      });
+    }
+
+    // 2. Ensure tenant workspace & free trial are provisioned
+    let tenantId = user.profile?.tenantId;
+    let provisionResult: any = null;
+
+    if (!tenantId || !user.profile?.tenant) {
+      const targetSlug = slug || suggestWorkspaceSlug(companyName || user.profile?.fullName || normalizedEmail.split("@")[0]);
+      const orgName = companyName?.trim() || (user.profile?.fullName ? `${user.profile.fullName}'s Organization` : `${normalizedEmail.split("@")[0]}'s Org`);
+      provisionResult = await provisionTenantWithTrial({
+        name: orgName,
+        adminEmail: user.email,
+        adminFullName: user.profile?.fullName || undefined,
+        userId: user.id,
+        slug: targetSlug,
+      });
+      tenantId = provisionResult.tenant.id;
+    } else {
+      provisionResult = {
+        tenant: user.profile.tenant,
+        subscription: user.profile.tenant.subscription,
+        trialEndsAt: user.profile.tenant.subscription?.trialEndsAt || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      };
+    }
+
+    const roles = await resolveEffectiveUserRoles(user, tenantId);
+
+    // 3. Issue authenticated session
+    let sessionResult: { sessionId: string; refreshToken: string } | null = null;
+    try {
+      const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+      const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+      sessionResult = await createDeviceSession({
+        userId: user.id,
+        tenantId,
+        ipAddress: clientIp,
+        userAgent: req.headers["user-agent"] as string,
+      });
+    } catch (err: any) {
+      console.warn("[VerifyEmail] Device session create warning:", err.message);
+    }
+
+    const authToken = generateToken({
+      userId: user.id,
+      email: user.email,
+      tenantId,
+      roles,
+      sessionId: sessionResult?.sessionId,
+    });
+
+    const origin =
+      req.headers.origin ||
+      (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+      `http://${getEffectiveRequestHost(req)}`;
+
+    // 4. Dispatch Welcome and Trial Activated emails
+    await sendWelcomeEmail({
+      toEmail: user.email,
+      userName: user.profile?.fullName || user.email.split("@")[0],
+      companyName: provisionResult.tenant.name,
+      workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
+      loginUrl: `${origin}/auth`,
+      trialDays: 14,
+      tenantId,
+    }).catch((wErr) => console.warn("[VerifyEmail] welcome mail warning:", wErr.message));
+
+    await sendTrialActivatedEmail({
+      toEmail: user.email,
+      adminName: user.profile?.fullName || user.email.split("@")[0],
+      companyName: provisionResult.tenant.name,
+      trialEndsAt: provisionResult.trialEndsAt.toISOString(),
+      trialDays: 14,
+      dashboardUrl: `${getWorkspaceUrl(provisionResult.tenant.slug)}/tenant/dashboard`,
+      tenantId,
+    }).catch((tErr) => console.warn("[VerifyEmail] trial activated warning:", tErr.message));
 
     return res.json({
       success: true,
-      message: "Email address verified successfully!",
+      message: "Email address verified successfully! Welcome to MasterHRMS.",
+      token: authToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        profile: user.profile,
+        roles,
+      },
+      tenant: {
+        id: provisionResult.tenant.id,
+        name: provisionResult.tenant.name,
+        slug: provisionResult.tenant.slug,
+      },
+      workspaceUrl: getWorkspaceUrl(provisionResult.tenant.slug),
+      subscription: {
+        status: provisionResult.subscription?.status || "trialing",
+        trialEndsAt: provisionResult.trialEndsAt,
+      },
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -1170,19 +1436,53 @@ authRouter.post("/resend-verification", async (req, res) => {
       return res.status(404).json({ error: "User account not found." });
     }
 
+    // Cooldown check (30s)
+    const eligibility = await checkResendEligibility(user.id);
+    if (!eligibility.allowed) {
+      return res.status(429).json({
+        error: `Please wait ${eligibility.secondsRemaining} second${eligibility.secondsRemaining === 1 ? "" : "s"} before requesting a new verification code.`,
+        secondsRemaining: eligibility.secondsRemaining,
+      });
+    }
+
+    // Generate fresh token and code
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const verificationKey = `verify:${tokenHash}`;
+    const tokenId = crypto.randomUUID();
+    const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)`,
+      tokenId,
+      user.id,
+      verificationKey,
+      tokenExpiresAt
+    ).catch(() => {});
+
     const { otp } = await createOrReplaceOtp(user.id);
-    const emailResult = await sendTwoFactorOtpEmail({
+
+    const origin =
+      req.headers.origin ||
+      (req.headers.referer ? new URL(req.headers.referer).origin : "") ||
+      `http://${getEffectiveRequestHost(req)}`;
+    const verificationUrl = `${origin}/auth?mode=verify&token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+
+    await sendEmailVerificationEmail({
       toEmail: user.email,
-      otp,
-      fullName: user.profile?.fullName || undefined,
-      isSetup: false,
+      userName: user.profile?.fullName || user.email.split("@")[0],
+      verificationUrl,
+      otpCode: otp,
+      expiryMinutes: 60,
     });
 
     return res.json({
       success: true,
-      message: "New verification code has been dispatched.",
+      message: "A fresh verification code and link have been dispatched to your email.",
       maskedEmail: maskEmail(user.email),
-      ...(process.env.NODE_ENV === "development" || !emailResult.success ? { previewCode: otp } : {}),
+      cooldownSeconds: 30,
+      previewToken: process.env.NODE_ENV !== "production" ? rawToken : undefined,
+      previewCode: process.env.NODE_ENV !== "production" ? otp : undefined,
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {
@@ -1292,9 +1592,7 @@ authRouter.post("/2fa/verify-login", async (req, res) => {
 
     // Enforcement of Super Admin / Tenant Login Separation:
     if (!isSuperPortal) {
-      const isPlatformSuperAdmin =
-        user.email === "admin@masterhrms.com" ||
-        user.roles.some((r: any) => r.role === "super_admin");
+      const isPlatformSuperAdmin = user.roles.some((r: any) => r.role === "super_admin" && !r.tenantId);
       if (isPlatformSuperAdmin) {
         // Platform Super Admin must NOT authenticate via normal /login endpoint.
         // Return generic 401 without leaking identity or super admin existence.
@@ -1529,8 +1827,9 @@ authRouter.post("/2fa/resend", async (req, res) => {
 // GET /api/auth/2fa/status
 authRouter.get("/2fa/status", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.user!.userId;
     const user = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -1543,10 +1842,13 @@ authRouter.get("/2fa/status", requireAuth, async (req: AuthRequest, res: Respons
       return res.status(404).json({ error: "User not found." });
     }
 
+    const status = await TwoFactorService.getStatus(userId);
+
     return res.json({
-      twoFactorEnabled: Boolean(user.twoFactorEnabled),
-      twoFactorMethod: "EMAIL_OTP",
-      confirmedAt: user.twoFactorConfirmedAt,
+      twoFactorEnabled: status.twoFactorEnabled,
+      twoFactorMethod: status.twoFactorMethod,
+      backupCodesRemaining: status.backupCodesRemaining,
+      confirmedAt: status.confirmedAt,
       registeredEmail: user.email,
       maskedEmail: maskEmail(user.email),
     });
@@ -1555,7 +1857,162 @@ authRouter.get("/2fa/status", requireAuth, async (req: AuthRequest, res: Respons
   }
 });
 
-// POST /api/auth/2fa/setup-initiate
+// POST /api/auth/2fa/totp/initiate
+authRouter.post("/2fa/totp/initiate", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const tenantId = req.user!.tenantId || undefined;
+    const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+
+    const setupResult = await TwoFactorService.initiateTotpSetup(userId, tenantId, {
+      ipAddress: clientIp,
+      userAgent: req.headers["user-agent"] as string,
+    });
+
+    return res.json({
+      success: true,
+      secret: setupResult.secret,
+      qrCode: setupResult.qrCode,
+      otpauthUrl: setupResult.otpauthUrl,
+      backupCodes: setupResult.backupCodes,
+      issuer: "MasterHRMS",
+      message: "Scan the QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator) and enter the 6-digit code.",
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to initiate TOTP setup." });
+  }
+});
+
+// POST /api/auth/2fa/totp/confirm
+authRouter.post("/2fa/totp/confirm", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { token } = req.body;
+    const userId = req.user!.userId;
+    const tenantId = req.user!.tenantId || undefined;
+
+    if (!token) {
+      return res.status(400).json({ error: "6-digit TOTP verification code is required." });
+    }
+
+    const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+
+    const confirmResult = await TwoFactorService.confirmTotpSetup(userId, String(token), tenantId, {
+      ipAddress: clientIp,
+      userAgent: req.headers["user-agent"] as string,
+    });
+
+    if (!confirmResult.success) {
+      return res.status(400).json({ error: confirmResult.error });
+    }
+
+    // Dispatch security notification email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (user) {
+      await sendTwoFactorSecurityEmail({
+        toEmail: user.email,
+        userName: user.profile?.fullName || user.email.split("@")[0],
+        action: "ENABLED",
+        tenantId,
+      }).catch((emailErr) => console.warn("[2FA Confirm] security email warning:", emailErr.message));
+    }
+
+    return res.json({
+      success: true,
+      twoFactorEnabled: true,
+      message: "Two-Factor Authentication is now active on your account.",
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to confirm TOTP setup." });
+  }
+});
+
+// POST /api/auth/2fa/backup-codes/regenerate
+authRouter.post("/2fa/backup-codes/regenerate", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { currentTotp } = req.body;
+    const userId = req.user!.userId;
+    const tenantId = req.user!.tenantId || undefined;
+
+    if (!currentTotp) {
+      return res.status(400).json({ error: "Current 6-digit TOTP code is required to regenerate backup codes." });
+    }
+
+    const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+
+    const result = await TwoFactorService.regenerateBackupCodes(userId, String(currentTotp), tenantId, {
+      ipAddress: clientIp,
+      userAgent: req.headers["user-agent"] as string,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    return res.json({
+      success: true,
+      backupCodes: result.backupCodes,
+      message: "8 fresh backup recovery codes generated. Please store them securely.",
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to regenerate backup codes." });
+  }
+});
+
+// POST /api/auth/2fa/disable
+authRouter.post("/2fa/disable", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { currentTotp } = req.body;
+    const userId = req.user!.userId;
+    const tenantId = req.user!.tenantId || undefined;
+
+    if (!currentTotp) {
+      return res.status(400).json({ error: "Current 6-digit TOTP code is required to disable 2FA." });
+    }
+
+    const rawIp = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "127.0.0.1";
+    const clientIp = rawIp.split(",")[0].trim().replace(/^::ffff:/, "");
+
+    const result = await TwoFactorService.disableTwoFactor(userId, String(currentTotp), tenantId, {
+      ipAddress: clientIp,
+      userAgent: req.headers["user-agent"] as string,
+    });
+
+    if (!result.success) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (user) {
+      await sendTwoFactorSecurityEmail({
+        toEmail: user.email,
+        userName: user.profile?.fullName || user.email.split("@")[0],
+        action: "DISABLED",
+        tenantId,
+      }).catch((emailErr) => console.warn("[2FA Disable] security email warning:", emailErr.message));
+    }
+
+    return res.json({
+      success: true,
+      twoFactorEnabled: false,
+      message: "Two-Factor Authentication has been disabled.",
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || "Failed to disable 2FA." });
+  }
+});
+
+// POST /api/auth/2fa/setup-initiate (Legacy Email OTP compatibility)
 authRouter.post("/2fa/setup-initiate", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
@@ -1597,7 +2054,7 @@ authRouter.post("/2fa/setup-initiate", requireAuth, async (req: AuthRequest, res
   }
 });
 
-// POST /api/auth/2fa/setup-confirm
+// POST /api/auth/2fa/setup-confirm (Legacy Email OTP compatibility)
 authRouter.post("/2fa/setup-confirm", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { code } = req.body;
@@ -1686,184 +2143,184 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       enabledModules = ERP_MODULES.map((m) => m.key);
       activeAddons = ["*"];
     } else if (tenantId) {
-        const [tenantMods, sub, tenantAddons, initialAssignment] = await Promise.all([
-          db.tenantModule.findMany({
-            where: { tenantId },
-          }),
-          db.tenantSubscription.findFirst({
-            where: {
+      const [tenantMods, sub, tenantAddons, initialAssignment] = await Promise.all([
+        db.tenantModule.findMany({
+          where: { tenantId },
+        }),
+        db.tenantSubscription.findFirst({
+          where: {
+            tenantId,
+            status: { in: ["active", "trialing", "trial"] },
+          },
+          orderBy: { createdAt: "desc" },
+          include: { plan: true },
+        }),
+        db.tenantAddon.findMany({
+          where: {
+            tenantId,
+            status: { in: ["active", "trial"] },
+          },
+        }),
+        db.userRoleAssignment.findUnique({
+          where: {
+            userId_tenantId: {
+              userId: user!.id,
               tenantId,
-              status: { in: ["active", "trialing", "trial"] },
             },
-            orderBy: { createdAt: "desc" },
-            include: { plan: true },
-          }),
-          db.tenantAddon.findMany({
-            where: {
-              tenantId,
-              status: { in: ["active", "trial"] },
-            },
-          }),
-          db.userRoleAssignment.findUnique({
-            where: {
-              userId_tenantId: {
-                userId: user!.id,
-                tenantId,
-              },
-            },
-            include: {
-              role: {
-                include: {
-                  permissions: {
-                    include: { permission: true },
-                  },
+          },
+          include: {
+            role: {
+              include: {
+                permissions: {
+                  include: { permission: true },
                 },
               },
             },
-          }),
-        ]);
+          },
+        }),
+      ]);
 
-        const disabledKeySet = new Set(
-          tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
-        );
-        const explicitlyEnabledSet = new Set(
-          tenantMods.filter((m) => m.isEnabled).map((m) => m.moduleKey)
-        );
+      const disabledKeySet = new Set(
+        tenantMods.filter((m) => !m.isEnabled).map((m) => m.moduleKey)
+      );
+      const explicitlyEnabledSet = new Set(
+        tenantMods.filter((m) => m.isEnabled).map((m) => m.moduleKey)
+      );
 
-        const isSubActive = Boolean(sub && (!sub.expiresAt || new Date(sub.expiresAt) > new Date()));
-        const isSovereignOrGrowth = isSubActive && Boolean(
-          sub?.plan && (
-            sub.plan.id === "sovereign" ||
-            sub.plan.id === "growth" ||
-            (sub.plan.name || "").toLowerCase().includes("sovereign") ||
-            (sub.plan.name || "").toLowerCase().includes("growth enterprise")
-          )
-        );
+      const isSubActive = Boolean(sub && (!sub.expiresAt || new Date(sub.expiresAt) > new Date()));
+      const isSovereignOrGrowth = isSubActive && Boolean(
+        sub?.plan && (
+          sub.plan.id === "sovereign" ||
+          sub.plan.id === "growth" ||
+          (sub.plan.name || "").toLowerCase().includes("sovereign") ||
+          (sub.plan.name || "").toLowerCase().includes("growth enterprise")
+        )
+      );
 
-        const planFeatures: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.features))
-          ? (sub.plan.features as any[]).map((f) => String(f).toLowerCase())
-          : [];
-        const includedAddonIds: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.includedAddonIds))
-          ? (sub.plan.includedAddonIds as any[]).map((a) => String(a).toLowerCase())
-          : [];
+      const planFeatures: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.features))
+        ? (sub.plan.features as any[]).map((f) => String(f).toLowerCase())
+        : [];
+      const includedAddonIds: string[] = (isSubActive && sub?.plan && Array.isArray(sub.plan.includedAddonIds))
+        ? (sub.plan.includedAddonIds as any[]).map((a) => String(a).toLowerCase())
+        : [];
 
-        const activeAddonSlugs = new Set(
-          tenantAddons
-            .filter((a) => !a.trialEndsAt || new Date(a.trialEndsAt) > new Date())
-            .map((a) => a.addonSlug.toLowerCase())
-        );
+      const activeAddonSlugs = new Set(
+        tenantAddons
+          .filter((a) => !a.trialEndsAt || new Date(a.trialEndsAt) > new Date())
+          .map((a) => a.addonSlug.toLowerCase())
+      );
 
-        const isPlanEntitled = (modKey: string): boolean => {
-          if (isSovereignOrGrowth) return true;
-          if (activeAddonSlugs.has(modKey) || activeAddonSlugs.has(`product_${modKey}`)) return true;
-          if (includedAddonIds.includes(modKey) || includedAddonIds.includes(`product_${modKey}`)) return true;
+      const isPlanEntitled = (modKey: string): boolean => {
+        if (isSovereignOrGrowth) return true;
+        if (activeAddonSlugs.has(modKey) || activeAddonSlugs.has(`product_${modKey}`)) return true;
+        if (includedAddonIds.includes(modKey) || includedAddonIds.includes(`product_${modKey}`)) return true;
 
-          if (modKey === "pos") return planFeatures.some((f) => f.includes("pos"));
-          if (modKey === "inventory") return planFeatures.some((f) => f.includes("inventory") || f.includes("pos"));
-          if (modKey === "crm") return planFeatures.some((f) => f.includes("crm"));
-          if (modKey === "finance") return planFeatures.some((f) => f.includes("financial") || f.includes("ledger") || f.includes("accounting") || f.includes("finance"));
-          if (modKey === "procurement") return planFeatures.some((f) => f.includes("procurement") || f.includes("purchase") || f.includes("inventory") || f.includes("pos"));
-          if (modKey === "project") return planFeatures.some((f) => f.includes("project"));
-          if (modKey === "support") return planFeatures.some((f) => f.includes("support"));
-          if (modKey === "analytics") return planFeatures.some((f) => f.includes("analytics") || f.includes("bi") || f.includes("report"));
+        if (modKey === "pos") return planFeatures.some((f) => f.includes("pos"));
+        if (modKey === "inventory") return planFeatures.some((f) => f.includes("inventory") || f.includes("pos"));
+        if (modKey === "crm") return planFeatures.some((f) => f.includes("crm"));
+        if (modKey === "finance") return planFeatures.some((f) => f.includes("financial") || f.includes("ledger") || f.includes("accounting") || f.includes("finance"));
+        if (modKey === "procurement") return planFeatures.some((f) => f.includes("procurement") || f.includes("purchase") || f.includes("inventory") || f.includes("pos"));
+        if (modKey === "project") return planFeatures.some((f) => f.includes("project"));
+        if (modKey === "support") return planFeatures.some((f) => f.includes("support"));
+        if (modKey === "analytics") return planFeatures.some((f) => f.includes("analytics") || f.includes("bi") || f.includes("report"));
 
-          return false;
+        return false;
+      };
+
+      const CORE_PLATFORM_MODULES = new Set(["hrm", "project", "support", "analytics"]);
+
+      enabledModules = ERP_MODULES.filter((m) => {
+        if (disabledKeySet.has(m.key) || disabledKeySet.has(`product_${m.key}`)) return false;
+        if (explicitlyEnabledSet.has(m.key) || explicitlyEnabledSet.has(`product_${m.key}`)) return true;
+        if (isPlanEntitled(m.key)) return true;
+        if (CORE_PLATFORM_MODULES.has(m.key)) return true;
+        return false;
+      }).map((m) => m.key);
+
+      // Include active tenant add-on slugs in enabledModules
+      for (const addonSlug of activeAddonSlugs) {
+        if (!enabledModules.includes(addonSlug)) {
+          enabledModules.push(addonSlug);
+        }
+      }
+      // Uninstalled optional add-ons are strictly not injected into enabledModules.
+      // Add-ons must be explicitly installed by the tenant to be enabled.
+      let assignment = initialAssignment;
+
+      const isAdminUser =
+        (roles as string[]).includes("admin") ||
+        (roles as string[]).includes("workspace_admin") ||
+        (roles as string[]).includes("tenant_admin") ||
+        (roles as string[]).includes("hr_admin") ||
+        (roles as string[]).includes("Workspace Admin");
+
+      if (!assignment && isAdminUser) {
+        const adminRole = await db.workspaceRole.findUnique({
+          where: { tenantId_name: { tenantId, name: "Workspace Admin" } },
+          include: {
+            permissions: { include: { permission: true } },
+          },
+        });
+        if (adminRole) {
+          await db.userRoleAssignment.create({
+            data: {
+              userId: user!.id,
+              tenantId,
+              roleId: adminRole.id,
+            },
+          });
+          assignment = { role: adminRole } as any;
+        }
+      }
+
+      if (assignment?.role && assignment.role.isActive) {
+        workspaceRole = {
+          id: assignment.role.id,
+          name: assignment.role.name,
+          description: assignment.role.description,
+          isActive: assignment.role.isActive,
+          isSystem: assignment.role.isSystem,
         };
 
-        const CORE_PLATFORM_MODULES = new Set(["hrm", "project", "support", "analytics"]);
-
-        enabledModules = ERP_MODULES.filter((m) => {
-          if (disabledKeySet.has(m.key) || disabledKeySet.has(`product_${m.key}`)) return false;
-          if (explicitlyEnabledSet.has(m.key) || explicitlyEnabledSet.has(`product_${m.key}`)) return true;
-          if (isPlanEntitled(m.key)) return true;
-          if (CORE_PLATFORM_MODULES.has(m.key)) return true;
-          return false;
-        }).map((m) => m.key);
-
-        // Include active tenant add-on slugs in enabledModules
-        for (const addonSlug of activeAddonSlugs) {
-          if (!enabledModules.includes(addonSlug)) {
-            enabledModules.push(addonSlug);
-          }
-        }
-        // Uninstalled optional add-ons are strictly not injected into enabledModules.
-        // Add-ons must be explicitly installed by the tenant to be enabled.
-        let assignment = initialAssignment;
-
-        const isAdminUser =
-          (roles as string[]).includes("admin") ||
-          (roles as string[]).includes("workspace_admin") ||
-          (roles as string[]).includes("tenant_admin") ||
-          (roles as string[]).includes("hr_admin") ||
-          (roles as string[]).includes("Workspace Admin");
-
-        if (!assignment && isAdminUser) {
-          const adminRole = await db.workspaceRole.findUnique({
-            where: { tenantId_name: { tenantId, name: "Workspace Admin" } },
-            include: {
-              permissions: { include: { permission: true } },
-            },
-          });
-          if (adminRole) {
-            await db.userRoleAssignment.create({
-              data: {
-                userId: user!.id,
-                tenantId,
-                roleId: adminRole.id,
-              },
-            });
-            assignment = { role: adminRole } as any;
-          }
-        }
-
-        if (assignment?.role && assignment.role.isActive) {
-          workspaceRole = {
-            id: assignment.role.id,
-            name: assignment.role.name,
-            description: assignment.role.description,
-            isActive: assignment.role.isActive,
-            isSystem: assignment.role.isSystem,
-          };
-
-          if (assignment.role.name === "Workspace Admin") {
-            const allPerms = await db.permission.findMany({ select: { code: true } });
-            permissions = allPerms.map((p) => p.code);
-            if (!roles.includes("tenant_admin")) roles.push("tenant_admin");
-            if (!roles.includes("admin")) roles.push("admin");
-            if (!roles.includes("workspace_admin")) roles.push("workspace_admin");
-            roles = roles.filter((r) => r !== "hr_admin");
-          } else {
-            permissions = assignment.role.permissions.map((rp) => rp.permission.code);
-          }
+        if (assignment.role.name === "Workspace Admin") {
+          const allPerms = await db.permission.findMany({ select: { code: true } });
+          permissions = allPerms.map((p) => p.code);
+          if (!roles.includes("tenant_admin")) roles.push("tenant_admin");
+          if (!roles.includes("admin")) roles.push("admin");
+          if (!roles.includes("workspace_admin")) roles.push("workspace_admin");
+          roles = roles.filter((r) => r !== "hr_admin");
         } else {
-          const employeeRole = await db.workspaceRole.findUnique({
-            where: { tenantId_name: { tenantId, name: "Employee" } },
-            include: {
-              permissions: { include: { permission: true } },
-            },
-          });
-          if (employeeRole && employeeRole.isActive) {
-            workspaceRole = {
-              id: employeeRole.id,
-              name: employeeRole.name,
-              description: employeeRole.description,
-              isActive: employeeRole.isActive,
-              isSystem: employeeRole.isSystem,
-            };
-            permissions = employeeRole.permissions.map((rp) => rp.permission.code);
-          }
+          permissions = assignment.role.permissions.map((rp) => rp.permission.code);
         }
-
-        allowedDashboards = ERP_MODULES.filter((mod) => {
-          const isModEnabled = enabledModules.includes(mod.key);
-          const hasDashboardPerm =
-            workspaceRole?.name === "Workspace Admin" ||
-            permissions.includes(mod.permission);
-          return isModEnabled && hasDashboardPerm;
-        }).map((m) => m.key);
-
-        activeAddons = Array.from(activeAddonSlugs);
+      } else {
+        const employeeRole = await db.workspaceRole.findUnique({
+          where: { tenantId_name: { tenantId, name: "Employee" } },
+          include: {
+            permissions: { include: { permission: true } },
+          },
+        });
+        if (employeeRole && employeeRole.isActive) {
+          workspaceRole = {
+            id: employeeRole.id,
+            name: employeeRole.name,
+            description: employeeRole.description,
+            isActive: employeeRole.isActive,
+            isSystem: employeeRole.isSystem,
+          };
+          permissions = employeeRole.permissions.map((rp) => rp.permission.code);
+        }
       }
+
+      allowedDashboards = ERP_MODULES.filter((mod) => {
+        const isModEnabled = enabledModules.includes(mod.key);
+        const hasDashboardPerm =
+          workspaceRole?.name === "Workspace Admin" ||
+          permissions.includes(mod.permission);
+        return isModEnabled && hasDashboardPerm;
+      }).map((m) => m.key);
+
+      activeAddons = Array.from(activeAddonSlugs);
+    }
 
     const matchingEmployee = user!.employees?.find((e: any) => e.tenantId === tenantId) || user!.employees?.[0];
     const resolvedDesignation =
@@ -1873,10 +2330,10 @@ authRouter.get("/me", requireAuth, async (req: AuthRequest, res: Response) => {
       (roles.includes("hr_admin")
         ? "HR Administrator"
         : roles.includes("tenant_admin")
-        ? "Organization Administrator"
-        : roles.includes("manager")
-        ? "Team Manager"
-        : "Employee");
+          ? "Organization Administrator"
+          : roles.includes("manager")
+            ? "Team Manager"
+            : "Employee");
 
     const enhancedProfile = {
       ...user!.profile,
@@ -1947,7 +2404,8 @@ authRouter.post("/bootstrap-tenant", requireAuth, async (req: AuthRequest, res: 
       const profile = await tx.profile.findUnique({ where: { userId: req.user!.userId } });
       if (profile?.tenantId) throw Object.assign(new Error("Your account already belongs to a workspace."), { status: 409 });
       const created = await tx.tenant.create({ data: { name, slug } });
-      await tx.profile.upsert({ where: { userId: req.user!.userId },
+      await tx.profile.upsert({
+        where: { userId: req.user!.userId },
         create: { userId: req.user!.userId, email: req.user!.email, tenantId: created.id },
         update: { tenantId: created.id },
       });
@@ -2051,7 +2509,7 @@ authRouter.post("/logout", requireAuth, async (req: AuthRequest, res: Response) 
       // Revoke the specific device session if available in token or body
       const sessionId = (req.user as any)?.sessionId || req.body?.sessionId;
       if (sessionId) {
-        await revokeSession(sessionId, userId).catch(() => {});
+        await revokeSession(sessionId, userId).catch(() => { });
       }
     }
     res.clearCookie("hrms_refresh_token", { path: "/api/auth" });
