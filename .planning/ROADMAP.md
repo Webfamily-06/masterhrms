@@ -19,6 +19,7 @@ This roadmap orchestrates the full transition from reverse-engineering discovery
 - [x] **Phase 4: Core HR, Attendance, & Payroll Workflow Verification** - Verify end-to-end functionality across attendance, leave, payroll runs, and ledger postings (Workstreams C, D, E).
 - [x] **Phase 5: Marketplace & Modular Add-on Architecture** - Verify add-on entitlement gating, modular plugin isolation, and third-party integrations (Workstreams G, H, I).
 - [x] **Phase 6: Enterprise Regression Suite & Final Implementation Report** - Execute full test regression, TypeScript verification, and publish final enterprise report.
+- [x] **Phase 7: Canonical Route Normalization & Alias Verification** - Wire 7 canonical Express route aliases for biometric punch, attendance summary, leave approval, shift swap approval, OKR objectives, OKR check-ins, and Tally import, promoting all 7 PARTIAL items to VERIFIED (Milestone 7.1-B).
 
 ---
 
@@ -107,3 +108,23 @@ Plans:
 
 Plans:
 - [x] 06-01: Run full regression test suite, verify TypeScript, and compile final report.
+
+---
+
+### Phase 7: Canonical Route Normalization & Alias Verification
+**Goal**: Wire 7 canonical Express route aliases for biometric punch, attendance summary, leave approval, shift swap approval, OKR objectives, OKR check-ins, and Tally import, promoting all 7 PARTIAL items to VERIFIED.
+**Depends on**: Phase 6
+**Requirements**: REQ-RT-01, REQ-RT-02, REQ-RT-03, REQ-RT-04, REQ-RT-05, REQ-RT-06, REQ-RT-07
+**Success Criteria**:
+  1. `POST /api/biometric/punch` routes directly to `processBiometricPunch`.
+  2. `GET /api/attendance/summary` returns work hours and punctuality statistics.
+  3. `PUT /api/leave/requests/:id/approve` and `/reject` delegate to `LeaveService.decideApplication`.
+  4. `PUT /api/shifts/swaps/:id/approve` and `/reject` process shift swaps atomically.
+  5. `POST /api/addons/okr/objectives` and `POST /api/addons/okr/checkins` route to `okrRouter`.
+  6. `POST /api/workspace/tally-import` maps Tally XML/JSON transactions to double-entry ledger.
+  7. Native integration tests in `canonical-route-aliases.test.ts` pass with exit code 0.
+  8. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 07-01: Implement 7 canonical route aliases and verify via native test suite.
+

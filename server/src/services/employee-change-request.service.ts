@@ -120,6 +120,8 @@ export interface ReviewChangeRequestInput {
   action: "approve" | "reject" | "request_correction";
   reviewComments?: string;
   canViewSensitive?: boolean;
+  tx?: any;
+  suppressNotifications?: boolean;
 }
 
 export class EmployeeChangeRequestService {
@@ -791,7 +793,7 @@ export class EmployeeChangeRequestService {
    * Atomic Prisma Transaction, and Authoritative Employee Record Update.
    */
   public static async processReviewDecision(input: ReviewChangeRequestInput): Promise<any> {
-    const db: any = rawPrisma || sharedPrisma || getTenantDb();
+    const db: any = input.tx || rawPrisma || sharedPrisma || getTenantDb();
 
     // 1. Fetch request with relations
     const changeReq = await db.employeeChangeRequest.findUnique({
@@ -854,7 +856,7 @@ export class EmployeeChangeRequestService {
       });
 
       // Notify employee
-      if (changeReq.employee?.userId) {
+      if (!input.suppressNotifications && changeReq.employee?.userId) {
         await NotificationService.createNotification({
           tenantId: input.tenantId,
           userId: changeReq.employee.userId,
@@ -870,14 +872,17 @@ export class EmployeeChangeRequestService {
         });
       }
 
-      await AuditService.logMutation({
-        tenantId: input.tenantId,
-        actorId: input.reviewerUserId,
-        action: "PROFILE_CHANGE_REQUEST_CORRECTION_REQUESTED",
-        entityType: "EmployeeChangeRequest",
-        entityId: changeReq.id,
-        newState: { status: "CORRECTION_REQUESTED", comments: reviewComments },
-      });
+      await AuditService.logMutation(
+        {
+          tenantId: input.tenantId,
+          actorId: input.reviewerUserId,
+          action: "PROFILE_CHANGE_REQUEST_CORRECTION_REQUESTED",
+          entityType: "EmployeeChangeRequest",
+          entityId: changeReq.id,
+          newState: { status: "CORRECTION_REQUESTED", comments: reviewComments },
+        },
+        input.tx
+      );
 
       return {
         success: true,
@@ -921,7 +926,7 @@ export class EmployeeChangeRequestService {
       }
 
       // Notify employee
-      if (changeReq.employee?.userId) {
+      if (!input.suppressNotifications && changeReq.employee?.userId) {
         await NotificationService.createNotification({
           tenantId: input.tenantId,
           userId: changeReq.employee.userId,
@@ -937,14 +942,17 @@ export class EmployeeChangeRequestService {
         });
       }
 
-      await AuditService.logMutation({
-        tenantId: input.tenantId,
-        actorId: input.reviewerUserId,
-        action: "PROFILE_CHANGE_REQUEST_REJECTED",
-        entityType: "EmployeeChangeRequest",
-        entityId: changeReq.id,
-        newState: { status: "REJECTED", comments: reviewComments },
-      });
+      await AuditService.logMutation(
+        {
+          tenantId: input.tenantId,
+          actorId: input.reviewerUserId,
+          action: "PROFILE_CHANGE_REQUEST_REJECTED",
+          entityType: "EmployeeChangeRequest",
+          entityId: changeReq.id,
+          newState: { status: "REJECTED", comments: reviewComments },
+        },
+        input.tx
+      );
 
       return {
         success: true,
@@ -988,7 +996,7 @@ export class EmployeeChangeRequestService {
       // 2. Apply updates to authoritative Employee record
       // 3. Mark EmployeeChangeRequest as APPROVED
       // 4. Record Audit Log and Outbox Event
-      const result = await db.$transaction(async (tx: any) => {
+      const runTransactionLogic = async (tx: any) => {
         // Concurrency Conflict Check:
         const currentEmp = await tx.employee.findUnique({
           where: { id: changeReq.employeeId },
@@ -1099,10 +1107,14 @@ export class EmployeeChangeRequestService {
         );
 
         return { approvedReq, updatedEmployee };
-      });
+      };
+
+      const result = input.tx
+        ? await runTransactionLogic(input.tx)
+        : await db.$transaction(runTransactionLogic);
 
       // Dispatch confirmation notification to employee
-      if (changeReq.employee?.userId) {
+      if (!input.suppressNotifications && changeReq.employee?.userId) {
         await NotificationService.createNotification({
           tenantId: input.tenantId,
           userId: changeReq.employee.userId,

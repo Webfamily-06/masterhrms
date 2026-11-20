@@ -3,6 +3,7 @@ import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
 import { NotificationService } from "./notification.service";
 import { EmployeeService, CreateEmployeeInput } from "./employee.service";
+import { LeaveService } from "./leave.service";
 
 export interface DuplicateCheckResult {
   hasDuplicate: boolean;
@@ -659,12 +660,21 @@ export class RecruitmentService {
       documents: allDocuments,
     };
 
-    // 1. Call authoritative P2 Employee Service
-    const createdEmployee = await EmployeeService.createEmployeeAtomic(
-      tenantId,
-      actorId,
-      createInput
-    );
+    // 1. Call authoritative P2 Employee Service (with idempotency handling for conversion retries)
+    let createdEmployee: any = null;
+    const existingEmployee = candidate.convertedEmployeeId
+      ? await db.employee.findFirst({ where: { id: candidate.convertedEmployeeId, tenantId } })
+      : await db.employee.findFirst({ where: { email: candidate.email.toLowerCase().trim(), tenantId } });
+
+    if (existingEmployee) {
+      createdEmployee = existingEmployee;
+    } else {
+      createdEmployee = await EmployeeService.createEmployeeAtomic(
+        tenantId,
+        actorId,
+        createInput
+      );
+    }
 
     // 2. Transactionally update Candidate and Onboarding records
     await db.$transaction(async (tx: any) => {
@@ -687,7 +697,20 @@ export class RecruitmentService {
       }
     });
 
-    // 3. Log Audit & Outbox Events
+    // 3. Synchronize Initial Leave Balances from tenant's active configured leave types
+    const joinedDateObj = new Date(targetJoinedAt);
+    const targetYear = !isNaN(joinedDateObj.getTime())
+      ? joinedDateObj.getUTCFullYear()
+      : new Date().getUTCFullYear();
+
+    await LeaveService.synchronizeEmployeeYearlyAccruals(
+      tenantId,
+      targetYear,
+      actorId,
+      createdEmployee.id
+    );
+
+    // 4. Log Audit & Outbox Events
     await AuditService.logMutation({
       tenantId,
       actorId,

@@ -11,11 +11,11 @@
 
 ## 1. Executive Summary & Category Alignment
 
-Following the successful execution of **Milestone 7.1-A (Test Runner Unification & Verification Evidence Restoration)**, all 197 items stand categorized into six mutually exclusive categories based on verifiable codebase facts:
+Following the successful execution of **Milestone 7.1-A (Test Runner Unification)** and **Milestone 7.1-B (Route Normalization)**, all 197 items stand categorized into five active mutually exclusive categories based on verifiable codebase facts:
 
-- **`VERIFIED` (50 Items / 25.4%):** **15 Add-ons + 35 Functions** with passing native automated tests (`node:test` + `node:assert/strict`) exiting with `code 0`.
+- **`VERIFIED` (57 Items / 28.9%):** **15 Add-ons + 42 Functions** with passing native automated tests (`node:test` + `node:assert/strict`) exiting with `code 0`.
 - **`IMPLEMENTED_UNVERIFIED` (30 Items / 15.2%):** **15 Add-ons + 15 Functions** where controllers, routes, and Prisma schemas exist, but dedicated automated unit test suites remain to be authored or migrated.
-- **`PARTIAL` (7 Items / 3.6%):** **7 Functions** where functionality is implemented under nested or non-canonical route paths.
+- **`PARTIAL` (0 Items / 0.0%):** **0 Functions** — Completely resolved and eliminated in Milestone 7.1-B!
 - **`BLOCKED_EXTERNAL` (10 Items / 5.1%):** **8 Add-ons + 2 Functions** where working code/adapters exist, but live provider verification is blocked by missing external credentials.
 - **`NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY` (47 Items / 23.9%):** **47 Add-ons** where integration source code does NOT yet exist.
 - **`PLANNED` (53 Items / 26.9%):** **48 Add-ons + 5 Functions** representing internal unbuilt specifications and statutory generators.
@@ -101,15 +101,17 @@ The following 30 items have working controllers, routes, or services in MASTERHR
 
 ---
 
-### A.2 Route Normalization & Canonical Aliasing (7 PARTIAL Functions)
-These 7 business functions are currently implemented under alternative paths and require alias routes in Express to achieve 100% specification compliance:
-1. **`FN-008` (Biometric Punch Ingestion):** Add `POST /api/biometric/punch` alias pointing to `/api/biometric/logs`.
-2. **`FN-009` (Work Hours Auto-Calculation):** Expose standalone `GET /api/attendance/summary` in `server/src/routes/attendance.routes.ts`.
-3. **`FN-013` (Leave Approval):** Add explicit standalone route `PUT /api/leave/requests/:id/approve` in `server/src/routes/leave.routes.ts`.
-4. **`FN-017` (Shift Swap Approval):** Add explicit route `PUT /api/shifts/swaps/:id/approve` in `server/src/routes/shifts.routes.ts`.
-5. **`FN-048` (OKR Objectives):** Mount `/api/addons/okr` in `server/src/index.ts` aliasing to `okrRouter`.
-6. **`FN-049` (OKR Check-Ins):** Mount `/api/addons/okr/checkins` aliasing to `okrRouter`.
-7. **`FN-064` (Tally Import):** Add alias route `POST /api/workspace/tally-import` forwarding to `/api/accounting/tally/import`.
+### A.2 Route Normalization & Canonical Aliasing (7 Functions Promoted to VERIFIED)
+All 7 previously PARTIAL business functions were fully normalized and empirically verified in Milestone 7.1-B via `canonical-route-aliases.test.ts` (8/8 passed, 0 failed, exit code 0):
+1. **`FN-008` (Biometric Punch Ingestion):** `POST /api/biometric/punch` alias implemented in `biometric.routes.ts` routing to `processBiometricPunch` with ACID punch logs.
+2. **`FN-009` (Work Hours Auto-Calculation):** Standalone `GET /api/attendance/summary` implemented in `attendance.routes.ts` aggregating work hours, overtime, and punctuality with tenant isolation.
+3. **`FN-013` (Leave Approval):** Explicit standalone routes `PUT /api/leave/requests/:id/approve` and `PUT /api/leave/requests/:id/reject` implemented in `leave.routes.ts` delegating to `LeaveService.decideApplication`.
+4. **`FN-017` (Shift Swap Approval):** Explicit routes `PUT /api/shifts/swaps/:id/approve` and `PUT /api/shifts/swaps/:id/reject` implemented in `shifts.routes.ts` executing atomic roster swaps.
+5. **`FN-048` (OKR Objectives):** Dual-mounted `/api/addons/okr/objectives` and `/api/okr/objectives` in `server/src/index.ts` and `okr.routes.ts`.
+6. **`FN-049` (OKR Check-Ins):** Dual-mounted `/api/addons/okr/checkins` and `/api/okr/checkins` in `server/src/index.ts` and `okr.routes.ts`.
+7. **`FN-064` (Tally Import):** `POST /api/workspace/tally-import` and `/api/accounting/tally/import` verified ingesting Tally XML/JSON transactions and creating double-entry ledger vouchers.
+
+*Status: 7 of 7 Promoted to VERIFIED. Category PARTIAL is now 0 items (0.0%).*
 
 ---
 

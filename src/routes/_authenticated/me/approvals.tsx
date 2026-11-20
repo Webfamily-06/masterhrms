@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,16 @@ export function MeApprovalsPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "submitted" | "history">("pending");
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState("all");
+
+  const [selectedItemKeys, setSelectedItemKeys] = useState<Set<string>>(new Set());
+  const [bulkModal, setBulkModal] = useState<{
+    isOpen: boolean;
+    action: "approve" | "reject";
+  }>({
+    isOpen: false,
+    action: "approve",
+  });
+  const [bulkReason, setBulkReason] = useState("");
 
   // Decision Modal State
   const [decisionModal, setDecisionModal] = useState<{
@@ -153,6 +164,40 @@ export function MeApprovalsPage() {
     },
   });
 
+  const bulkDecisionMutation = useMutation({
+    mutationFn: async ({
+      action,
+      reason,
+      items,
+    }: {
+      action: "approve" | "reject";
+      reason?: string;
+      items: Array<{ id: string; type: string }>;
+    }) => {
+      return await api.post("/api/v1/me/team/approvals/bulk-action", {
+        action,
+        reason,
+        items,
+      });
+    },
+    onSuccess: async (_, vars) => {
+      toast.success(
+        vars.action === "approve"
+          ? `Successfully approved ${vars.items.length} requests in bulk.`
+          : `Successfully rejected ${vars.items.length} requests in bulk.`
+      );
+      setSelectedItemKeys(new Set());
+      closeBulkModal();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["me-team-approvals"] }),
+        invalidateLeaveApplications(queryClient),
+      ]);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to process bulk decision");
+    },
+  });
+
   function openDecisionModal(type: any, action: "approve" | "reject", id: string, title: string) {
     setDecisionModal({ isOpen: true, type, action, id, title });
     setDecisionComments("");
@@ -176,11 +221,112 @@ export function MeApprovalsPage() {
     }
   }
 
+  function openBulkModal(action: "approve" | "reject") {
+    setBulkModal({ isOpen: true, action });
+    setBulkReason("");
+  }
+
+  function closeBulkModal() {
+    setBulkModal({ isOpen: false, action: "approve" });
+    setBulkReason("");
+  }
+
+  function handleExecuteBulkDecision() {
+    const items: Array<{ id: string; type: string }> = [];
+    selectedItemKeys.forEach((key) => {
+      const [type, id] = key.split(":");
+      if (type && id) {
+        items.push({ id, type });
+      }
+    });
+
+    if (items.length === 0) return;
+
+    bulkDecisionMutation.mutate({
+      action: bulkModal.action,
+      reason: bulkReason.trim() || undefined,
+      items,
+    });
+  }
+
+  // Filter items by search query
+  const queryLower = search.toLowerCase().trim();
+
+  const filteredLeaves = leaves.filter((leave) => {
+    if (!queryLower) return true;
+    const name = `${leave.employee?.firstName || ""} ${leave.employee?.lastName || ""}`.toLowerCase();
+    const reason = (leave.reason || "").toLowerCase();
+    const type = (leave.leaveType?.name || "").toLowerCase();
+    return name.includes(queryLower) || reason.includes(queryLower) || type.includes(queryLower);
+  });
+
+  const filteredRegularizations = regularizations.filter((reg) => {
+    if (!queryLower) return true;
+    const name = `${reg.employee?.firstName || ""} ${reg.employee?.lastName || ""}`.toLowerCase();
+    const reason = (reg.reason || "").toLowerCase();
+    return name.includes(queryLower) || reason.includes(queryLower);
+  });
+
+  const filteredChangeRequests = changeRequests.filter((change) => {
+    if (!queryLower) return true;
+    const name = `${change.employee?.firstName || ""} ${change.employee?.lastName || ""}`.toLowerCase();
+    const field = (change.field || change.fieldCategory || "").toLowerCase();
+    return name.includes(queryLower) || field.includes(queryLower);
+  });
+
+  // Calculate visible items on current filter
+  const visibleItems: Array<{ type: "leave" | "regularization" | "profile_change"; id: string }> = [];
+  if (entityFilter === "all" || entityFilter === "leave") {
+    filteredLeaves.forEach((l) => visibleItems.push({ type: "leave", id: l.id }));
+  }
+  if (entityFilter === "all" || entityFilter === "regularization") {
+    filteredRegularizations.forEach((r) => visibleItems.push({ type: "regularization", id: r.id }));
+  }
+  if (entityFilter === "all" || entityFilter === "profile") {
+    filteredChangeRequests.forEach((c) => visibleItems.push({ type: "profile_change", id: c.id }));
+  }
+
+  const allVisibleKeys = visibleItems.map((i) => `${i.type}:${i.id}`);
+  const areAllVisibleSelected =
+    allVisibleKeys.length > 0 && allVisibleKeys.every((k) => selectedItemKeys.has(k));
+  const hasSomeVisibleSelected =
+    allVisibleKeys.some((k) => selectedItemKeys.has(k));
+
+  function toggleSelectItem(type: string, id: string) {
+    const key = `${type}:${id}`;
+    setSelectedItemKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    if (areAllVisibleSelected) {
+      setSelectedItemKeys((prev) => {
+        const next = new Set(prev);
+        allVisibleKeys.forEach((k) => next.delete(k));
+        return next;
+      });
+    } else {
+      setSelectedItemKeys((prev) => {
+        const next = new Set(prev);
+        allVisibleKeys.forEach((k) => next.add(k));
+        return next;
+      });
+    }
+  }
+
   const isSubmitting =
     leaveDecisionMutation.isPending ||
     regDecisionMutation.isPending ||
     profileChangeMutation.isPending ||
-    genericDecisionMutation.isPending;
+    genericDecisionMutation.isPending ||
+    bulkDecisionMutation.isPending;
 
   const totalPending = leaves.length + regularizations.length + changeRequests.length;
 
@@ -253,6 +399,50 @@ export function MeApprovalsPage() {
         </div>
 
         <TabsContent value="pending" className="mt-4 space-y-4">
+          {/* Bulk Action Sticky Toolbar */}
+          {selectedItemKeys.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-primary/10 border border-primary/20 rounded-lg shadow-sm">
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="font-semibold">
+                  {selectedItemKeys.size} Selected
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Ready for bulk processing
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedItemKeys(new Set())}
+                  disabled={isSubmitting}
+                  className="text-xs"
+                >
+                  Clear Selection
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openBulkModal("reject")}
+                  disabled={isSubmitting}
+                  className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                >
+                  <XCircle className="h-3.5 w-3.5 mr-1" />
+                  Bulk Reject ({selectedItemKeys.size})
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openBulkModal("approve")}
+                  disabled={isSubmitting}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Bulk Approve ({selectedItemKeys.size})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {totalPending === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
@@ -263,33 +453,74 @@ export function MeApprovalsPage() {
             </Card>
           ) : (
             <div className="space-y-3">
+              {/* Select All on Page Header */}
+              {visibleItems.length > 0 && (
+                <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border rounded-lg text-xs font-medium text-muted-foreground">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                    onClick={toggleSelectAllVisible}
+                  >
+                    <Checkbox
+                      checked={
+                        areAllVisibleSelected
+                          ? true
+                          : hasSomeVisibleSelected
+                          ? "indeterminate"
+                          : false
+                      }
+                      onCheckedChange={toggleSelectAllVisible}
+                    />
+                    <span>
+                      Select All ({visibleItems.length} {visibleItems.length === 1 ? "request" : "requests"} on current view)
+                    </span>
+                  </div>
+                  {selectedItemKeys.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedItemKeys(new Set())}
+                      className="text-primary hover:underline"
+                    >
+                      Deselect all ({selectedItemKeys.size})
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Leave Requests */}
               {(entityFilter === "all" || entityFilter === "leave") &&
-                leaves.map((leave) => (
+                filteredLeaves.map((leave) => (
                   <Card key={`leave-${leave.id}`} className="hover:border-primary/40 transition-colors">
                     <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
-                            Leave Request
-                          </Badge>
-                          <span className="font-semibold text-sm">
-                            {leave.employee?.firstName} {leave.employee?.lastName}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            • {leave.employee?.designation?.name || "Team Member"}
-                          </span>
+                      <div className="flex items-start gap-3 flex-1">
+                        <Checkbox
+                          checked={selectedItemKeys.has(`leave:${leave.id}`)}
+                          onCheckedChange={() => toggleSelectItem("leave", leave.id)}
+                          className="mt-1"
+                          aria-label={`Select leave request for ${leave.employee?.firstName} ${leave.employee?.lastName}`}
+                        />
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+                              Leave Request
+                            </Badge>
+                            <span className="font-semibold text-sm">
+                              {leave.employee?.firstName} {leave.employee?.lastName}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              • {leave.employee?.designation?.name || "Team Member"}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground">
+                            {leave.leaveType?.name || "Leave"}:{" "}
+                            <span className="font-medium">
+                              {format(new Date(leave.startDate), "MMM d, yyyy")} to {format(new Date(leave.endDate), "MMM d, yyyy")}
+                            </span>{" "}
+                            ({leave.daysCount} {leave.daysCount === 1 ? "day" : "days"})
+                          </p>
+                          {leave.reason && (
+                            <p className="text-xs text-muted-foreground italic">"{leave.reason}"</p>
+                          )}
                         </div>
-                        <p className="text-sm text-foreground">
-                          {leave.leaveType?.name || "Leave"}:{" "}
-                          <span className="font-medium">
-                            {format(new Date(leave.startDate), "MMM d, yyyy")} to {format(new Date(leave.endDate), "MMM d, yyyy")}
-                          </span>{" "}
-                          ({leave.daysCount} {leave.daysCount === 1 ? "day" : "days"})
-                        </p>
-                        {leave.reason && (
-                          <p className="text-xs text-muted-foreground italic">"{leave.reason}"</p>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 self-end md:self-center">
                         <Button
@@ -330,22 +561,30 @@ export function MeApprovalsPage() {
 
               {/* Attendance Regularizations */}
               {(entityFilter === "all" || entityFilter === "regularization") &&
-                regularizations.map((reg) => (
+                filteredRegularizations.map((reg) => (
                   <Card key={`reg-${reg.id}`} className="hover:border-primary/40 transition-colors">
                     <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
-                            Regularization
-                          </Badge>
-                          <span className="font-semibold text-sm">
-                            {reg.employee?.firstName} {reg.employee?.lastName}
-                          </span>
+                      <div className="flex items-start gap-3 flex-1">
+                        <Checkbox
+                          checked={selectedItemKeys.has(`regularization:${reg.id}`)}
+                          onCheckedChange={() => toggleSelectItem("regularization", reg.id)}
+                          className="mt-1"
+                          aria-label={`Select regularization request for ${reg.employee?.firstName} ${reg.employee?.lastName}`}
+                        />
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                              Regularization
+                            </Badge>
+                            <span className="font-semibold text-sm">
+                              {reg.employee?.firstName} {reg.employee?.lastName}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground">
+                            Correction Date: <span className="font-medium">{format(new Date(reg.date || reg.attendanceDate), "MMM d, yyyy")}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground">Reason: {reg.reason}</p>
                         </div>
-                        <p className="text-sm text-foreground">
-                          Correction Date: <span className="font-medium">{format(new Date(reg.date), "MMM d, yyyy")}</span>
-                        </p>
-                        <p className="text-xs text-muted-foreground">Reason: {reg.reason}</p>
                       </div>
                       <div className="flex items-center gap-2 self-end md:self-center">
                         <Button
@@ -376,22 +615,30 @@ export function MeApprovalsPage() {
 
               {/* Profile Change Requests */}
               {(entityFilter === "all" || entityFilter === "profile") &&
-                changeRequests.map((change) => (
+                filteredChangeRequests.map((change) => (
                   <Card key={`change-${change.id}`} className="hover:border-primary/40 transition-colors">
                     <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">
-                            Profile Change
-                          </Badge>
-                          <span className="font-semibold text-sm">
-                            {change.employee?.firstName} {change.employee?.lastName}
-                          </span>
+                      <div className="flex items-start gap-3 flex-1">
+                        <Checkbox
+                          checked={selectedItemKeys.has(`profile_change:${change.id}`)}
+                          onCheckedChange={() => toggleSelectItem("profile_change", change.id)}
+                          className="mt-1"
+                          aria-label={`Select profile change request for ${change.employee?.firstName} ${change.employee?.lastName}`}
+                        />
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">
+                              Profile Change
+                            </Badge>
+                            <span className="font-semibold text-sm">
+                              {change.employee?.firstName} {change.employee?.lastName}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground">Field: {change.field || change.fieldCategory}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Proposed: {String(change.newValue || "")} (from {String(change.oldValue || "")})
+                          </p>
                         </div>
-                        <p className="text-sm text-foreground">Field: {change.field}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Proposed: {String(change.newValue)} (from {String(change.oldValue)})
-                        </p>
                       </div>
                       <div className="flex items-center gap-2 self-end md:self-center">
                         <Button
@@ -498,6 +745,64 @@ export function MeApprovalsPage() {
               disabled={isSubmitting || (decisionModal.action === "reject" && !decisionComments.trim())}
             >
               {isSubmitting ? "Processing..." : decisionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Decision Dialog */}
+      <Dialog open={bulkModal.isOpen} onOpenChange={(open) => !open && closeBulkModal()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {bulkModal.action === "approve"
+                ? `Bulk Approve (${selectedItemKeys.size} Requests)`
+                : `Bulk Reject (${selectedItemKeys.size} Requests)`}
+            </DialogTitle>
+            <DialogDescription>
+              {bulkModal.action === "approve"
+                ? `You are about to approve ${selectedItemKeys.size} selected requests simultaneously. All requests will be processed atomically in a single transaction.`
+                : `You are about to reject ${selectedItemKeys.size} selected requests simultaneously. Please provide a clear rejection reason.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {bulkModal.action === "approve" ? "Bulk Remarks (Optional)" : "Rejection Reason (Required)"}
+            </label>
+            <Textarea
+              rows={3}
+              placeholder={
+                bulkModal.action === "approve"
+                  ? "e.g., Bulk approved for the team as discussed"
+                  : "e.g., Please resubmit with updated documentation / date adjustment"
+              }
+              value={bulkReason}
+              onChange={(e) => setBulkReason(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeBulkModal} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              className={
+                bulkModal.action === "approve"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-rose-600 hover:bg-rose-700 text-white"
+              }
+              onClick={handleExecuteBulkDecision}
+              disabled={
+                isSubmitting ||
+                (bulkModal.action === "reject" && !bulkReason.trim())
+              }
+            >
+              {isSubmitting
+                ? "Processing Bulk Action..."
+                : bulkModal.action === "approve"
+                ? `Confirm Bulk Approval (${selectedItemKeys.size})`
+                : `Confirm Bulk Rejection (${selectedItemKeys.size})`}
             </Button>
           </DialogFooter>
         </DialogContent>

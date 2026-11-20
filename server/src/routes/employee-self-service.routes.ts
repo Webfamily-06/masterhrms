@@ -1653,11 +1653,12 @@ employeeSelfServiceRouter.get("/team/approvals", async (req: EmployeeAuthRequest
 
 /**
  * POST /api/v1/me/team/regularizations/:id/action
- * Approves or rejects a team member's regularization request
+ * Approves or rejects a team member's regularization request via authoritative AttendanceService
  */
 employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: EmployeeAuthRequest, res: Response) => {
-  const db = rawPrisma || prisma;
+  const tenantId = req.tenantId || req.user!.tenantId!;
   const employeeId = req.employee!.id;
+  const userId = req.user!.userId;
   const { id } = req.params;
   const { action, comments } = req.body; // action: 'approve' | 'reject'
 
@@ -1666,65 +1667,19 @@ employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: E
   }
 
   try {
-    const reg = await db.attendanceRegularization.findUnique({
-      where: { id },
-      include: { employee: true },
-    });
-
-    if (!reg) {
-      return res.status(404).json({ error: "Regularization request not found" });
-    }
-
-    // Verify manager relationship or manager role
-    if (reg.employee.managerId !== employeeId && !req.user!.roles?.includes("hr_admin") && !req.user!.roles?.includes("super_admin")) {
-      return res.status(403).json({ error: "You are not authorized to approve this request." });
-    }
-
-    const newStatus = action === "approve" ? "APPROVED" : "REJECTED";
-    const updated = await db.attendanceRegularization.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        approverId: employeeId,
-        reviewedAt: new Date(),
-        reviewComments: comments || undefined,
-      },
-    });
-
-    // TASK-P0-05: Enforce Month Lock Verification on manager regularization approvals
-    if (newStatus === "APPROVED") {
-      await AttendanceService.assertMonthUnlocked(reg.tenantId, reg.attendanceDate);
-    }
-
-    // If approved, update or insert into attendance table
-    if (newStatus === "APPROVED" && (reg.proposedIn || reg.proposedOut)) {
-      await db.attendance.upsert({
-        where: {
-          tenantId_employeeId_date: {
-            tenantId: reg.tenantId,
-            employeeId: reg.employeeId,
-            date: reg.attendanceDate,
-          },
-        },
-        update: {
-          checkIn: reg.proposedIn || undefined,
-          checkOut: reg.proposedOut || undefined,
-          status: "present",
-        },
-        create: {
-          tenantId: reg.tenantId,
-          employeeId: reg.employeeId,
-          date: reg.attendanceDate,
-          checkIn: reg.proposedIn,
-          checkOut: reg.proposedOut,
-          status: "present",
-        },
-      });
-    }
+    const updated = await AttendanceService.decideRegularization(
+      tenantId,
+      id,
+      action,
+      employeeId,
+      userId,
+      req.user!.roles,
+      comments
+    );
 
     return res.json({
       success: true,
-      message: `Regularization request ${newStatus.toLowerCase()} successfully.`,
+      message: `Regularization request ${updated.status.toLowerCase()} successfully.`,
       data: updated,
     });
   } catch (err: any) {
@@ -1732,7 +1687,13 @@ employeeSelfServiceRouter.post("/team/regularizations/:id/action", async (req: E
     if (err.message && err.message.toLowerCase().includes("locked")) {
       return res.status(409).json({ error: err.message, code: "PAYROLL_MONTH_LOCKED" });
     }
-    return res.status(500).json({ error: err.message || "Failed to process regularization decision" });
+    if (err.message && err.message.toLowerCase().includes("forbidden")) {
+      return res.status(403).json({ error: err.message, code: "FORBIDDEN" });
+    }
+    if (err.message && (err.message.toLowerCase().includes("segregation") || err.message.includes("SELF_APPROVAL_FORBIDDEN"))) {
+      return res.status(403).json({ error: err.message, code: "SELF_APPROVAL_FORBIDDEN" });
+    }
+    return res.status(400).json({ error: err.message || "Failed to process regularization decision" });
   }
 });
 
@@ -1813,6 +1774,218 @@ employeeSelfServiceRouter.post("/team/profile-changes/:id/action", async (req: E
   } catch (err: any) {
     console.error("[POST /me/team/profile-changes/:id/action] Error:", err?.message || err);
     return res.status(400).json({ error: err?.message || "Failed to process change request decision" });
+  }
+});
+
+/**
+ * POST /api/v1/me/team/approvals/bulk-action
+ * Performs all-or-nothing atomic bulk approval or rejection across leaves,
+ * regularizations, and profile change requests for direct reports.
+ */
+employeeSelfServiceRouter.post("/team/approvals/bulk-action", async (req: EmployeeAuthRequest, res: Response) => {
+  const tenantId = req.tenantId || req.user!.tenantId!;
+  const employeeId = req.employee!.id;
+  const userId = req.user!.userId;
+  const { action, reason, comments, items } = req.body;
+
+  const effectiveReason = (reason || comments || "").trim();
+
+  if (!["approve", "reject"].includes(action)) {
+    return res.status(400).json({ error: "Action must be 'approve' or 'reject'", code: "INVALID_ACTION" });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: "Items array must contain at least one item.", code: "EMPTY_ITEMS" });
+  }
+
+  if (items.length > 50) {
+    return res.status(400).json({ error: "Bulk operations are limited to 50 items per batch.", code: "BATCH_LIMIT_EXCEEDED" });
+  }
+
+  if (action === "reject" && !effectiveReason) {
+    return res.status(400).json({
+      error: "A clear rejection reason is mandatory when rejecting requests in bulk.",
+      code: "REJECTION_REASON_REQUIRED",
+    });
+  }
+
+  const allowedTypes = new Set(["leave", "regularization", "profile_change"]);
+  const seenKeys = new Set<string>();
+  const uniqueItems: Array<{ id: string; type: "leave" | "regularization" | "profile_change" }> = [];
+
+  for (const item of items) {
+    if (!item || typeof item !== "object" || !item.id || !item.type) {
+      return res.status(400).json({ error: "Each item must have an 'id' and a valid 'type'.", code: "INVALID_ITEM_PAYLOAD" });
+    }
+    if (!allowedTypes.has(item.type)) {
+      return res.status(400).json({
+        error: `Invalid item type '${item.type}'. Allowed types: leave, regularization, profile_change.`,
+        code: "INVALID_ITEM_TYPE",
+      });
+    }
+    const key = `${item.type}:${item.id}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueItems.push({ id: String(item.id), type: item.type });
+    }
+  }
+
+  const isHrAdmin = Boolean(
+    req.user!.roles?.includes("hr_admin") ||
+    req.user!.roles?.includes("super_admin") ||
+    req.user!.permissions?.includes("hrm.employees.edit")
+  );
+
+  const notificationsToDispatch: Array<{
+    tenantId: string;
+    userId: string;
+    title: string;
+    message: string;
+    type: string;
+    actionUrl: string;
+  }> = [];
+
+  const processedItems: Array<{ id: string; type: string; status: string }> = [];
+
+  try {
+    const db = rawPrisma || prisma;
+
+    await db.$transaction(async (tx: any) => {
+      for (const item of uniqueItems) {
+        if (item.type === "leave") {
+          const updated = await LeaveService.decideApplication(
+            tenantId,
+            item.id,
+            action,
+            userId,
+            effectiveReason || undefined,
+            req.user!.roles,
+            { tx, suppressNotifications: true }
+          );
+          processedItems.push({ id: item.id, type: "leave", status: updated.status });
+          if (updated.employee?.userId) {
+            notificationsToDispatch.push({
+              tenantId,
+              userId: updated.employee.userId,
+              title: action === "approve" ? "Leave Request Approved" : "Leave Request Rejected",
+              message: action === "approve"
+                ? `Your leave request for ${updated.days} day(s) was approved.`
+                : `Your leave request was rejected: "${effectiveReason}".`,
+              type: "LEAVE_STATUS",
+              actionUrl: "/me/leaves",
+            });
+          }
+        } else if (item.type === "regularization") {
+          const updated = await AttendanceService.decideRegularization(
+            tenantId,
+            item.id,
+            action,
+            employeeId,
+            userId,
+            req.user!.roles,
+            effectiveReason || undefined,
+            { tx, suppressNotifications: true }
+          );
+          processedItems.push({ id: item.id, type: "regularization", status: updated.status.toLowerCase() });
+          if (updated.employee?.userId) {
+            notificationsToDispatch.push({
+              tenantId,
+              userId: updated.employee.userId,
+              title: action === "approve" ? "Attendance Regularization Approved" : "Attendance Regularization Rejected",
+              message: action === "approve"
+                ? "Your attendance regularization request was approved."
+                : `Your attendance regularization request was rejected: "${effectiveReason}".`,
+              type: "ATTENDANCE_REGULARIZATION",
+              actionUrl: "/me/attendance",
+            });
+          }
+        } else if (item.type === "profile_change") {
+          const result = await EmployeeChangeRequestService.processReviewDecision({
+            tenantId,
+            reviewerUserId: userId,
+            reviewerEmployeeId: employeeId,
+            isHrAdmin,
+            requestId: item.id,
+            action,
+            reviewComments: effectiveReason || (action === "approve" ? "Bulk approved by manager" : undefined),
+            canViewSensitive: false,
+            tx,
+            suppressNotifications: true,
+          });
+          const reqStatus = (result.data?.status || (action === "approve" ? "APPROVED" : "REJECTED")).toLowerCase();
+          processedItems.push({ id: item.id, type: "profile_change", status: reqStatus });
+
+          const cr = await tx.employeeChangeRequest.findUnique({
+            where: { id: item.id },
+            include: { employee: { select: { userId: true } } },
+          });
+          if (cr?.employee?.userId) {
+            notificationsToDispatch.push({
+              tenantId,
+              userId: cr.employee.userId,
+              title: action === "approve" ? "Profile Change Request Approved" : "Profile Change Request Rejected",
+              message: action === "approve"
+                ? `Your profile change request for ${cr.fieldCategory?.replace("_", " ")} was approved.`
+                : `Your profile change request was rejected: "${effectiveReason}".`,
+              type: "PROFILE_CHANGE_REQUEST",
+              actionUrl: action === "approve" ? "/me/profile" : "/me/profile/change-requests",
+            });
+          }
+        }
+      }
+
+      // Batch-level audit mutation log
+      await AuditService.logMutation(
+        {
+          tenantId,
+          actorId: userId,
+          action: action === "approve" ? "BULK_APPROVAL_EXECUTED" : "BULK_REJECTION_EXECUTED",
+          entityType: "BulkApprovalBatch",
+          entityId: `bulk-${Date.now()}-${employeeId.slice(0, 8)}`,
+          newState: {
+            itemCount: processedItems.length,
+            action,
+            items: processedItems,
+            reason: effectiveReason || null,
+          },
+        },
+        tx
+      );
+    });
+
+    // Dispatch queued notifications after successful transaction commit
+    for (const notif of notificationsToDispatch) {
+      NotificationService.createNotification(notif).catch(() => {});
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully ${action === "approve" ? "approved" : "rejected"} ${processedItems.length} request(s).`,
+      data: {
+        action,
+        totalProcessed: processedItems.length,
+        successfulCount: processedItems.length,
+        processedItems,
+      },
+    });
+  } catch (err: any) {
+    console.error("[POST /me/team/approvals/bulk-action] Error:", err?.message || err);
+    if (err instanceof LeaveHttpError) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    if (err?.code === "PERIOD_LOCKED") {
+      return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
+    }
+    if (err?.message?.includes("Segregation of duties") || err?.message?.includes("SELF_APPROVAL_FORBIDDEN")) {
+      return res.status(403).json({ error: err.message, code: "SELF_APPROVAL_FORBIDDEN" });
+    }
+    if (err?.message?.includes("Forbidden") || err?.message?.includes("not authorized")) {
+      return res.status(403).json({ error: err.message, code: "FORBIDDEN" });
+    }
+    if (err?.message?.includes("already been") || err?.message?.includes("already processed") || err?.message?.includes("locked")) {
+      return res.status(409).json({ error: err.message, code: "CONFLICT" });
+    }
+    return res.status(400).json({ error: err?.message || "Failed to process bulk approval decision", code: "BULK_ACTION_FAILED" });
   }
 });
 

@@ -434,8 +434,8 @@ shiftsRouter.put("/swaps/:id/peer-action", requireAuth, async (req: AuthRequest,
   }
 });
 
-// PUT /api/shifts/swaps/:id/manager-action (Manager approves and executes swap)
-shiftsRouter.put("/swaps/:id/manager-action", requireAuth, async (req: AuthRequest, res: Response) => {
+// Handler for Shift Swap Manager Decision (Approve or Reject)
+async function handleShiftSwapManagerAction(req: AuthRequest, res: Response) {
   try {
     const { id } = req.params;
     const { action, managerNotes } = req.body; // approve or reject
@@ -513,11 +513,35 @@ shiftsRouter.put("/swaps/:id/manager-action", requireAuth, async (req: AuthReque
     return res.json({
       success: true,
       message: `Shift swap approved and executed between ${swap.requesterEmployee.firstName} and ${swap.targetEmployee.firstName}!`,
+      swapId: id,
     });
   } catch (err: any) {
     console.error("[manager-action] error:", err);
     return res.status(500).json({ error: err.message || "Failed to process manager action." });
   }
+}
+
+// PUT /api/shifts/swaps/:id/manager-action (Manager approves and executes swap)
+shiftsRouter.put("/swaps/:id/manager-action", requireAuth, handleShiftSwapManagerAction);
+
+// PUT & POST /api/shifts/swaps/:id/approve (FN-017 Canonical Route Alias)
+shiftsRouter.put("/swaps/:id/approve", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, action: "approve" };
+  return handleShiftSwapManagerAction(req, res);
+});
+shiftsRouter.post("/swaps/:id/approve", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, action: "approve" };
+  return handleShiftSwapManagerAction(req, res);
+});
+
+// PUT & POST /api/shifts/swaps/:id/reject (Canonical Rejection Route Alias)
+shiftsRouter.put("/swaps/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, action: "reject" };
+  return handleShiftSwapManagerAction(req, res);
+});
+shiftsRouter.post("/swaps/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, action: "reject" };
+  return handleShiftSwapManagerAction(req, res);
 });
 
 // POST /api/shifts/reconcile (Roster-to-Attendance Auto-Reconciliation)

@@ -123,6 +123,7 @@ export const ROUTES = {
       transfers: "/hr/lifecycle/transfers",
       warnings: "/hr/lifecycle/warnings",
       resignations: "/hr/lifecycle/resignations",
+      exits: "/hr/lifecycle/exits",
       terminations: "/hr/lifecycle/terminations",
       trips: "/hr/lifecycle/trips",
       complaints: "/hr/lifecycle/complaints",
@@ -151,6 +152,7 @@ export const ROUTES = {
       runs: "/hr/payroll/runs",
       employeeSalaries: "/hr/payroll/employee-salaries",
       components: "/hr/payroll/components",
+      statutoryForms: "/hr/payroll/forms",
     },
     assets: {
       root: "/hr/assets",

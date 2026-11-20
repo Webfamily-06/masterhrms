@@ -26,9 +26,11 @@ meAttendanceRouter.get("/status", async (req: AuthRequest, res: Response) => {
     const tenantId = req.tenantId!;
     const employee = await getSelfEmployee(req);
     const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const timeZone = await AttendanceService.resolveTenantTimezone(tenantId);
+    const zoned = AttendanceService.getZonedParts(now, timeZone);
+    const today = AttendanceService.toPrismaDate(zoned.year, zoned.month, zoned.day);
 
-    const [attendance, roster, policy] = await Promise.all([
+    let [attendance, roster, policy] = await Promise.all([
       rawPrisma.attendance.findUnique({
         where: {
           tenantId_employeeId_date: {
@@ -60,6 +62,36 @@ meAttendanceRouter.get("/status", async (req: AuthRequest, res: Response) => {
         orderBy: { isDefault: "asc" },
       }),
     ]);
+
+    // Overnight shift support: check if yesterday has an open check-in
+    if (!attendance || !attendance.checkIn) {
+      const yesterday = new Date(today.getTime() - 86400000);
+      const openYesterday = await rawPrisma.attendance.findUnique({
+        where: {
+          tenantId_employeeId_date: {
+            tenantId,
+            employeeId: employee.id,
+            date: yesterday,
+          },
+        },
+      });
+      if (openYesterday && openYesterday.checkIn && !openYesterday.checkOut) {
+        attendance = openYesterday;
+        const yesterdayRoster = await rawPrisma.shiftRoster.findUnique({
+          where: {
+            tenantId_employeeId_rosterDate: {
+              tenantId,
+              employeeId: employee.id,
+              rosterDate: yesterday,
+            },
+          },
+          include: { shift: true },
+        });
+        if (yesterdayRoster?.shift) {
+          roster = yesterdayRoster;
+        }
+      }
+    }
 
     let elapsedSeconds = 0;
     if (attendance?.checkIn && !attendance?.checkOut) {

@@ -25,7 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserCheck, CheckCircle2, Clock, Laptop, ShieldCheck, DollarSign, Building } from "lucide-react";
+import { UserCheck, CheckCircle2, Clock, Laptop, ShieldCheck, DollarSign, Building, FileText } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/lifecycle/exits")({
   component: HrExitsPage,
@@ -69,6 +69,28 @@ export default function HrExitsPage() {
       toast.error(err.response?.data?.error || "Failed to finalize exit.");
     },
   });
+
+  const handleDownloadRelieving = async (exitId: string) => {
+    try {
+      toast.info("Retrieving official Relieving Certificate...");
+      const res = await api.get(`/api/offboarding/exits/${exitId}/relieving-letter`);
+      const payload = res.data;
+      if (payload.downloadUrl) {
+        window.open(payload.downloadUrl, "_blank");
+      } else {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `Relieving_Letter_${payload.relievingLetterCode || exitId}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+      }
+      toast.success("Relieving certificate retrieved successfully.");
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.message || "Failed to retrieve relieving letter.");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -158,9 +180,21 @@ export default function HrExitsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => setActiveExit(e)}>
-                          Checklist
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setActiveExit(e)}>
+                            Checklist
+                          </Button>
+                          {(e.relievingLetterCode || e.status === "completed") && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-1 text-emerald-700 dark:text-emerald-400"
+                              onClick={() => handleDownloadRelieving(e.id)}
+                            >
+                              <FileText className="h-3.5 w-3.5" /> Relieving
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -222,16 +256,27 @@ export default function HrExitsPage() {
             </div>
           )}
           <DialogFooter className="flex justify-between items-center sm:justify-between">
-            {activeExit?.status !== "completed" && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => finalizeMutation.mutate(activeExit.id)}
-                disabled={finalizeMutation.isPending}
-              >
-                {finalizeMutation.isPending ? "Finalizing..." : "Finalize & Deactivate"}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {activeExit?.status !== "completed" ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => finalizeMutation.mutate(activeExit.id)}
+                  disabled={finalizeMutation.isPending}
+                >
+                  {finalizeMutation.isPending ? "Finalizing..." : "Finalize & Deactivate"}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-emerald-700 border-emerald-300 dark:text-emerald-400"
+                  onClick={() => handleDownloadRelieving(activeExit.id)}
+                >
+                  <FileText className="h-4 w-4" /> Download Relieving Certificate
+                </Button>
+              )}
+            </div>
             <Button variant="outline" onClick={() => setActiveExit(null)}>
               Close
             </Button>

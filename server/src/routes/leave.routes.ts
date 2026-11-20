@@ -303,6 +303,26 @@ leaveRouter.patch("/requests/:id/status", requireAuth, handleLeaveStatusUpdate);
 leaveRouter.patch("/requests/:id", requireAuth, handleLeaveStatusUpdate);
 leaveRouter.put("/requests/:id", requireAuth, handleLeaveStatusUpdate);
 
+// PUT & POST /api/leave/requests/:id/approve (FN-013 Canonical Route Alias)
+leaveRouter.put("/requests/:id/approve", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, status: "approved" };
+  return handleLeaveStatusUpdate(req, res);
+});
+leaveRouter.post("/requests/:id/approve", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, status: "approved" };
+  return handleLeaveStatusUpdate(req, res);
+});
+
+// PUT & POST /api/leave/requests/:id/reject (Canonical Rejection Route Alias)
+leaveRouter.put("/requests/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, status: "rejected" };
+  return handleLeaveStatusUpdate(req, res);
+});
+leaveRouter.post("/requests/:id/reject", requireAuth, async (req: AuthRequest, res: Response) => {
+  req.body = { ...req.body, status: "rejected" };
+  return handleLeaveStatusUpdate(req, res);
+});
+
 // POST & PUT /api/leave/requests/:id/cancel
 const handleLeaveCancellation = async (req: AuthRequest, res: Response) => {
   try {

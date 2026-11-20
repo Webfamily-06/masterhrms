@@ -400,13 +400,26 @@ export function requireEntitlement(entitlementKey: string) {
       }
 
       if (result.status === "expired") {
+        if (req.method === "GET" || req.method === "HEAD") {
+          // Grace Period: Permit reading existing data in read-only mode
+          (req as any).entitlement = {
+            ...result,
+            isReadOnly: true,
+          };
+          (req as any).addonEntitlement = (req as any).entitlement;
+          res.setHeader("X-Subscription-Expired", "true");
+          res.setHeader("X-Addon-Read-Only", "true");
+          return next();
+        }
+
         return res.status(403).json({
-          error: `Your subscription/trial for '${entitlementKey}' has expired. Please upgrade or renew to continue.`,
-          code: result.type === "product" ? "PRODUCT_EXPIRED" : "ADDON_EXPIRED",
+          error: `Your subscription/trial for '${entitlementKey}' has expired. Workspace is in Read-Only mode. Please upgrade or renew to modify or create records.`,
+          code: result.type === "product" ? "PRODUCT_EXPIRED_READ_ONLY" : "ADDON_EXPIRED_READ_ONLY",
           key: entitlementKey,
           addonSlug: entitlementKey,
           requiresSubscription: true,
           status: "expired",
+          readOnly: true,
         });
       }
 

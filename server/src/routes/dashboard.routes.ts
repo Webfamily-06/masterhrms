@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { prisma, rawPrisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
+import { AttendanceService } from "../services/attendance.service";
 
 export const dashboardRouter = Router();
 
@@ -46,8 +47,10 @@ dashboardRouter.get("/hrm-hub", async (req: AuthRequest, res: Response) => {
 
   try {
     const now = new Date();
-    const todayUtc = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const startOfMonth = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+    const timeZone = await AttendanceService.resolveTenantTimezone(tenantId);
+    const zoned = AttendanceService.getZonedParts(now, timeZone);
+    const todayUtc = AttendanceService.toPrismaDate(zoned.year, zoned.month, zoned.day);
+    const startOfMonth = AttendanceService.toPrismaDate(zoned.year, zoned.month, 1);
 
     const [
       totalEmployees,
@@ -106,12 +109,9 @@ dashboardRouter.get("/hrm-hub", async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
-    const presentToday = todayAttendanceList.filter((a) => a.checkIn !== null).length;
+    const presentToday = todayAttendanceList.filter((a) => a.checkIn !== null || a.status === "present" || a.status === "late" || a.status === "half_day").length;
     const lateToday = todayAttendanceList.filter((a) => {
-      if (!a.checkIn) return false;
-      const d = new Date(a.checkIn);
-      const utcMinutes = d.getUTCHours() * 60 + d.getUTCMinutes();
-      return utcMinutes > 4 * 60; // after 4:00 AM UTC (9:30 AM IST)
+      return a.status === "late" || (a.lateMinutes !== null && a.lateMinutes !== undefined && a.lateMinutes > 0);
     }).length;
     const absentToday = Math.max(0, totalEmployees - presentToday - onLeaveToday);
 
@@ -175,9 +175,11 @@ dashboardRouter.get("/hrm", async (req: AuthRequest, res: Response) => {
 
   try {
     const now = new Date();
-    const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const timeZone = await AttendanceService.resolveTenantTimezone(tenantId);
+    const zoned = AttendanceService.getZonedParts(now, timeZone);
+    const todayUtc = AttendanceService.toPrismaDate(zoned.year, zoned.month, zoned.day);
+    const endOfToday = new Date(Date.UTC(zoned.year, zoned.month - 1, zoned.day, 23, 59, 59, 999));
+    const startOfMonth = AttendanceService.toPrismaDate(zoned.year, zoned.month, 1);
     const sevenDaysAgo = new Date(todayUtc);
     sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
 
@@ -293,12 +295,8 @@ dashboardRouter.get("/hrm", async (req: AuthRequest, res: Response) => {
     const isPresentPunch = (a: { checkIn: Date | null; status: string }) => {
       return a.checkIn !== null || a.status === "present" || a.status === "late";
     };
-    const isLatePunch = (a: { checkIn: Date | null; status: string }) => {
-      if (a.status === "late") return true;
-      if (!a.checkIn) return false;
-      const d = new Date(a.checkIn);
-      const utcMinutes = d.getUTCHours() * 60 + d.getUTCMinutes();
-      return utcMinutes > 4 * 60; // after 4:00 AM UTC (9:30 AM IST)
+    const isLatePunch = (a: { checkIn: Date | null; status: string; lateMinutes?: number | null }) => {
+      return a.status === "late" || (a.lateMinutes !== null && a.lateMinutes !== undefined && a.lateMinutes > 0);
     };
 
     // Calculate attendance metrics

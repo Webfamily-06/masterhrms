@@ -1941,7 +1941,8 @@ export class LeaveService {
     action: "approve" | "reject",
     reviewerId: string,
     comments?: string,
-    reviewerRoles?: string[]
+    reviewerRoles?: string[],
+    options?: { tx?: any; suppressNotifications?: boolean }
   ) {
     const request = await rawPrisma.leaveRequest.findUnique({
       where: { id: requestId },
@@ -1969,7 +1970,7 @@ export class LeaveService {
     await this.assertReviewerAuthorized(tenantId, reviewerId, effectiveRoles, request.employee);
 
     if (action === "reject") {
-      const updated = await rawPrisma.$transaction(async (tx) => {
+      const executeReject = async (tx: any) => {
         const claimed = await tx.leaveRequest.updateMany({
           where: { id: requestId, tenantId, status: "pending" },
           data: {
@@ -2003,9 +2004,13 @@ export class LeaveService {
         );
 
         return req!;
-      });
+      };
 
-      if (request.employee?.userId) {
+      const updated = options?.tx
+        ? await executeReject(options.tx)
+        : await rawPrisma.$transaction(executeReject);
+
+      if (!options?.suppressNotifications && request.employee?.userId) {
         NotificationService.createNotification({
           tenantId,
           userId: request.employee.userId,
@@ -2062,7 +2067,7 @@ export class LeaveService {
     const end = new Date(request.endDate);
     end.setUTCHours(0, 0, 0, 0);
 
-    const approved = await rawPrisma.$transaction(async (tx) => {
+    const executeApprove = async (tx: any) => {
       if (isCompOff) {
         await tx.$queryRaw`SELECT id FROM employees WHERE id = ${request.employeeId} AND tenant_id = ${tenantId} FOR UPDATE`;
       }
@@ -2330,9 +2335,13 @@ export class LeaveService {
       );
 
       return req!;
-    });
+    };
 
-    if (request.employee?.userId) {
+    const approved = options?.tx
+      ? await executeApprove(options.tx)
+      : await rawPrisma.$transaction(executeApprove);
+
+    if (!options?.suppressNotifications && request.employee?.userId) {
       NotificationService.createNotification({
         tenantId,
         userId: request.employee.userId,
@@ -2893,6 +2902,19 @@ export class LeaveService {
   }
 
   /**
+   * Synchronize initial yearly accrual leave balances for a newly created or target employee.
+   * Delegates to syncTenantBalances with tenant scoping and idempotency.
+   */
+  static async synchronizeEmployeeYearlyAccruals(
+    tenantId: string,
+    year: number,
+    actorId?: string,
+    employeeId?: string
+  ) {
+    return this.syncTenantBalances(tenantId, actorId, year, employeeId);
+  }
+
+  /**
    * Year-aware, idempotent Balance Synchronization for active employees and active leave types.
    * Checks ONLY `entryType = "ACCRUAL"` within `targetYear` so:
    * - Manual CREDIT/DEBIT adjustments never block initial entitlement sync
@@ -2913,9 +2935,12 @@ export class LeaveService {
         ? new Date()
         : new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
 
-    const empWhere: any = { tenantId, status: "active" };
+    const empWhere: any = { tenantId };
     if (targetEmployeeId && targetEmployeeId !== "all") {
       empWhere.id = targetEmployeeId;
+      empWhere.status = { not: "terminated" };
+    } else {
+      empWhere.status = "active";
     }
 
     const [employees, leaveTypes, existingAccruals, existingYearAdjustments] = await Promise.all([

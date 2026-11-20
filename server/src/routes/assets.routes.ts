@@ -9,11 +9,12 @@ export const assetsRouter = Router();
 
 /**
  * -------------------------------------------------------------
- * PUBLIC QR / SCAN ENDPOINT (No auth required for camera scan)
+ * PUBLIC QR / SCAN ENDPOINT (No auth required for camera scan - FN-047 / GAP-10)
  * -------------------------------------------------------------
  * GET /api/addons/assets/public/tag/:assetTag
+ * GET /api/addons/assets/tag/:assetTag
  */
-assetsRouter.get("/public/tag/:assetTag", async (req: Request, res: Response) => {
+const handlePublicAssetTagLookup = async (req: Request, res: Response) => {
   try {
     const { assetTag } = req.params;
     const asset = await prisma.asset.findFirst({
@@ -53,7 +54,11 @@ assetsRouter.get("/public/tag/:assetTag", async (req: Request, res: Response) =>
     console.error("[assets/public-tag] error:", err);
     return res.status(500).json({ error: "Failed to fetch asset details for tag." });
   }
-});
+};
+
+assetsRouter.get("/public/tag/:assetTag", handlePublicAssetTagLookup);
+assetsRouter.get("/tag/:assetTag", handlePublicAssetTagLookup);
+assetsRouter.get("/tags/:assetTag", handlePublicAssetTagLookup);
 
 // All subsequent routes require Tenant Auth and Asset Management Add-on entitlement
 assetsRouter.use(requireAuth);

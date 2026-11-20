@@ -37,16 +37,16 @@ This document synthesizes empirical discoveries from the live WorkDo Dash SaaS p
 ### Priority 0 (P0) — Critical Architectural Requirements
 *(Zero blocking P0 architecture gaps found. MASTERHRMS core tenancy, authentication, database security, and statutory payroll engines are architecturally sound and exceed the reference platform in cryptographic safety).*
 
-### Priority 1 (P1) — High Priority Functional Parity Enhancements
-1. **Dynamic Addon Configuration View:**
+### Priority 1 (P1) — High Priority Functional Parity Enhancements (100% RESOLVED)
+1. **Dynamic Addon Configuration View: [RESOLVED & TESTED]**
    - *WorkDo:* Each purchased add-on automatically provides a dedicated configuration tab under Workspace Settings (e.g. inputting WhatsApp Phone ID or Zoom Client ID).
-   - *MASTERHRMS:* Backend supports `TenantAddon.config`, but requires a generic, schema-driven front-end drawer component (`AddonConfigDrawer.tsx`) to let Tenant Admins edit and test credentials without custom code.
-2. **Expired Add-on Grace Period & Read-Only State:**
+   - *MASTERHRMS Status:* **COMPLETED**. Implemented `AddonConfigDrawer.tsx` in `src/components/addons/AddonConfigDrawer.tsx` and integrated it into `src/routes/_authenticated/tenant/modules.tsx`. Backed by Express routes `GET /api/addons/:addonSlug/config`, `PUT /api/addons/:addonSlug/config`, and `POST /api/addons/:addonSlug/test-connection` in `server/src/routes/addons.routes.ts`.
+2. **Expired Add-on Grace Period & Read-Only State: [RESOLVED & TESTED]**
    - *WorkDo:* When an add-on expires, existing records remain visible in read-only mode with a warning banner ("Renew Addon to resume editing").
-   - *MASTERHRMS:* `requireAddon` currently returns `403 Forbidden`, blocking access entirely. It should allow `GET` requests with `read_only: true` flag and block only mutations (`POST`, `PUT`, `DELETE`).
-3. **One-Click Candidate-to-Employee Conversion in Recruitment ATS:**
+   - *MASTERHRMS Status:* **COMPLETED**. Updated `server/src/middleware/entitlements.ts` to allow `GET` and `HEAD` requests during expired/grace status with `isReadOnly: true` and response header `X-Addon-Read-Only: true`, while rejecting data mutations (`POST`, `PUT`, `PATCH`, `DELETE`) with `403 ADDON_EXPIRED_READ_ONLY`.
+3. **One-Click Candidate-to-Employee Conversion in Recruitment ATS: [RESOLVED & TESTED]**
    - *WorkDo:* Candidate table includes an "Action: Create Employee" button that prepopulates the employee onboarding form.
-   - *MASTERHRMS:* ATS and Employee Management exist as separate tables without a direct conversion trigger.
+   - *MASTERHRMS Status:* **COMPLETED**. Implemented in Phase 3 Milestone 1 via `RecruitmentService.convertCandidateToEmployee` and `POST /api/recruitment/candidates/:id/convert-to-employee` with transactional leave balance seeding and employee profile synchronization. Fully verified by regression tests.
 
 ### Priority 2 (P2) — Medium Priority Optimizations
 1. **Visual Kanban Pipeline for ATS Candidates:**

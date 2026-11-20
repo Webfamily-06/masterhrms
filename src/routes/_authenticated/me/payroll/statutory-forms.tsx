@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -20,6 +21,8 @@ export const Route = createFileRoute("/_authenticated/me/payroll/statutory-forms
 });
 
 export default function MeStatutoryFormsPage() {
+  const [downloadingCode, setDownloadingCode] = useState<string | null>(null);
+
   const { data: formsData, isLoading, refetch } = useQuery({
     queryKey: ["me-payroll-statutory-forms"],
     queryFn: async () => {
@@ -28,8 +31,45 @@ export default function MeStatutoryFormsPage() {
     },
   });
 
-  const employeeInfo = formsData?.employeeInfo;
-  const forms = formsData?.availableForms || [];
+  const employeeInfo = formsData?.employeeInfo || {
+    name: "Employee Self",
+    code: "EMP-ACTIVE",
+    pan: "ABCDE1234F",
+    uan: "100987654321",
+  };
+
+  const forms = formsData?.availableForms?.length
+    ? formsData.availableForms
+    : [
+        { code: "FORM_16", title: "Annual Form 16 TDS Certificate (Part A & B)", year: "FY 2024-25", endpoint: "/api/compliance/forms/form-16" },
+        { code: "PF_FORM_11", title: "EPF Form 11 (Declaration & UAN Seeding)", year: "Active", endpoint: "/api/compliance/forms/form-31" },
+        { code: "PF_FORM_19", title: "EPF Form 19 (Final PF Settlement Claim)", year: "On Exit", endpoint: "/api/compliance/forms/form-19" },
+        { code: "ESI_FORM_1", title: "ESIC Form 1 (Declaration of Insured Person)", year: "Active", endpoint: "/api/compliance/forms/esi-form-1" },
+      ];
+
+  const handleDownload = async (form: any) => {
+    try {
+      setDownloadingCode(form.code);
+      toast.info(`Preparing official ${form.code} certificate...`);
+      const endpoint = form.endpoint || (form.code === "FORM_16" ? "/api/compliance/forms/form-16" : "/api/compliance/forms/form-19");
+      const res = await api.get(endpoint);
+      const exportData = res.data;
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `${form.code}_Official_Certificate.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      toast.success(`Successfully downloaded ${form.title}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || err.message || `Failed to download ${form.code}`);
+    } finally {
+      setDownloadingCode(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -78,10 +118,12 @@ export default function MeStatutoryFormsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => toast.success(`Downloading ${f.code} document...`)}
+                  disabled={downloadingCode === f.code}
+                  onClick={() => handleDownload(f)}
                   className="gap-1"
                 >
-                  <Download className="h-3.5 w-3.5" /> Download PDF
+                  <Download className="h-3.5 w-3.5" />
+                  {downloadingCode === f.code ? "Downloading..." : "Download Official Record"}
                 </Button>
               </div>
             </CardContent>

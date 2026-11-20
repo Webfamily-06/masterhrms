@@ -3260,12 +3260,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** Attendance & Biometrics
 - **Business Objective:** Execute compliant enterprise workflow for ZKTeco Biometric Device Punch Ingestion.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract POST /api/biometric/punch with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-008.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** Actual biometric punch log endpoint is /api/biometric/logs in biometric.routes.ts
+- **Existing Implementation Files:** `server/src/routes/biometric.routes.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `BiometricPunchLog, BiometricDevice, Attendance`
 - **API Contract Requirements:** `POST /api/biometric/punch`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -3273,9 +3273,9 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating ZKTeco Biometric Device Punch Ingestion mutation
-- **Assigned GSD Milestone:** **Phase 4 (Workstreams C, D, E)**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** Actual punch log endpoint is POST /api/biometric/logs in biometric.routes.ts; lacks standalone /punch alias
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; direct POST /api/biometric/punch ingestion, attendance synchronization, and ACID punch log persistence)
 
 ---
 
@@ -3283,12 +3283,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** Attendance & Biometrics
 - **Business Objective:** Execute compliant enterprise workflow for Work Hours & Overtime Auto-Calculation.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract GET /api/attendance/summary with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-009.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** Attendance hours calculated in service; summary endpoint embedded in attendance.routes.ts
+- **Existing Implementation Files:** `server/src/routes/attendance.routes.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `Attendance`
 - **API Contract Requirements:** `GET /api/attendance/summary`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -3296,8 +3296,9 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Work Hours & Overtime Auto-Calculation mutation
-- **Assigned GSD Milestone:** **Phase 4 (Workstreams C, D, E)**
-- **Execution Lifecycle Status:** `PARTIAL`
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; standalone GET /api/attendance/summary metrics aggregation with strict tenant isolation)
 - **Forensic Verification Evidence:** Attendance hours calculated in service; summary endpoint embedded in attendance.routes.ts, lacks standalone /summary
 
 ---
@@ -3375,22 +3376,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** Leave & PTO Management
 - **Business Objective:** Execute compliant enterprise workflow for Manager Approval / Rejection Workflow.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract PUT /api/leave/requests/:id/approve with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-013.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** Approval action handled via status update on /api/leave/requests/:id
-- **Database Schema Requirements:** `LeaveRequest, Employee`
+- **Existing Implementation Files:** `server/src/routes/leave.routes.ts, server/src/services/leave.service.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
+- **Database Schema Requirements:** `LeaveRequest, Employee, LeaveLedgerEntry`
 - **API Contract Requirements:** `PUT /api/leave/requests/:id/approve`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
 - **Required Permissions:** `leave.requests.approve`
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Manager Approval / Rejection Workflow mutation
-- **Assigned GSD Milestone:** **Phase 4 (Workstreams C, D, E)**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** Approval action handled via status update on /api/leave/requests/:id; lacks dedicated /approve endpoint
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; dedicated PUT & POST /api/leave/requests/:id/approve and /reject endpoints with atomic ledger balance debit)
 
 ---
 
@@ -3467,12 +3468,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** Shift Rostering & Swaps
 - **Business Objective:** Execute compliant enterprise workflow for Manager Shift Swap Final Approval.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract PUT /api/shifts/swaps/:id/approve with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-017.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** Shift swap approval handled via status update on /api/shifts/swaps/:id
+- **Existing Implementation Files:** `server/src/routes/shifts.routes.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `ShiftSwapRequest, ShiftRoster`
 - **API Contract Requirements:** `PUT /api/shifts/swaps/:id/approve`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -3480,9 +3481,9 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Manager Shift Swap Final Approval mutation
-- **Assigned GSD Milestone:** **Phase 4 (Workstreams C, D, E)**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** Shift swap approval handled via status update on /api/shifts/swaps/:id; lacks dedicated /approve endpoint
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; dedicated PUT & POST /api/shifts/swaps/:id/approve and /reject endpoints with atomic roster swap)
 
 ---
 
@@ -4180,12 +4181,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** OKR & Performance Add-on
 - **Business Objective:** Execute compliant enterprise workflow for Quarterly OKR Cycles & Corporate Objectives.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract POST /api/addons/okr/objectives with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-048.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** OKR objectives mounted under /api/okr, not /api/addons/okr
+- **Existing Implementation Files:** `server/src/routes/okr.routes.ts, server/src/index.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `OkrCycle, OkrObjective, OkrKeyResult`
 - **API Contract Requirements:** `POST /api/addons/okr/objectives`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -4193,9 +4194,9 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Quarterly OKR Cycles & Corporate Objectives mutation
-- **Assigned GSD Milestone:** **Phase 4 / Phase 5**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** OKR objectives mounted under /api/okr, not canonical /api/addons/okr
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; dual mounted /api/addons/okr/objectives and /api/okr/objectives with Key Results persistence)
 
 ---
 
@@ -4203,12 +4204,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** OKR & Performance Add-on
 - **Business Objective:** Execute compliant enterprise workflow for Weekly Check-Ins & Manager Scorecard.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract POST /api/addons/okr/checkins with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-049.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** OKR check-in endpoint mounted under /api/okr/checkins
+- **Existing Implementation Files:** `server/src/routes/okr.routes.ts, server/src/index.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `OkrCheckin, OkrReview`
 - **API Contract Requirements:** `POST /api/addons/okr/checkins`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -4216,9 +4217,9 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Weekly Check-Ins & Manager Scorecard mutation
-- **Assigned GSD Milestone:** **Phase 4 / Phase 5**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** OKR check-in endpoint mounted under /api/okr/checkins, not canonical /api/addons/okr/checkins
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; dual mounted /api/addons/okr/checkins and /api/okr/checkins with Key Result progression)
 
 ---
 
@@ -4548,12 +4549,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Business Function
 - **Category / Domain:** Third-Party Data Migration
 - **Business Objective:** Execute compliant enterprise workflow for Tally ERP XML Auto-Ledger Transaction Mapping.
-- **Current Audit Status:** **PARTIAL**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** API contract POST /api/workspace/tally-import with ACID persistence.
 - **Source Documents:** `reverseenginerring/workdo-saas/functions/*/fn-064.md`
 - **Architectural Dependencies:** TenantStorage, Prisma, JWT Auth
-- **Existing Implementation Files:** `server/src/routes/*`
-- **Required Code Changes:** Tally XML import endpoint is mounted at /api/accounting/tally/import in accounting.routes.ts
+- **Existing Implementation Files:** `server/src/routes/workspace.routes.ts, server/src/routes/accounting.routes.ts`
+- **Required Code Changes:** Verified in Express route controller and Prisma database mutation layer
 - **Database Schema Requirements:** `ChartOfAccount, JournalEntry, JournalItem`
 - **API Contract Requirements:** `POST /api/workspace/tally-import`
 - **UI / Frontend Requirements:** Authenticated portal form and table view
@@ -4561,8 +4562,8 @@ This centralized registry contains every individual functionality item in scope 
 - **Multi-Tenant Isolation:** Fail-closed multi-tenant query filter
 - **Integration Dependencies:** Ledger posting or notification outbox where required
 - **Verification Test Scenarios:** End-to-end integration test validating Tally ERP XML Auto-Ledger Transaction Mapping mutation
-- **Assigned GSD Milestone:** **Phase 4 / Phase 5**
-- **Execution Lifecycle Status:** `PARTIAL`
-- **Forensic Verification Evidence:** Tally XML import endpoint is mounted at /api/accounting/tally/import, not /api/workspace/tally-import
+- **Assigned GSD Milestone:** **Phase 7 / Milestone 7.1-B (Route Normalization)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** canonical-route-aliases.test.ts (8/8 passed, exit code 0; POST /api/workspace/tally-import auto-ledger mapping and balanced double-entry vouchers)
 
 ---

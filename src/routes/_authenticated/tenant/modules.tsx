@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Boxes, Loader2 } from "lucide-react";
+import { Boxes, Loader2, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { ERP_MODULES } from "@/lib/erp-modules";
+import { AddonConfigDrawer } from "@/components/addons/AddonConfigDrawer";
 
 export const Route = createFileRoute("/_authenticated/tenant/modules")({
   component: TenantModulesPage,
@@ -17,6 +20,11 @@ export const Route = createFileRoute("/_authenticated/tenant/modules")({
 
 function TenantModulesPage() {
   const qc = useQueryClient();
+  const [selectedModule, setSelectedModule] = useState<{
+    key: string;
+    name: string;
+    description?: string;
+  } | null>(null);
 
   const { data: serverModules, isLoading } = useQuery<any[]>({
     queryKey: ["workspace-modules-status"],
@@ -108,18 +116,45 @@ function TenantModulesPage() {
                   {mod.description}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pt-0">
+              <CardContent className="pt-0 space-y-3">
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
                   <span>Workspace Decision Authority</span>
                   <span className={isEnabled ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
                     {isEnabled ? "Active" : "Disabled"}
                   </span>
                 </div>
+                {isEnabled && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs h-7 gap-1.5"
+                    onClick={() =>
+                      setSelectedModule({
+                        key: mod.key,
+                        name: mod.name,
+                        description: mod.description,
+                      })
+                    }
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Configure Integration
+                  </Button>
+                )}
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {selectedModule && (
+        <AddonConfigDrawer
+          isOpen={!!selectedModule}
+          onClose={() => setSelectedModule(null)}
+          addonSlug={selectedModule.key}
+          addonName={selectedModule.name}
+          addonDescription={selectedModule.description}
+        />
+      )}
     </div>
   );
 }

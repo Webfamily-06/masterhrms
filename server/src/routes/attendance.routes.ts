@@ -129,6 +129,134 @@ attendanceRouter.get("/", requireAuth, async (req: AuthRequest, res: Response) =
   }
 });
 
+// GET /api/attendance/summary (FN-009 Canonical Route Alias)
+// Comprehensive attendance analytics, work hours & punctuality metrics
+attendanceRouter.get("/summary", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = resolveTenantId(req, res);
+    if (!tenantId) return;
+
+    const { employeeId, month, year, date } = req.query;
+    const where: any = { tenantId };
+
+    const isElevated = isElevatedAttendanceUser(req);
+    if (!isElevated) {
+      const selfEmp = await prisma.employee.findFirst({
+        where: { tenantId, userId: req.user?.userId },
+        select: { id: true },
+      });
+      if (!selfEmp) {
+        return res.json({
+          success: true,
+          totalDays: 0,
+          presentCount: 0,
+          lateCount: 0,
+          halfDayCount: 0,
+          absentCount: 0,
+          totalWorkHours: 0,
+          totalOvertimeHours: 0,
+          averageDailyHours: 0,
+          records: [],
+        });
+      }
+      const directReports = await prisma.employee.findMany({
+        where: { tenantId, managerId: selfEmp.id },
+        select: { id: true },
+      });
+      const allowedEmployeeIds = [selfEmp.id, ...directReports.map((d) => d.id)];
+      if (employeeId && employeeId !== "all") {
+        if (!allowedEmployeeIds.includes(String(employeeId))) {
+          return res.status(403).json({ error: "Forbidden: You do not have access to this employee's attendance summary." });
+        }
+        where.employeeId = String(employeeId);
+      } else {
+        where.employeeId = allowedEmployeeIds.length === 1 ? selfEmp.id : { in: allowedEmployeeIds };
+      }
+    } else if (employeeId && employeeId !== "all") {
+      where.employeeId = String(employeeId);
+    }
+
+    if (date) {
+      const parts = String(date).split("-");
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        where.date = new Date(Date.UTC(y, m, d));
+      } else {
+        where.date = new Date(String(date));
+      }
+    } else if (month) {
+      const parts = String(month).split("-");
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const start = new Date(Date.UTC(y, m, 1));
+        const end = new Date(Date.UTC(y, m + 1, 0, 23, 59, 59, 999));
+        where.date = { gte: start, lte: end };
+      }
+    } else if (year) {
+      const y = parseInt(String(year), 10);
+      const start = new Date(Date.UTC(y, 0, 1));
+      const end = new Date(Date.UTC(y, 11, 31, 23, 59, 59, 999));
+      where.date = { gte: start, lte: end };
+    }
+
+    const records = await prisma.attendance.findMany({
+      where,
+      select: {
+        id: true,
+        date: true,
+        checkIn: true,
+        checkOut: true,
+        status: true,
+        hours: true,
+        overtimeMinutes: true,
+        lateMinutes: true,
+        earlyOutMinutes: true,
+        employeeId: true,
+      },
+      orderBy: { date: "asc" },
+    });
+
+    let presentCount = 0;
+    let lateCount = 0;
+    let halfDayCount = 0;
+    let absentCount = 0;
+    let totalWorkHours = 0;
+    let totalOvertimeHours = 0;
+
+    for (const r of records) {
+      if (r.status === "present") presentCount++;
+      else if (r.status === "late") lateCount++;
+      else if (r.status === "half_day") halfDayCount++;
+      else if (r.status === "absent") absentCount++;
+
+      const h = Number(r.hours) || 0;
+      totalWorkHours += h;
+      totalOvertimeHours += (r.overtimeMinutes || 0) / 60;
+    }
+
+    const totalDays = records.length;
+    const averageDailyHours = totalDays > 0 ? Number((totalWorkHours / totalDays).toFixed(2)) : 0;
+
+    return res.json({
+      success: true,
+      totalDays,
+      presentCount,
+      lateCount,
+      halfDayCount,
+      absentCount,
+      totalWorkHours: Number(totalWorkHours.toFixed(2)),
+      totalOvertimeHours: Number(totalOvertimeHours.toFixed(2)),
+      averageDailyHours,
+      records,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to generate attendance summary." });
+  }
+});
+
 function calculateHaversineDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in metres
   const phi1 = (lat1 * Math.PI) / 180;
@@ -256,165 +384,28 @@ attendanceRouter.post("/punch", requireAuth, async (req: AuthRequest, res: Respo
       targetEmployeeId = selfEmp.id;
     }
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Geo-Fence Validation
-    let geoFenceNote = "";
-    let isGeoFenceValid = true;
-    let distanceToOffice = 0;
-
-    if (latitude !== undefined && longitude !== undefined) {
-      const office = await prisma.warehouse.findFirst({
-        where: { tenantId },
-        select: { name: true },
-      });
-
-      // Default corporate headquarters coordinates or warehouse coordinates (Mumbai BKC fallback: 19.0657, 72.8687)
-      const officeLat = 19.0657;
-      const officeLng = 72.8687;
-      const allowedRadiusMeters = 500; // 500 meters allowed radius
-
-      distanceToOffice = calculateHaversineDistanceMeters(
-        Number(latitude),
-        Number(longitude),
-        officeLat,
-        officeLng
-      );
-
-      if (distanceToOffice > allowedRadiusMeters) {
-        isGeoFenceValid = false;
-        geoFenceNote = `[Geo-Fence Warning: ${Math.round(distanceToOffice)}m from office perimeter]`;
-      } else {
-        geoFenceNote = `[Geo-Verified: ${Math.round(distanceToOffice)}m from office]`;
-      }
-    }
-
-    if (type === "check_out") {
-      const existing = await prisma.attendance.findUnique({
-        where: {
-          tenantId_employeeId_date: {
-            tenantId,
-            employeeId: targetEmployeeId,
-            date: today,
-          },
-        },
-      });
-
-      if (!existing || !existing.checkIn) {
-        return res.status(400).json({ error: "No check-in record found for today to check out from." });
-      }
-
-      const diffMs = now.getTime() - existing.checkIn.getTime();
-      const totalHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-      let newStatus: AttendanceStatus = existing.status;
-      if (totalHours < 4 && existing.status !== "late") newStatus = "half_day";
-
-      const updated = await prisma.attendance.update({
-        where: { id: existing.id },
-        data: {
-          checkOut: now,
-          hours: totalHours,
-          status: newStatus,
-          notes: [existing.notes, geoFenceNote, notes].filter(Boolean).join(" | "),
-        },
-        include: { employee: true },
-      });
-
-      broadcastToTenant(tenantId, "attendance:updated", updated);
-      broadcastToTenant(tenantId, "punch:new", {
-        type: "check_out",
-        employeeName: `${updated.employee?.firstName || ""} ${updated.employee?.lastName || ""}`.trim(),
-        time: now.toLocaleTimeString(),
-        hours: totalHours,
-        geoFenceValid: isGeoFenceValid,
-        distanceMeters: Math.round(distanceToOffice),
-        timestamp: now.toISOString(),
-      });
-
-      return res.json({ success: true, action: "check_out", attendance: updated, geoFence: { valid: isGeoFenceValid, distanceMeters: Math.round(distanceToOffice) } });
-    }
-
-    // Check-in logic
-    const existing = await prisma.attendance.findUnique({
-      where: {
-        tenantId_employeeId_date: {
-          tenantId,
-          employeeId: targetEmployeeId,
-          date: today,
-        },
-      },
+    const ipAddress = (req.headers["x-forwarded-for"] as string) || req.socket.remoteAddress || "";
+    const result = await AttendanceService.recordPunch(tenantId, targetEmployeeId, {
+      type: type as "check_in" | "check_out",
+      latitude: latitude !== undefined ? Number(latitude) : undefined,
+      longitude: longitude !== undefined ? Number(longitude) : undefined,
+      notes,
+      deviceId,
+      source: "API",
+      ipAddress,
     });
 
-    if (existing && existing.checkIn) {
-      return res.status(400).json({ error: "Already checked in for today." });
-    }
-
-    let status: "present" | "late" = "present";
-    let lateNote = "";
-
-    const roster = await prisma.shiftRoster.findUnique({
-      where: {
-        tenantId_employeeId_rosterDate: {
-          tenantId,
-          employeeId: targetEmployeeId,
-          rosterDate: today,
-        },
-      },
-      include: { shift: true },
-    });
-
-    if (roster?.shift?.startTime && roster.shift.startTime !== "00:00") {
-      const [shH, shM] = roster.shift.startTime.split(":").map(Number);
-      const shiftStartTime = new Date(today);
-      shiftStartTime.setHours(shH, shM, 0, 0);
-      const graceThreshold = new Date(shiftStartTime.getTime() + 15 * 60 * 1000);
-
-      if (now > graceThreshold) {
-        status = "late";
-        const diffMinutes = Math.round((now.getTime() - shiftStartTime.getTime()) / (60 * 1000));
-        lateNote = `Late In by ${diffMinutes} min(s)`;
-      }
-    }
-
-    const combinedNotes = [lateNote, geoFenceNote, notes, deviceId ? `Device: ${deviceId}` : ""].filter(Boolean).join(" | ");
-
-    const attendance = await prisma.attendance.upsert({
-      where: {
-        tenantId_employeeId_date: {
-          tenantId,
-          employeeId: targetEmployeeId,
-          date: today,
-        },
-      },
-      update: {
-        checkIn: now,
-        status,
-        notes: combinedNotes || undefined,
-      },
-      create: {
-        tenantId,
-        employeeId: targetEmployeeId,
-        date: today,
-        checkIn: now,
-        status,
-        notes: combinedNotes || null,
-      },
+    const fullRecord = await prisma.attendance.findUnique({
+      where: { id: result.record.id },
       include: { employee: true },
     });
 
-    broadcastToTenant(tenantId, "attendance:updated", attendance);
-    broadcastToTenant(tenantId, "punch:new", {
-      type: "check_in",
-      employeeName: `${attendance.employee?.firstName || ""} ${attendance.employee?.lastName || ""}`.trim(),
-      time: now.toLocaleTimeString(),
-      status,
-      geoFenceValid: isGeoFenceValid,
-      distanceMeters: Math.round(distanceToOffice),
-      timestamp: now.toISOString(),
+    return res.json({
+      success: true,
+      action: result.action,
+      attendance: fullRecord,
+      geoFence: { valid: result.isGeoValid, distanceMeters: 0 },
     });
-
-    return res.json({ success: true, action: "check_in", attendance, geoFence: { valid: isGeoFenceValid, distanceMeters: Math.round(distanceToOffice) } });
   } catch (err: any) {
     if (err?.code === "PERIOD_LOCKED") return res.status(423).json({ error: err.message, code: "PERIOD_LOCKED" });
     return res.status(500).json({ error: err.message || "Internal server error" });

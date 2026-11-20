@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -35,6 +35,8 @@ import {
   Briefcase,
   AlertCircle,
   Layers,
+  UserCheck,
+  List,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/recruitment/pipeline")({
@@ -51,6 +53,7 @@ const PIPELINE_COLUMNS = [
 ];
 
 export default function HrRecruitmentPipelinePage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
   const [rejectDialogCandidate, setRejectDialogCandidate] = useState<any>(null);
@@ -107,6 +110,11 @@ export default function HrRecruitmentPipelinePage() {
           description="Visual applicant stages with auditable progression, validated stage movement, and mandatory rejection reasoning."
         />
         <div className="flex items-center gap-3">
+          <Link to="/hr/recruitment/candidates">
+            <Button variant="outline" className="gap-2 text-xs">
+              <List className="h-4 w-4" /> Table View
+            </Button>
+          </Link>
           <Select value={selectedJobId} onValueChange={setSelectedJobId}>
             <SelectTrigger className="w-[240px]">
               <SelectValue placeholder="Filter by Job..." />
@@ -220,6 +228,17 @@ export default function HrRecruitmentPipelinePage() {
                               className="h-6 px-2 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
                               Hire <CheckCircle2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {col.id === "hired" && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => navigate({ to: "/hr/recruitment/candidates" })}
+                              className="h-6 px-2 text-xs gap-1 bg-[#FF6F28] hover:bg-[#e05917] text-white"
+                              title="Convert to Employee in Workforce"
+                            >
+                              Convert <UserCheck className="h-3 w-3" />
                             </Button>
                           )}
                         </div>

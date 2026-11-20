@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -60,6 +60,7 @@ import {
   GitMerge,
   ExternalLink,
   ShieldAlert,
+  Kanban,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/hr/recruitment/candidates")({
@@ -230,6 +231,11 @@ export default function HrCandidatesPage() {
           description="Unified candidate identity with duplicate detection, complete evaluation timeline, and one-click atomic conversion to Employee."
         />
         <div className="flex items-center gap-2">
+          <Link to="/hr/recruitment/pipeline">
+            <Button variant="outline" className="gap-2 text-xs">
+              <Kanban className="h-4 w-4" /> Kanban Pipeline
+            </Button>
+          </Link>
           <Button
             onClick={() => setIsCreateOpen(true)}
             className="gap-2 bg-primary text-primary-foreground shadow-sm"

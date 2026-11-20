@@ -583,6 +583,8 @@ async function main() {
   // 12. Phase F — Production Security Audit 14 Core Mandates
   await runTest("PhaseFAudit", "Mandate 1: Valid encryption key initialization in production yields 0 warnings and 0 errors", () => {
     const origEnv = process.env.NODE_ENV;
+    const origJwt = process.env.JWT_SECRET;
+    const origSigning = process.env.FILE_SIGNING_SECRET;
     const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
     const origConn = process.env.CONNECTOR_ENCRYPTION_KEY;
     const origEmail = process.env.EMAIL_CRYPTO_SECRET;
@@ -590,6 +592,8 @@ async function main() {
     const origAi = process.env.AI_ENCRYPTION_KEY;
     try {
       process.env.NODE_ENV = "production";
+      process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+      process.env.FILE_SIGNING_SECRET = crypto.randomBytes(32).toString("hex");
       process.env.STORAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
       process.env.CONNECTOR_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
       process.env.EMAIL_CRYPTO_SECRET = crypto.randomBytes(32).toString("hex");
@@ -599,9 +603,11 @@ async function main() {
       const check = validateStartupCryptoConfig({ checkAllServices: true });
       assert.strictEqual(check.valid, true, "Startup validation must be valid");
       assert.strictEqual(check.errors.length, 0, "Errors must be empty");
-      assert.strictEqual(check.warnings.length, 0, "Warnings must be empty when all 5 keys are present");
+      assert.strictEqual(check.warnings.length, 0, "Warnings must be empty when all keys are present");
     } finally {
       process.env.NODE_ENV = origEnv;
+      if (origJwt) process.env.JWT_SECRET = origJwt; else delete process.env.JWT_SECRET;
+      if (origSigning) process.env.FILE_SIGNING_SECRET = origSigning; else delete process.env.FILE_SIGNING_SECRET;
       if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage; else delete process.env.STORAGE_ENCRYPTION_KEY;
       if (origConn) process.env.CONNECTOR_ENCRYPTION_KEY = origConn; else delete process.env.CONNECTOR_ENCRYPTION_KEY;
       if (origEmail) process.env.EMAIL_CRYPTO_SECRET = origEmail; else delete process.env.EMAIL_CRYPTO_SECRET;
@@ -787,6 +793,8 @@ async function main() {
 
   await runTest("PhaseFAudit", "Mandate 11: Production environment initialization cleanly passes when keys configured", () => {
     const origEnv = process.env.NODE_ENV;
+    const origJwt = process.env.JWT_SECRET;
+    const origSigning = process.env.FILE_SIGNING_SECRET;
     const origStorage = process.env.STORAGE_ENCRYPTION_KEY;
     const origConn = process.env.CONNECTOR_ENCRYPTION_KEY;
     const origEmail = process.env.EMAIL_CRYPTO_SECRET;
@@ -794,6 +802,8 @@ async function main() {
     const origAi = process.env.AI_ENCRYPTION_KEY;
     try {
       process.env.NODE_ENV = "production";
+      process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+      process.env.FILE_SIGNING_SECRET = crypto.randomBytes(32).toString("hex");
       process.env.STORAGE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
       process.env.CONNECTOR_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
       process.env.EMAIL_CRYPTO_SECRET = crypto.randomBytes(32).toString("hex");
@@ -806,6 +816,8 @@ async function main() {
       assert.strictEqual(check.errors.length, 0);
     } finally {
       process.env.NODE_ENV = origEnv;
+      if (origJwt) process.env.JWT_SECRET = origJwt; else delete process.env.JWT_SECRET;
+      if (origSigning) process.env.FILE_SIGNING_SECRET = origSigning; else delete process.env.FILE_SIGNING_SECRET;
       if (origStorage) process.env.STORAGE_ENCRYPTION_KEY = origStorage; else delete process.env.STORAGE_ENCRYPTION_KEY;
       if (origConn) process.env.CONNECTOR_ENCRYPTION_KEY = origConn; else delete process.env.CONNECTOR_ENCRYPTION_KEY;
       if (origEmail) process.env.EMAIL_CRYPTO_SECRET = origEmail; else delete process.env.EMAIL_CRYPTO_SECRET;

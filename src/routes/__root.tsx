@@ -19,6 +19,7 @@ import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { Toaster } from "@/components/ui/sonner";
 import { OfflineBanner, MaintenanceBanner, SessionExpiredModal, InactivityTracker } from "@/components/system-states";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 
 function NotFoundComponent() {
   return <NotFoundView />;
@@ -182,6 +183,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <IncomingCallProvider>
         <PlatformFaviconSync />
+        <ImpersonationBanner />
         <OfflineBanner />
         <MaintenanceBanner />
         <SessionExpiredModal />

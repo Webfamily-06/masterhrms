@@ -563,7 +563,7 @@ app.use("/api/invoices", invoicesRouter);
 app.use("/api/crm", crmRouter);
 app.use("/api/super", superRouter);
 app.use("/api/addons", addonsRouter);
-app.use("/api/addons/okr", okrRouter);
+app.use(["/api/addons/okr", "/api/okr"], okrRouter);
 app.use("/api/addons/assets", assetsRouter);
 app.use("/api/assets", assetsRouter);
 app.use("/api/v1/two-factor-auth", twoFactorRouter);

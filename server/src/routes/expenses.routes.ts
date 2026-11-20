@@ -644,6 +644,42 @@ expensesRouter.post("/:id/approve", requireAuth, handleExpenseApprove);
 expensesRouter.put("/claims/:id/approve", requireAuth, handleExpenseApprove);
 expensesRouter.post("/claims/:id/approve", requireAuth, handleExpenseApprove);
 
+// FN-055: Quick Rejection Endpoints
+const handleExpenseReject = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason, approverNotes } = req.body;
+    const tenantId = req.user?.tenantId;
+
+    if (!tenantId) return res.status(400).json({ error: "Tenant context is required." });
+
+    const userRole = (req.user as any)?.role || "manager";
+    const userName = (req.user as any)?.email || "Manager";
+
+    const result = await approvalService.processApproval({
+      tenantId,
+      claimId: id,
+      action: "reject",
+      approverRole: userRole,
+      approverName: userName,
+      approverNotes: approverNotes || reason || "Expense claim rejected by approver.",
+    });
+
+    return res.json({
+      success: true,
+      message: result.message || "Expense claim rejected successfully.",
+      claim: result.claim,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || "Failed to reject expense." });
+  }
+};
+
+expensesRouter.put("/:id/reject", requireAuth, handleExpenseReject);
+expensesRouter.post("/:id/reject", requireAuth, handleExpenseReject);
+expensesRouter.put("/claims/:id/reject", requireAuth, handleExpenseReject);
+expensesRouter.post("/claims/:id/reject", requireAuth, handleExpenseReject);
+
 // GET /api/expenses/claims/authorized-for-payroll (List claims ready for payroll payout batch)
 expensesRouter.get("/claims/authorized-for-payroll", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
