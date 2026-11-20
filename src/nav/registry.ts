@@ -1918,7 +1918,7 @@ export const TENANT_NAVIGATION_REGISTRY: NavRegistryItem[] = [
     id: "tenant-modules",
     portal: "tenant",
     heading: "Workspace",
-    label: "Modules and Features",
+    label: "Addon Store & Integrations",
     path: ROUTES.tenant.modules,
     icon: "Boxes",
     order: 50,

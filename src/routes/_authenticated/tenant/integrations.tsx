@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Cpu, Mail, Key, Webhook, CheckCircle2, Copy, Save } from "lucide-react";
+import { Cpu, Mail, Key, Webhook, CheckCircle2, Copy, Save, Boxes } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tenant/integrations")({
@@ -37,13 +37,21 @@ function TenantIntegrationsPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Integrations, SMTP & API Keys
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Configure third-party transactional mail servers, webhooks, and REST API access tokens.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Integrations, SMTP & API Keys
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure third-party transactional mail servers, webhooks, and REST API access tokens.
+          </p>
+        </div>
+        <Link to="/tenant/modules">
+          <Button variant="outline" size="sm" className="gap-2 text-xs">
+            <Boxes className="h-4 w-4 text-primary" />
+            Browse Addon Store & Apps
+          </Button>
+        </Link>
       </div>
 
       {/* SMTP Email Server */}
@@ -136,3 +144,4 @@ function TenantIntegrationsPage() {
     </div>
   );
 }
+export default TenantIntegrationsPage;
