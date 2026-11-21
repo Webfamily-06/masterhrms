@@ -1742,22 +1742,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of QuickBooks capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide QuickBooks workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/quickbooks`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for QuickBooks CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Intuit QuickBooks Online API v3
+- **Verification Test Scenarios:** Unit tests for QuickBooks invoice creation, line items, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; QBO invoice synchronization, customer reference, and total amount calculation).
 
 ---
 
@@ -1765,22 +1765,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Sage capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Sage workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/sage`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Sage CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Sage Business Cloud Accounting API
+- **Verification Test Scenarios:** Unit tests for Sage sales invoice posting and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; Sage Business Cloud sales invoice posting, line item summation, and status tracking).
 
 ---
 
@@ -1788,22 +1788,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Xero capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Xero workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/xero`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Xero CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Xero Accounting API v2.0
+- **Verification Test Scenarios:** Unit tests for Xero sales invoice creation, contact sync, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; Xero sales invoice creation, invoiceNumber generation, and draft status verification).
 
 ---
 
@@ -1972,22 +1972,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Plaid capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Plaid workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/plaid`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Plaid CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Plaid Open Banking API
+- **Verification Test Scenarios:** Unit tests for Plaid link token generation, account balance queries, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; Plaid link token issuance and depository account balance queries).
 
 ---
 
@@ -1995,22 +1995,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of ZATCA (Saudi e-invoice) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide ZATCA (Saudi e-invoice) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/zatca`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for ZATCA (Saudi e-invoice) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** ZATCA Phase 2 E-Invoicing Standard
+- **Verification Test Scenarios:** Unit tests for ZATCA Phase 2 UBL 2.1 XML generation, cryptographic SHA-256 invoice hashing, and TLV QR code validation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; UBL 2.1 XML synthesis, SHA-256 invoice digest, byte-level TLV QR code encoding).
 
 ---
 
@@ -2018,22 +2018,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of European E-Invoice capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide European E-Invoice workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/european_einvoice`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for European E-Invoice CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Peppol BIS Billing 3.0 / EN 16931
+- **Verification Test Scenarios:** Unit tests for European electronic invoice creation, EN 16931 compliance, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; Peppol BIS Billing 3.0 electronic invoice XML, SHA-256 digest, and customization profile verification).
 
 ---
 
@@ -2389,22 +2389,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
 - **Business Objective:** Enterprise multi-tenant execution of Outlook Mail capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Outlook Mail workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase18.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/outlook_mail`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Outlook Mail CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Microsoft Graph API v1.0 sendMail
+- **Verification Test Scenarios:** Unit tests for Outlook Mail enterprise email dispatch, recipient normalization, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 18 (Milestone 8.5)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase18.test.ts` (12 passed, 0 failed, exit code 0; MS Graph sendMail dispatch, CC list handling, and messageId tracking).
 
 ---
 

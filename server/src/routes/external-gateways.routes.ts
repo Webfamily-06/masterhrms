@@ -63,6 +63,14 @@ const VALID_GATEWAYS = new Set<GatewayKey>([
   "salesforce",
   "onedrive",
   "zendesk",
+  // Phase 18: Enterprise Finance, Banking & International E-Invoicing
+  "quickbooks",
+  "sage",
+  "xero",
+  "plaid",
+  "zatca",
+  "european_einvoice",
+  "outlook_mail",
 ]);
 
 function validateGatewayParam(gateway: string): GatewayKey | null {
@@ -248,6 +256,32 @@ externalGatewaysRouter.post("/dispatch/:gateway", requireAuth, async (req: AuthR
         break;
       case "zendesk":
         result = await ExternalGatewaysService.createZendeskTicket(tenantId, req.body);
+        break;
+      // Phase 18: Enterprise Finance, Banking & International E-Invoicing
+      case "quickbooks":
+        result = await ExternalGatewaysService.createQuickBooksInvoice(tenantId, req.body);
+        break;
+      case "sage":
+        result = await ExternalGatewaysService.createSageInvoice(tenantId, req.body);
+        break;
+      case "xero":
+        result = await ExternalGatewaysService.createXeroInvoice(tenantId, req.body);
+        break;
+      case "plaid":
+        if (req.body?.action === "fetch_accounts") {
+          result = await ExternalGatewaysService.fetchPlaidAccounts(tenantId, req.body);
+        } else {
+          result = await ExternalGatewaysService.createPlaidLinkToken(tenantId, req.body);
+        }
+        break;
+      case "zatca":
+        result = await ExternalGatewaysService.generateZatcaEInvoice(tenantId, req.body);
+        break;
+      case "european_einvoice":
+        result = await ExternalGatewaysService.generateEuropeanEInvoice(tenantId, req.body);
+        break;
+      case "outlook_mail":
+        result = await ExternalGatewaysService.sendOutlookMail(tenantId, req.body);
         break;
       default:
         return res.status(400).json({ error: `No handler implemented for gateway ${gateway}` });

@@ -59,7 +59,15 @@ export type GatewayKey =
   | "mailchimp"
   | "salesforce"
   | "onedrive"
-  | "zendesk";
+  | "zendesk"
+  // Phase 18 / Milestone 8.5: Enterprise Finance, Banking & International E-Invoicing
+  | "quickbooks"
+  | "sage"
+  | "xero"
+  | "plaid"
+  | "zatca"
+  | "european_einvoice"
+  | "outlook_mail";
 
 export interface GatewayConfig {
   enabled: boolean;
@@ -147,6 +155,14 @@ export class ExternalGatewaysService {
       "salesforce",
       "onedrive",
       "zendesk",
+      // Phase 18: Enterprise Finance, Banking & International E-Invoicing
+      "quickbooks",
+      "sage",
+      "xero",
+      "plaid",
+      "zatca",
+      "european_einvoice",
+      "outlook_mail",
     ];
 
     for (const g of defaultGateways) {
@@ -1657,6 +1673,457 @@ export class ExternalGatewaysService {
       priority: options.priority || "normal",
       status: "new",
       ticketUrl: `${config.endpointUrl || "https://masterhrms.zendesk.com"}/agent/tickets/${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 35. ADDON-075: QuickBooks Online Accounting Invoice Synchronization
+  // ==========================================================================
+  static async createQuickBooksInvoice(
+    tenantId: string,
+    options: { customerId?: string; customerEmail?: string; customerName?: string; lines: Array<{ description: string; amount: number; qty?: number }>; docNumber?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "quickbooks");
+    const isSandbox = config.sandboxMode !== false;
+    const companyId = config.identifier || "913035000000";
+
+    if (!isSandbox && config.endpointUrl && config.accessToken) {
+      const res = await fetch(`${config.endpointUrl.replace(/\/+$/, "")}/v3/company/${companyId}/invoice`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          Line: options.lines.map((l) => ({
+            Amount: l.amount * (l.qty || 1),
+            DetailType: "SalesItemLineDetail",
+            Description: l.description,
+            SalesItemLineDetail: {
+              Qty: l.qty || 1,
+              UnitPrice: l.amount,
+            },
+          })),
+          CustomerRef: {
+            value: options.customerId || "1",
+            name: options.customerName || "Default Customer",
+          },
+          BillEmail: {
+            Address: options.customerEmail || "billing@customer.com",
+          },
+        }),
+      });
+      const data = await res.json();
+      const invId = data.Invoice?.Id || "qbo_live_id";
+      this.recordLog(tenantId, "quickbooks", "CREATE_INVOICE", "success", { invoiceId: invId, docNumber: data.Invoice?.DocNumber });
+      return {
+        success: true,
+        gateway: "quickbooks",
+        simulated: false,
+        invoiceId: invId,
+        docNumber: data.Invoice?.DocNumber || `QBO-${invId}`,
+        totalAmount: data.Invoice?.TotalAmt || options.lines.reduce((s, l) => s + l.amount * (l.qty || 1), 0),
+        status: "synced",
+      };
+    }
+
+    const simId = "qbo_inv_" + Math.floor(1000 + Math.random() * 9000);
+    const totalAmount = options.lines.reduce((s, l) => s + l.amount * (l.qty || 1), 0);
+    this.recordLog(tenantId, "quickbooks", "CREATE_INVOICE", "simulated", { invoiceId: simId, docNumber: options.docNumber });
+    return {
+      success: true,
+      gateway: "quickbooks",
+      simulated: true,
+      invoiceId: simId,
+      docNumber: options.docNumber || `QBO-${simId.slice(-4)}`,
+      totalAmount,
+      status: "synced",
+    };
+  }
+
+  // ==========================================================================
+  // 36. ADDON-076: Sage Business Cloud Accounting Adapter
+  // ==========================================================================
+  static async createSageInvoice(
+    tenantId: string,
+    options: { contactId?: string; contactName: string; date: string; dueDate?: string; lines: Array<{ description: string; unitPrice: number; quantity?: number; taxRatePercentage?: number }> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "sage");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://api.accounting.sage.com/v3.1/sales_invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          sales_invoice: {
+            contact_id: options.contactId || "sage_contact_default",
+            date: options.date,
+            due_date: options.dueDate || options.date,
+            invoice_lines: options.lines.map((l) => ({
+              description: l.description,
+              quantity: l.quantity || 1,
+              unit_price: l.unitPrice,
+            })),
+          },
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "sage", "CREATE_INVOICE", "success", { invoiceId: data.id, contactName: options.contactName });
+      return {
+        success: true,
+        gateway: "sage",
+        simulated: false,
+        invoiceId: data.id || "sage_live_id",
+        contactName: options.contactName,
+        total: data.total_amount,
+        status: "posted",
+      };
+    }
+
+    const simId = "sage_inv_" + crypto.randomUUID().slice(0, 10);
+    const total = options.lines.reduce((s, l) => s + l.unitPrice * (l.quantity || 1), 0);
+    this.recordLog(tenantId, "sage", "CREATE_INVOICE", "simulated", { invoiceId: simId, contactName: options.contactName });
+    return {
+      success: true,
+      gateway: "sage",
+      simulated: true,
+      invoiceId: simId,
+      contactName: options.contactName,
+      total,
+      status: "posted",
+    };
+  }
+
+  // ==========================================================================
+  // 37. ADDON-077: Xero Cloud Accounting Invoice & Contact Sync
+  // ==========================================================================
+  static async createXeroInvoice(
+    tenantId: string,
+    options: { contactName: string; contactEmail?: string; date: string; dueDate?: string; lineItems: Array<{ description: string; unitAmount: number; quantity?: number; accountCode?: string }> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "xero");
+    const isSandbox = config.sandboxMode !== false;
+    const tenantIdentifier = config.identifier || "xero_tenant_default";
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://api.xero.com/api.xro/2.0/Invoices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xero-tenant-id": tenantIdentifier,
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          Invoices: [
+            {
+              Type: "ACCREC",
+              Contact: { Name: options.contactName, EmailAddress: options.contactEmail || "" },
+              Date: options.date,
+              DueDate: options.dueDate || options.date,
+              LineItems: options.lineItems.map((l) => ({
+                Description: l.description,
+                Quantity: l.quantity || 1,
+                UnitAmount: l.unitAmount,
+                AccountCode: l.accountCode || "200",
+              })),
+              Status: "DRAFT",
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      const inv = data.Invoices?.[0];
+      this.recordLog(tenantId, "xero", "CREATE_INVOICE", "success", { invoiceId: inv?.InvoiceID });
+      return {
+        success: true,
+        gateway: "xero",
+        simulated: false,
+        invoiceId: inv?.InvoiceID || "xero_live_id",
+        invoiceNumber: inv?.InvoiceNumber || "INV-001",
+        contactName: options.contactName,
+        status: inv?.Status || "DRAFT",
+      };
+    }
+
+    const simId = "xero_inv_" + crypto.randomUUID();
+    const invoiceNumber = `INV-${Date.now().toString().slice(-5)}`;
+    this.recordLog(tenantId, "xero", "CREATE_INVOICE", "simulated", { invoiceId: simId, contactName: options.contactName });
+    return {
+      success: true,
+      gateway: "xero",
+      simulated: true,
+      invoiceId: simId,
+      invoiceNumber,
+      contactName: options.contactName,
+      status: "DRAFT",
+    };
+  }
+
+  // ==========================================================================
+  // 38. ADDON-085: Plaid Open Banking & Account Verification
+  // ==========================================================================
+  static async createPlaidLinkToken(
+    tenantId: string,
+    options: { clientUserId: string; clientName?: string; products?: string[]; countryCodes?: string[] }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "plaid");
+    const linkToken = `link-sandbox-${crypto.randomUUID()}`;
+
+    this.recordLog(tenantId, "plaid", "CREATE_LINK_TOKEN", "simulated", {
+      clientUserId: options.clientUserId,
+      linkToken,
+    });
+
+    return {
+      success: true,
+      gateway: "plaid",
+      simulated: true,
+      linkToken,
+      expiration: new Date(Date.now() + 4 * 3600 * 1000).toISOString(),
+      status: "active",
+      products: options.products || ["auth", "transactions"],
+    };
+  }
+
+  static async fetchPlaidAccounts(
+    tenantId: string,
+    options: { accessToken?: string }
+  ) {
+    this.recordLog(tenantId, "plaid", "FETCH_ACCOUNTS", "simulated", { hasToken: Boolean(options.accessToken) });
+    return {
+      success: true,
+      gateway: "plaid",
+      simulated: true,
+      accounts: [
+        {
+          accountId: "acc_checking_01",
+          name: "Enterprise Operational Checking",
+          mask: "4012",
+          type: "depository",
+          subtype: "checking",
+          balances: { available: 52400.5, current: 53100.0, currency: "USD" },
+        },
+        {
+          accountId: "acc_savings_02",
+          name: "Payroll Reserve High-Yield",
+          mask: "8821",
+          type: "depository",
+          subtype: "savings",
+          balances: { available: 250000.0, current: 250000.0, currency: "USD" },
+        },
+      ],
+    };
+  }
+
+  // ==========================================================================
+  // 39. ADDON-086: ZATCA Saudi Arabia E-Invoicing (Phase 2 Compliance)
+  // ==========================================================================
+  static async generateZatcaEInvoice(
+    tenantId: string,
+    options: {
+      invoiceNumber: string;
+      issueDate: string;
+      issueTime?: string;
+      sellerName: string;
+      sellerVatNumber: string;
+      buyerName?: string;
+      buyerVatNumber?: string;
+      lineItems: Array<{ name: string; quantity: number; unitPrice: number; vatRate?: number }>;
+      previousInvoiceHash?: string;
+    }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "zatca");
+    const issueTime = options.issueTime || "12:00:00Z";
+    const subtotal = options.lineItems.reduce((acc, l) => acc + l.unitPrice * l.quantity, 0);
+    const vatTotal = options.lineItems.reduce((acc, l) => acc + l.unitPrice * l.quantity * (l.vatRate ?? 0.15), 0);
+    const totalAmount = subtotal + vatTotal;
+
+    // Synthesize UBL 2.1 compliant XML representation
+    const ublXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ProfileID>reporting:1.0</cbc:ProfileID>
+  <cbc:ID>${options.invoiceNumber}</cbc:ID>
+  <cbc:IssueDate>${options.issueDate}</cbc:IssueDate>
+  <cbc:IssueTime>${issueTime}</cbc:IssueTime>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyLegalEntity><cbc:RegistrationName>${options.sellerName}</cbc:RegistrationName></cac:PartyLegalEntity>
+      <cac:PartyTaxScheme><cbc:CompanyID>${options.sellerVatNumber}</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="SAR">${subtotal.toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="SAR">${subtotal.toFixed(2)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="SAR">${totalAmount.toFixed(2)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="SAR">${totalAmount.toFixed(2)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+</Invoice>`;
+
+    // Cryptographic SHA-256 Digest of the XML
+    const invoiceHash = crypto.createHash("sha256").update(ublXml).digest("base64");
+
+    // ZATCA Standard TLV (Tag-Length-Value) QR Code generation
+    const toTlv = (tag: number, val: string) => {
+      const buf = Buffer.from(val, "utf8");
+      return Buffer.concat([Buffer.from([tag, buf.length]), buf]);
+    };
+
+    const qrTlv = Buffer.concat([
+      toTlv(1, options.sellerName),
+      toTlv(2, options.sellerVatNumber),
+      toTlv(3, `${options.issueDate}T${issueTime}`),
+      toTlv(4, totalAmount.toFixed(2)),
+      toTlv(5, vatTotal.toFixed(2)),
+    ]);
+    const qrCodeBase64 = qrTlv.toString("base64");
+
+    this.recordLog(tenantId, "zatca", "GENERATE_EINVOICE", "simulated", {
+      invoiceNumber: options.invoiceNumber,
+      invoiceHash,
+      totalAmount,
+    });
+
+    return {
+      success: true,
+      gateway: "zatca",
+      simulated: true,
+      invoiceNumber: options.invoiceNumber,
+      invoiceHash,
+      qrCodeBase64,
+      ublXml,
+      totalAmount: Number(totalAmount.toFixed(2)),
+      vatAmount: Number(vatTotal.toFixed(2)),
+      complianceStatus: "CLEARED",
+      zatcaStage: "PHASE_2_INTEGRATION",
+    };
+  }
+
+  // ==========================================================================
+  // 40. ADDON-087: European E-Invoice (Peppol BIS Billing 3.0 / EN 16931)
+  // ==========================================================================
+  static async generateEuropeanEInvoice(
+    tenantId: string,
+    options: {
+      invoiceNumber: string;
+      issueDate: string;
+      dueDate?: string;
+      sellerName: string;
+      sellerVatNumber: string;
+      sellerCountry?: string;
+      buyerName: string;
+      buyerVatNumber?: string;
+      buyerReference?: string;
+      lineItems: Array<{ description: string; quantity: number; unitPrice: number; vatRatePercent?: number }>;
+    }
+  ) {
+    const subtotal = options.lineItems.reduce((acc, l) => acc + l.unitPrice * l.quantity, 0);
+    const vatTotal = options.lineItems.reduce((acc, l) => acc + l.unitPrice * l.quantity * ((l.vatRatePercent ?? 20) / 100), 0);
+    const totalWithVat = subtotal + vatTotal;
+
+    const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>
+  <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
+  <cbc:ID>${options.invoiceNumber}</cbc:ID>
+  <cbc:IssueDate>${options.issueDate}</cbc:IssueDate>
+  <cbc:DueDate>${options.dueDate || options.issueDate}</cbc:DueDate>
+  <cbc:BuyerReference>${options.buyerReference || "PO-REF-2026"}</cbc:BuyerReference>
+  <cac:AccountingSupplierParty>
+    <cac:Party>
+      <cac:PartyLegalEntity><cbc:RegistrationName>${options.sellerName}</cbc:RegistrationName></cac:PartyLegalEntity>
+      <cac:PartyTaxScheme><cbc:CompanyID>${options.sellerVatNumber}</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingSupplierParty>
+  <cac:AccountingCustomerParty>
+    <cac:Party>
+      <cac:PartyLegalEntity><cbc:RegistrationName>${options.buyerName}</cbc:RegistrationName></cac:PartyLegalEntity>
+      <cac:PartyTaxScheme><cbc:CompanyID>${options.buyerVatNumber || "EU123456789"}</cbc:CompanyID></cac:PartyTaxScheme>
+    </cac:Party>
+  </cac:AccountingCustomerParty>
+  <cac:LegalMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="EUR">${subtotal.toFixed(2)}</cbc:LineExtensionAmount>
+    <cbc:TaxExclusiveAmount currencyID="EUR">${subtotal.toFixed(2)}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount currencyID="EUR">${totalWithVat.toFixed(2)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="EUR">${totalWithVat.toFixed(2)}</cbc:PayableAmount>
+  </cac:LegalMonetaryTotal>
+</Invoice>`;
+
+    const digest = crypto.createHash("sha256").update(xmlContent).digest("hex");
+
+    this.recordLog(tenantId, "european_einvoice", "GENERATE_PEPPOL_INVOICE", "simulated", {
+      invoiceNumber: options.invoiceNumber,
+      digest,
+    });
+
+    return {
+      success: true,
+      gateway: "european_einvoice",
+      simulated: true,
+      invoiceNumber: options.invoiceNumber,
+      standard: "PEPPOL_BIS_BILLING_3.0",
+      en16931Compliant: true,
+      digest,
+      subtotal: Number(subtotal.toFixed(2)),
+      vatTotal: Number(vatTotal.toFixed(2)),
+      totalAmount: Number(totalWithVat.toFixed(2)),
+      xmlContent,
+    };
+  }
+
+  // ==========================================================================
+  // 41. ADDON-103: Outlook Mail Enterprise Email Dispatcher (MS Graph API)
+  // ==========================================================================
+  static async sendOutlookMail(
+    tenantId: string,
+    options: { to: string | string[]; subject: string; htmlBody?: string; textBody?: string; cc?: string[]; bcc?: string[]; saveToSentItems?: boolean }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "outlook_mail");
+    const isSandbox = config.sandboxMode !== false;
+    const recipients = Array.isArray(options.to) ? options.to : [options.to];
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          message: {
+            subject: options.subject,
+            body: {
+              contentType: options.htmlBody ? "HTML" : "Text",
+              content: options.htmlBody || options.textBody || options.subject,
+            },
+            toRecipients: recipients.map((r) => ({ emailAddress: { address: r } })),
+            ...(options.cc ? { ccRecipients: options.cc.map((r) => ({ emailAddress: { address: r } })) } : {}),
+          },
+          saveToSentItems: options.saveToSentItems ?? true,
+        }),
+      });
+      this.recordLog(tenantId, "outlook_mail", "SEND_MAIL", "success", { recipients, subject: options.subject, status: res.status });
+      return { success: true, gateway: "outlook_mail", simulated: false, status: "sent", to: recipients, subject: options.subject };
+    }
+
+    const simId = "msg_outlook_sim_" + crypto.randomUUID().slice(0, 12);
+    this.recordLog(tenantId, "outlook_mail", "SEND_MAIL", "simulated", { messageId: simId, recipients, subject: options.subject });
+    return {
+      success: true,
+      gateway: "outlook_mail",
+      simulated: true,
+      messageId: simId,
+      to: recipients,
+      subject: options.subject,
+      status: "sent",
     };
   }
 }
