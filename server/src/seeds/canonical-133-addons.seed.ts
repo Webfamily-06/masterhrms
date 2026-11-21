@@ -142,7 +142,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Globe",
+    "icon": "/addons-icons/InstagramPost.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -163,7 +163,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Globe",
+    "icon": "/addons-icons/FacebookPost.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -184,7 +184,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Two-way Messaging",
       "Template Approvals"
     ],
-    "icon": "MessageSquare",
+    "icon": "/addons-icons/WhatsAppChat.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -205,7 +205,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Globe",
+    "icon": "/addons-icons/YoutubeContentManagement.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -226,7 +226,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Interactive Actions",
       "Incident Alerts"
     ],
-    "icon": "MessageCircle",
+    "icon": "/addons-icons/Telegram.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -247,7 +247,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/Twilio.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -268,7 +268,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Interactive Actions",
       "Incident Alerts"
     ],
-    "icon": "MessageCircle",
+    "icon": "/addons-icons/Slack.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -289,7 +289,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Interactive Actions",
       "Incident Alerts"
     ],
-    "icon": "MessageCircle",
+    "icon": "/addons-icons/Discord.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -310,7 +310,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Globe",
+    "icon": "/addons-icons/HubSpot.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -331,7 +331,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/VonageSMS.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -352,7 +352,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/MSG91.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -373,7 +373,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/VonageSMS.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -394,7 +394,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/ClickSend.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -415,7 +415,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "DLT Template Compliance",
       "Delivery Receipts"
     ],
-    "icon": "PhoneCall",
+    "icon": "/addons-icons/BulkSMS.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -436,7 +436,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Candidate Interview Invites",
       "Calendar Coordination"
     ],
-    "icon": "Video",
+    "icon": "/addons-icons/GoogleMeet.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -457,7 +457,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Calendar Event Sync",
       "Drive Attachment Storage"
     ],
-    "icon": "Briefcase",
+    "icon": "/addons-icons/GoogleDocs.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -478,7 +478,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Candidate Interview Invites",
       "Calendar Coordination"
     ],
-    "icon": "Video",
+    "icon": "/addons-icons/ZoomMeeting.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -499,7 +499,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Globe",
+    "icon": "/addons-icons/ZohoMeeting.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -520,7 +520,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Candidate Interview Invites",
       "Calendar Coordination"
     ],
-    "icon": "Video",
+    "icon": "/addons-icons/LivestormMeeting.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -541,7 +541,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bounce & Complaint Handling",
       "DKIM/SPF Validation"
     ],
-    "icon": "Mail",
+    "icon": "/addons-icons/Fast2SMS.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -583,7 +583,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Leave Auto-blocking",
       "Outlook & Google Support"
     ],
-    "icon": "Calendar",
+    "icon": "/addons-icons/OutlookCalendar.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -604,7 +604,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bi-directional Webhooks",
       "Batch Action Handlers"
     ],
-    "icon": "Network",
+    "icon": "/addons-icons/Zapier.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -625,7 +625,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bi-directional Webhooks",
       "Batch Action Handlers"
     ],
-    "icon": "Network",
+    "icon": "/addons-icons/Make.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -646,7 +646,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "HMAC-SHA256 Signing",
       "Automatic Exponential Backoff"
     ],
-    "icon": "Webhook",
+    "icon": "/addons-icons/Webhook.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -667,7 +667,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bi-directional Webhooks",
       "Batch Action Handlers"
     ],
-    "icon": "Network",
+    "icon": "/addons-icons/n8n.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -688,7 +688,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/Indiamart.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -709,7 +709,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/Sendinblue.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -730,7 +730,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/OneNote.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -751,7 +751,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Priority Mapping",
       "Status Transitions"
     ],
-    "icon": "CheckSquare",
+    "icon": "/addons-icons/Trello.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -772,7 +772,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/MicrosoftToDo.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -793,7 +793,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Priority Mapping",
       "Status Transitions"
     ],
-    "icon": "CheckSquare",
+    "icon": "/addons-icons/Jira.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -814,7 +814,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Portal Traffic Metrics",
       "Conversion Funnels"
     ],
-    "icon": "TrendingUp",
+    "icon": "/addons-icons/GoogleAnalytics.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -835,7 +835,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/GoogleSlides.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -856,7 +856,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/WHMCS.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -877,7 +877,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/GoogleForm.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -898,7 +898,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Plug",
+    "icon": "/addons-icons/GoogleWallet.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -919,7 +919,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated GST Invoicing",
       "Customer Ledger Mapping"
     ],
-    "icon": "ShoppingBag",
+    "icon": "/addons-icons/WordpressWoocommerce.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -940,7 +940,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Inventory Restock Alerts",
       "Multi-currency Support"
     ],
-    "icon": "Store",
+    "icon": "/addons-icons/ShopifySync.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -961,7 +961,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Send",
+    "icon": "/addons-icons/Mailchimp.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -982,7 +982,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Send",
+    "icon": "/addons-icons/SalesForce.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1003,7 +1003,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Quotation to Invoice Flow",
       "Credit Note Adjustments"
     ],
-    "icon": "Receipt",
+    "icon": "/addons-icons/Pipedrive.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1024,7 +1024,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Send",
+    "icon": "/addons-icons/Mailchimp.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1108,7 +1108,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Send",
+    "icon": "/addons-icons/FindGoogleLeads.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1129,7 +1129,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Version Control",
       "Audit Access Logs"
     ],
-    "icon": "Folder",
+    "icon": "/addons-icons/Dropbox.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1255,7 +1255,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Version Control",
       "Audit Access Logs"
     ],
-    "icon": "Folder",
+    "icon": "/addons-icons/OneDrive.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1276,7 +1276,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Version Control",
       "Audit Access Logs"
     ],
-    "icon": "Folder",
+    "icon": "/addons-icons/Box.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1297,7 +1297,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "FileCode",
+    "icon": "/addons-icons/Spreadsheet.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1402,7 +1402,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "FileCode",
+    "icon": "/addons-icons/McKinseyModel.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1423,7 +1423,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Impact Scoring 1-5",
       "Executive PDF Summary"
     ],
-    "icon": "Compass",
+    "icon": "/addons-icons/SWOTAnalysisModel.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1444,7 +1444,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Impact Scoring 1-5",
       "Executive PDF Summary"
     ],
-    "icon": "Compass",
+    "icon": "/addons-icons/PESTAnalysisModel.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1465,7 +1465,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Impact Scoring 1-5",
       "Executive PDF Summary"
     ],
-    "icon": "Compass",
+    "icon": "/addons-icons/PESTELAnalysisModel.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1486,7 +1486,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Impact Scoring 1-5",
       "Executive PDF Summary"
     ],
-    "icon": "Compass",
+    "icon": "/addons-icons/PortersFiveForcesModel.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1507,7 +1507,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "FileCode",
+    "icon": "/addons-icons/Zendesk.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1528,7 +1528,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Version Control",
       "Audit Access Logs"
     ],
-    "icon": "Folder",
+    "icon": "/addons-icons/GoogleDocs.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -1549,7 +1549,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "FileCode",
+    "icon": "/addons-icons/GoogleDocs.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1591,7 +1591,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Customer Ledger Matching",
       "Tax Rate Normalization"
     ],
-    "icon": "BookOpen",
+    "icon": "/addons-icons/QuickBooks.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1612,7 +1612,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Customer Ledger Matching",
       "Tax Rate Normalization"
     ],
-    "icon": "BookOpen",
+    "icon": "/addons-icons/Sage.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1633,7 +1633,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Customer Ledger Matching",
       "Tax Rate Normalization"
     ],
-    "icon": "BookOpen",
+    "icon": "/addons-icons/Xero.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1801,7 +1801,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bank Feed Ingestion",
       "Government Portal Relay"
     ],
-    "icon": "ShieldCheck",
+    "icon": "/addons-icons/Plaid.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -1822,7 +1822,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Bank Feed Ingestion",
       "Government Portal Relay"
     ],
-    "icon": "ShieldCheck",
+    "icon": "/addons-icons/Zatca.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2158,7 +2158,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Sliders",
+    "icon": "/addons-icons/OutlookMail.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2179,7 +2179,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Sliders",
+    "icon": "/addons-icons/OutlookMail.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2200,7 +2200,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Sliders",
+    "icon": "/addons-icons/CallHub.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2326,7 +2326,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Conditional Branching",
       "Terminal Triggers"
     ],
-    "icon": "GitBranch",
+    "icon": "/addons-icons/PabblyConnect.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2368,7 +2368,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Priority Flags",
       "Checklist Progress"
     ],
-    "icon": "CheckSquare",
+    "icon": "/addons-icons/ToDo.png",
     "featured": false,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2389,7 +2389,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Sliders",
+    "icon": "/addons-icons/WherebyMeeting.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2452,7 +2452,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "SLA Response Tracking",
       "Email Piping"
     ],
-    "icon": "LifeBuoy",
+    "icon": "/addons-icons/HubspotSupportTicket.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2515,7 +2515,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Audit Logging",
       "Automated Synchronization"
     ],
-    "icon": "Navigation",
+    "icon": "/addons-icons/AsanaProjectManagement.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2641,7 +2641,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Dry-run Validation",
       "Automated S3 Archival"
     ],
-    "icon": "HardDrive",
+    "icon": "/addons-icons/GoogleDrive.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2662,7 +2662,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "8 Single-use Backup Codes",
       "Enforced Tenant Policy"
     ],
-    "icon": "Key",
+    "icon": "/addons-icons/GoogleAuthentication.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2683,7 +2683,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Replay Attack Prevention",
       "Login Brute-force Shield"
     ],
-    "icon": "ShieldCheck",
+    "icon": "/addons-icons/GoogleCaptcha.png",
     "featured": true,
     "status": "active",
     "developer": "Master ERP Core Team",
@@ -2704,7 +2704,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/Signinwithgithub.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2725,7 +2725,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/SignInWithFacebook.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2746,7 +2746,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/SignInWithGoogle.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2767,7 +2767,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/SignInWithLinkedIn.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2788,7 +2788,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/SignInWithSlack.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",
@@ -2809,7 +2809,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
       "Automated User Provisioning",
       "Domain Restrictions"
     ],
-    "icon": "Lock",
+    "icon": "/addons-icons/SignInWithMicrosoft.png",
     "featured": false,
     "status": "available",
     "developer": "Master ERP Core Team",

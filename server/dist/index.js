@@ -307,6 +307,17 @@ try {
 catch (e) {
     console.warn("⚠️ [UPLOADS] Read-only or inaccessible uploads directory:", e?.message);
 }
+// Static route for Addon Icons
+const addonsIconsDir = fs_1.default.existsSync(path_1.default.resolve(__dirname, "../public/addons-icons"))
+    ? path_1.default.resolve(__dirname, "../public/addons-icons")
+    : path_1.default.resolve(__dirname, "../../public/addons-icons");
+if (fs_1.default.existsSync(addonsIconsDir)) {
+    app.use(["/addons-icons", "/api/addons-icons"], express_1.default.static(addonsIconsDir, {
+        maxAge: "30d",
+        etag: true,
+        lastModified: true,
+    }));
+}
 app.use(["/uploads", "/api/uploads"], uploads_security_middleware_1.uploadsSecurityMiddleware, express_1.default.static(uploadsDir, {
     maxAge: "7d",
     etag: true,

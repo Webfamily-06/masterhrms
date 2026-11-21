@@ -129,18 +129,26 @@ function AddonIconRenderer({
   category: string;
   className?: string;
 }) {
-  // 1. If stored image in local storage or URL, render real image tag
+  let resolvedIcon = icon;
+  if (resolvedIcon && !resolvedIcon.startsWith("/") && !resolvedIcon.startsWith("http") && !resolvedIcon.startsWith("data:")) {
+    if (resolvedIcon.endsWith(".png") || resolvedIcon.endsWith(".svg") || resolvedIcon.endsWith(".jpg") || resolvedIcon.endsWith(".webp")) {
+      resolvedIcon = `/addons-icons/${resolvedIcon}`;
+    }
+  }
+
+  // 1. If stored image in local storage or URL or static addons-icons, render real image tag
   if (
-    icon &&
-    (icon.startsWith("http://") ||
-      icon.startsWith("https://") ||
-      icon.startsWith("/uploads/") ||
-      icon.startsWith("/") ||
-      icon.startsWith("data:"))
+    resolvedIcon &&
+    (resolvedIcon.startsWith("http://") ||
+      resolvedIcon.startsWith("https://") ||
+      resolvedIcon.startsWith("/uploads/") ||
+      resolvedIcon.startsWith("/addons-icons/") ||
+      resolvedIcon.startsWith("/") ||
+      resolvedIcon.startsWith("data:"))
   ) {
     return (
       <img
-        src={icon}
+        src={resolvedIcon}
         alt={name}
         className="size-11 object-contain rounded-xl"
         loading="lazy"
