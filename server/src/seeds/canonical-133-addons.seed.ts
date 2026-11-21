@@ -2654,7 +2654,7 @@ export const CANONICAL_133_ADDONS: CanonicalAddonDefinition[] = [
     "name": "Google Authentication (2FA)",
     "slug": "two-factor-auth",
     "category": "Security",
-    "priceMonthly": 49,
+    "priceMonthly": 0,
     "tagline": "Two-factor TOTP authentication with backup recovery codes",
     "description": "Integrate and operate Google Authentication (2FA) within your Master ERP organization. Provides seamless data synchronization, granular RBAC access controls, and automated reporting.",
     "features": [

@@ -270,6 +270,17 @@ export async function checkTenantEntitlement(
 
   // If this is an optional add-on and no active TenantAddon row exists, it is not installed
   if (type === "addon") {
+    // Two-factor authentication is a completely free system add-on available to all workspaces
+    if (normalized === "two-factor-auth" || normalized === "2fa") {
+      return {
+        entitled: true,
+        type: "addon",
+        key,
+        source: "free_system_addon",
+        status: "active",
+      };
+    }
+
     return {
       entitled: false,
       type: "addon",

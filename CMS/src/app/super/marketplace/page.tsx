@@ -1457,7 +1457,8 @@ function MarketplaceAdmin() {
               {(() => {
                 const ent = viewingAddon ? entitlements[viewingAddon.slug] : null;
                 const isInstalled = Boolean(ent?.isInstalled || ent?.isActive);
-                const price = Number(viewingAddon.price_monthly ?? 0);
+                const isAlwaysFree = viewingAddon?.slug === "two-factor-auth" || viewingAddon?.slug === "2fa";
+                const price = isAlwaysFree ? 0 : Number(viewingAddon.price_monthly ?? 0);
 
                 if (isInstalled) {
                   const isAddonDisabled = ent?.status === "disabled";
@@ -2354,7 +2355,7 @@ function AddonCard({
     entitlement?.isPurchased
   );
   const isAddonDisabled = entitlement?.status === "disabled";
-  const isFree = Number(addon.price_monthly) <= 0;
+  const isFree = Number(addon.price_monthly) <= 0 || addon.slug === "two-factor-auth" || addon.slug === "2fa";
   const priceDisplay = isFree
     ? "Free"
     : `${formatSystemAmount(Number(addon.price_monthly), activeCurrencyConfig)} / mo`;
