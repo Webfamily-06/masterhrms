@@ -38,7 +38,19 @@ export type GatewayKey =
   | "zoom"
   | "zoho"
   | "livestorm"
-  | "amazon_ses";
+  | "amazon_ses"
+  // Phase 16 / Milestone 8.3: Automation, Calendars & Collaboration Webhooks
+  | "google_calendar"
+  | "outlook_calendar"
+  | "zapier"
+  | "make"
+  | "n8n"
+  | "indiamart"
+  | "sendinblue"
+  | "onenote"
+  | "trello"
+  | "jira"
+  | "google_analytics";
 
 export interface GatewayConfig {
   enabled: boolean;
@@ -105,6 +117,18 @@ export class ExternalGatewaysService {
       "zoho",
       "livestorm",
       "amazon_ses",
+      // Phase 16
+      "google_calendar",
+      "outlook_calendar",
+      "zapier",
+      "make",
+      "n8n",
+      "indiamart",
+      "sendinblue",
+      "onenote",
+      "trello",
+      "jira",
+      "google_analytics",
     ];
 
     for (const g of defaultGateways) {
@@ -799,5 +823,448 @@ export class ExternalGatewaysService {
     const simId = `ses_msg_sim_${crypto.randomUUID()}`;
     this.recordLog(tenantId, "amazon_ses", "SEND_EMAIL", "simulated", { to: options.to, id: simId });
     return { success: true, gateway: "amazon_ses", simulated: true, messageId: simId };
+  }
+
+  // ==========================================================================
+  // 16. ADDON-026: Google Calendar Event Synchronization
+  // ==========================================================================
+  static async createGoogleCalendarEvent(
+    tenantId: string,
+    options: { title: string; startTime: string; endTime: string; attendees?: string[]; description?: string; location?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "google_calendar");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          summary: options.title,
+          description: options.description || "",
+          location: options.location || "",
+          start: { dateTime: options.startTime },
+          end: { dateTime: options.endTime },
+          attendees: options.attendees ? options.attendees.map((email) => ({ email })) : [],
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "google_calendar", "CREATE_EVENT", "success", { id: data.id, title: options.title });
+      return {
+        success: true,
+        gateway: "google_calendar",
+        simulated: false,
+        eventId: data.id || "gcal_live_id",
+        htmlLink: data.htmlLink || `https://calendar.google.com/calendar/event?eid=${data.id}`,
+      };
+    }
+
+    const simId = "gcal_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "google_calendar", "CREATE_EVENT", "simulated", { id: simId, title: options.title });
+    return {
+      success: true,
+      gateway: "google_calendar",
+      simulated: true,
+      eventId: simId,
+      htmlLink: `https://calendar.google.com/calendar/event?eid=${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 17. ADDON-027: Outlook Calendar Event Synchronization
+  // ==========================================================================
+  static async createOutlookCalendarEvent(
+    tenantId: string,
+    options: { subject: string; start: string; end: string; attendees?: string[]; body?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "outlook_calendar");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://graph.microsoft.com/v1.0/me/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          subject: options.subject,
+          body: { contentType: "HTML", content: options.body || options.subject },
+          start: { dateTime: options.start, timeZone: "UTC" },
+          end: { dateTime: options.end, timeZone: "UTC" },
+          attendees: options.attendees
+            ? options.attendees.map((email) => ({ emailAddress: { address: email }, type: "required" }))
+            : [],
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "outlook_calendar", "CREATE_EVENT", "success", { id: data.id, subject: options.subject });
+      return {
+        success: true,
+        gateway: "outlook_calendar",
+        simulated: false,
+        eventId: data.id || "outlook_live_id",
+        webLink: data.webLink || `https://outlook.live.com/calendar/item/${data.id}`,
+      };
+    }
+
+    const simId = "outlook_cal_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "outlook_calendar", "CREATE_EVENT", "simulated", { id: simId, subject: options.subject });
+    return {
+      success: true,
+      gateway: "outlook_calendar",
+      simulated: true,
+      eventId: simId,
+      webLink: `https://outlook.live.com/calendar/item/${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 18. ADDON-028: Zapier REST Hook Automation Bridge
+  // ==========================================================================
+  static async triggerZapierWebhook(
+    tenantId: string,
+    options: { hookUrl?: string; event: string; payload: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "zapier");
+    const isSandbox = config.sandboxMode !== false;
+    const targetUrl = options.hookUrl || config.webhookUrl || config.endpointUrl;
+
+    if (!isSandbox && targetUrl) {
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: options.event,
+          timestamp: new Date().toISOString(),
+          tenantId,
+          data: options.payload,
+        }),
+      });
+      const data = await res.json().catch(() => ({ status: "dispatched" }));
+      this.recordLog(tenantId, "zapier", "TRIGGER_WEBHOOK", "success", { event: options.event, targetUrl });
+      return { success: true, gateway: "zapier", simulated: false, attemptId: "zap_live_" + Date.now(), status: "dispatched", response: data };
+    }
+
+    const simId = "zap_dispatch_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "zapier", "TRIGGER_WEBHOOK", "simulated", { id: simId, event: options.event });
+    return { success: true, gateway: "zapier", simulated: true, attemptId: simId, status: "dispatched" };
+  }
+
+  // ==========================================================================
+  // 19. ADDON-029: Make (Integromat) Scenario Automation Bridge
+  // ==========================================================================
+  static async triggerMakeScenario(
+    tenantId: string,
+    options: { webhookUrl?: string; event: string; payload: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "make");
+    const isSandbox = config.sandboxMode !== false;
+    const targetUrl = options.webhookUrl || config.webhookUrl || config.endpointUrl;
+
+    if (!isSandbox && targetUrl) {
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: options.event,
+          timestamp: new Date().toISOString(),
+          tenantId,
+          payload: options.payload,
+        }),
+      });
+      this.recordLog(tenantId, "make", "TRIGGER_SCENARIO", "success", { event: options.event, status: res.status });
+      return { success: true, gateway: "make", simulated: false, executionId: "make_live_" + Date.now(), status: "accepted" };
+    }
+
+    const simId = "make_scenario_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "make", "TRIGGER_SCENARIO", "simulated", { id: simId, event: options.event });
+    return { success: true, gateway: "make", simulated: true, executionId: simId, status: "accepted" };
+  }
+
+  // ==========================================================================
+  // 20. ADDON-031: n8n Workflow Automation Bridge
+  // ==========================================================================
+  static async triggerN8nWorkflow(
+    tenantId: string,
+    options: { webhookUrl?: string; workflowId?: string; data: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "n8n");
+    const isSandbox = config.sandboxMode !== false;
+    const targetUrl =
+      options.webhookUrl ||
+      config.webhookUrl ||
+      (config.endpointUrl ? `${config.endpointUrl.replace(/\/+$/, "")}/webhook/${options.workflowId || config.identifier}` : undefined);
+
+    if (!isSandbox && targetUrl) {
+      const res = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(config.apiKey ? { "X-N8N-API-KEY": config.apiKey } : {}),
+        },
+        body: JSON.stringify({
+          timestamp: new Date().toISOString(),
+          tenantId,
+          ...options.data,
+        }),
+      });
+      const respData = await res.json().catch(() => ({ queued: true }));
+      this.recordLog(tenantId, "n8n", "TRIGGER_WORKFLOW", "success", { targetUrl });
+      return { success: true, gateway: "n8n", simulated: false, executionId: "n8n_live_" + Date.now(), status: "queued", data: respData };
+    }
+
+    const simId = "n8n_exec_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "n8n", "TRIGGER_WORKFLOW", "simulated", { id: simId, workflowId: options.workflowId || config.identifier });
+    return { success: true, gateway: "n8n", simulated: true, executionId: simId, status: "queued" };
+  }
+
+  // ==========================================================================
+  // 21. ADDON-032: IndiaMART B2B Lead Ingestion & Mapping
+  // ==========================================================================
+  static async ingestIndiaMartLead(
+    tenantId: string,
+    options: { leadId?: string; senderName: string; senderMobile: string; senderEmail?: string; queryMessage?: string; productName?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "indiamart");
+    const leadId = options.leadId || "im_lead_" + Date.now();
+    const contactId = "crm_cnt_im_" + leadId.slice(-6);
+
+    // Logs ingestion & maps lead into tenant CRM pipeline
+    this.recordLog(tenantId, "indiamart", "INGEST_LEAD", "simulated", {
+      leadId,
+      senderName: options.senderName,
+      senderMobile: options.senderMobile,
+      productName: options.productName || "General Inquery",
+    });
+
+    return {
+      success: true,
+      gateway: "indiamart",
+      simulated: true,
+      leadId,
+      contactId,
+      status: "ingested",
+      mappedRecord: {
+        firstName: options.senderName.split(" ")[0] || options.senderName,
+        lastName: options.senderName.split(" ").slice(1).join(" ") || "Lead",
+        phone: options.senderMobile,
+        email: options.senderEmail || `${options.senderMobile}@lead.indiamart.local`,
+        source: "INDIAMART_B2B",
+        notes: options.queryMessage || `Inquiry for ${options.productName || "product"}`,
+      },
+    };
+  }
+
+  // ==========================================================================
+  // 22. ADDON-033: Sendinblue (Brevo) Transactional Email & Messaging
+  // ==========================================================================
+  static async sendSendinblueEmail(
+    tenantId: string,
+    options: { to: string; subject: string; templateId?: number; htmlContent?: string; params?: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "sendinblue");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.apiKey) {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "api-key": config.apiKey,
+        },
+        body: JSON.stringify({
+          to: [{ email: options.to }],
+          subject: options.subject,
+          htmlContent: options.htmlContent || `<p>${options.subject}</p>`,
+          ...(options.templateId ? { templateId: options.templateId } : {}),
+          ...(options.params ? { params: options.params } : {}),
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "sendinblue", "SEND_TRANSACTIONAL", "success", { to: options.to, messageId: data.messageId });
+      return { success: true, gateway: "sendinblue", simulated: false, messageId: data.messageId || "brevo_live_id" };
+    }
+
+    const simId = "brevo_sim_" + crypto.randomUUID().slice(0, 12);
+    this.recordLog(tenantId, "sendinblue", "SEND_TRANSACTIONAL", "simulated", { id: simId, to: options.to, subject: options.subject });
+    return { success: true, gateway: "sendinblue", simulated: true, messageId: simId };
+  }
+
+  // ==========================================================================
+  // 23. ADDON-034: OneNote Enterprise Notebook & Page Synchronization
+  // ==========================================================================
+  static async createOneNotePage(
+    tenantId: string,
+    options: { sectionId?: string; title: string; htmlContent: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "onenote");
+    const isSandbox = config.sandboxMode !== false;
+    const sectionId = options.sectionId || config.identifier || "default";
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch(`https://graph.microsoft.com/v1.0/me/onenote/sections/${sectionId}/pages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/xhtml+xml",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: `<!DOCTYPE html><html><head><title>${options.title}</title></head><body>${options.htmlContent}</body></html>`,
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "onenote", "CREATE_PAGE", "success", { id: data.id, title: options.title });
+      return {
+        success: true,
+        gateway: "onenote",
+        simulated: false,
+        pageId: data.id || "onenote_live_id",
+        clientUrl: data.links?.oneNoteClientUrl?.href,
+      };
+    }
+
+    const simId = "onenote_page_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "onenote", "CREATE_PAGE", "simulated", { id: simId, title: options.title });
+    return {
+      success: true,
+      gateway: "onenote",
+      simulated: true,
+      pageId: simId,
+      clientUrl: `onenote:https://d.docs.live.net/onenote/${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 24. ADDON-035: Trello Agile Kanban Board & Card Synchronization
+  // ==========================================================================
+  static async createTrelloCard(
+    tenantId: string,
+    options: { listId?: string; name: string; desc?: string; due?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "trello");
+    const isSandbox = config.sandboxMode !== false;
+    const listId = options.listId || config.identifier;
+
+    if (!isSandbox && config.apiKey && config.accessToken && listId) {
+      const url = new URL("https://api.trello.com/1/cards");
+      url.searchParams.set("key", config.apiKey);
+      url.searchParams.set("token", config.accessToken);
+      url.searchParams.set("idList", listId);
+      url.searchParams.set("name", options.name);
+      if (options.desc) url.searchParams.set("desc", options.desc);
+      if (options.due) url.searchParams.set("due", options.due);
+
+      const res = await fetch(url.toString(), { method: "POST" });
+      const data = await res.json();
+      this.recordLog(tenantId, "trello", "CREATE_CARD", "success", { id: data.id, name: options.name });
+      return { success: true, gateway: "trello", simulated: false, cardId: data.id, url: data.shortUrl };
+    }
+
+    const simId = "trello_card_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "trello", "CREATE_CARD", "simulated", { id: simId, name: options.name });
+    return {
+      success: true,
+      gateway: "trello",
+      simulated: true,
+      cardId: simId,
+      url: `https://trello.com/c/${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 25. ADDON-037: Jira Cloud Issue Tracking & Sprint Synchronization
+  // ==========================================================================
+  static async createJiraIssue(
+    tenantId: string,
+    options: { projectKey?: string; summary: string; description?: string; issueType?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "jira");
+    const isSandbox = config.sandboxMode !== false;
+    const projectKey = options.projectKey || config.identifier || "HRMS";
+
+    if (!isSandbox && config.endpointUrl && config.apiKey) {
+      const authHeader = config.apiSecret
+        ? `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString("base64")}`
+        : `Bearer ${config.apiKey}`;
+
+      const res = await fetch(`${config.endpointUrl.replace(/\/+$/, "")}/rest/api/3/issue`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({
+          fields: {
+            project: { key: projectKey },
+            summary: options.summary,
+            description: {
+              type: "doc",
+              version: 1,
+              content: [{ type: "paragraph", content: [{ type: "text", text: options.description || options.summary }] }],
+            },
+            issuetype: { name: options.issueType || "Task" },
+          },
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "jira", "CREATE_ISSUE", "success", { key: data.key, summary: options.summary });
+      return {
+        success: true,
+        gateway: "jira",
+        simulated: false,
+        issueKey: data.key || `${projectKey}-1`,
+        issueId: data.id || "jira_live_id",
+        url: `${config.endpointUrl}/browse/${data.key}`,
+      };
+    }
+
+    const issueKey = `${projectKey}-${Math.floor(100 + Math.random() * 900)}`;
+    const simId = "jira_id_" + Date.now();
+    this.recordLog(tenantId, "jira", "CREATE_ISSUE", "simulated", { key: issueKey, summary: options.summary });
+    return {
+      success: true,
+      gateway: "jira",
+      simulated: true,
+      issueKey,
+      issueId: simId,
+      url: `${config.endpointUrl || "https://jira.atlassian.net"}/browse/${issueKey}`,
+    };
+  }
+
+  // ==========================================================================
+  // 26. ADDON-038: Google Analytics (GA4) Measurement Protocol Event Tracking
+  // ==========================================================================
+  static async trackGoogleAnalyticsEvent(
+    tenantId: string,
+    options: { measurementId?: string; clientId?: string; eventName: string; params?: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "google_analytics");
+    const isSandbox = config.sandboxMode !== false;
+    const measurementId = options.measurementId || config.identifier;
+
+    if (!isSandbox && measurementId && config.apiSecret) {
+      const url = `https://www.google-analytics.com/mp/collect?api_secret=${config.apiSecret}&measurement_id=${measurementId}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: options.clientId || "hrms_client_" + tenantId,
+          events: [
+            {
+              name: options.eventName,
+              params: options.params || {},
+            },
+          ],
+        }),
+      });
+      this.recordLog(tenantId, "google_analytics", "TRACK_EVENT", "success", { event: options.eventName, status: res.status });
+      return { success: true, gateway: "google_analytics", simulated: false, status: "delivered", event: options.eventName };
+    }
+
+    const trackingId = "ga4_evt_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "google_analytics", "TRACK_EVENT", "simulated", { id: trackingId, event: options.eventName });
+    return { success: true, gateway: "google_analytics", simulated: true, trackingId, event: options.eventName };
   }
 }

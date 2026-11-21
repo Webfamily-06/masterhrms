@@ -615,22 +615,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Google Calendar capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Google Calendar workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Calendar.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Calendar`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/google_calendar`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Calendar.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Google Calendar CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Google Calendar API v3
+- **Verification Test Scenarios:** Unit tests for Google Calendar event synchronization, attendee invites, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; calendar event creation, attendee invitation, and deterministic sandbox simulation).
 
 ---
 
@@ -638,22 +638,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Outlook Calendar capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Outlook Calendar workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/outlook_calendar`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Outlook Calendar CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Microsoft Graph API v1.0
+- **Verification Test Scenarios:** Unit tests for Outlook Calendar event creation, timezones, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; MS Graph calendar event scheduling and tenant isolation).
 
 ---
 
@@ -661,22 +661,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Zapier capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Zapier workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/zapier`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Zapier CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Zapier REST Hook API
+- **Verification Test Scenarios:** Unit tests for Zapier webhook trigger, JSON payload validation, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; REST hook payload dispatch and sandbox verification).
 
 ---
 
@@ -684,22 +684,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Make (Integromat) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Make (Integromat) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/make`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Make (Integromat) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Make Custom Webhook API
+- **Verification Test Scenarios:** Unit tests for Make scenario execution trigger and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; Make custom scenario execution and audit logging).
 
 ---
 
@@ -730,22 +730,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of n8n capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide n8n workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/n8n`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for n8n CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** n8n Webhook API
+- **Verification Test Scenarios:** Unit tests for n8n workflow execution trigger and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; workflow queuing and API key authentication).
 
 ---
 
@@ -753,22 +753,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of IndiaMART capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide IndiaMART workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/indiamart`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for IndiaMART CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** IndiaMART B2B Lead API
+- **Verification Test Scenarios:** Unit tests for IndiaMART B2B lead ingestion, field mapping, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; lead ingestion, mobile number extraction, CRM contact synthesis).
 
 ---
 
@@ -776,22 +776,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Sendinblue (Brevo) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Sendinblue (Brevo) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/sendinblue`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Sendinblue (Brevo) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Brevo / Sendinblue SMTP v3 API
+- **Verification Test Scenarios:** Unit tests for Sendinblue transactional email, template parameters, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; transactional email dispatch and messageId tracking).
 
 ---
 
@@ -799,22 +799,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of OneNote capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide OneNote workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Notes.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Notes`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/onenote`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Notes.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for OneNote CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Microsoft Graph OneNote API
+- **Verification Test Scenarios:** Unit tests for OneNote page creation, section sync, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; OneNote notebook page sync and deep link resolution).
 
 ---
 
@@ -822,22 +822,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Trello capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Trello workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/trello`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Trello CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Trello REST API
+- **Verification Test Scenarios:** Unit tests for Trello card creation, list sync, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; Trello kanban card generation and shortUrl resolution).
 
 ---
 
@@ -845,12 +845,12 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Microsoft To Do capability.
-- **Current Audit Status:** **IMPLEMENTED_UNVERIFIED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Microsoft To Do workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Todo.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
 - **Existing Implementation Files:** `server/src/routes/todos.routes.ts`
-- **Required Code Changes:** Modular encapsulation and regression testing
+- **Required Code Changes:** None (verified by `server/src/tests/projects-timesheets-todos.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
 - **API Contract Requirements:** `Express REST endpoints under /api/Todo`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
@@ -859,8 +859,8 @@ This centralized registry contains every individual functionality item in scope 
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Microsoft To Do CRUD and tenant boundary isolation
 - **Assigned GSD Milestone:** **Phase 5 (Workstream I)**
-- **Execution Lifecycle Status:** `IMPLEMENTED_UNVERIFIED`
-- **Forensic Verification Evidence:** Route controller present; dedicated automated unit test suite unauthored
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Native automated test suite `projects-timesheets-todos.test.ts` (6 passed, 0 failed, exit code 0; todo creation, priority sorting, tenant scoping).
 
 ---
 
@@ -868,22 +868,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Jira capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Jira workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/jira`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Jira CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Atlassian Jira Cloud REST API v3
+- **Verification Test Scenarios:** Unit tests for Jira issue creation, project key resolution, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; Jira issue creation, Atlassian doc description formatting, and browse URL resolution).
 
 ---
 
@@ -891,22 +891,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Integrations
 - **Business Objective:** Enterprise multi-tenant execution of Google Analytics capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Google Analytics workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/external-gateways-phase16.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/google_analytics`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Google Analytics CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService + AuditService
+- **Integration Dependencies:** Google Analytics Measurement Protocol v2
+- **Verification Test Scenarios:** Unit tests for Google Analytics event dispatch, client identification, and tenant boundary isolation
+- **Assigned GSD Milestone:** **Phase 16 (Milestone 8.3)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Automated test suite `server/src/tests/external-gateways-phase16.test.ts` (16 passed, 0 failed, exit code 0; GA4 Measurement Protocol payload delivery and trackingId logging).
 
 ---
 

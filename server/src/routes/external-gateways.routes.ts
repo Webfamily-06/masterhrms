@@ -42,6 +42,18 @@ const VALID_GATEWAYS = new Set<GatewayKey>([
   "zoho",
   "livestorm",
   "amazon_ses",
+  // Phase 16: Automation, Calendars & Collaboration Webhooks
+  "google_calendar",
+  "outlook_calendar",
+  "zapier",
+  "make",
+  "n8n",
+  "indiamart",
+  "sendinblue",
+  "onenote",
+  "trello",
+  "jira",
+  "google_analytics",
 ]);
 
 function validateGatewayParam(gateway: string): GatewayKey | null {
@@ -168,6 +180,40 @@ externalGatewaysRouter.post("/dispatch/:gateway", requireAuth, async (req: AuthR
         break;
       case "amazon_ses":
         result = await ExternalGatewaysService.sendAmazonSesEmail(tenantId, req.body);
+        break;
+      // Phase 16: Automation, Calendars & Collaboration Webhooks
+      case "google_calendar":
+        result = await ExternalGatewaysService.createGoogleCalendarEvent(tenantId, req.body);
+        break;
+      case "outlook_calendar":
+        result = await ExternalGatewaysService.createOutlookCalendarEvent(tenantId, req.body);
+        break;
+      case "zapier":
+        result = await ExternalGatewaysService.triggerZapierWebhook(tenantId, req.body);
+        break;
+      case "make":
+        result = await ExternalGatewaysService.triggerMakeScenario(tenantId, req.body);
+        break;
+      case "n8n":
+        result = await ExternalGatewaysService.triggerN8nWorkflow(tenantId, req.body);
+        break;
+      case "indiamart":
+        result = await ExternalGatewaysService.ingestIndiaMartLead(tenantId, req.body);
+        break;
+      case "sendinblue":
+        result = await ExternalGatewaysService.sendSendinblueEmail(tenantId, req.body);
+        break;
+      case "onenote":
+        result = await ExternalGatewaysService.createOneNotePage(tenantId, req.body);
+        break;
+      case "trello":
+        result = await ExternalGatewaysService.createTrelloCard(tenantId, req.body);
+        break;
+      case "jira":
+        result = await ExternalGatewaysService.createJiraIssue(tenantId, req.body);
+        break;
+      case "google_analytics":
+        result = await ExternalGatewaysService.trackGoogleAnalyticsEvent(tenantId, req.body);
         break;
       default:
         return res.status(400).json({ error: `No handler implemented for gateway ${gateway}` });

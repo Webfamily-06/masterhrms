@@ -274,4 +274,56 @@ Plans:
 Plans:
 - [x] 14-01: Implement, secure, and verify all 6 Social OAuth Identity Federation add-ons (Milestone 8.1).
 
+---
+
+### Phase 15: Social Channels, Telephony & Video Meeting Gateways (Milestone 8.2)
+**Goal**: Implement, configure, and empirically verify the 15 social communication, telephony, and video meeting gateways: Instagram (ADDON-006), Facebook (ADDON-007), YouTube (ADDON-009), Telegram (ADDON-010), Slack Channel (ADDON-012), Discord (ADDON-013), HubSpot (ADDON-014), Nexmo SMS (ADDON-015), Vonage (ADDON-017), ClickSend SMS (ADDON-018), Google Meet (ADDON-020), Zoom (ADDON-022), Zoho (ADDON-023), Livestorm (ADDON-024), and Amazon SES (ADDON-025), promoting all 15 items to `VERIFIED`.
+**Depends on**: Phase 14
+**Success Criteria**:
+  1. Multi-tenant credentials encrypted via `SettingsService` under `integration.connector.external-gateways`.
+  2. Deterministic mock sandbox engine ensures full offline execution and safe automated verification.
+  3. Live HTTP dispatch supports production integration.
+  4. In-memory circular buffer logs all dispatch attempts.
+  5. All 17 tests in `server/src/tests/external-gateways.test.ts` pass with exit code 0.
+  6. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 15-01: Implement unified external gateways service, REST routes, and test suite for all 15 gateways (Milestone 8.2).
+
+---
+
+### Phase 16: Automation, Calendars & Collaboration Webhooks (Milestone 8.3)
+**Goal**: Implement, configure, and empirically verify the 11 automation, calendar, and collaboration webhook gateways: Google Calendar (ADDON-026), Outlook Calendar (ADDON-027), Zapier (ADDON-028), Make (ADDON-029), n8n (ADDON-031), IndiaMART (ADDON-032), Sendinblue / Brevo (ADDON-033), OneNote (ADDON-034), Trello (ADDON-035), Jira (ADDON-037), and Google Analytics (ADDON-038), promoting all 11 items to `VERIFIED` and reducing external dependencies to 15.
+**Depends on**: Phase 15
+**Success Criteria**:
+  1. Google & Outlook calendar event scheduling with attendees and deep links verified.
+  2. Zapier, Make, and n8n webhook automation triggers with payload dispatch verified.
+  3. IndiaMART B2B lead ingestion and automatic CRM contact mapping verified.
+  4. Sendinblue transactional email dispatch with template parameters verified.
+  5. OneNote page synchronization, Trello card creation, and Jira Cloud issue tracking verified.
+  6. GA4 Measurement Protocol v2 server-side event tracking verified.
+  7. All 16 tests in `server/src/tests/external-gateways-phase16.test.ts` pass with exit code 0.
+  8. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 16-01: Implement external automation, calendars & collaboration webhooks suite and automated tests (Milestone 8.3).
+
+---
+
+### Phase 17: Workspace Cloud, E-Commerce & Service Desks (Milestone 8.4)
+**Goal**: Implement, configure, and empirically verify the 8 workspace, e-commerce, and service desk integration modules: Google Slides (ADDON-039), WHMCS (ADDON-040), Google Forms (ADDON-041), Google Wallet (ADDON-042), Mailchimp (ADDON-045), Salesforce (ADDON-046), OneDrive (ADDON-059), and Zendesk (ADDON-071), promoting all 8 items to `VERIFIED`.
+**Depends on**: Phase 16
+
+Plans:
+- [ ] 17-01: Implement workspace cloud, e-commerce & service desk adapters and verify with automated test suite.
+
+---
+
+### Phase 18: Enterprise Finance, Banking & International E-Invoicing (Milestone 8.5)
+**Goal**: Implement, configure, and empirically verify the final 7 enterprise finance, banking, and e-invoicing modules: QuickBooks (ADDON-075), Sage (ADDON-076), Xero (ADDON-077), Plaid (ADDON-085), ZATCA Saudi E-Invoice (ADDON-086), European E-Invoice (ADDON-087), and Outlook Mail (ADDON-103), promoting all 7 items to `VERIFIED` and achieving 100.0% completion across all 197 platform features.
+**Depends on**: Phase 17
+
+Plans:
+- [ ] 18-01: Implement enterprise finance, banking & e-invoicing adapters and verify with automated test suite, achieving 100% GSD completion.
+
 
