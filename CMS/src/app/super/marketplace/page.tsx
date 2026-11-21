@@ -71,6 +71,8 @@ import {
   Receipt,
   Download,
   Building,
+  Power,
+  PowerOff,
 } from "lucide-react";
 import { formatSystemAmount, DEFAULT_CURRENCY_SETTINGS, SystemCurrencySettings } from "@/lib/currency";
 
@@ -427,6 +429,16 @@ function MarketplaceAdmin() {
   const { data: profile } = useCurrentProfile(user);
   const userRoles = profile?.roles || [];
   const isSuperAdmin = userRoles.includes("super_admin");
+  const isTenantPage = typeof window !== "undefined" && window.location.pathname.includes("/tenant");
+  const isTenantView = isTenantPage || !isSuperAdmin;
+
+  const BANK_DETAILS = {
+    bankName: "HDFC Bank Ltd.",
+    accountName: "Master ERP Solutions Pvt. Ltd.",
+    accountNumber: "50200087654321",
+    ifscCode: "HDFC0001234",
+    branch: "Indiranagar, Bangalore",
+  };
 
   // Fetch Tenant Entitlements for live installed status
   const { data: entitlementsData } = useQuery({
@@ -469,6 +481,36 @@ function MarketplaceAdmin() {
     },
     onError: (err: any) => {
       toast.error(err?.message || "Failed to install add-on.");
+    },
+  });
+
+  // Disable Add-on Mutation
+  const disableAddonMutation = useMutation({
+    mutationFn: (addon: Addon) => api.post(`/addons/${addon.slug}/disable`),
+    onSuccess: (_, addon) => {
+      toast.success(`Add-on "${addon.name}" disabled.`);
+      qc.invalidateQueries({ queryKey: ["addons-entitlements"] });
+      qc.invalidateQueries({ queryKey: ["realtime-purchased-addons-v2"] });
+      qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
+      qc.invalidateQueries({ queryKey: ["tenant-billing-invoices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to disable add-on.");
+    },
+  });
+
+  // Enable Add-on Mutation
+  const enableAddonMutation = useMutation({
+    mutationFn: (addon: Addon) => api.post(`/addons/${addon.slug}/enable`),
+    onSuccess: (_, addon) => {
+      toast.success(`Add-on "${addon.name}" enabled.`);
+      qc.invalidateQueries({ queryKey: ["addons-entitlements"] });
+      qc.invalidateQueries({ queryKey: ["realtime-purchased-addons-v2"] });
+      qc.invalidateQueries({ queryKey: ["tenant-addon-entitlements"] });
+      qc.invalidateQueries({ queryKey: ["tenant-billing-invoices"] });
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to enable add-on.");
     },
   });
 
@@ -1079,7 +1121,7 @@ function MarketplaceAdmin() {
               Browse All Add-ons <ArrowRight className="size-4" />
             </Button>
 
-            {!isSuperAdmin && (
+            {isTenantView && (
               <>
                 <Button
                   variant="outline"
@@ -1104,7 +1146,7 @@ function MarketplaceAdmin() {
               </>
             )}
 
-            {isSuperAdmin && (
+            {!isTenantView && isSuperAdmin && (
               <>
                 {/* Sync Canonical 133 Catalog Button */}
                 <Button
@@ -1282,15 +1324,26 @@ function MarketplaceAdmin() {
                           onDelete={() => confirmDeleteAddon(addon)}
                           onInstallFree={() => installFreeMutation.mutate(addon)}
                           onPurchasePaid={() => handleStartPaidCheckout(addon)}
+                          onDisable={() => disableAddonMutation.mutate(addon)}
+                          onEnable={() => enableAddonMutation.mutate(addon)}
                           isInstalling={
                             installFreeMutation.isPending &&
                             installFreeMutation.variables?.id === addon.id
+                          }
+                          isDisabling={
+                            disableAddonMutation.isPending &&
+                            disableAddonMutation.variables?.id === addon.id
+                          }
+                          isEnabling={
+                            enableAddonMutation.isPending &&
+                            enableAddonMutation.variables?.id === addon.id
                           }
                           isToggling={
                             toggleStatusMutation.isPending &&
                             toggleStatusMutation.variables?.id === addon.id
                           }
                           isSuperAdmin={isSuperAdmin}
+                          isTenantView={isTenantView}
                           activeCurrencyConfig={activeCurrencyConfig}
                         />
                       ))}
@@ -1407,12 +1460,15 @@ function MarketplaceAdmin() {
                 const price = Number(viewingAddon.price_monthly ?? 0);
 
                 if (isInstalled) {
+                  const isAddonDisabled = ent?.status === "disabled";
                   return (
                     <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
-                        <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
+                        <CheckCircle2 className={`size-5 shrink-0 ${isAddonDisabled ? "text-amber-600" : "text-emerald-600"}`} />
                         <div>
-                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Installed & Active on Workspace</p>
+                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                            {isAddonDisabled ? "Installed (Disabled)" : "Installed & Active on Workspace"}
+                          </p>
                           <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400">
                             License renewal / expiry:{" "}
                             <strong className="font-mono">
@@ -1427,13 +1483,46 @@ function MarketplaceAdmin() {
                           </p>
                         </div>
                       </div>
-                      {viewingAddon.install_url && (
-                        <Button size="sm" asChild className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 font-bold rounded-xl shadow-xs">
-                          <a href={viewingAddon.install_url} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="size-3.5" /> Open Module
-                          </a>
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isAddonDisabled ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={enableAddonMutation.isPending}
+                            onClick={() => enableAddonMutation.mutate(viewingAddon)}
+                            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold rounded-xl h-8"
+                          >
+                            {enableAddonMutation.isPending ? (
+                              <Loader2 className="size-3.5 animate-spin mr-1 text-emerald-600" />
+                            ) : (
+                              <Power className="size-3.5 mr-1 text-emerald-600" />
+                            )}
+                            Enable Add-on
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={disableAddonMutation.isPending}
+                            onClick={() => disableAddonMutation.mutate(viewingAddon)}
+                            className="border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold rounded-xl h-8"
+                          >
+                            {disableAddonMutation.isPending ? (
+                              <Loader2 className="size-3.5 animate-spin mr-1 text-red-500" />
+                            ) : (
+                              <PowerOff className="size-3.5 mr-1 text-red-500" />
+                            )}
+                            Disable Add-on
+                          </Button>
+                        )}
+                        {viewingAddon.install_url && (
+                          <Button size="sm" asChild className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 font-bold rounded-xl shadow-xs">
+                            <a href={viewingAddon.install_url} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="size-3.5" /> Open Module
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   );
                 }
@@ -1985,6 +2074,227 @@ function MarketplaceAdmin() {
           </DialogContent>
         </Dialog>
       )}
+      {/* ========================================== */}
+      {/* 9. ADDON CHECKOUT & PURCHASE MODAL (CART / PAYMENT GATEWAY) */}
+      {/* ========================================== */}
+      {purchasingAddon && (
+        <Dialog open={checkoutModalOpen} onOpenChange={setCheckoutModalOpen}>
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <div className="flex items-start gap-3.5 pt-1">
+                <div className="size-14 rounded-2xl border bg-secondary/30 grid place-items-center p-2 shrink-0">
+                  <AddonIconRenderer
+                    icon={purchasingAddon.icon}
+                    name={purchasingAddon.name}
+                    category={purchasingAddon.category}
+                    className="size-9"
+                  />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                    Subscribe & Install — {purchasingAddon.name}
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                    Select your billing duration and payment method to activate this add-on for your workspace.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Plan Duration Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-foreground">Billing Duration</Label>
+                <RadioGroup
+                  value={checkoutDuration}
+                  onValueChange={(val: any) => setCheckoutDuration(val)}
+                  className="grid grid-cols-2 gap-3"
+                >
+                  <div
+                    onClick={() => setCheckoutDuration("1_month")}
+                    className={`border rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between ${
+                      checkoutDuration === "1_month"
+                        ? "border-[#00a86b] bg-[#00a86b]/5 ring-1 ring-[#00a86b]"
+                        : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Monthly Plan</span>
+                      <RadioGroupItem value="1_month" id="dur-month" />
+                    </div>
+                    <div className="mt-2 text-sm font-extrabold text-[#00a86b]">
+                      {formatSystemAmount(Number(purchasingAddon.price_monthly), activeCurrencyConfig)}
+                      <span className="text-[11px] font-normal text-muted-foreground"> / month</span>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setCheckoutDuration("1_year")}
+                    className={`border rounded-xl p-3 cursor-pointer transition-all flex flex-col justify-between relative ${
+                      checkoutDuration === "1_year"
+                        ? "border-[#00a86b] bg-[#00a86b]/5 ring-1 ring-[#00a86b]"
+                        : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <span className="absolute -top-2 right-2 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                      Save 15%
+                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">Annual Plan</span>
+                      <RadioGroupItem value="1_year" id="dur-year" />
+                    </div>
+                    <div className="mt-2 text-sm font-extrabold text-[#00a86b]">
+                      {formatSystemAmount(Math.round(Number(purchasingAddon.price_monthly) * 12 * 0.85), activeCurrencyConfig)}
+                      <span className="text-[11px] font-normal text-muted-foreground"> / year</span>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Payment Gateway Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-foreground">Payment Gateway</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div
+                    onClick={() => setSelectedPaymentGateway("razorpay")}
+                    className={`border rounded-xl p-3 cursor-pointer transition-all flex items-center gap-3 ${
+                      selectedPaymentGateway === "razorpay"
+                        ? "border-[#00a86b] bg-[#00a86b]/5 ring-1 ring-[#00a86b]"
+                        : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <CreditCard className="size-5 text-[#00a86b] shrink-0" />
+                    <div className="text-left">
+                      <div className="text-xs font-bold">Razorpay</div>
+                      <div className="text-[10px] text-muted-foreground">UPI, Cards, Netbanking</div>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setSelectedPaymentGateway("bank_transfer")}
+                    className={`border rounded-xl p-3 cursor-pointer transition-all flex items-center gap-3 ${
+                      selectedPaymentGateway === "bank_transfer"
+                        ? "border-[#00a86b] bg-[#00a86b]/5 ring-1 ring-[#00a86b]"
+                        : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <Building className="size-5 text-indigo-600 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-xs font-bold">Bank Transfer</div>
+                      <div className="text-[10px] text-muted-foreground">Offline NEFT / IMPS</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Details & Receipt Upload if Bank Transfer */}
+              {selectedPaymentGateway === "bank_transfer" && (
+                <div className="p-3.5 rounded-xl border border-dashed bg-secondary/10 space-y-3">
+                  <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Building className="size-3.5 text-[#00a86b]" />
+                    Company Bank Account Details
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] bg-background/80 p-2.5 rounded-lg border">
+                    <div><span className="text-muted-foreground">Bank: </span><span className="font-semibold">{BANK_DETAILS.bankName}</span></div>
+                    <div><span className="text-muted-foreground">A/C Name: </span><span className="font-semibold">{BANK_DETAILS.accountName}</span></div>
+                    <div><span className="text-muted-foreground">A/C No: </span><span className="font-mono font-semibold">{BANK_DETAILS.accountNumber}</span></div>
+                    <div><span className="text-muted-foreground">IFSC: </span><span className="font-mono font-semibold">{BANK_DETAILS.ifscCode}</span></div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Transaction / UTR Reference No.</Label>
+                    <Input
+                      placeholder="e.g. UTR123456789012"
+                      value={offlineRefNo}
+                      onChange={(e) => setOfflineRefNo(e.target.value)}
+                      className="text-xs font-mono h-9 rounded-xl"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Upload Payment Receipt</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        ref={offlineFileInputRef}
+                        accept="image/png, image/jpeg, application/pdf"
+                        onChange={handleOfflineFileSelect}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => offlineFileInputRef.current?.click()}
+                        className="gap-1.5 h-8 text-xs rounded-xl"
+                      >
+                        <Upload className="size-3.5" />
+                        {offlineReceiptPreview ? "Change Receipt" : "Choose File"}
+                      </Button>
+                      {offlineReceiptPreview && (
+                        <span className="text-[11px] text-emerald-600 font-medium">Receipt Attached ✓</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Order Summary */}
+              <div className="rounded-xl border bg-secondary/20 p-3 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Base Monthly Rate:</span>
+                  <span>{formatSystemAmount(Number(purchasingAddon.price_monthly), activeCurrencyConfig)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Duration:</span>
+                  <span className="font-semibold">{checkoutDuration === "1_year" ? "1 Year (Annual)" : "1 Month"}</span>
+                </div>
+                {checkoutDuration === "1_year" && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>Annual Discount (15%):</span>
+                    <span>- {formatSystemAmount(Math.round(Number(purchasingAddon.price_monthly) * 12 * 0.15), activeCurrencyConfig)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t flex justify-between font-bold text-sm text-foreground">
+                  <span>Total Payable:</span>
+                  <span className="text-[#00a86b]">
+                    {formatSystemAmount(
+                      checkoutDuration === "1_year"
+                        ? Math.round(Number(purchasingAddon.price_monthly) * 12 * 0.85)
+                        : Number(purchasingAddon.price_monthly),
+                      activeCurrencyConfig
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCheckoutModalOpen(false)}
+                className="rounded-xl text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={isCheckingOut}
+                onClick={handleExecuteCheckout}
+                className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 font-bold rounded-xl shadow-xs"
+              >
+                {isCheckingOut ? (
+                  <Loader2 className="size-3.5 animate-spin mr-1" />
+                ) : (
+                  <ShoppingCart className="size-3.5 mr-1" />
+                )}
+                {selectedPaymentGateway === "razorpay" ? "Proceed to Payment" : "Submit Payment Proof"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -2001,31 +2311,49 @@ function AddonCard({
   onDelete,
   onInstallFree,
   onPurchasePaid,
+  onDisable,
+  onEnable,
   isInstalling,
+  isDisabling,
+  isEnabling,
   isToggling,
   isSuperAdmin,
+  isTenantView,
   activeCurrencyConfig,
 }: {
   addon: Addon;
   entitlement?: {
-    isPurchased: boolean;
-    renewsAt: string | null;
-    status: string;
+    isPurchased?: boolean;
+    isInstalled?: boolean;
+    isActive?: boolean;
+    isEnabled?: boolean;
+    renewsAt?: string | null;
+    status?: string;
     invoiceNo?: string | null;
-  };
+  } | null;
   onViewDetails: () => void;
   onEdit: () => void;
   onToggleStatus: (newStatus: string) => void;
   onDelete: () => void;
   onInstallFree: () => void;
   onPurchasePaid: () => void;
+  onDisable?: () => void;
+  onEnable?: () => void;
   isInstalling?: boolean;
+  isDisabling?: boolean;
+  isEnabling?: boolean;
   isToggling?: boolean;
   isSuperAdmin?: boolean;
+  isTenantView?: boolean;
   activeCurrencyConfig: Partial<SystemCurrencySettings>;
 }) {
   const isEnabled = addon.status !== "disabled";
-  const isInstalled = !!entitlement?.isPurchased;
+  const isInstalled = Boolean(
+    entitlement?.isInstalled ||
+    entitlement?.isActive ||
+    entitlement?.isPurchased
+  );
+  const isAddonDisabled = entitlement?.status === "disabled";
   const isFree = Number(addon.price_monthly) <= 0;
   const priceDisplay = isFree
     ? "Free"
@@ -2037,11 +2365,11 @@ function AddonCard({
         !isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
       }`}
     >
-      {/* Top Controls: For Super Admin -> Switch & Edit; For Tenant -> Status / Price Badge */}
+      {/* Top Controls: For Super Admin on Super Admin Page -> Switch & Edit; For Tenant View -> NEVER show switch or pencil! */}
       <div className="w-full flex items-center justify-between mb-2">
-        {isSuperAdmin ? (
+        {!isTenantView && isSuperAdmin ? (
           <>
-            {/* Enable / Disable Switch */}
+            {/* Enable / Disable Switch for Super Admin Catalog */}
             <div
               className="flex items-center gap-1.5"
               title={isEnabled ? "Click to disable addon" : "Click to enable addon"}
@@ -2087,9 +2415,15 @@ function AddonCard({
 
             {/* Installed status indicator */}
             {isInstalled ? (
-              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200">
-                <CheckCircle2 className="size-3 text-emerald-600" />
-                Installed
+              <span
+                className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  isAddonDisabled
+                    ? "text-amber-700 bg-amber-50 dark:bg-amber-950/40 border-amber-200"
+                    : "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200"
+                }`}
+              >
+                <CheckCircle2 className={`size-3 ${isAddonDisabled ? "text-amber-600" : "text-emerald-600"}`} />
+                {isAddonDisabled ? "Disabled" : "Installed"}
               </span>
             ) : (
               <span className="text-[10px] text-muted-foreground">Available</span>
@@ -2124,18 +2458,54 @@ function AddonCard({
 
       {/* Action Area: Install Button for Tenant or View Details */}
       <div className="mt-2.5 pt-2 border-t border-border/50 w-full flex flex-col gap-2 items-center justify-center">
-        {!isSuperAdmin && (
-          <div className="w-full">
+        {isTenantView && (
+          <div className="w-full flex flex-col gap-1.5">
             {isInstalled ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full h-8 text-xs font-semibold rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/30 hover:bg-emerald-100 cursor-default"
-                onClick={onViewDetails}
-              >
-                <CheckCircle2 className="size-3.5 text-emerald-600 mr-1.5" />
-                Installed
-              </Button>
+              <>
+                {/* 1st Button: Installed (Disabled so user cannot click install again) */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="w-full h-8 text-xs font-semibold rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/30 opacity-75 cursor-not-allowed"
+                >
+                  <CheckCircle2 className="size-3.5 text-emerald-600 mr-1.5" />
+                  Installed
+                </Button>
+
+                {/* Newly needed 2nd button: Disable Add-on or Enable Add-on Option */}
+                {isAddonDisabled ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isEnabling}
+                    onClick={onEnable}
+                    className="w-full h-7 text-[11px] font-semibold rounded-lg border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                  >
+                    {isEnabling ? (
+                      <Loader2 className="size-3 animate-spin mr-1 text-emerald-600" />
+                    ) : (
+                      <Power className="size-3 mr-1 text-emerald-600" />
+                    )}
+                    Enable Add-on
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isDisabling}
+                    onClick={onDisable}
+                    className="w-full h-7 text-[11px] font-semibold rounded-lg border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                  >
+                    {isDisabling ? (
+                      <Loader2 className="size-3 animate-spin mr-1 text-red-500" />
+                    ) : (
+                      <PowerOff className="size-3 mr-1 text-red-500" />
+                    )}
+                    Disable Add-on
+                  </Button>
+                )}
+              </>
             ) : isFree ? (
               <Button
                 size="sm"

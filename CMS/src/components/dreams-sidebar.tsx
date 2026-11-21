@@ -117,6 +117,18 @@ const HR_ICON_MAP: Record<string, string> = {
   "Smart Reports": "ph-presentation-chart",
 
   // 07. Add-ons & Integrations
+  "App Marketplace": "ph-storefront",
+  "Installed Add-ons": "ph-puzzle-piece",
+  "Strategy Studio": "ph-compass",
+  "Custom Fields": "ph-sliders-horizontal",
+  "SMS Gateway": "ph-chats-circle",
+  "Support Tickets": "ph-lifebuoy",
+  "Contracts Management": "ph-file-lock",
+  "Contracts": "ph-file-lock",
+  "E-Commerce": "ph-shopping-bag",
+  "E-Commerce Cloud Suite": "ph-shopping-bag",
+  "Smart Dashboard": "ph-chart-pie",
+  "AI Business Advisor": "ph-brain",
   "Strategic Planning": "ph-target",
   Challenges: "ph-lightning",
   "Initiative Charters": "ph-scroll",
@@ -854,6 +866,114 @@ export function DreamsSidebar({
                   })}
                 </Fragment>
               ))}
+
+              {/* ===================== STANDALONE APPLICATION MODULES (HR VIEW) ===================== */}
+              {(() => {
+                const standaloneModules = resolveStandaloneModules(isEntitled, isAdminOrSuper, currentPath);
+                if (!standaloneModules.length) return null;
+
+                return (
+                  <>
+                    {standaloneModules.map((mod) => (
+                      <React.Fragment key={mod.id}>
+                        <li className="menu-title">
+                          <span>{mod.menuTitle}</span>
+                        </li>
+                        {mod.navigationMode === "standalone_with_submenu" ? (
+                          <li className="submenu">
+                            <a
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleSubmenu(mod.key);
+                              }}
+                              className={cn(
+                                "cursor-pointer",
+                                openMenus[mod.key] && "subdrop",
+                                mod.activeRoute && "active"
+                              )}
+                            >
+                              <i className={cn("ph-duotone", mod.icon)}></i>
+                              <span>{mod.label}</span>
+                              <span className="menu-arrow"></span>
+                            </a>
+                            <ul style={{ display: !isMini && openMenus[mod.key] ? "block" : "none" }}>
+                              {mod.children.map((child) => (
+                                <li key={child.id}>
+                                  <Link
+                                    to={child.route}
+                                    onClick={onCloseMobile}
+                                    className={cn(child.isActive && "active")}
+                                  >
+                                    {child.label}
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </li>
+                        ) : (
+                          <li>
+                            <Link
+                              to={mod.routes[0] || "/"}
+                              onClick={onCloseMobile}
+                              className={cn(mod.activeRoute && "active")}
+                            >
+                              <i className={cn("ph-duotone", mod.icon)}></i>
+                              <span>{mod.label}</span>
+                            </Link>
+                          </li>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </>
+                );
+              })()}
+
+              {/* ===================== EXTENSIONS & ADD-ONS (HR VIEW) ===================== */}
+              {(() => {
+                const extensionItems = resolveExtensionItems(isEntitled, isAdminOrSuper, currentPath);
+                if (!extensionItems.length) return null;
+                const anyActive = extensionItems.some((i) => i.isActive);
+
+                return (
+                  <>
+                    <li className="menu-title">
+                      <span>EXTENSIONS & ADD-ONS</span>
+                    </li>
+                    <li className="submenu">
+                      <a
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleSubmenu("extensions");
+                        }}
+                        className={cn(
+                          "cursor-pointer",
+                          openMenus.extensions && "subdrop",
+                          anyActive && "active"
+                        )}
+                      >
+                        <i className="ph-duotone ph-sparkle"></i>
+                        <span>Add-ons & Connectors</span>
+                        <span className="menu-arrow"></span>
+                      </a>
+                      <ul style={{ display: !isMini && openMenus.extensions ? "block" : "none" }}>
+                        {extensionItems.map((item) => (
+                          <li key={item.id}>
+                            <Link
+                              to={item.route}
+                              onClick={onCloseMobile}
+                              className={cn(item.isActive && "active")}
+                            >
+                              {item.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  </>
+                );
+              })()}
             </ul>
           ) : (
             <ul>

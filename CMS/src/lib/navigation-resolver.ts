@@ -302,7 +302,12 @@ export function useNavigationResolver() {
   const isWorkspaceAdmin = Boolean(
     profile?.roles?.includes("admin") ||
     profile?.roles?.includes("tenant_admin") ||
-    profile?.workspaceRole?.name === "Workspace Admin"
+    profile?.roles?.includes("hr_admin") ||
+    profile?.roles?.includes("hr") ||
+    profile?.roles?.includes("hr-admin") ||
+    profile?.workspaceRole?.name === "Workspace Admin" ||
+    profile?.workspaceRole?.name === "HR Admin" ||
+    profile?.workspaceRole?.name === "Admin"
   );
 
   // Tenant-scoped entitlement query: cache key explicitly includes tenantId to prevent leakage across workspaces
@@ -322,7 +327,7 @@ export function useNavigationResolver() {
         return {};
       }
     },
-    enabled: !!tenantId && !isSuperAdmin,
+    enabled: !!tenantId,
     staleTime: 60 * 1000,
   });
 
