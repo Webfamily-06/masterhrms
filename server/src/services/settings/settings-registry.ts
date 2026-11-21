@@ -264,6 +264,15 @@ export const SETTINGS_REGISTRY: Record<string, SettingDefinition> = {
     scopes: ["TENANT"],
     applyStrategy: "INSTANT",
   },
+  "integration.connector.external-gateways": {
+    key: "integration.connector.external-gateways",
+    group: "integration",
+    label: "External Communication & Meeting Gateways Config",
+    type: "json",
+    default: null,
+    scopes: ["PLATFORM", "TENANT"],
+    applyStrategy: "INSTANT",
+  },
   "messaging.gateway.config": {
     key: "messaging.gateway.config",
     group: "messaging",

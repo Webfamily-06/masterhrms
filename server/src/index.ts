@@ -119,6 +119,7 @@ import { ebookRouter } from "./routes/ebook.routes";
 import { roadmapCentralRouter } from "./routes/roadmap-central.routes";
 import { requestManagementRouter } from "./routes/request-management.routes";
 import { sidebarMenuRouter } from "./routes/sidebar-menu.routes";
+import { externalGatewaysRouter } from "./routes/external-gateways.routes";
 import { formsRouter } from "./routes/forms.routes";
 import { complianceRouter } from "./routes/compliance.routes";
 import { biometricRouter, publicBiometricRouter, iclockRouter } from "./routes/biometric.routes";
@@ -724,6 +725,8 @@ app.use("/api/service-requests", requestManagementRouter);
 app.use("/api/v1/service-requests", requestManagementRouter);
 app.use("/api/sidebar-menu", sidebarMenuRouter);
 app.use("/api/v1/sidebar-menu", sidebarMenuRouter);
+app.use("/api/external-gateways", externalGatewaysRouter);
+app.use("/api/v1/external-gateways", externalGatewaysRouter);
 
 // Platform Foundation APIs (v1 & unversioned alias)
 app.use("/api/v1", platformFoundationRouter);

@@ -155,22 +155,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Instagram capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Instagram workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Instagram CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/instagram`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Meta Graph API v19.0 media publish endpoint
+- **Verification Test Scenarios:** Unit tests for Instagram media dispatch and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Meta Graph API media & story publisher)
 
 ---
 
@@ -178,22 +178,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Facebook capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Facebook workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Facebook CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/facebook`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Meta Graph API v19.0 page feed endpoint
+- **Verification Test Scenarios:** Unit tests for Facebook feed posting and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Pages feed posting & lead webhook)
 
 ---
 
@@ -224,22 +224,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of YouTube capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide YouTube workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for YouTube CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/youtube`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** YouTube Data API v3 liveBroadcasts endpoint
+- **Verification Test Scenarios:** Unit tests for YouTube broadcast notification and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; YouTube Data API v3 live broadcast)
 
 ---
 
@@ -247,22 +247,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Telegram capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Telegram workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Telegram CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/telegram`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Telegram Bot API sendMessage endpoint
+- **Verification Test Scenarios:** Unit tests for Telegram HTML message dispatch and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Telegram Bot API HTML message delivery)
 
 ---
 
@@ -293,22 +293,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Slack capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Slack workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Slack CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/slack`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Slack Incoming Webhook & chat.postMessage endpoint
+- **Verification Test Scenarios:** Unit tests for Slack channel block alerts and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Incoming Webhook & chat.postMessage block alerts)
 
 ---
 
@@ -316,22 +316,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Discord capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Discord workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Discord CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/discord`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Discord Webhook API execute endpoint
+- **Verification Test Scenarios:** Unit tests for Discord rich embed notifications and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Discord Webhook API embed notifications)
 
 ---
 
@@ -339,22 +339,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of HubSpot capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide HubSpot workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for HubSpot CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/hubspot`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** HubSpot CRM v3 contacts & deals API
+- **Verification Test Scenarios:** Unit tests for HubSpot contact synchronization and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; HubSpot CRM v3 Contacts & Deals sync)
 
 ---
 
@@ -362,22 +362,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Nexmo (SMS) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Nexmo (SMS) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/SMS Gateway.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/SMS Gateway`
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/nexmo`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.SMS Gateway.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Nexmo (SMS) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Nexmo / Vonage SMS REST API
+- **Verification Test Scenarios:** Unit tests for Nexmo SMS dispatch and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Nexmo / Vonage SMS API dispatch)
 
 ---
 
@@ -408,22 +408,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Vonage (SMS) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Vonage (SMS) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/SMS Gateway.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/SMS Gateway`
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/vonage`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.SMS Gateway.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Vonage (SMS) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Vonage Verify v2 2FA verification flow
+- **Verification Test Scenarios:** Unit tests for Vonage verification initiation and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Vonage Verify v2 2FA verification flow)
 
 ---
 
@@ -431,22 +431,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of ClickSend (SMS) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide ClickSend (SMS) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/SMS Gateway.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/SMS Gateway`
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/clicksend`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.SMS Gateway.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for ClickSend (SMS) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** ClickSend REST API v3 SMS dispatch
+- **Verification Test Scenarios:** Unit tests for ClickSend SMS dispatch and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; ClickSend REST API v3 SMS dispatch)
 
 ---
 
@@ -477,22 +477,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Google Meet capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Google Meet workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/google_meet`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Google Meet CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Google Calendar API conferenceData video bridge
+- **Verification Test Scenarios:** Unit tests for Google Meet video conference creation and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Google Calendar API conferenceData video bridge)
 
 ---
 
@@ -523,22 +523,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Zoom capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Zoom workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Zoom CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/zoom`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Zoom Server-to-Server OAuth Meeting creation API
+- **Verification Test Scenarios:** Unit tests for Zoom meeting creation and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Zoom Server-to-Server OAuth Meeting creation API)
 
 ---
 
@@ -546,22 +546,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Zoho capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Zoho workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Zoho CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/zoho`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Zoho CRM v2 Leads & Contacts sync endpoint
+- **Verification Test Scenarios:** Unit tests for Zoho lead synchronization and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Zoho CRM v2 Leads & Contacts sync)
 
 ---
 
@@ -569,22 +569,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Livestorm capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Livestorm workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Livestorm CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/livestorm`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** Livestorm REST API v1 webinar session endpoint
+- **Verification Test Scenarios:** Unit tests for Livestorm webinar session creation and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; Livestorm REST API v1 webinar session creator)
 
 ---
 
@@ -592,22 +592,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Social Media
 - **Business Objective:** Enterprise multi-tenant execution of Amazon SES capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Amazon SES workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Email (SMTP).md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Email (SMTP)`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Email (SMTP).manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Amazon SES CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, ExternalGatewaysService
+- **Existing Implementation Files:** `server/src/services/external-gateways.service.ts, server/src/routes/external-gateways.routes.ts`
+- **Required Code Changes:** Implemented and verified in ExternalGatewaysService and Express router
+- **Database Schema Requirements:** `Setting entity with encrypted credentials`
+- **API Contract Requirements:** `Express REST endpoints under /api/external-gateways/dispatch/amazon_ses`
+- **UI / Frontend Requirements:** Gateway dashboard in src/routes/_authenticated/
+- **Required Permissions:** `integration.external_gateways.manage`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and AuditService
+- **Integration Dependencies:** AWS SES v2 SendEmail API endpoint
+- **Verification Test Scenarios:** Unit tests for Amazon SES email dispatch and sandbox simulation
+- **Assigned GSD Milestone:** **Phase 15 (Milestone 8.2)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** external-gateways.test.ts (17 passed, 0 failed, exit code 0; AWS SES v2 SendEmail API enterprise mailer)
 
 ---
 
