@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.projectsRouter = void 0;
+exports.STANDARD_PROJECT_TEMPLATES = exports.projectsRouter = void 0;
 const express_1 = require("express");
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
@@ -338,6 +338,132 @@ exports.projectsRouter.put("/pipeline-state", auth_1.requireAuth, async (req, re
     }
     catch (err) {
         return res.status(500).json({ error: err.message || "Failed to save pipeline state" });
+    }
+});
+exports.STANDARD_PROJECT_TEMPLATES = [
+    {
+        id: "template-epms",
+        code: "EPMS_HEALTHCARE",
+        name: "Hospital Administration System (EPMS)",
+        category: "Healthcare & Operations",
+        description: "End-to-end hospital administration, patient management, doctor scheduling, and compliance framework.",
+        estimatedDays: 120,
+        tasks: [
+            { title: "Patient appointment booking", status: "todo", priority: "medium", assignee: "Lewis" },
+            { title: "Appointment booking with payment gateway", status: "todo", priority: "high", assignee: "Leona" },
+            { title: "Patient and Doctor video conferencing", status: "todo", priority: "critical", assignee: "Pineiro" },
+            { title: "Private chat module", status: "todo", priority: "medium", assignee: "Moseley" },
+            { title: "Go-Live and Post-Implementation Support", status: "todo", priority: "high", assignee: "Cameron" },
+        ],
+        milestones: [
+            { title: "Architecture & HIPAA Compliance Review", status: "not_started", targetDateOffsetDays: 30 },
+            { title: "Core Patient Telehealth & Booking Modules", status: "not_started", targetDateOffsetDays: 60 },
+            { title: "UAT Sign-off & Production Cutover", status: "not_started", targetDateOffsetDays: 120 },
+        ],
+    },
+    {
+        id: "template-software-agile",
+        code: "SOFTWARE_AGILE",
+        name: "Enterprise Software Agile Sprint",
+        category: "Engineering & IT",
+        description: "Full-stack software development lifecycle template covering sprint planning, CI/CD setup, API development, and QA testing.",
+        estimatedDays: 60,
+        tasks: [
+            { title: "CI/CD Pipeline & Infrastructure Setup", status: "todo", priority: "high", assignee: "DevOps Lead" },
+            { title: "Core Data Models & Prisma Schema Migration", status: "todo", priority: "critical", assignee: "Backend Engineer" },
+            { title: "RESTful API Routes & RBAC Middleware", status: "todo", priority: "high", assignee: "API Developer" },
+            { title: "Responsive Frontend UI & Component Library", status: "todo", priority: "medium", assignee: "Frontend Engineer" },
+            { title: "Automated Integration Test Verification", status: "todo", priority: "high", assignee: "QA Engineer" },
+        ],
+        milestones: [
+            { title: "Foundation & Database Migration", status: "not_started", targetDateOffsetDays: 14 },
+            { title: "Backend API Feature Freeze", status: "not_started", targetDateOffsetDays: 35 },
+            { title: "QA Certification & Release", status: "not_started", targetDateOffsetDays: 60 },
+        ],
+    },
+    {
+        id: "template-hr-transformation",
+        code: "HR_ONBOARDING",
+        name: "HR Digital Transformation & Employee Onboarding",
+        category: "Human Resources",
+        description: "Enterprise HR workflow template for policy rollout, digital document collection, biometric enrollment, and shift scheduling.",
+        estimatedDays: 45,
+        tasks: [
+            { title: "Company Document Vault & Policy Seed", status: "todo", priority: "medium", assignee: "HR Ops" },
+            { title: "Biometric Device Enrollment & Shift Mapping", status: "todo", priority: "high", assignee: "HR Admin" },
+            { title: "Statutory Payroll & Tax Slabs Configuration", status: "todo", priority: "critical", assignee: "Payroll Manager" },
+            { title: "Staff Onboarding & 2FA Security Verification", status: "todo", priority: "high", assignee: "IT Security" },
+        ],
+        milestones: [
+            { title: "Policy & Master Data Ingestion", status: "not_started", targetDateOffsetDays: 15 },
+            { title: "Payroll & Biometric Operational Pilot", status: "not_started", targetDateOffsetDays: 30 },
+            { title: "Full Organization Go-Live", status: "not_started", targetDateOffsetDays: 45 },
+        ],
+    },
+];
+// GET /api/projects/templates - Return pre-configured project templates
+exports.projectsRouter.get("/templates", auth_1.requireAuth, async (req, res) => {
+    return res.json({ success: true, templates: exports.STANDARD_PROJECT_TEMPLATES });
+});
+// POST /api/projects/from-template - Instantiate a new project from a selected template
+exports.projectsRouter.post("/from-template", auth_1.requireAuth, async (req, res) => {
+    try {
+        const tenantId = req.user?.tenantId || "default";
+        const { templateCode, name, clientName, budget, startDate } = req.body;
+        const template = exports.STANDARD_PROJECT_TEMPLATES.find((t) => t.code === templateCode || t.id === templateCode);
+        if (!template) {
+            return res.status(404).json({
+                error: `Project template not found. Available templates: ${exports.STANDARD_PROJECT_TEMPLATES.map((t) => t.code).join(", ")}`,
+            });
+        }
+        const projectName = name?.trim() || template.name;
+        const projectStartDate = startDate ? new Date(startDate) : new Date();
+        const dueDate = new Date(projectStartDate.getTime() + template.estimatedDays * 86400000);
+        const project = await prisma_1.prisma.project.create({
+            data: {
+                tenantId,
+                name: projectName,
+                description: template.description,
+                status: "in_progress",
+                priority: "high",
+                clientName: clientName?.trim() || null,
+                budget: budget ? Number(budget) : null,
+                startDate: projectStartDate,
+                dueDate,
+                progress: 0,
+                tasks: {
+                    create: template.tasks.map((task) => ({
+                        tenantId,
+                        title: task.title,
+                        description: `Generated from template: ${template.name}`,
+                        status: task.status,
+                        priority: task.priority,
+                        assignedTo: task.assignee,
+                    })),
+                },
+                milestones: {
+                    create: template.milestones.map((m) => ({
+                        tenantId,
+                        title: m.title,
+                        status: m.status,
+                        dueDate: new Date(projectStartDate.getTime() + m.targetDateOffsetDays * 86400000),
+                    })),
+                },
+            },
+            include: {
+                tasks: true,
+                milestones: true,
+            },
+        });
+        return res.status(201).json({
+            success: true,
+            message: `Project "${project.name}" instantiated from template "${template.name}" successfully.`,
+            project,
+        });
+    }
+    catch (err) {
+        console.error("Projects from-template POST error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create project from template" });
     }
 });
 // POST /api/projects - Create project

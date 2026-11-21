@@ -14,7 +14,7 @@ exports.crmRouter = (0, express_1.Router)();
 // Enforce Product CRM Entitlement on all authenticated workspace CRM operations
 exports.crmRouter.use((req, res, next) => {
     const p = req.path || req.url || "";
-    if (p.startsWith("/proposals/public")) {
+    if (p.startsWith("/proposals/public") || p.startsWith("/quotations/public")) {
         return next();
     }
     return (0, auth_1.requireAuth)(req, res, (err) => {
@@ -621,8 +621,8 @@ exports.crmRouter.delete("/deals/:id", auth_1.requireAuth, tenant_context_middle
 // ==========================================
 // CRM PROPOSALS & QUOTATIONS
 // ==========================================
-// GET /api/crm/proposals - List proposals
-exports.crmRouter.get("/proposals", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
+// GET /api/crm/proposals or /api/crm/quotations - List proposals / quotations
+exports.crmRouter.get(["/proposals", "/quotations"], auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const pagination = (0, pagination_1.parsePaginationParams)(req, "createdAt", 20);
@@ -661,8 +661,8 @@ exports.crmRouter.get("/proposals", auth_1.requireAuth, tenant_context_middlewar
         return res.status(500).json({ error: err.message || "Failed to fetch proposals" });
     }
 });
-// POST /api/crm/proposals - Create proposal
-exports.crmRouter.post("/proposals", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
+// POST /api/crm/proposals or /api/crm/quotations - Create proposal / quotation
+exports.crmRouter.post(["/proposals", "/quotations"], auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const body = req.body;
@@ -713,8 +713,8 @@ exports.crmRouter.post("/proposals", auth_1.requireAuth, tenant_context_middlewa
         return res.status(500).json({ error: err.message || "Failed to create proposal" });
     }
 });
-// PATCH /api/crm/proposals/:id - Update proposal status and fields
-exports.crmRouter.patch("/proposals/:id", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
+// PATCH /api/crm/proposals/:id or /api/crm/quotations/:id - Update proposal status and fields
+exports.crmRouter.patch(["/proposals/:id", "/quotations/:id"], auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { id } = req.params;
@@ -770,8 +770,8 @@ exports.crmRouter.patch("/proposals/:id", auth_1.requireAuth, tenant_context_mid
         return res.status(500).json({ error: err.message || "Failed to update proposal" });
     }
 });
-// POST /api/crm/proposals/:id/convert - One-click convert proposal to formal Sale Invoice
-exports.crmRouter.post("/proposals/:id/convert", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
+// POST /api/crm/proposals/:id/convert or /api/crm/quotations/:id/convert - One-click convert proposal to formal Sale Invoice
+exports.crmRouter.post(["/proposals/:id/convert", "/quotations/:id/convert"], auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { id } = req.params;
@@ -899,8 +899,8 @@ exports.crmRouter.post("/proposals/:id/convert-to-project", auth_1.requireAuth, 
         return res.status(500).json({ error: err.message || "Failed to convert proposal to project" });
     }
 });
-// DELETE /api/crm/proposals/:id - Delete proposal
-exports.crmRouter.delete("/proposals/:id", auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
+// DELETE /api/crm/proposals/:id or /api/crm/quotations/:id - Delete proposal
+exports.crmRouter.delete(["/proposals/:id", "/quotations/:id"], auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext, async (req, res) => {
     try {
         const tenantId = req.user?.tenantId || "default";
         const { id } = req.params;
@@ -916,8 +916,8 @@ exports.crmRouter.delete("/proposals/:id", auth_1.requireAuth, tenant_context_mi
 // ==========================================
 // PUBLIC CLIENT QUOTATION SELF-SERVICE PORTAL
 // ==========================================
-// GET /api/crm/proposals/public/:id - Public Client view of quotation
-exports.crmRouter.get("/proposals/public/:id", async (req, res) => {
+// GET /api/crm/proposals/public/:id or /api/crm/quotations/public/:id - Public Client view of quotation
+exports.crmRouter.get(["/proposals/public/:id", "/quotations/public/:id"], async (req, res) => {
     try {
         const { id } = req.params;
         const proposal = await prisma_1.prisma.crmProposal.findUnique({
@@ -971,8 +971,8 @@ exports.crmRouter.get("/proposals/public/:id", async (req, res) => {
         return res.status(500).json({ error: err.message || "Failed to load quotation proposal." });
     }
 });
-// POST /api/crm/proposals/public/:id/respond - Client Accept or Decline quotation
-exports.crmRouter.post("/proposals/public/:id/respond", async (req, res) => {
+// POST /api/crm/proposals/public/:id/respond or /api/crm/quotations/public/:id/respond - Client Accept or Decline quotation
+exports.crmRouter.post(["/proposals/public/:id/respond", "/quotations/public/:id/respond"], async (req, res) => {
     try {
         const { id } = req.params;
         const { action, signatureName, notes } = req.body;
