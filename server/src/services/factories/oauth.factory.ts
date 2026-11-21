@@ -29,6 +29,7 @@ export interface OAuthPublicConfig {
     apple: OAuthProviderPublicInfo;
     linkedin: OAuthProviderPublicInfo;
     facebook: OAuthProviderPublicInfo;
+    slack: OAuthProviderPublicInfo;
   };
 }
 
@@ -50,6 +51,7 @@ export interface ResolvedPlatformOAuthConfig {
   apple: OAuthInternalProviderConfig & { teamId?: string; keyId?: string; privateKey?: string };
   linkedin: OAuthInternalProviderConfig;
   facebook: OAuthInternalProviderConfig & { appId?: string; appSecret?: string };
+  slack: OAuthInternalProviderConfig;
   version: number;
   fingerprint: string;
 }
@@ -66,6 +68,7 @@ export class OAuthFactory {
       google: { id: config.google?.clientId, s: config.google?.clientSecret, e: config.google?.enabled },
       github: { id: config.github?.clientId, s: config.github?.clientSecret, e: config.github?.enabled },
       microsoft: { id: config.microsoft?.clientId, s: config.microsoft?.clientSecret, e: config.microsoft?.enabled },
+      slack: { id: config.slack?.clientId, s: config.slack?.clientSecret, e: config.slack?.enabled },
     });
     return crypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
   }
@@ -121,6 +124,10 @@ export class OAuthFactory {
     let facebookAppId = process.env.FACEBOOK_APP_ID || "";
     let facebookAppSecret = process.env.FACEBOOK_APP_SECRET || "";
 
+    let slackEnabled = false;
+    let slackClientId = process.env.SLACK_CLIENT_ID || "";
+    let slackClientSecret = process.env.SLACK_CLIENT_SECRET || "";
+
     // 2. Fallback to system-platform-settings CMS page
     try {
       const page = await prisma.cmsPage.findUnique({
@@ -158,6 +165,9 @@ export class OAuthFactory {
         if (c.facebookEnabled !== undefined) facebookEnabled = Boolean(c.facebookEnabled);
         if (c.facebookAppId) facebookAppId = String(c.facebookAppId);
         if (c.facebookAppSecret) facebookAppSecret = String(c.facebookAppSecret);
+        if (c.slackEnabled !== undefined) slackEnabled = Boolean(c.slackEnabled);
+        if (c.slackClientId) slackClientId = String(c.slackClientId);
+        if (c.slackClientSecret) slackClientSecret = String(c.slackClientSecret);
       }
     } catch {}
 
@@ -181,6 +191,18 @@ export class OAuthFactory {
         if (v["oauth.microsoft_client_id"]) microsoftClientId = String(v["oauth.microsoft_client_id"]).trim();
         if (v["oauth.microsoft_client_secret"]) microsoftClientSecret = String(v["oauth.microsoft_client_secret"]).trim();
         if (v["oauth.microsoft_tenant_id"]) microsoftTenantId = String(v["oauth.microsoft_tenant_id"]).trim();
+
+        if (v["oauth.facebook_enabled"] !== undefined) facebookEnabled = Boolean(v["oauth.facebook_enabled"]);
+        if (v["oauth.facebook_app_id"]) facebookAppId = String(v["oauth.facebook_app_id"]).trim();
+        if (v["oauth.facebook_app_secret"]) facebookAppSecret = String(v["oauth.facebook_app_secret"]).trim();
+
+        if (v["oauth.linkedin_enabled"] !== undefined) linkedinEnabled = Boolean(v["oauth.linkedin_enabled"]);
+        if (v["oauth.linkedin_client_id"]) linkedinClientId = String(v["oauth.linkedin_client_id"]).trim();
+        if (v["oauth.linkedin_client_secret"]) linkedinClientSecret = String(v["oauth.linkedin_client_secret"]).trim();
+
+        if (v["oauth.slack_enabled"] !== undefined) slackEnabled = Boolean(v["oauth.slack_enabled"]);
+        if (v["oauth.slack_client_id"]) slackClientId = String(v["oauth.slack_client_id"]).trim();
+        if (v["oauth.slack_client_secret"]) slackClientSecret = String(v["oauth.slack_client_secret"]).trim();
       }
     } catch (err: any) {
       console.warn("[OAuthFactory] Failed to resolve from SettingsService:", err?.message);
@@ -237,6 +259,13 @@ export class OAuthFactory {
         callbackUrl: `${oauthBaseUrl}/api/auth/oauth/facebook/callback`,
         scope: "email,public_profile",
       },
+      slack: {
+        enabled: slackEnabled,
+        clientId: slackClientId,
+        clientSecret: slackClientSecret,
+        callbackUrl: `${oauthBaseUrl}/api/auth/oauth/slack/callback`,
+        scope: "openid profile email",
+      },
       version: Date.now(),
       fingerprint: "",
     };
@@ -284,6 +313,11 @@ export class OAuthFactory {
           configured: Boolean(config.facebook.appId || config.facebook.clientId),
           clientId: config.facebook.appId || config.facebook.clientId || undefined,
         },
+        slack: {
+          enabled: Boolean(config.slack.enabled && config.slack.clientId),
+          configured: Boolean(config.slack.clientId),
+          clientId: config.slack.clientId || undefined,
+        },
       },
     };
   }
@@ -301,6 +335,7 @@ export class OAuthFactory {
     if (p === "apple") return config.apple;
     if (p === "linkedin") return config.linkedin;
     if (p === "facebook") return config.facebook;
+    if (p === "slack") return config.slack;
 
     throw new Error(`Unsupported OAuth provider: ${provider}`);
   }
@@ -407,6 +442,17 @@ export class OAuthFactory {
         state,
       });
       return `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+    }
+
+    if (p === "slack") {
+      const params = new URLSearchParams({
+        client_id: config.clientId,
+        redirect_uri: config.callbackUrl,
+        response_type: "code",
+        scope: config.scope,
+        state,
+      });
+      return `https://slack.com/openid/connect/authorize?${params.toString()}`;
     }
 
     throw new Error(`Unsupported provider: ${provider}`);

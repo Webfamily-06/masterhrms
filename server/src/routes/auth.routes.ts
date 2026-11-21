@@ -2657,6 +2657,10 @@ authRouter.get("/oauth/config", async (req, res) => {
         enabled: Boolean(config.facebook.enabled && config.facebook.appId),
         configured: Boolean(config.facebook.appId),
       },
+      slack: {
+        enabled: Boolean(config.slack.enabled && config.slack.clientId),
+        configured: Boolean(config.slack.clientId),
+      },
       providers: {
         google: {
           enabled: Boolean(config.google.enabled && config.google.clientId),
@@ -2682,6 +2686,10 @@ authRouter.get("/oauth/config", async (req, res) => {
           enabled: Boolean(config.facebook.enabled && config.facebook.appId),
           configured: Boolean(config.facebook.appId),
         },
+        slack: {
+          enabled: Boolean(config.slack.enabled && config.slack.clientId),
+          configured: Boolean(config.slack.clientId),
+        },
       },
     });
   } catch (err: any) {
@@ -2693,7 +2701,7 @@ authRouter.get("/oauth/config", async (req, res) => {
 authRouter.get("/oauth/:provider", async (req, res) => {
   const { provider } = req.params;
   const config = await getPlatformOAuthConfig(req);
-  const state = crypto.randomUUID();
+  const state = OAuthFactory.generateState(provider);
 
   let authUrl = "";
 
@@ -2783,6 +2791,20 @@ authRouter.get("/oauth/:provider", async (req, res) => {
       state,
     });
     authUrl = `https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`;
+  } else if (provider === "slack") {
+    if (!config.slack.clientId) {
+      return res.redirect(
+        `${config.frontendBaseUrl}/auth?error=${encodeURIComponent("Slack Client ID is not configured yet in Super Admin Settings.")}`,
+      );
+    }
+    const params = new URLSearchParams({
+      client_id: config.slack.clientId,
+      redirect_uri: config.slack.callbackUrl,
+      response_type: "code",
+      scope: config.slack.scope,
+      state,
+    });
+    authUrl = `https://slack.com/openid/connect/authorize?${params.toString()}`;
   } else {
     return res.status(400).json({ error: "Unsupported OAuth provider" });
   }
@@ -2807,6 +2829,11 @@ async function handleOAuthCallback(req: any, res: Response) {
     return res.redirect(
       `${config.frontendBaseUrl}/auth?error=${encodeURIComponent(`Missing authorization code from ${provider}`)}`,
     );
+  }
+
+  const state = (req.query?.state as string) || (req.body?.state as string);
+  if (state && !OAuthFactory.validateState(state, provider)) {
+    console.warn(`[OAuth] State validation / CSRF check warning for ${provider}: ${state}`);
   }
 
   try {
@@ -2961,6 +2988,35 @@ async function handleOAuthCallback(req: any, res: Response) {
       const userData = await userRes.json();
       email = userData.mail || userData.userPrincipalName;
       fullName = userData.displayName || `${userData.givenName || ""} ${userData.surname || ""}`.trim() || email?.split("@")[0] || "Microsoft User";
+    } else if (provider === "slack") {
+      // 1. Exchange code for Slack OpenID Connect token
+      const tokenRes = await fetch("https://slack.com/api/openid.connect.token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: config.slack.clientId,
+          client_secret: config.slack.clientSecret,
+          redirect_uri: config.slack.callbackUrl,
+          grant_type: "authorization_code",
+        }),
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.ok && !tokenData.access_token) {
+        throw new Error(tokenData.error || "Failed to exchange Slack authorization token");
+      }
+
+      // 2. Fetch user profile from Slack OpenID Connect endpoint
+      const userRes = await fetch("https://slack.com/api/openid.connect.userInfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const userData = await userRes.json();
+      if (!userData.ok && !userData.email) {
+        throw new Error(userData.error || "Failed to retrieve Slack user profile");
+      }
+      email = userData.email;
+      fullName = userData.name || email.split("@")[0] || "Slack User";
+      avatarUrl = userData.picture || "";
     }
 
     if (!email) {

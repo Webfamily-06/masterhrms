@@ -26,6 +26,11 @@ This roadmap orchestrates the full transition from reverse-engineering discovery
 - [x] **Phase 11: Internal WorkDo Add-on Modules Verification (Wave 3: Knowledge, Learning & Operations)** - Verify 10 internal WorkDo add-on modules across Newsletter (ADDON-048), Feedback (ADDON-049), Knowledge Base (ADDON-054), Diagram (ADDON-055), Portfolio (ADDON-056), Resume Builder (ADDON-057), Spreadsheet (ADDON-061), Innovation Center (ADDON-062), Business Model Canvas (ADDON-064), and Marketing Plan (ADDON-065) (Milestone 7.6).
 - [x] **Phase 12: Internal WorkDo Add-on Modules Verification (Wave 4: Operations, Finance & Strategy)** - Verify 10 internal WorkDo add-on modules across McKinsey 7-S Framework (ADDON-066), Asset Borrow & Rent (ADDON-082), Financial Goal (ADDON-083), Retainer (ADDON-084), Recurring Invoice & Bill (ADDON-088), Team Workload (ADDON-091), Time Tracker (ADDON-092), Procurement (ADDON-095), Petty Cash (ADDON-097), and Signature (ADDON-121) (Milestone 7.7).
 - [x] **Phase 13: Final Internal WorkDo Add-on Modules Verification (Wave 5: Menus, Leads, LMS, eBooks, Roadmaps, Requests & Navigation)** - Verify the final 8 internal WorkDo reference add-on modules: Restaurant Menu (ADDON-051), Google Leads (ADDON-052), Job Search / Job Board (ADDON-099), LMS / Learning Management System (ADDON-100), eBook Library (ADDON-101), Roadmap Central (ADDON-106), Request Management (ADDON-109), and Sidebar Menu Builder (ADDON-111), bringing 100% of all internal WorkDo reference modules to `VERIFIED` status and reducing `PLANNED` to 0 (Milestone 7.8 Final).
+- [x] **Phase 14: Social OAuth Sign-in & Identity Federation (Milestone 8.1)** - Verify and operationalize all 6 social login & identity federation add-ons: GitHub (ADDON-128), Facebook (ADDON-129), Google (ADDON-130), LinkedIn (ADDON-131), Slack (ADDON-132), and Microsoft (ADDON-133), establishing zero secret leakage and robust CSRF state protection.
+- [ ] **Phase 15: Social Channels, Telephony & Video Meeting Gateways (Milestone 8.2)** - Implement pluggable adapters and mock sandbox test harnesses for 15 external communication and collaboration gateways: Instagram (ADDON-006), Facebook (ADDON-007), YouTube (ADDON-009), Telegram (ADDON-010), Slack Channel (ADDON-012), Discord (ADDON-013), HubSpot (ADDON-014), Nexmo SMS (ADDON-015), Vonage (ADDON-017), ClickSend SMS (ADDON-018), Google Meet (ADDON-020), Zoom (ADDON-022), Zoho (ADDON-023), Livestorm (ADDON-024), Amazon SES (ADDON-025).
+- [ ] **Phase 16: Automation, Calendars & Collaboration Webhooks (Milestone 8.3)** - Implement pluggable adapters and mock sandbox test harnesses for 11 automation and calendar integrations: Google Calendar (ADDON-026), Outlook Calendar (ADDON-027), Zapier (ADDON-028), Make/Integromat (ADDON-029), n8n (ADDON-031), IndiaMART (ADDON-032), Sendinblue/Brevo (ADDON-033), OneNote (ADDON-034), Trello (ADDON-035), Jira (ADDON-037), Google Analytics (ADDON-038).
+- [ ] **Phase 17: Google Workspace, E-Commerce & Cloud Drives (Milestone 8.4)** - Implement pluggable adapters and mock sandbox test harnesses for 8 workspace, e-commerce, and cloud drive integrations: Google Slides (ADDON-039), WHMCS (ADDON-040), Google Forms (ADDON-041), Google Wallet (ADDON-042), Mailchimp (ADDON-045), Salesforce (ADDON-046), OneDrive (ADDON-059), Zendesk (ADDON-071).
+- [ ] **Phase 18: Enterprise Finance, Banking & International E-Invoicing (Milestone 8.5)** - Implement pluggable adapters and mock sandbox test harnesses for 7 enterprise finance, accounting, and international invoicing integrations: QuickBooks (ADDON-075), Sage (ADDON-076), Xero (ADDON-077), Plaid (ADDON-085), ZATCA e-invoice (ADDON-086), European E-Invoice (ADDON-087), Outlook Mail (ADDON-103), completing all 197 items in the platform matrix (100% VERIFIED).
 
 ---
 
@@ -252,5 +257,21 @@ Plans:
 
 Plans:
 - [x] 13-01: Author and verify the final 8 internal WorkDo reference add-on modules, reducing PLANNED items to 0.
+
+### Phase 14: Social OAuth Sign-in & Identity Federation (Milestone 8.1)
+**Goal**: Operationalize, secure, and verify the 6 social login and enterprise identity federation add-ons: GitHub (ADDON-128), Facebook (ADDON-129), Google (ADDON-130), LinkedIn (ADDON-131), Slack (ADDON-132), and Microsoft Entra ID (ADDON-133), establishing zero secret leakage and cryptographically secure CSRF protection.
+**Depends on**: Phase 13
+**Success Criteria**:
+  1. `OAuthFactory.getPublicConfig()` exposes only boolean flags and public client IDs with zero secret leakage.
+  2. `OAuthFactory.generateState()` and `validateState()` prevent CSRF attacks and reject replay attempts.
+  3. All 6 identity providers generate canonical authorization URLs with appropriate scopes.
+  4. Deterministic token exchange and user profile sync verified for GitHub, Facebook, Google, LinkedIn, Slack, and Microsoft.
+  5. User accounts and tenant-linked profiles auto-provisioned upon authentication.
+  6. Signed JWT authentication tokens issued with tenant and role context.
+  7. All 18 tests in `server/src/tests/oauth-social-login.test.ts` pass with exit code 0.
+  8. Zero TypeScript compilation errors across server and root client.
+
+Plans:
+- [x] 14-01: Implement, secure, and verify all 6 Social OAuth Identity Federation add-ons (Milestone 8.1).
 
 

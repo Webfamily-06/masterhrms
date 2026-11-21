@@ -2964,22 +2964,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of GitHub Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide GitHub Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for GitHub Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/github and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** GitHub OAuth App API (/login/oauth/authorize, /login/oauth/access_token, /user)
+- **Verification Test Scenarios:** Unit tests for GitHub Sign-in (OAuth) CSRF, URL generation, token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, CSRF state store, token exchange, user provisioning)
 
 ---
 
@@ -2987,22 +2987,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of Facebook Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Facebook Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Facebook Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/facebook and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** Meta Facebook Graph API v19.0 (/dialog/oauth, /oauth/access_token, /me)
+- **Verification Test Scenarios:** Unit tests for Facebook Sign-in (OAuth) CSRF, URL generation, token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, Graph API token exchange, user provisioning)
 
 ---
 
@@ -3010,22 +3010,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of Google Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Google Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Google Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/google and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** Google Cloud OAuth 2.0 endpoints (/o/oauth2/v2/auth, /token, /oauth2/v2/userinfo)
+- **Verification Test Scenarios:** Unit tests for Google Sign-in (OAuth) CSRF, URL generation, offline access, token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, offline access, token exchange, user provisioning)
 
 ---
 
@@ -3033,22 +3033,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of LinkedIn Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide LinkedIn Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for LinkedIn Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/linkedin and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** LinkedIn OpenID Connect endpoints (/oauth/v2/authorization, /oauth/v2/accessToken, /v2/userinfo)
+- **Verification Test Scenarios:** Unit tests for LinkedIn Sign-in (OAuth) CSRF, URL generation, token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, OpenID Connect exchange, user provisioning)
 
 ---
 
@@ -3056,22 +3056,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of Slack Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Slack Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Slack Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/slack and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** Slack OpenID Connect endpoints (/openid/connect/authorize, /api/openid.connect.token, /api/openid.connect.userInfo)
+- **Verification Test Scenarios:** Unit tests for Slack Sign-in (OAuth) CSRF, URL generation, token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, Slack OpenID token exchange, user provisioning)
 
 ---
 
@@ -3079,22 +3079,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Security
 - **Business Objective:** Enterprise multi-tenant execution of Microsoft Sign-in (OAuth) capability.
-- **Current Audit Status:** **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Microsoft Sign-in (OAuth) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
-- **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
-- **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Microsoft Sign-in (OAuth) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY`
-- **Forensic Verification Evidence:** Integration source code unbuilt; external provider credentials required once built
+- **Architectural Dependencies:** TenantContext, Prisma, SettingsService, OAuthFactory
+- **Existing Implementation Files:** `server/src/services/factories/oauth.factory.ts, server/src/routes/auth.routes.ts, src/routes/auth.tsx`
+- **Required Code Changes:** Implemented and verified in OAuthFactory and auth router
+- **Database Schema Requirements:** `User and Profile entities with tenantId scoping`
+- **API Contract Requirements:** `Express REST endpoints under /api/auth/oauth/microsoft and callback`
+- **UI / Frontend Requirements:** Social sign-in button in src/routes/auth.tsx
+- **Required Permissions:** `auth.login`
+- **Multi-Tenant Isolation:** Strict tenantId scoping via SettingsService and User profile
+- **Integration Dependencies:** Microsoft Entra ID / Azure AD endpoints (/oauth2/v2.0/authorize, /oauth2/v2.0/token, /v1.0/me)
+- **Verification Test Scenarios:** Unit tests for Microsoft Sign-in (OAuth) CSRF, URL generation, Azure AD tenant scoping, Graph token exchange, and user provisioning
+- **Assigned GSD Milestone:** **Phase 14 (Milestone 8.1)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** oauth-social-login.test.ts (18 passed, 0 failed, exit code 0; zero-leakage, Azure AD tenant scoping, Graph token exchange, user provisioning)
 
 ---
 
