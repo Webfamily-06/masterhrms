@@ -135,6 +135,8 @@ export const EXPLICIT_SHARED_ROUTES = [
   "/ai-settings",
   "/ai-writer",
   "/ai",
+  "/tenant/addon",
+  "/tenant/addons",
 ];
 
 export function isSharedRoute(pathname: string): boolean {

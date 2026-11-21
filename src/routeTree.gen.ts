@@ -301,6 +301,8 @@ import { Route as AuthenticatedAppSmartReportsProductStockRouteImport } from './
 import { Route as AuthenticatedAppSmartReportsProjectProgressRouteImport } from './routes/_authenticated/_app/smart-reports.project-progress'
 import { Route as AuthenticatedAppSmartReportsPurchaseInvoiceRouteImport } from './routes/_authenticated/_app/smart-reports.purchase-invoice'
 import { Route as AuthenticatedAppSmartReportsSalesInvoiceRouteImport } from './routes/_authenticated/_app/smart-reports.sales-invoice'
+import { Route as AuthenticatedAppTenantAddonRouteImport } from './routes/_authenticated/_app/tenant.addon'
+import { Route as AuthenticatedAppTenantAddonsRouteImport } from './routes/_authenticated/_app/tenant.addons'
 import { Route as AuthenticatedHrAssetsIndexRouteImport } from './routes/_authenticated/hr/assets/index'
 import { Route as AuthenticatedHrAssetsDashboardRouteImport } from './routes/_authenticated/hr/assets/dashboard'
 import { Route as AuthenticatedHrAssetsDepreciationRouteImport } from './routes/_authenticated/hr/assets/depreciation'
@@ -2204,6 +2206,18 @@ const AuthenticatedAppSmartReportsSalesInvoiceRoute =
     path: '/sales-invoice',
     getParentRoute: () => AuthenticatedAppSmartReportsRoute,
   } as any)
+const AuthenticatedAppTenantAddonRoute =
+  AuthenticatedAppTenantAddonRouteImport.update({
+    id: '/tenant/addon',
+    path: '/tenant/addon',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
+const AuthenticatedAppTenantAddonsRoute =
+  AuthenticatedAppTenantAddonsRouteImport.update({
+    id: '/tenant/addons',
+    path: '/tenant/addons',
+    getParentRoute: () => AuthenticatedAppRouteRoute,
+  } as any)
 const AuthenticatedHrAssetsIndexRoute =
   AuthenticatedHrAssetsIndexRouteImport.update({
     id: '/assets/',
@@ -4020,6 +4034,8 @@ export interface FileRoutesByFullPath {
   '/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
   '/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
   '/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
+  '/tenant/addon': typeof AuthenticatedAppTenantAddonRoute
+  '/tenant/addons': typeof AuthenticatedAppTenantAddonsRoute
   '/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/hr/assets/depreciations': typeof AuthenticatedHrAssetsDepreciationsRoute
@@ -4562,6 +4578,8 @@ export interface FileRoutesByTo {
   '/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
   '/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
   '/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
+  '/tenant/addon': typeof AuthenticatedAppTenantAddonRoute
+  '/tenant/addons': typeof AuthenticatedAppTenantAddonsRoute
   '/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/hr/assets/depreciations': typeof AuthenticatedHrAssetsDepreciationsRoute
@@ -5111,6 +5129,8 @@ export interface FileRoutesById {
   '/_authenticated/_app/smart-reports/project-progress': typeof AuthenticatedAppSmartReportsProjectProgressRoute
   '/_authenticated/_app/smart-reports/purchase-invoice': typeof AuthenticatedAppSmartReportsPurchaseInvoiceRoute
   '/_authenticated/_app/smart-reports/sales-invoice': typeof AuthenticatedAppSmartReportsSalesInvoiceRoute
+  '/_authenticated/_app/tenant/addon': typeof AuthenticatedAppTenantAddonRoute
+  '/_authenticated/_app/tenant/addons': typeof AuthenticatedAppTenantAddonsRoute
   '/_authenticated/hr/assets/dashboard': typeof AuthenticatedHrAssetsDashboardRoute
   '/_authenticated/hr/assets/depreciation': typeof AuthenticatedHrAssetsDepreciationRoute
   '/_authenticated/hr/assets/depreciations': typeof AuthenticatedHrAssetsDepreciationsRoute
@@ -5659,6 +5679,8 @@ export interface FileRouteTypes {
     | '/smart-reports/project-progress'
     | '/smart-reports/purchase-invoice'
     | '/smart-reports/sales-invoice'
+    | '/tenant/addon'
+    | '/tenant/addons'
     | '/hr/assets/dashboard'
     | '/hr/assets/depreciation'
     | '/hr/assets/depreciations'
@@ -6201,6 +6223,8 @@ export interface FileRouteTypes {
     | '/smart-reports/project-progress'
     | '/smart-reports/purchase-invoice'
     | '/smart-reports/sales-invoice'
+    | '/tenant/addon'
+    | '/tenant/addons'
     | '/hr/assets/dashboard'
     | '/hr/assets/depreciation'
     | '/hr/assets/depreciations'
@@ -6749,6 +6773,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_app/smart-reports/project-progress'
     | '/_authenticated/_app/smart-reports/purchase-invoice'
     | '/_authenticated/_app/smart-reports/sales-invoice'
+    | '/_authenticated/_app/tenant/addon'
+    | '/_authenticated/_app/tenant/addons'
     | '/_authenticated/hr/assets/dashboard'
     | '/_authenticated/hr/assets/depreciation'
     | '/_authenticated/hr/assets/depreciations'
@@ -9086,6 +9112,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSmartReportsSalesInvoiceRouteImport
       parentRoute: typeof AuthenticatedAppSmartReportsRoute
     }
+    '/_authenticated/_app/tenant/addon': {
+      id: '/_authenticated/_app/tenant/addon'
+      path: '/tenant/addon'
+      fullPath: '/tenant/addon'
+      preLoaderRoute: typeof AuthenticatedAppTenantAddonRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
+    '/_authenticated/_app/tenant/addons': {
+      id: '/_authenticated/_app/tenant/addons'
+      path: '/tenant/addons'
+      fullPath: '/tenant/addons'
+      preLoaderRoute: typeof AuthenticatedAppTenantAddonsRouteImport
+      parentRoute: typeof AuthenticatedAppRouteRoute
+    }
     '/_authenticated/hr/assets/': {
       id: '/_authenticated/hr/assets/'
       path: '/assets'
@@ -11113,6 +11153,8 @@ interface AuthenticatedAppRouteRouteChildren {
   AuthenticatedAppInvoiceIdRoute: typeof AuthenticatedAppInvoiceIdRouteWithChildren
   AuthenticatedAppInvoiceCreateRoute: typeof AuthenticatedAppInvoiceCreateRoute
   AuthenticatedAppProjectIdRoute: typeof AuthenticatedAppProjectIdRoute
+  AuthenticatedAppTenantAddonRoute: typeof AuthenticatedAppTenantAddonRoute
+  AuthenticatedAppTenantAddonsRoute: typeof AuthenticatedAppTenantAddonsRoute
   AuthenticatedAppAddonsAiAssistantFieldsRoute: typeof AuthenticatedAppAddonsAiAssistantFieldsRoute
   AuthenticatedAppAddonsAiAssistantSettingsRoute: typeof AuthenticatedAppAddonsAiAssistantSettingsRoute
   AuthenticatedAppAddonsAiAssistantUsageRoute: typeof AuthenticatedAppAddonsAiAssistantUsageRoute
@@ -11335,6 +11377,8 @@ const AuthenticatedAppRouteRouteChildren: AuthenticatedAppRouteRouteChildren = {
   AuthenticatedAppInvoiceIdRoute: AuthenticatedAppInvoiceIdRouteWithChildren,
   AuthenticatedAppInvoiceCreateRoute: AuthenticatedAppInvoiceCreateRoute,
   AuthenticatedAppProjectIdRoute: AuthenticatedAppProjectIdRoute,
+  AuthenticatedAppTenantAddonRoute: AuthenticatedAppTenantAddonRoute,
+  AuthenticatedAppTenantAddonsRoute: AuthenticatedAppTenantAddonsRoute,
   AuthenticatedAppAddonsAiAssistantFieldsRoute:
     AuthenticatedAppAddonsAiAssistantFieldsRoute,
   AuthenticatedAppAddonsAiAssistantSettingsRoute:
@@ -12348,13 +12392,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

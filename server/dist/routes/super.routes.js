@@ -1943,8 +1943,15 @@ async function saveCustomCategories(categories) {
     });
     return unique;
 }
+function requireAdminOrSuper(req, res, next) {
+    const roles = req.user?.roles || [];
+    if (roles.includes("super_admin") || roles.includes("company_admin") || roles.includes("hr_admin")) {
+        return next();
+    }
+    return res.status(403).json({ error: "Forbidden: Administrator permissions required." });
+}
 // GET /api/super/addons/categories
-exports.superRouter.get("/addons/categories", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.get("/addons/categories", auth_1.requireAuth, async (req, res) => {
     try {
         const returnDetails = req.query.details === "true";
         const customList = await getCustomCategories();
@@ -1981,7 +1988,7 @@ exports.superRouter.get("/addons/categories", auth_1.requireAuth, auth_1.require
     }
 });
 // POST /api/super/addons/categories
-exports.superRouter.post("/addons/categories", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.post("/addons/categories", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const { name } = req.body;
         if (!name || typeof name !== "string" || !name.trim()) {
@@ -2016,7 +2023,7 @@ exports.superRouter.post("/addons/categories", auth_1.requireAuth, auth_1.requir
     }
 });
 // PUT /api/super/addons/categories/:name
-exports.superRouter.put("/addons/categories/:name", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.put("/addons/categories/:name", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const oldName = decodeURIComponent(req.params.name).trim();
         const { newName } = req.body;
@@ -2070,7 +2077,7 @@ exports.superRouter.put("/addons/categories/:name", auth_1.requireAuth, auth_1.r
     }
 });
 // DELETE /api/super/addons/categories/:name
-exports.superRouter.delete("/addons/categories/:name", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.delete("/addons/categories/:name", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const name = decodeURIComponent(req.params.name).trim();
         // Check if any add-on is currently assigned to this category
@@ -2101,7 +2108,7 @@ exports.superRouter.delete("/addons/categories/:name", auth_1.requireAuth, auth_
     }
 });
 // GET /api/super/addons
-exports.superRouter.get("/addons", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.get("/addons", auth_1.requireAuth, async (req, res) => {
     try {
         const category = req.query.category;
         const status = req.query.status;
@@ -2148,7 +2155,7 @@ exports.superRouter.get("/addons", auth_1.requireAuth, auth_1.requireSuperAdmin,
     }
 });
 // POST /api/super/addons/sync-canonical
-exports.superRouter.post("/addons/sync-canonical", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.post("/addons/sync-canonical", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const result = await (0, canonical_133_addons_seed_1.syncCanonical133Addons)(prisma_1.rawPrisma);
         return res.json({
@@ -2162,7 +2169,7 @@ exports.superRouter.post("/addons/sync-canonical", auth_1.requireAuth, auth_1.re
     }
 });
 // POST /api/super/addons
-exports.superRouter.post("/addons", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.post("/addons", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const { name, slug, tagline, description, longDescription, long_description, category, priceMonthly, price_monthly, icon, screenshots = [], features = [], developer, version = "1.0.0", docsUrl, docs_url, galleryVideo, installUrl, install_url, featured = false, status = "active", } = req.body;
         if (!name || !slug || !category) {
@@ -2226,7 +2233,7 @@ exports.superRouter.post("/addons", auth_1.requireAuth, auth_1.requireSuperAdmin
     }
 });
 // PUT /api/super/addons/:id
-exports.superRouter.put("/addons/:id", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.put("/addons/:id", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, slug, tagline, description, longDescription, long_description, category, priceMonthly, price_monthly, icon, screenshots, features, developer, version, docsUrl, docs_url, galleryVideo, installUrl, install_url, featured, status, } = req.body;
@@ -2301,7 +2308,7 @@ exports.superRouter.put("/addons/:id", auth_1.requireAuth, auth_1.requireSuperAd
     }
 });
 // DELETE /api/super/addons/:id
-exports.superRouter.delete("/addons/:id", auth_1.requireAuth, auth_1.requireSuperAdmin, async (req, res) => {
+exports.superRouter.delete("/addons/:id", auth_1.requireAuth, requireAdminOrSuper, async (req, res) => {
     try {
         const { id } = req.params;
         const existing = await prisma_1.rawPrisma.addon.findUnique({ where: { id } });

@@ -1728,7 +1728,7 @@ function AddonCard({
 
   return (
     <Card
-      className={`border border-border/80 rounded-2xl bg-card p-4 text-center flex flex-col items-center justify-between transition-all duration-200 group relative hover:shadow-md hover:border-[#00a86b]/60 ${
+      className={`border border-border/80 rounded-2xl bg-card p-4 text-center flex flex-col items-center justify-between transition-all duration-200 group relative hover:shadow-md hover:border-[#00a86b] hover:ring-1 hover:ring-[#00a86b]/30 ${
         !isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
       }`}
     >
@@ -1807,3 +1807,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+export { MarketplaceAdmin };
+export default MarketplaceAdmin;

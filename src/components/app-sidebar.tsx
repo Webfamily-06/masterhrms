@@ -417,13 +417,13 @@ export function AppSidebar({ profile }: { profile: ProfileWithRoles | null }) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  asChild isActive={path === "/marketplace"}
+                  asChild isActive={path === "/tenant/addon" || path === "/marketplace"}
                   className={cn("h-9 px-3 rounded-md text-[11px] font-medium transition-all",
-                    path === "/marketplace" ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent")}
+                    (path === "/tenant/addon" || path === "/marketplace") ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:text-foreground hover:bg-accent")}
                 >
-                  <Link to="/marketplace" className="flex items-center gap-2.5">
+                  <Link to="/tenant/addon" className="flex items-center gap-2.5">
                     <Store className="size-4 shrink-0 opacity-80" />
-                    {!collapsed && <span>Marketplace</span>}
+                    {!collapsed && <span>Add-ons</span>}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

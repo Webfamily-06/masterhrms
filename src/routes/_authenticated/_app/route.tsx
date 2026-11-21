@@ -190,7 +190,7 @@ const ALL_SEARCH_ITEMS = [
   { title: "Form Builder", url: "/forms", group: "HRM Suite", icon: FileSpreadsheet },
   { title: "Automation Rules", url: "/workflows", group: "HRM Suite", icon: Workflow },
   { title: "People Analytics", url: "/analytics", group: "HRM Suite", icon: BarChart3 },
-  { title: "App Marketplace", url: "/marketplace", group: "Extensions", icon: Store },
+  { title: "Add-ons", url: "/tenant/addon", group: "Extensions", icon: Store },
   { title: "WooCommerce Sync Hub", url: "/integrations", group: "E-Commerce", icon: Sparkles },
   { title: "Google Workspace", url: "/google-workspace", group: "Extensions", icon: Sparkles },
   { title: "Tally Prime Importer", url: "/tally-importer", group: "Finance", icon: Layers },

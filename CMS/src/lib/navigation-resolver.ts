@@ -408,7 +408,7 @@ export function useNavigationResolver() {
           }
 
           // If group is Extensions, ensure it has a valid entitlement
-          if (item.group === "Extensions" && item.url !== "/marketplace") {
+          if (item.group === "Extensions" && item.url !== "/tenant/addon" && item.url !== "/tenant/addons" && item.url !== "/marketplace") {
             const mappedAddon = ROUTE_ENTITLEMENT_MAP[item.url];
             if (mappedAddon && !isEntitled(mappedAddon)) {
               return false;

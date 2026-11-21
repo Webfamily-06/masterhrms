@@ -2181,8 +2181,16 @@ async function saveCustomCategories(categories: string[]) {
   return unique;
 }
 
+function requireAdminOrSuper(req: AuthRequest, res: Response, next: any) {
+  const roles = req.user?.roles || [];
+  if (roles.includes("super_admin") || roles.includes("company_admin") || roles.includes("hr_admin")) {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden: Administrator permissions required." });
+}
+
 // GET /api/super/addons/categories
-superRouter.get("/addons/categories", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.get("/addons/categories", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const returnDetails = req.query.details === "true";
     const customList = await getCustomCategories();
@@ -2225,7 +2233,7 @@ superRouter.get("/addons/categories", requireAuth, requireSuperAdmin, async (req
 });
 
 // POST /api/super/addons/categories
-superRouter.post("/addons/categories", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.post("/addons/categories", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const { name } = req.body;
     if (!name || typeof name !== "string" || !name.trim()) {
@@ -2263,7 +2271,7 @@ superRouter.post("/addons/categories", requireAuth, requireSuperAdmin, async (re
 });
 
 // PUT /api/super/addons/categories/:name
-superRouter.put("/addons/categories/:name", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.put("/addons/categories/:name", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const oldName = decodeURIComponent(req.params.name).trim();
     const { newName } = req.body;
@@ -2324,7 +2332,7 @@ superRouter.put("/addons/categories/:name", requireAuth, requireSuperAdmin, asyn
 });
 
 // DELETE /api/super/addons/categories/:name
-superRouter.delete("/addons/categories/:name", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.delete("/addons/categories/:name", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const name = decodeURIComponent(req.params.name).trim();
 
@@ -2359,7 +2367,7 @@ superRouter.delete("/addons/categories/:name", requireAuth, requireSuperAdmin, a
 });
 
 // GET /api/super/addons
-superRouter.get("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.get("/addons", requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const category = req.query.category as string | undefined;
     const status = req.query.status as string | undefined;
@@ -2410,7 +2418,7 @@ superRouter.get("/addons", requireAuth, requireSuperAdmin, async (req: AuthReque
 });
 
 // POST /api/super/addons/sync-canonical
-superRouter.post("/addons/sync-canonical", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.post("/addons/sync-canonical", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const result = await syncCanonical133Addons(prisma);
     return res.json({
@@ -2424,7 +2432,7 @@ superRouter.post("/addons/sync-canonical", requireAuth, requireSuperAdmin, async
 });
 
 // POST /api/super/addons
-superRouter.post("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.post("/addons", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const {
       name,
@@ -2516,7 +2524,7 @@ superRouter.post("/addons", requireAuth, requireSuperAdmin, async (req: AuthRequ
 });
 
 // PUT /api/super/addons/:id
-superRouter.put("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.put("/addons/:id", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const {
@@ -2619,7 +2627,7 @@ superRouter.put("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthR
 });
 
 // DELETE /api/super/addons/:id
-superRouter.delete("/addons/:id", requireAuth, requireSuperAdmin, async (req: AuthRequest, res: Response) => {
+superRouter.delete("/addons/:id", requireAuth, requireAdminOrSuper, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const existing = await prisma.addon.findUnique({ where: { id } });
