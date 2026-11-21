@@ -418,11 +418,11 @@ export default function DashboardPage() {
                   <p className="text-xs text-default mb-0">Active</p>
                 </div>
                 <div className="text-center bg-light dark:bg-slate-800/50 border border-border-color rounded-md p-2">
-                  <h3 className="text-base font-bold text-title mb-0.5">0</h3>
+                  <h3 className="text-base font-bold text-title mb-0.5">{hrmData?.probationEmployees ?? 0}</h3>
                   <p className="text-xs text-default mb-0">Probation</p>
                 </div>
                 <div className="text-center bg-light dark:bg-slate-800/50 border border-border-color rounded-md p-2">
-                  <h3 className="text-base font-bold text-title mb-0.5">0</h3>
+                  <h3 className="text-base font-bold text-title mb-0.5">{hrmData?.noticeEmployees ?? 0}</h3>
                   <p className="text-xs text-default mb-0">Notice</p>
                 </div>
               </div>

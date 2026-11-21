@@ -426,43 +426,41 @@ export default function ProjectDashboardPage() {
 								</div>
 							</div>
 							<div id="pj-task-summary-chart" className="flex justify-center"></div>
-							<div className="space-y-2 mt-3">
-								<div className="flex items-center justify-between gap-2 text-[11px]">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-success"></span>
-										<span className="text-default">Completed</span>
+							{(() => {
+								const completed = projectData?.completedTasks ?? 0;
+								const inProgress = projectData?.inProgressTasks ?? 0;
+								const overdue = projectData?.overdueTasks ?? 0;
+								const totalTasks = completed + inProgress + overdue;
+								const completedPct = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+								const inProgressPct = totalTasks > 0 ? Math.round((inProgress / totalTasks) * 100) : 0;
+								const overduePct = totalTasks > 0 ? Math.round((overdue / totalTasks) * 100) : 0;
+
+								return (
+									<div className="space-y-2 mt-3">
+										<div className="flex items-center justify-between gap-2 text-[11px]">
+											<div className="flex items-center gap-2">
+												<span className="size-2 rounded-full bg-success"></span>
+												<span className="text-default">Completed ({completed})</span>
+											</div>
+											<span className="font-semibold text-gray-900">{completedPct}%</span>
+										</div>
+										<div className="flex items-center justify-between gap-2 text-[11px]">
+											<div className="flex items-center gap-2">
+												<span className="size-2 rounded-full bg-info"></span>
+												<span className="text-default">In Progress ({inProgress})</span>
+											</div>
+											<span className="font-semibold text-gray-900">{inProgressPct}%</span>
+										</div>
+										<div className="flex items-center justify-between gap-2 text-[11px]">
+											<div className="flex items-center gap-2">
+												<span className="size-2 rounded-full bg-danger"></span>
+												<span className="text-default">Overdue ({overdue})</span>
+											</div>
+											<span className="font-semibold text-gray-900">{overduePct}%</span>
+										</div>
 									</div>
-									<span className="font-semibold text-gray-900">30%</span>
-								</div>
-								<div className="flex items-center justify-between gap-2 text-[11px]">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-orange"></span>
-										<span className="text-default">Pending</span>
-									</div>
-									<span className="font-semibold text-gray-900">25%</span>
-								</div>
-								<div className="flex items-center justify-between gap-2 text-[11px]">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-info"></span>
-										<span className="text-default">In Progress</span>
-									</div>
-									<span className="font-semibold text-gray-900">20%</span>
-								</div>
-								<div className="flex items-center justify-between gap-2 text-[11px]">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-purple"></span>
-										<span className="text-default">Active</span>
-									</div>
-									<span className="font-semibold text-gray-900">15%</span>
-								</div>
-								<div className="flex items-center justify-between gap-2 text-[11px]">
-									<div className="flex items-center gap-2">
-										<span className="size-2 rounded-full bg-danger"></span>
-										<span className="text-default">Cancelled</span>
-									</div>
-									<span className="font-semibold text-gray-900">10%</span>
-								</div>
-							</div>
+								);
+							})()}
 						</div>
 
 					</div>

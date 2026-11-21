@@ -36,6 +36,7 @@ artifacts/
 .wrangler/
 .turbo/
 .cache/
+DREAMSERP/
 
 # IDE & OS
 .vscode/*
