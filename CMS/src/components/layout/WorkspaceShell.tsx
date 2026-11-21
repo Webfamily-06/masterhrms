@@ -1018,11 +1018,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                       2FA Status
                     </span>
                     {profile.twoFactorEnabled ? (
-                      <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 px-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
-                        ● Enabled
-                      </Badge>
+                      <Link to="/two-factor-auth">
+                        <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 px-1.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 cursor-pointer">
+                          ● Enabled
+                        </Badge>
+                      </Link>
                     ) : (
-                      <Link to="/settings" search={{ tab: "security" }}>
+                      <Link to="/two-factor-auth">
                         <Badge variant="outline" className="text-[10px] font-bold py-0 h-4 px-1.5 border-amber-500/40 text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 cursor-pointer">
                           ○ Setup Required
                         </Badge>
@@ -1041,7 +1043,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link to="/settings" search={{ tab: "security" }} className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
+                    <Link to="/two-factor-auth" className="flex items-center gap-2.5 cursor-pointer py-1.5 text-xs font-medium rounded-lg hover:bg-muted/60 transition-colors">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
                       <span>Security & 2FA</span>
                     </Link>

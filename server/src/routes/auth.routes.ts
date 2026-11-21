@@ -850,7 +850,50 @@ const loginHandler = async (req: any, res: Response) => {
       }
     }
 
-    // Optional: Allow disabling mandatory 2FA via environment variable (e.g. for staging or when SMTP is in maintenance)
+    // ── 2FA Authentication Flow ──────────────────────────────────
+    // 1. If user has explicitly enrolled in TOTP 2FA (Authenticator App):
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
+      return res.json({
+        requires2FA: true,
+        isSetup: false,
+        twoFactorMethod: "TOTP",
+        mfaToken,
+        email: user.email,
+        maskedEmail: maskEmail(user.email),
+        message: "Two-Factor Authentication is active. Please enter the 6-digit code from your authenticator app or backup code.",
+      });
+    }
+
+    // 2. If user has explicitly enabled Email OTP 2FA:
+    if (user.twoFactorEnabled) {
+      const { otp } = await createOrReplaceOtp(user.id);
+      const emailResult = await sendTwoFactorOtpEmail({
+        toEmail: user.email,
+        otp,
+        fullName: user.profile?.fullName || undefined,
+        isSetup: false,
+      });
+
+      if (!emailResult.success) {
+        console.warn(`⚠️ [2FA OTP] Email dispatch to ${user.email} failed: ${emailResult.error}`);
+        console.log(`🔑 [2FA LOGIN CODE] Use this code to sign in for ${user.email}: [${otp}]`);
+      }
+
+      const mfaToken = generateMfaToken({ userId: user.id, email: user.email });
+      return res.json({
+        requires2FA: true,
+        isSetup: false,
+        twoFactorMethod: "EMAIL_OTP",
+        mfaToken,
+        email: user.email,
+        maskedEmail: maskEmail(user.email),
+        message: "A 6-digit verification code has been sent to your email.",
+        devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+      });
+    }
+
+    // 3. User does NOT have 2FA enabled. Check if mandatory 2FA is bypassed via env (e.g. staging or SMTP disabled)
     const is2faDisabled = process.env.ENABLE_2FA === "false" || process.env.MANDATORY_2FA === "false";
     if (is2faDisabled) {
       const userTenantId = user.profile?.tenantId || user.roles.find((r: any) => r.tenantId)?.tenantId;

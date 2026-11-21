@@ -2630,6 +2630,18 @@ export function DreamsSidebar({
                 <span>Email Accounts</span>
               </Link>
             </li>
+            {isEntitled("two-factor-auth") && (
+              <li>
+                <Link
+                  to="/two-factor-auth"
+                  onClick={onCloseMobile}
+                  className={cn(currentPath === "/two-factor-auth" && "active")}
+                >
+                  <i className="ph-duotone ph-shield-check"></i>
+                  <span>Two-Factor Auth (2FA)</span>
+                </Link>
+              </li>
+            )}
             <li>
               <Link
                 to="/subscription"

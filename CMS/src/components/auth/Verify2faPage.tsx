@@ -13,6 +13,8 @@ import {
   Mail,
   AlertCircle,
   RefreshCw,
+  KeyRound,
+  Smartphone,
 } from 'lucide-react';
 import { ThemeToggle } from '@/src/components/theme-toggle';
 import { resolveDefaultRoute, extractRolesFromToken } from '@/src/lib/auth-navigation';
@@ -43,6 +45,9 @@ function Verify2faContent() {
   const [mfaToken, setMfaToken] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
   const [isSetup, setIsSetup] = useState(false);
+  const [mfaMethod, setMfaMethod] = useState<'TOTP' | 'EMAIL_OTP'>('EMAIL_OTP');
+  const [isBackupMode, setIsBackupMode] = useState(false);
+  const [backupCode, setBackupCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -52,6 +57,7 @@ function Verify2faContent() {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('mfa_temp_token') : null;
     const email = typeof window !== 'undefined' ? sessionStorage.getItem('mfa_masked_email') : null;
     const setupFlag = typeof window !== 'undefined' ? sessionStorage.getItem('mfa_is_setup') === 'true' : false;
+    const method = (typeof window !== 'undefined' ? sessionStorage.getItem('mfa_method') : null) as any;
 
     if (!token) {
       toast.error('No active verification session. Please sign in first.');
@@ -62,6 +68,9 @@ function Verify2faContent() {
     setMfaToken(token);
     setMaskedEmail(email || 'registered email');
     setIsSetup(setupFlag);
+    if (method === 'TOTP') {
+      setMfaMethod('TOTP');
+    }
 
     setTimeout(() => {
       inputRefs.current[0]?.focus();
@@ -133,8 +142,13 @@ function Verify2faContent() {
   };
 
   const executeVerify = async (codeToVerify: string) => {
-    if (codeToVerify.length !== 6) {
+    const cleanCode = codeToVerify.trim();
+    if (!isBackupMode && cleanCode.length !== 6) {
       setErrorMessage('Please enter all 6 digits of the verification code.');
+      return;
+    }
+    if (isBackupMode && !cleanCode) {
+      setErrorMessage('Please enter your 8-character backup recovery code.');
       return;
     }
 
@@ -144,13 +158,14 @@ function Verify2faContent() {
     try {
       const res = await api.post('/auth/2fa/verify-login', {
         mfaToken,
-        code: codeToVerify,
+        code: cleanCode,
       });
 
       if (res.token) {
         sessionStorage.removeItem('mfa_temp_token');
         sessionStorage.removeItem('mfa_masked_email');
         sessionStorage.removeItem('mfa_is_setup');
+        sessionStorage.removeItem('mfa_method');
 
         setToken(res.token);
         qc.invalidateQueries({ queryKey: ['current-session-user'] });
@@ -198,12 +213,22 @@ function Verify2faContent() {
 
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center size-12 rounded-xl bg-primary/10 text-primary border border-primary/20 mb-3">
-            <ShieldCheck className="size-6" />
+            {mfaMethod === 'TOTP' ? <KeyRound className="size-6" /> : <ShieldCheck className="size-6" />}
           </div>
           <h1 className="text-xl font-bold text-title mb-1">Two-Factor Authentication</h1>
           <p className="text-xs text-muted-foreground">
-            A 6-digit security code was dispatched to <span className="font-semibold text-foreground">{maskedEmail}</span>
+            {mfaMethod === 'TOTP'
+              ? (isBackupMode
+                  ? 'Enter one of your 8-character backup recovery codes generated during 2FA setup.'
+                  : 'Enter the 6-digit verification code from your Authenticator App.')
+              : <>A 6-digit security code was dispatched to <span className="font-semibold text-foreground">{maskedEmail}</span></>}
           </p>
+          {mfaMethod === 'TOTP' && (
+            <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/60 text-xs font-mono font-medium text-foreground">
+              <Smartphone className="size-3.5 text-primary" />
+              <span>Authenticator App (Google / Authy)</span>
+            </div>
+          )}
         </div>
 
         {errorMessage && (
@@ -213,55 +238,120 @@ function Verify2faContent() {
           </div>
         )}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            executeVerify(digits.join(''));
-          }}
-          className="space-y-6"
-        >
-          <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
-            {digits.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => {
-                  inputRefs.current[idx] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleDigitChange(idx, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(idx, e)}
-                className="size-11 sm:size-12 text-center text-lg sm:text-xl font-bold font-mono border border-border-color rounded-lg bg-light dark:bg-slate-800 text-title focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            ))}
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || digits.join('').length !== 6}
-            className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        {isBackupMode ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              executeVerify(backupCode);
+            }}
+            className="space-y-5"
           >
-            {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
-            Confirm & Access Workspace
-          </button>
-        </form>
+            <div>
+              <input
+                type="text"
+                placeholder="e.g. 8a2f-9c1b"
+                value={backupCode}
+                onChange={(e) => {
+                  setErrorMessage('');
+                  setBackupCode(e.target.value);
+                }}
+                className="w-full text-center text-lg font-mono font-bold tracking-widest uppercase border border-border-color rounded-lg bg-light dark:bg-slate-800 text-title p-2.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                autoFocus
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !backupCode.trim()}
+              className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+              Verify Backup Code
+            </button>
+
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBackupMode(false);
+                  setErrorMessage('');
+                }}
+                className="text-xs text-primary hover:underline font-semibold cursor-pointer"
+              >
+                Use 6-digit authenticator code instead
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              executeVerify(digits.join(''));
+            }}
+            className="space-y-6"
+          >
+            <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+              {digits.map((digit, idx) => (
+                <input
+                  key={idx}
+                  ref={(el) => {
+                    inputRefs.current[idx] = el;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDigitChange(idx, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(idx, e)}
+                  className="size-11 sm:size-12 text-center text-lg sm:text-xl font-bold font-mono border border-border-color rounded-lg bg-light dark:bg-slate-800 text-title focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || digits.join('').length !== 6}
+              className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              Confirm & Access Workspace
+            </button>
+
+            {mfaMethod === 'TOTP' && (
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsBackupMode(true);
+                    setErrorMessage('');
+                  }}
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline font-medium cursor-pointer"
+                >
+                  Lost access to your phone? Use a backup code
+                </button>
+              </div>
+            )}
+          </form>
+        )}
 
         <div className="mt-6 pt-4 border-t border-border-color text-center text-xs text-muted-foreground">
-          {cooldown > 0 ? (
-            <span>Resend code in {cooldown}s</span>
+          {mfaMethod === 'TOTP' ? (
+            <span>Authenticator codes refresh automatically every 30 seconds.</span>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setCooldown(30);
-                toast.success('New verification code dispatched.');
-              }}
-              className="text-primary hover:underline font-semibold cursor-pointer"
-            >
-              Resend Code
-            </button>
+            cooldown > 0 ? (
+              <span>Resend code in {cooldown}s</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setCooldown(30);
+                  toast.success('New verification code dispatched.');
+                }}
+                className="text-primary hover:underline font-semibold cursor-pointer"
+              >
+                Resend Code
+              </button>
+            )
           )}
         </div>
       </div>

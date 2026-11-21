@@ -2260,6 +2260,12 @@ function Settings() {
                   </div>
 
                   <div className="pt-2 flex items-center gap-3 flex-wrap">
+                    <Link to="/two-factor-auth">
+                      <Button size="sm" className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5">
+                        <ShieldCheck className="size-3.5" />
+                        <span>Manage Authenticator App (2FA)</span>
+                      </Button>
+                    </Link>
                     <Link to="/setup-notes">
                       <Button size="sm" variant="outline" className="text-xs font-bold gap-1.5 h-8">
                         <HelpCircle className="size-3.5 text-primary" />
@@ -2294,10 +2300,16 @@ function Settings() {
                     </div>
                   </div>
 
-                  <div className="pt-1 flex items-center gap-2">
-                    <Link to="/setup-notes">
+                  <div className="pt-1 flex items-center gap-2 flex-wrap">
+                    <Link to="/two-factor-auth">
                       <Button size="sm" className="bg-primary text-primary-foreground font-bold text-xs h-8 gap-1.5">
                         <ShieldCheck className="size-3.5" />
+                        <span>Configure Authenticator App (2FA)</span>
+                      </Button>
+                    </Link>
+                    <Link to="/setup-notes">
+                      <Button size="sm" variant="outline" className="font-bold text-xs h-8 gap-1.5">
+                        <HelpCircle className="size-3.5" />
                         <span>Read 2FA Setup Guide</span>
                       </Button>
                     </Link>

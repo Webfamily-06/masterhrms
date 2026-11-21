@@ -15,6 +15,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Lock,
+  KeyRound,
+  Smartphone,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { resolveDefaultRoute, extractRolesFromToken } from "@/lib/auth-navigation";
@@ -46,6 +48,9 @@ function Verify2faPage() {
   const [mfaToken, setMfaToken] = useState("");
   const [maskedEmail, setMaskedEmail] = useState("");
   const [isSetup, setIsSetup] = useState(false);
+  const [mfaMethod, setMfaMethod] = useState<"TOTP" | "EMAIL_OTP">("EMAIL_OTP");
+  const [isBackupMode, setIsBackupMode] = useState(false);
+  const [backupCode, setBackupCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -62,6 +67,7 @@ function Verify2faPage() {
     const setupFlag = sessionStorage.getItem("mfa_is_setup") === "true";
     const savedDevOtp = sessionStorage.getItem("mfa_dev_otp");
     const savedEmailError = sessionStorage.getItem("mfa_email_error");
+    const method = sessionStorage.getItem("mfa_method") as any;
 
     if (!token) {
       toast.error("No active verification session. Please sign in first.");
@@ -72,6 +78,7 @@ function Verify2faPage() {
     setMfaToken(token);
     setMaskedEmail(email || "registered email");
     setIsSetup(setupFlag);
+    if (method === "TOTP") setMfaMethod("TOTP");
     if (savedDevOtp) setDevOtp(savedDevOtp);
     if (savedEmailError) setEmailError(savedEmailError);
 
@@ -175,6 +182,7 @@ function Verify2faPage() {
         sessionStorage.removeItem("mfa_temp_token");
         sessionStorage.removeItem("mfa_masked_email");
         sessionStorage.removeItem("mfa_is_setup");
+        sessionStorage.removeItem("mfa_method");
 
         setToken(res.token);
         qc.invalidateQueries({ queryKey: ["current-session-user"] });
@@ -216,8 +224,17 @@ function Verify2faPage() {
 
   const handleVerifySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const code = digits.join("");
-    executeVerify(code);
+    if (isBackupMode) {
+      const clean = backupCode.trim();
+      if (!clean) {
+        setErrorMessage("Please enter your backup recovery code.");
+        return;
+      }
+      executeVerify(clean);
+    } else {
+      const code = digits.join("");
+      executeVerify(code);
+    }
   };
 
   const handleResend = async () => {
@@ -272,13 +289,17 @@ function Verify2faPage() {
           {/* Logo / Shield Icon */}
           <div className="flex flex-col items-center text-center space-y-3">
             <div className="size-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-inner">
-              <ShieldCheck className="size-8 stroke-[1.8]" />
+              {mfaMethod === "TOTP" ? (
+                <KeyRound className="size-8 stroke-[1.8]" />
+              ) : (
+                <ShieldCheck className="size-8 stroke-[1.8]" />
+              )}
             </div>
 
             <div className="space-y-1">
               <div className="flex items-center justify-center gap-2">
                 <h1 className="text-2xl font-black tracking-tight text-foreground">
-                  Verify Your Identity
+                  {mfaMethod === "TOTP" ? "Two-Factor Authentication" : "Verify Your Identity"}
                 </h1>
                 {isSetup && (
                   <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 border border-amber-500/30">
@@ -287,19 +308,30 @@ function Verify2faPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                We sent a 6-digit verification code to your registered email address.
+                {mfaMethod === "TOTP"
+                  ? isBackupMode
+                    ? "Enter one of your 8-character backup recovery codes generated during 2FA setup."
+                    : "Enter the 6-digit code from your Authenticator App (Google Authenticator, Authy, etc.)."
+                  : "We sent a 6-digit verification code to your registered email address."}
               </p>
             </div>
 
-            {/* Masked Email Badge */}
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/60 text-xs font-mono font-medium text-foreground">
-              <Mail className="size-3.5 text-primary" />
-              <span>{maskedEmail}</span>
-            </div>
+            {/* Method Badge */}
+            {mfaMethod === "TOTP" ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/60 text-xs font-mono font-medium text-foreground">
+                <Smartphone className="size-3.5 text-primary" />
+                <span>Authenticator App (TOTP)</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/60 border border-border/60 text-xs font-mono font-medium text-foreground">
+                <Mail className="size-3.5 text-primary" />
+                <span>{maskedEmail}</span>
+              </div>
+            )}
           </div>
 
-          {/* Delivery Warning / Fallback Passcode Banner */}
-          {devOtp && (
+          {/* Delivery Warning / Fallback Passcode Banner (Only for Email OTP) */}
+          {mfaMethod !== "TOTP" && devOtp && (
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3.5 space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold">
@@ -340,39 +372,61 @@ function Verify2faPage() {
             </div>
           )}
 
-          {/* Form with 6 Digits */}
+          {/* Form with 6 Digits or Backup Code */}
           <form onSubmit={handleVerifySubmit} className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-muted-foreground px-1">
-                <span>Verification Code</span>
-                <span className="text-[11px] font-normal text-muted-foreground">Expires in 5 min</span>
+            {isBackupMode ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground px-1">
+                  <span>Backup Recovery Code</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">8 characters</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. 8A2F-9C1B"
+                  value={backupCode}
+                  onChange={(e) => {
+                    setErrorMessage("");
+                    setBackupCode(e.target.value);
+                  }}
+                  autoFocus
+                  className="w-full h-12 text-center text-xl font-mono font-black tracking-widest uppercase rounded-xl border border-input bg-background/50 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                />
               </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-muted-foreground px-1">
+                  <span>Verification Code</span>
+                  <span className="text-[11px] font-normal text-muted-foreground">
+                    {mfaMethod === "TOTP" ? "Changes every 30s" : "Expires in 5 min"}
+                  </span>
+                </div>
 
-              {/* 6 OTP Input Boxes */}
-              <div className="grid grid-cols-6 gap-2 sm:gap-2.5">
-                {digits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => { inputRefs.current[idx] = el; }}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(idx, e)}
-                    onPaste={handlePaste}
-                    aria-label={`Digit ${idx + 1}`}
-                    className="w-full h-13 sm:h-14 text-center text-xl sm:text-2xl font-mono font-black rounded-xl border border-input bg-background/50 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                  />
-                ))}
+                {/* 6 OTP Input Boxes */}
+                <div className="grid grid-cols-6 gap-2 sm:gap-2.5">
+                  {digits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => { inputRefs.current[idx] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      onPaste={handlePaste}
+                      aria-label={`Digit ${idx + 1}`}
+                      className="w-full h-13 sm:h-14 text-center text-xl sm:text-2xl font-mono font-black rounded-xl border border-input bg-background/50 focus:bg-background focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Verify & Continue Button */}
             <Button
               type="submit"
-              disabled={loading || !isComplete}
+              disabled={loading || (isBackupMode ? !backupCode.trim() : !isComplete)}
               className="w-full h-11 text-sm font-bold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md transition-all"
             >
               {loading ? (
@@ -383,41 +437,78 @@ function Verify2faPage() {
               ) : (
                 <>
                   <CheckCircle2 className="size-4 mr-2" />
-                  Verify & Continue
+                  {isBackupMode ? "Verify Backup Code" : "Verify & Continue"}
                 </>
               )}
             </Button>
 
-            {/* Resend Section with Cooldown */}
-            <div className="text-center pt-2 space-y-2">
-              <p className="text-xs text-muted-foreground">Didn't receive the code?</p>
+            {/* Mode Switch for TOTP */}
+            {mfaMethod === "TOTP" && (
+              <div className="text-center pt-1">
+                {isBackupMode ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBackupMode(false);
+                      setErrorMessage("");
+                    }}
+                    className="text-xs text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Use 6-digit authenticator code instead
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsBackupMode(true);
+                      setErrorMessage("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground hover:underline font-medium cursor-pointer"
+                  >
+                    Lost access to your phone? Use a backup recovery code
+                  </button>
+                )}
+              </div>
+            )}
 
-              {cooldown > 0 ? (
-                <div className="text-xs font-mono text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
-                  <RefreshCw className="size-3 animate-spin text-muted-foreground/60" />
-                  <span>Resend OTP in {formattedCooldown}</span>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleResend}
-                  disabled={resending}
-                  className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1.5 transition-all"
-                >
-                  {resending ? (
-                    <>
-                      <Loader2 className="size-3 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="size-3" />
-                      Resend OTP
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
+            {/* Resend Section with Cooldown (Only for Email OTP) */}
+            {mfaMethod !== "TOTP" ? (
+              <div className="text-center pt-2 space-y-2">
+                <p className="text-xs text-muted-foreground">Didn't receive the code?</p>
+
+                {cooldown > 0 ? (
+                  <div className="text-xs font-mono text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
+                    <RefreshCw className="size-3 animate-spin text-muted-foreground/60" />
+                    <span>Resend OTP in {formattedCooldown}</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resending}
+                    className="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1.5 transition-all"
+                  >
+                    {resending ? (
+                      <>
+                        <Loader2 className="size-3 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="size-3" />
+                        Resend OTP
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="text-center pt-1">
+                <p className="text-[11px] text-muted-foreground">
+                  Open Google Authenticator or Authy to view your current 6-digit verification code.
+                </p>
+              </div>
+            )}
 
             <div className="pt-2 border-t border-border/40 text-center">
               <Link

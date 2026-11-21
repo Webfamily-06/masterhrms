@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -807,15 +807,27 @@ export function EmployeeSettingsPage() {
                 <div className="flex items-center justify-between p-3.5 rounded-lg border bg-muted/30">
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold">TOTP Authenticator</span>
-                      <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]">
-                        PROTECTED
+                      <span className="text-xs font-semibold">TOTP Authenticator App</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          profile?.twoFactorEnabled
+                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 text-[10px]"
+                            : "bg-amber-500/10 text-amber-600 border-amber-500/30 text-[10px]"
+                        }
+                      >
+                        {profile?.twoFactorEnabled ? "● ENABLED" : "○ NOT CONFIGURED"}
                       </Badge>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                       Use Google Authenticator, Authy, or 1Password to generate verification codes.
                     </p>
                   </div>
+                  <Button asChild size="sm" variant={profile?.twoFactorEnabled ? "outline" : "default"} className="h-8 text-xs font-semibold">
+                    <Link to="/two-factor-auth">
+                      {profile?.twoFactorEnabled ? "Manage 2FA" : "Set Up 2FA"}
+                    </Link>
+                  </Button>
                 </div>
 
                 <div className="border-t pt-3 space-y-2">

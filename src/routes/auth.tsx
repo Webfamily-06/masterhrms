@@ -299,6 +299,7 @@ function AuthPage() {
           sessionStorage.setItem("mfa_temp_token", res.mfaToken);
           sessionStorage.setItem("mfa_masked_email", res.maskedEmail || res.email);
           sessionStorage.setItem("mfa_is_setup", res.isSetup ? "true" : "false");
+          sessionStorage.setItem("mfa_method", res.twoFactorMethod || "EMAIL_OTP");
           if (res.devOtp) {
             sessionStorage.setItem("mfa_dev_otp", res.devOtp);
           } else {
@@ -309,7 +310,7 @@ function AuthPage() {
           } else {
             sessionStorage.removeItem("mfa_email_error");
           }
-          toast.info(res.message || "A 6-digit verification code has been sent to your email.");
+          toast.info(res.message || (res.twoFactorMethod === "TOTP" ? "Please enter the 6-digit code from your authenticator app." : "A 6-digit verification code has been sent to your email."));
           navigate({ to: "/verify-2fa", search: { redirect: redirect || undefined } });
           return;
         }
