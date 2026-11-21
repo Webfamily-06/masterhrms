@@ -315,7 +315,7 @@ Plans:
 **Depends on**: Phase 16
 
 Plans:
-- [ ] 17-01: Implement workspace cloud, e-commerce & service desk adapters and verify with automated test suite.
+- [x] 17-01: Implement workspace cloud, e-commerce & service desk adapters and verify with automated test suite (Milestone 8.4).
 
 ---
 

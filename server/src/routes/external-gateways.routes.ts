@@ -54,6 +54,15 @@ const VALID_GATEWAYS = new Set<GatewayKey>([
   "trello",
   "jira",
   "google_analytics",
+  // Phase 17: Workspace Cloud, E-Commerce & Service Desks
+  "google_slides",
+  "whmcs",
+  "google_forms",
+  "google_wallet",
+  "mailchimp",
+  "salesforce",
+  "onedrive",
+  "zendesk",
 ]);
 
 function validateGatewayParam(gateway: string): GatewayKey | null {
@@ -214,6 +223,31 @@ externalGatewaysRouter.post("/dispatch/:gateway", requireAuth, async (req: AuthR
         break;
       case "google_analytics":
         result = await ExternalGatewaysService.trackGoogleAnalyticsEvent(tenantId, req.body);
+        break;
+      // Phase 17: Workspace Cloud, E-Commerce & Service Desks
+      case "google_slides":
+        result = await ExternalGatewaysService.createGoogleSlidesPresentation(tenantId, req.body);
+        break;
+      case "whmcs":
+        result = await ExternalGatewaysService.createWhmcsInvoice(tenantId, req.body);
+        break;
+      case "google_forms":
+        result = await ExternalGatewaysService.ingestGoogleFormsResponse(tenantId, req.body);
+        break;
+      case "google_wallet":
+        result = await ExternalGatewaysService.issueGoogleWalletPass(tenantId, req.body);
+        break;
+      case "mailchimp":
+        result = await ExternalGatewaysService.syncMailchimpSubscriber(tenantId, req.body);
+        break;
+      case "salesforce":
+        result = await ExternalGatewaysService.syncSalesforceLead(tenantId, req.body);
+        break;
+      case "onedrive":
+        result = await ExternalGatewaysService.syncOneDriveFile(tenantId, req.body);
+        break;
+      case "zendesk":
+        result = await ExternalGatewaysService.createZendeskTicket(tenantId, req.body);
         break;
       default:
         return res.status(400).json({ error: `No handler implemented for gateway ${gateway}` });

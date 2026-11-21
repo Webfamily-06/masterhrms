@@ -50,7 +50,16 @@ export type GatewayKey =
   | "onenote"
   | "trello"
   | "jira"
-  | "google_analytics";
+  | "google_analytics"
+  // Phase 17 / Milestone 8.4: Workspace Cloud, E-Commerce & Service Desks
+  | "google_slides"
+  | "whmcs"
+  | "google_forms"
+  | "google_wallet"
+  | "mailchimp"
+  | "salesforce"
+  | "onedrive"
+  | "zendesk";
 
 export interface GatewayConfig {
   enabled: boolean;
@@ -129,6 +138,15 @@ export class ExternalGatewaysService {
       "trello",
       "jira",
       "google_analytics",
+      // Phase 17
+      "google_slides",
+      "whmcs",
+      "google_forms",
+      "google_wallet",
+      "mailchimp",
+      "salesforce",
+      "onedrive",
+      "zendesk",
     ];
 
     for (const g of defaultGateways) {
@@ -1266,5 +1284,379 @@ export class ExternalGatewaysService {
     const trackingId = "ga4_evt_" + crypto.randomUUID().slice(0, 10);
     this.recordLog(tenantId, "google_analytics", "TRACK_EVENT", "simulated", { id: trackingId, event: options.eventName });
     return { success: true, gateway: "google_analytics", simulated: true, trackingId, event: options.eventName };
+  }
+
+  // ==========================================================================
+  // 27. ADDON-039: Google Slides Presentation Generator
+  // ==========================================================================
+  static async createGoogleSlidesPresentation(
+    tenantId: string,
+    options: { title: string; slides?: Array<{ title: string; subtitle?: string; body?: string }> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "google_slides");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch("https://slides.googleapis.com/v1/presentations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({ title: options.title }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "google_slides", "CREATE_PRESENTATION", "success", { id: data.presentationId, title: options.title });
+      return {
+        success: true,
+        gateway: "google_slides",
+        simulated: false,
+        presentationId: data.presentationId || "gslides_live_id",
+        presentationUrl: `https://docs.google.com/presentation/d/${data.presentationId}/edit`,
+      };
+    }
+
+    const simId = "gslides_sim_" + crypto.randomUUID().slice(0, 10);
+    this.recordLog(tenantId, "google_slides", "CREATE_PRESENTATION", "simulated", { id: simId, title: options.title });
+    return {
+      success: true,
+      gateway: "google_slides",
+      simulated: true,
+      presentationId: simId,
+      presentationUrl: `https://docs.google.com/presentation/d/${simId}/edit`,
+    };
+  }
+
+  // ==========================================================================
+  // 28. ADDON-040: WHMCS Client Billing & Hosting Management
+  // ==========================================================================
+  static async createWhmcsInvoice(
+    tenantId: string,
+    options: { userId: number | string; date: string; dueDate: string; items: Array<{ description: string; amount: number }>; paymentMethod?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "whmcs");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.endpointUrl && config.apiKey && config.apiSecret) {
+      const postBody: Record<string, any> = {
+        action: "CreateInvoice",
+        userid: options.userId,
+        date: options.date,
+        duedate: options.dueDate,
+        paymentmethod: options.paymentMethod || "banktransfer",
+        responsetype: "json",
+      };
+      options.items.forEach((item, index) => {
+        postBody[`itemdescription${index + 1}`] = item.description;
+        postBody[`itemamount${index + 1}`] = item.amount;
+        postBody[`itemtaxed${index + 1}`] = 0;
+      });
+
+      const res = await fetch(`${config.endpointUrl.replace(/\/+$/, "")}/includes/api.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${config.apiKey}:${config.apiSecret}`).toString("base64")}`,
+        },
+        body: new URLSearchParams(postBody).toString(),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "whmcs", "CREATE_INVOICE", "success", { invoiceId: data.invoiceid });
+      return {
+        success: true,
+        gateway: "whmcs",
+        simulated: false,
+        invoiceId: String(data.invoiceid || "whmcs_live_inv"),
+        status: "created",
+        paymentUrl: `${config.endpointUrl}/viewinvoice.php?id=${data.invoiceid}`,
+      };
+    }
+
+    const simId = "whmcs_inv_" + Math.floor(1000 + Math.random() * 9000);
+    this.recordLog(tenantId, "whmcs", "CREATE_INVOICE", "simulated", { invoiceId: simId, userId: options.userId });
+    return {
+      success: true,
+      gateway: "whmcs",
+      simulated: true,
+      invoiceId: simId,
+      status: "created",
+      paymentUrl: `${config.endpointUrl || "https://billing.masterhrms.com"}/viewinvoice.php?id=${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 29. ADDON-041: Google Forms Feedback & Response Ingestion
+  // ==========================================================================
+  static async ingestGoogleFormsResponse(
+    tenantId: string,
+    options: { formId?: string; respondentEmail?: string; responses: Record<string, any> }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "google_forms");
+    const simId = "gform_resp_" + crypto.randomUUID().slice(0, 10);
+
+    this.recordLog(tenantId, "google_forms", "INGEST_RESPONSE", "simulated", {
+      responseId: simId,
+      email: options.respondentEmail,
+      fieldsCount: Object.keys(options.responses || {}).length,
+    });
+
+    return {
+      success: true,
+      gateway: "google_forms",
+      simulated: true,
+      responseId: simId,
+      formId: options.formId || config.identifier || "hrms_survey_default",
+      respondentEmail: options.respondentEmail || "anonymous",
+      receivedAt: new Date().toISOString(),
+      mappedFeedback: options.responses,
+    };
+  }
+
+  // ==========================================================================
+  // 30. ADDON-042: Google Wallet Digital Employee Pass / Badge
+  // ==========================================================================
+  static async issueGoogleWalletPass(
+    tenantId: string,
+    options: { issuerId?: string; classId?: string; employeeId: string; employeeName: string; department?: string; photoUrl?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "google_wallet");
+    const issuerId = options.issuerId || config.identifier || "3388000000022";
+    const classId = options.classId || `${issuerId}.hrms_badge_class`;
+    const objectId = `${classId}.${options.employeeId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+    const jwtToken = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.wallet_sim_" + crypto.randomUUID().slice(0, 8);
+    const saveUrl = `https://pay.google.com/gp/v/save/${jwtToken}`;
+
+    this.recordLog(tenantId, "google_wallet", "ISSUE_PASS", "simulated", {
+      objectId,
+      employeeId: options.employeeId,
+      employeeName: options.employeeName,
+    });
+
+    return {
+      success: true,
+      gateway: "google_wallet",
+      simulated: true,
+      issuerId,
+      classId,
+      objectId,
+      saveUrl,
+      badgeDetails: {
+        employeeName: options.employeeName,
+        department: options.department || "General",
+        employeeId: options.employeeId,
+      },
+    };
+  }
+
+  // ==========================================================================
+  // 31. ADDON-045: Mailchimp Audience & Subscriber Synchronization
+  // ==========================================================================
+  static async syncMailchimpSubscriber(
+    tenantId: string,
+    options: { listId?: string; email: string; firstName?: string; lastName?: string; tags?: string[] }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "mailchimp");
+    const isSandbox = config.sandboxMode !== false;
+    const listId = options.listId || config.identifier;
+    const subscriberHash = crypto.createHash("md5").update(options.email.toLowerCase().trim()).digest("hex");
+
+    if (!isSandbox && config.apiKey && listId) {
+      const dc = config.apiKey.split("-")[1] || "us1";
+      const res = await fetch(`https://${dc}.api.mailchimp.com/3.0/lists/${listId}/members/${subscriberHash}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${Buffer.from(`anystring:${config.apiKey}`).toString("base64")}`,
+        },
+        body: JSON.stringify({
+          email_address: options.email,
+          status_if_new: "subscribed",
+          merge_fields: {
+            FNAME: options.firstName || "",
+            LNAME: options.lastName || "",
+          },
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "mailchimp", "SYNC_SUBSCRIBER", "success", { email: options.email, subscriberHash });
+      return {
+        success: true,
+        gateway: "mailchimp",
+        simulated: false,
+        subscriberHash: data.id || subscriberHash,
+        email: options.email,
+        status: data.status || "subscribed",
+        tags: options.tags || [],
+      };
+    }
+
+    this.recordLog(tenantId, "mailchimp", "SYNC_SUBSCRIBER", "simulated", { email: options.email, subscriberHash });
+    return {
+      success: true,
+      gateway: "mailchimp",
+      simulated: true,
+      subscriberHash,
+      email: options.email,
+      status: "subscribed",
+      tags: options.tags || [],
+    };
+  }
+
+  // ==========================================================================
+  // 32. ADDON-046: Salesforce CRM Lead & Contact Synchronization
+  // ==========================================================================
+  static async syncSalesforceLead(
+    tenantId: string,
+    options: { leadId?: string; firstName: string; lastName: string; company: string; email: string; phone?: string; leadSource?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "salesforce");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.endpointUrl && config.accessToken) {
+      const res = await fetch(`${config.endpointUrl.replace(/\/+$/, "")}/services/data/v58.0/sobjects/Lead`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.accessToken}`,
+        },
+        body: JSON.stringify({
+          FirstName: options.firstName,
+          LastName: options.lastName,
+          Company: options.company,
+          Email: options.email,
+          Phone: options.phone || "",
+          LeadSource: options.leadSource || "MASTERHRMS Cloud",
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "salesforce", "SYNC_LEAD", "success", { leadId: data.id, email: options.email });
+      return {
+        success: true,
+        gateway: "salesforce",
+        simulated: false,
+        leadId: data.id || "00Q_live_salesforce",
+        email: options.email,
+        successStatus: "created",
+      };
+    }
+
+    const simId = "00Q" + crypto.randomUUID().replace(/-/g, "").slice(0, 15);
+    this.recordLog(tenantId, "salesforce", "SYNC_LEAD", "simulated", { leadId: simId, email: options.email });
+    return {
+      success: true,
+      gateway: "salesforce",
+      simulated: true,
+      leadId: simId,
+      email: options.email,
+      successStatus: "created",
+    };
+  }
+
+  // ==========================================================================
+  // 33. ADDON-059: OneDrive Cloud Storage Document Sync
+  // ==========================================================================
+  static async syncOneDriveFile(
+    tenantId: string,
+    options: { path?: string; fileName: string; contentBase64?: string; mimeType?: string }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "onedrive");
+    const isSandbox = config.sandboxMode !== false;
+    const uploadPath = options.path || "HRMS/Documents";
+
+    if (!isSandbox && config.accessToken) {
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(uploadPath)}/${encodeURIComponent(options.fileName)}:/content`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": options.mimeType || "application/octet-stream",
+            Authorization: `Bearer ${config.accessToken}`,
+          },
+          body: options.contentBase64 ? Buffer.from(options.contentBase64, "base64") : Buffer.from("HRMS Document Sync"),
+        }
+      );
+      const data = await res.json();
+      this.recordLog(tenantId, "onedrive", "SYNC_FILE", "success", { itemId: data.id, fileName: options.fileName });
+      return {
+        success: true,
+        gateway: "onedrive",
+        simulated: false,
+        itemId: data.id || "onedrive_live_id",
+        fileName: options.fileName,
+        webUrl: data.webUrl || `https://onedrive.live.com/view.aspx?id=${data.id}`,
+      };
+    }
+
+    const simId = "onedrive_item_" + crypto.randomUUID().slice(0, 12);
+    this.recordLog(tenantId, "onedrive", "SYNC_FILE", "simulated", { itemId: simId, fileName: options.fileName });
+    return {
+      success: true,
+      gateway: "onedrive",
+      simulated: true,
+      itemId: simId,
+      fileName: options.fileName,
+      webUrl: `https://onedrive.live.com/view.aspx?id=${simId}`,
+    };
+  }
+
+  // ==========================================================================
+  // 34. ADDON-071: Zendesk Service Desk Ticket Management
+  // ==========================================================================
+  static async createZendeskTicket(
+    tenantId: string,
+    options: { subject: string; comment: string; requesterEmail: string; requesterName?: string; priority?: "urgent" | "high" | "normal" | "low" }
+  ) {
+    const config = await this.getInternalConfig(tenantId, "zendesk");
+    const isSandbox = config.sandboxMode !== false;
+
+    if (!isSandbox && config.endpointUrl && config.apiKey) {
+      const authHeader = config.identifier
+        ? `Basic ${Buffer.from(`${config.identifier}/token:${config.apiKey}`).toString("base64")}`
+        : `Bearer ${config.apiKey}`;
+
+      const res = await fetch(`${config.endpointUrl.replace(/\/+$/, "")}/api/v2/tickets.json`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({
+          ticket: {
+            subject: options.subject,
+            comment: { body: options.comment },
+            priority: options.priority || "normal",
+            requester: {
+              name: options.requesterName || options.requesterEmail.split("@")[0],
+              email: options.requesterEmail,
+            },
+          },
+        }),
+      });
+      const data = await res.json();
+      this.recordLog(tenantId, "zendesk", "CREATE_TICKET", "success", { ticketId: data.ticket?.id, subject: options.subject });
+      return {
+        success: true,
+        gateway: "zendesk",
+        simulated: false,
+        ticketId: data.ticket?.id || 10001,
+        subject: options.subject,
+        priority: options.priority || "normal",
+        status: data.ticket?.status || "new",
+        ticketUrl: `${config.endpointUrl}/agent/tickets/${data.ticket?.id}`,
+      };
+    }
+
+    const simId = Math.floor(10000 + Math.random() * 90000);
+    this.recordLog(tenantId, "zendesk", "CREATE_TICKET", "simulated", { ticketId: simId, subject: options.subject });
+    return {
+      success: true,
+      gateway: "zendesk",
+      simulated: true,
+      ticketId: simId,
+      subject: options.subject,
+      priority: options.priority || "normal",
+      status: "new",
+      ticketUrl: `${config.endpointUrl || "https://masterhrms.zendesk.com"}/agent/tickets/${simId}`,
+    };
   }
 }
