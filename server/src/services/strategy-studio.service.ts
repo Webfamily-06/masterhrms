@@ -3,7 +3,7 @@ import { prisma } from "../prisma";
 import { AuditService } from "./audit.service";
 import { OutboxService } from "./outbox.service";
 
-export type StrategyMatrixType = "swot" | "pestel" | "porter-five-forces" | "mckinsey-7s";
+export type StrategyMatrixType = "swot" | "pestel" | "porter-five-forces" | "mckinsey-7s" | "business-model-canvas" | "bmc";
 
 export interface StrategySectionItem {
   id: string;
@@ -55,6 +55,36 @@ export class StrategyStudioService {
           { key: "technological", label: "Technological", placeholder: "R&D, automation, disruptive tech..." },
           { key: "environmental", label: "Environmental", placeholder: "Sustainability, climate policies..." },
           { key: "legal", label: "Legal", placeholder: "Employment laws, consumer protection..." },
+        ],
+      };
+    } else if (matrixType === "business-model-canvas" || matrixType === "bmc") {
+      return {
+        matrixType: "business-model-canvas",
+        title: "Business Model Canvas (Osterwalder)",
+        categories: [
+          { key: "key_partners", label: "Key Partners", placeholder: "Key suppliers, partners, strategic alliances..." },
+          { key: "key_activities", label: "Key Activities", placeholder: "Crucial activities to deliver value..." },
+          { key: "key_resources", label: "Key Resources", placeholder: "Physical, intellectual, human, financial assets..." },
+          { key: "value_propositions", label: "Value Propositions", placeholder: "Unique bundles of products/services delivering customer value..." },
+          { key: "customer_relationships", label: "Customer Relationships", placeholder: "Personal assistance, self-service, automated services..." },
+          { key: "channels", label: "Channels", placeholder: "Direct sales, web, partner stores, wholesale..." },
+          { key: "customer_segments", label: "Customer Segments", placeholder: "Mass market, niche, segmented, multi-sided platforms..." },
+          { key: "cost_structure", label: "Cost Structure", placeholder: "Fixed costs, variable costs, economies of scale..." },
+          { key: "revenue_streams", label: "Revenue Streams", placeholder: "Asset sales, usage fees, subscription fees, licensing..." },
+        ],
+      };
+    } else if (matrixType === "mckinsey-7s") {
+      return {
+        matrixType: "mckinsey-7s",
+        title: "McKinsey 7-S Framework",
+        categories: [
+          { key: "strategy", label: "Strategy (Hard)", placeholder: "Plan to build and maintain competitive advantage..." },
+          { key: "structure", label: "Structure (Hard)", placeholder: "How the organization is structured and who reports to whom..." },
+          { key: "systems", label: "Systems (Hard)", placeholder: "Daily activities, processes, and procedures..." },
+          { key: "shared_values", label: "Shared Values (Soft)", placeholder: "Core values, company mission, and work culture..." },
+          { key: "style", label: "Style (Soft)", placeholder: "Leadership style and behavioral norms..." },
+          { key: "staff", label: "Staff (Soft)", placeholder: "Workforce capabilities, talent management, and employee base..." },
+          { key: "skills", label: "Skills (Soft)", placeholder: "Core competencies and unique institutional capabilities..." },
         ],
       };
     }

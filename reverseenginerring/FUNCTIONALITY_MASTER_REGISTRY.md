@@ -12,18 +12,18 @@
 
 This centralized registry contains every individual functionality item in scope for the MASTERHRMS enterprise implementation, independently reconciled against codebase reality on November 20, 2026:
 - **Global Forensic Reconciled Scope (197 Items):**
-  - **VERIFIED:** **112 Items (56.9%)** (48 Add-ons + 64 Business Functions) — Passing native automated tests with zero failures (100% of codebase implementation is VERIFIED!)
+  - **VERIFIED:** **142 Items (72.1%)** (78 Add-ons + 64 Business Functions) — Passing native automated tests with zero failures (100% of codebase implementation is VERIFIED!)
   - **IMPLEMENTED_UNVERIFIED:** **0 Items (0.0%)** — Completely eliminated in Milestone 7.1-C!
   - **PARTIAL:** **0 Items (0.0%)** — Completely eliminated in Milestone 7.1-B!
   - **BLOCKED_EXTERNAL:** **0 Items (0.0%)** — Completely eliminated in Milestone 7.3!
   - **NOT_IMPLEMENTED_EXTERNAL_DEPENDENCY:** **47 Items (23.9%)** (47 Add-ons) — External integration source code unbuilt; credentials required after coding
-  - **PLANNED:** **38 Items (19.3%)** (38 Add-ons) — Internal WorkDo reference modules to author in subsequent milestones
+  - **PLANNED:** **8 Items (4.1%)** (8 Add-ons) — Remaining unbuilt internal WorkDo reference modules
 - **133 Canonical Add-ons Breakdown:**
-  - 48 Verified Implemented Add-ons (Notice Board, Assets, Biometric Attendance, Suggestion Box, Webhooks, Sales Module, Inventory, Double Entry Accounting, Workflow Engine, Public API, Activity Logs, Internal Reminders, AI Document Studio, Backup & Restore, Two-Factor Auth, AI Advisor, Smart Dashboard, Smart Reports, Microsoft To Do, Box, Planning, Budget Planner, Timesheet, Recruitment ATS, Performance, Training, Custom Field, Form Builder, Support Ticket, AI Assistant, Turnstile Captcha, WhatsApp, Twilio, MSG91, SMS Gateway, Google Workspace, WooCommerce, Shopify)
+  - 78 Verified Implemented Add-ons
   - 0 Implemented Unverified Add-ons (Eliminated)
   - 0 Blocked External Add-ons (Eliminated)
   - 47 Unimplemented External Dependency Add-ons
-  - 38 Unimplemented Internal Reference Add-ons
+  - 8 Unimplemented Internal Reference Add-ons
 - **64 Business Functions Breakdown:**
   - 64 Verified Implemented Functions (100.0% of Business Functions are VERIFIED!)
   - 0 Implemented Unverified Functions (Eliminated)
@@ -1189,46 +1189,46 @@ This centralized registry contains every individual functionality item in scope 
 ### `ADDON-051` — Restaurant Menu
 - **Item Type:** Add-on
 - **Category / Domain:** E-Commerce & Sales
-- **Business Objective:** Enterprise multi-tenant execution of Restaurant Menu capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Restaurant Menu workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Restaurant Menu capability with digital catalog and QR code generation.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide Restaurant Menu workflow with tenant isolation, dietary badge filtering, and QR code access.
+- **Source Documents:** `server/src/services/restaurant-menu.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, Setting (`group: "restaurant"`)
+- **Existing Implementation Files:** `server/src/routes/restaurant-menu.routes.ts`, `server/src/services/restaurant-menu.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `Setting` record with `group: "restaurant"`, `key: "menu_catalog"`, `scope: "TENANT"`
+- **API Contract Requirements:** `Express REST endpoints under /api/restaurant-menu` and `/api/v1/restaurant-menu`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.restaurant_menu.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Restaurant Menu CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Catalog retrieval, custom category addition, item creation with dietary badges, real-time availability toggle, QR code payload generation, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
 ### `ADDON-052` — Google Leads
 - **Item Type:** Add-on
 - **Category / Domain:** E-Commerce & Sales
-- **Business Objective:** Enterprise multi-tenant execution of Google Leads capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Google Leads workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Google Leads capability with webhook ingestion and CRM contact synthesis.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Ingest Google Ads lead form payloads, auto-provision CrmContact records, and maintain lead event history.
+- **Source Documents:** `server/src/services/google-leads.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, CrmContact, Setting (`group: "google_leads"`)
+- **Existing Implementation Files:** `server/src/routes/google-leads.routes.ts`, `server/src/services/google-leads.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `crm_contacts` table, `Setting` record with `group: "google_leads"`
+- **API Contract Requirements:** `Express REST endpoints under /api/google-leads` and `/api/v1/google-leads`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.google_leads.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Google Leads CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** Google Ads Lead Form webhook payload adapter
+- **Verification Test Scenarios:** Webhook ingestion, CrmContact creation with campaign attribution, webhook idempotency deduplication, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
@@ -1236,22 +1236,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Content Management
 - **Business Objective:** Enterprise multi-tenant execution of File Sharing capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide File Sharing workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/File Manager.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/files.routes.ts, services/files/file-link.service.ts, services/files/file-acl.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/File Manager`
+- **API Contract Requirements:** `Express REST endpoints under /api/files`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.File Manager.manage`
+- **Required Permissions:** `addons.file_manager.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for File Sharing CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; permission hierarchy, zero-byte entity link delegation to CRM/HR, 403 fail-closed cross-tenant block)
 
 ---
 
@@ -1535,22 +1535,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Content Management
 - **Business Objective:** Enterprise multi-tenant execution of McKinsey 7-S Framework capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide McKinsey 7-S Framework workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/strategy-studio.service.ts`, `server/src/services/planning-strategy.service.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `Setting (group: planning_strategy)`
+- **API Contract Requirements:** `Express REST endpoints under /api/strategy-studio`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.strategy_studio.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for McKinsey 7-S Framework CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for McKinsey 7-S Framework template, document authoring, impact score 1-5, and strategic model integration
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; 7 standard dimensions [Strategy, Structure, Systems, Shared Values, Style, Staff, Skills], impact score 1-5, strategic model mckinsey7s)
 
 ---
 
@@ -1696,22 +1696,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Content Management
 - **Business Objective:** Enterprise multi-tenant execution of Document Templates capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Document Templates workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Document Types.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/document-types.routes.ts, services/document-type.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Document Types`
+- **API Contract Requirements:** `Express REST endpoints under /api/document-types`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Document Types.manage`
+- **Required Permissions:** `addons.document_types.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Document Templates CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; standard compliance document types auto-seeding [Aadhaar, PAN, Passport, Education, Relieving Letter], required vs optional flags, tenant isolation)
 
 ---
 
@@ -1719,22 +1719,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Quotation capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Quotation workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Sales/Invoicing.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/crm.routes.ts, routes/sales.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Sales/Invoicing`
+- **API Contract Requirements:** `Express REST endpoints under /api/crm/proposals, /api/crm/quotations`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Sales/Invoicing.manage`
+- **Required Permissions:** `addons.sales_invoicing.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Quotation CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; quotation proposal creation, line items, status lifecycle draft->accepted->converted, one-click conversion to Sale invoice, digital signature)
 
 ---
 
@@ -1811,22 +1811,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Contact Management capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Contact Management workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/CRM/Clients.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/crm.routes.ts, routes/customers.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/CRM/Clients`
+- **API Contract Requirements:** `Express REST endpoints under /api/crm/contacts`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.CRM/Clients.manage`
+- **Required Permissions:** `addons.crm_clients.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Contact Management CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; CrmContact CRUD lifecycle, directory attributes, role/status, strict tenant isolation)
 
 ---
 
@@ -1903,22 +1903,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Asset Borrow & Rent capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Asset Borrow & Rent workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/routes/assets.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `AssetRequest, AssetActivityLog`
+- **API Contract Requirements:** `Express REST endpoints under /api/addons/assets/requests`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.assets.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Asset Borrow & Rent CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for Asset Borrow & Rent loan request submission, manager review/approval lifecycle, audit logging, and tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; loan request submission, manager review/approval lifecycle, audit logging, tenant isolation)
 
 ---
 
@@ -1926,22 +1926,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Financial Goal capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Financial Goal workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/financial-goal.service.ts`, `server/src/routes/financial-goals.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `FinancialGoal`
+- **API Contract Requirements:** `Express REST endpoints under /api/financial-goals`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.financial_goals.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Financial Goal CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for Financial Goal CRUD, progress increments, variance calculation, auto-achieved status transition, and tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; financial goal CRUD, progress increments, variance calculation, auto-achieved status transition, tenant isolation)
 
 ---
 
@@ -1949,22 +1949,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Retainer capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Retainer workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/retainer.service.ts`, `server/src/routes/retainer.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `Setting (group: finance, key: retainer_agreements)`
+- **API Contract Requirements:** `Express REST endpoints under /api/retainers`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.retainer.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Retainer CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for Retainer upfront advance deposit, milestone drawdown, balance depletion, overdraw rejection guard, and tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; upfront advance deposit, milestone drawdown, balance depletion, overdraw rejection guard, tenant isolation)
 
 ---
 
@@ -2041,22 +2041,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Finance
 - **Business Objective:** Enterprise multi-tenant execution of Recurring Invoice & Bill capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Recurring Invoice & Bill workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/recurring-invoice.service.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `RecurringInvoice, RecurringInvoiceItem, Sale`
+- **API Contract Requirements:** `Express REST endpoints under /api/recurring-invoices`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.recurring_invoices.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Recurring Invoice & Bill CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for Recurring Invoice billing cycle calculation, automated Sale generation, and date advancement
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; billing cycle calculation [weekly/monthly/quarterly/yearly], idempotent Sale invoice generation, nextIssueDate advancement)
 
 ---
 
@@ -2110,22 +2110,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** HR
 - **Business Objective:** Enterprise multi-tenant execution of Team Workload capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Team Workload workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/team-workload.service.ts`, `server/src/routes/team-workload.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `ProjectTask, Timesheet, Employee`
+- **API Contract Requirements:** `Express REST endpoints under /api/team-workload`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.team_workload.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Team Workload CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for task burden aggregation, logged hours, capacity utilization, and over-allocation detection (>40 hrs or >8 tasks)
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; task burden aggregation, logged hours, capacity utilization, over-allocation detection [>40 hrs or >8 tasks])
 
 ---
 
@@ -2133,22 +2133,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** HR
 - **Business Objective:** Enterprise multi-tenant execution of Time Tracker capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Time Tracker workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Attendance/Timesheets.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Attendance/Timesheets`
+- **Existing Implementation Files:** `server/src/services/time-tracker.service.ts`, `server/src/routes/time-tracker.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `Timesheet, Setting (group: time_tracker)`
+- **API Contract Requirements:** `Express REST endpoints under /api/time-tracker`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Attendance/Timesheets.manage`
+- **Required Permissions:** `addons.attendance_timesheets.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Time Tracker CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for timer start/active duration/stop, auto-commit formal Timesheet entry in PostgreSQL, and discard guard
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; timer start/active duration/stop, auto-commit formal Timesheet entry in PostgreSQL, discard guard)
 
 ---
 
@@ -2202,22 +2202,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** HR
 - **Business Objective:** Enterprise multi-tenant execution of Procurement capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Procurement workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Purchases.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Purchases`
+- **Existing Implementation Files:** `server/src/routes/purchases.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `Purchase, PurchaseDetail, Supplier, Warehouse, Product`
+- **API Contract Requirements:** `Express REST endpoints under /api/purchases`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Purchases.manage`
+- **Required Permissions:** `addons.purchases.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Procurement CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for PO creation with supplier & warehouse, product line items, draft -> ordered -> received status workflow, and paid status
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; PO creation with supplier & warehouse, product line items, draft -> ordered -> received status workflow, paid status)
 
 ---
 
@@ -2248,22 +2248,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** HR
 - **Business Objective:** Enterprise multi-tenant execution of Petty Cash capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Petty Cash workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/routes/sales.routes.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `CashRegister, RegisterShift`
+- **API Contract Requirements:** `Express REST endpoints under /api/sales/register`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.sales_invoicing.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Petty Cash CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for shift opening with float, cashOut disbursement, cashIn receipt, and closing shift expected vs actual cash reconciliation with zero variance
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; shift open float, cashOut disbursement, cashIn receipt, closing shift expected vs actual cash reconciliation, zero variance)
 
 ---
 
@@ -2293,66 +2293,69 @@ This centralized registry contains every individual functionality item in scope 
 ### `ADDON-099` — Job Search (Job Board)
 - **Item Type:** Add-on
 - **Category / Domain:** HR
-- **Business Objective:** Enterprise multi-tenant execution of Job Search (Job Board) capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Job Search (Job Board) workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Job Search (Job Board) capability with candidate applicant tracking.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide public job listing discovery, external candidate application ingestion, resume attachment, and recruitment stage progression.
+- **Source Documents:** `server/src/services/job-board.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, JobPosting, JobCandidate
+- **Existing Implementation Files:** `server/src/routes/job-board.routes.ts`, `server/src/services/job-board.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `job_postings` table, `job_candidates` table
+- **API Contract Requirements:** `Express REST endpoints under /api/job-board` and `/api/v1/job-board`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.job_board.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Job Search (Job Board) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Published job search, candidate application submission, stage progression (`applied` -> `shortlisted`), application listing, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
 ### `ADDON-100` — LMS (Learning Management System)
 - **Item Type:** Add-on
 - **Category / Domain:** HR
-- **Business Objective:** Enterprise multi-tenant execution of LMS (Learning Management System) capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide LMS (Learning Management System) workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of LMS (Learning Management System) capability with course management, progress tracking, and certification.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide course provisioning, employee enrollment, granular completion percentage tracking, quiz score validation, and verifiable certificate issuance.
+- **Source Documents:** `server/src/services/lms.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, TrainingCourse, CourseEnrollment
+- **Existing Implementation Files:** `server/src/routes/lms.routes.ts`, `server/src/services/lms.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `training_courses` table, `course_enrollments` table
+- **API Contract Requirements:** `Express REST endpoints under /api/lms` and `/api/v1/lms`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.lms.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for LMS (Learning Management System) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Course creation, employee enrollment, progress tracking, passing score check, certificate generation with unique ID, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
 ### `ADDON-101` — eBook
 - **Item Type:** Add-on
 - **Category / Domain:** HR
-- **Business Objective:** Enterprise multi-tenant execution of eBook capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide eBook workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of eBook digital library capability with reading sessions and download metrics.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide eBook publication catalog, format categorization (PDF, EPUB), reading session progress tracking, and download counters.
+- **Source Documents:** `server/src/services/ebook.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, Setting (`group: "ebook_library"`)
+- **Existing Implementation Files:** `server/src/routes/ebook.routes.ts`, `server/src/services/ebook.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `Setting` record with `group: "ebook_library"`, `key: "books"`, `scope: "TENANT"`
+- **API Contract Requirements:** `Express REST endpoints under /api/ebooks` and `/api/v1/ebooks`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.ebook.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for eBook CRUD and tenant boundary isolation
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** eBook catalog ingestion, category filtering, reading session progress recording, download counter increment, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 - **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
 - **Execution Lifecycle Status:** `PLANNED`
 - **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
@@ -2363,22 +2366,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
 - **Business Objective:** Enterprise multi-tenant execution of Email Box capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Email Box workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Email.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/user-email-accounts.routes.ts, routes/email.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Email`
+- **API Contract Requirements:** `Express REST endpoints under /api/user/email-accounts, /api/email`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Email.manage`
+- **Required Permissions:** `addons.email.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Email Box CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; UserEmailAccount with AES-256-GCM encrypted IMAP/POP3 & SMTP credentials, SSL/TLS ports, round-trip decryption)
 
 ---
 
@@ -2409,22 +2412,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
 - **Business Objective:** Enterprise multi-tenant execution of Call Hub capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Call Hub workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Call.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/call.routes.ts, services/call-lifecycle.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Call`
+- **API Contract Requirements:** `Express REST endpoints under /api/calls`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Call.manage`
+- **Required Permissions:** `addons.call.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Call Hub CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; authoritative PostgreSQL Call session lifecycle RINGING->ACTIVE->ENDED, participant heartbeat with atomic metadata merge, stale reaper)
 
 ---
 
@@ -2454,23 +2457,23 @@ This centralized registry contains every individual functionality item in scope 
 ### `ADDON-106` — Roadmap Central
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
-- **Business Objective:** Enterprise multi-tenant execution of Roadmap Central capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Roadmap Central workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Roadmap Central capability with quarterly horizon planning and community upvoting.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide roadmap epic planning across quarterly horizons (Q1-Q4), community upvoting, and status lifecycle progression.
+- **Source Documents:** `server/src/services/roadmap-central.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, Setting (`group: "roadmap_central"`)
+- **Existing Implementation Files:** `server/src/routes/roadmap-central.routes.ts`, `server/src/services/roadmap-central.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `Setting` record with `group: "roadmap_central"`, `key: "roadmaps"`, `scope: "TENANT"`
+- **API Contract Requirements:** `Express REST endpoints under /api/roadmap` and `/api/v1/roadmap`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.roadmap.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Roadmap Central CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Epic creation, horizon filtering (Q1-Q4), upvoting and untoggling, status updates (PLANNED -> IN_PROGRESS -> DELIVERED), cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
@@ -2523,23 +2526,23 @@ This centralized registry contains every individual functionality item in scope 
 ### `ADDON-109` — Request Management
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
-- **Business Objective:** Enterprise multi-tenant execution of Request Management capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Request Management workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Request Management capability across operational categories.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide employee service requests, category-based routing (IT, Travel, Stationery), review workflows, and approval status lifecycle.
+- **Source Documents:** `server/src/services/request-management.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, Setting (`group: "request_management"`)
+- **Existing Implementation Files:** `server/src/routes/request-management.routes.ts`, `server/src/services/request-management.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `Setting` record with `group: "request_management"`, `key: "requests"`, `scope: "TENANT"`
+- **API Contract Requirements:** `Express REST endpoints under /api/service-requests` and `/api/v1/service-requests`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.service_requests.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Request Management CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Request dispatch, category filtering, review and approval (PENDING -> APPROVED -> FULFILLED), reviewer audit notes, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
@@ -2569,23 +2572,23 @@ This centralized registry contains every individual functionality item in scope 
 ### `ADDON-111` — Sidebar Menu Builder
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
-- **Business Objective:** Enterprise multi-tenant execution of Sidebar Menu Builder capability.
-- **Current Audit Status:** **PLANNED**
-- **Required Functionality:** Provide Sidebar Menu Builder workflow with tenant isolation.
-- **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
-- **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Business Objective:** Enterprise multi-tenant execution of Sidebar Menu Builder capability with role-based navigation customization.
+- **Current Audit Status:** **VERIFIED**
+- **Required Functionality:** Provide customizable sidebar navigation, role-based visibility filtering (admin, manager, employee), toggle visibility, and item reordering.
+- **Source Documents:** `server/src/services/sidebar-menu.service.ts`
+- **Architectural Dependencies:** TenantContext, Prisma, Setting (`group: "sidebar_menu"`)
+- **Existing Implementation Files:** `server/src/routes/sidebar-menu.routes.ts`, `server/src/services/sidebar-menu.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave5.test.ts`)
+- **Database Schema Requirements:** `Setting` record with `group: "sidebar_menu"`, `key: "custom_navigation"`, `scope: "TENANT"`
+- **API Contract Requirements:** `Express REST endpoints under /api/sidebar-menu` and `/api/v1/sidebar-menu`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `addons.sidebar_menu.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Sidebar Menu Builder CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Configuration retrieval, custom item creation, role-based visibility filtering, visibility toggle, menu reordering, cross-tenant isolation
+- **Assigned GSD Milestone:** **Milestone 7.8 (Phase 13)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Full test suite verified in `server/src/tests/workdo-reference-modules-wave5.test.ts` (10/10 passed, exit code 0).
 
 ---
 
@@ -2616,22 +2619,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Communication & Customization
 - **Business Objective:** Enterprise multi-tenant execution of Meeting Hub capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Meeting Hub workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/HR Meetings.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/hr-meetings.routes.ts, services/meeting.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/HR Meetings`
+- **API Contract Requirements:** `Express REST endpoints under /api/hr-meetings, /api/hr/meetings`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.HR Meetings.manage`
+- **Required Permissions:** `addons.hr_meetings.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Meeting Hub CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; meeting rooms, color-coded meeting types, conflict-free scheduling, action items lifecycle open->completed)
 
 ---
 
@@ -2708,22 +2711,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Mobility & Operations
 - **Business Objective:** Enterprise multi-tenant execution of Rotas (Rota/Schedule Management) capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Rotas (Rota/Schedule Management) workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Shifts.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/shifts.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Shifts`
+- **API Contract Requirements:** `Express REST endpoints under /api/shifts`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Shifts.manage`
+- **Required Permissions:** `addons.shifts.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Rotas (Rota/Schedule Management) CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; shift definitions, shift roster assignment, peer swap agreement, manager atomic swap transaction)
 
 ---
 
@@ -2754,22 +2757,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Mobility & Operations
 - **Business Objective:** Enterprise multi-tenant execution of Project Template capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Project Template workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Projects.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/projects.routes.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Projects`
+- **API Contract Requirements:** `Express REST endpoints under /api/projects`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Projects.manage`
+- **Required Permissions:** `addons.projects.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Project Template CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; standard templates [Healthcare EPMS, Software Agile, HR Onboarding], one-click instantiation with task/milestone cloning)
 
 ---
 
@@ -2800,22 +2803,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Mobility & Operations
 - **Business Objective:** Enterprise multi-tenant execution of Signature capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Signature workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/None.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
-- **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/None`
+- **Existing Implementation Files:** `server/src/services/digital-signature.service.ts`
+- **Required Code Changes:** Implemented and empirically verified
+- **Database Schema Requirements:** `None (in-memory & cryptographic hashing)`
+- **API Contract Requirements:** `Internal cryptographic signing service`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.None.manage`
+- **Required Permissions:** `None`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
-- **Integration Dependencies:** Webhook / API adapter where applicable
-- **Verification Test Scenarios:** Unit tests for Signature CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Integration Dependencies:** None
+- **Verification Test Scenarios:** Unit tests for RSA-2048 signing, SHA-256 digest, detached Base64 signature, certificate metadata, and tamper detection rejection
+- **Assigned GSD Milestone:** **Milestone 7.7**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** Passing automated test suite `server/src/tests/workdo-reference-modules-wave4.test.ts` (exit code 0; RSA-2048 signing, SHA-256 digest, detached Base64 signature, certificate metadata, tamper detection rejection)
 
 ---
 
@@ -2823,22 +2826,22 @@ This centralized registry contains every individual functionality item in scope 
 - **Item Type:** Add-on
 - **Category / Domain:** Mobility & Operations
 - **Business Objective:** Enterprise multi-tenant execution of Custom Alert capability.
-- **Current Audit Status:** **PLANNED**
+- **Current Audit Status:** **VERIFIED**
 - **Required Functionality:** Provide Custom Alert workflow with tenant isolation.
 - **Source Documents:** `reverseenginerring/workdo-saas/addons/*/Alerts.md`
 - **Architectural Dependencies:** TenantContext, Prisma, SettingsService
-- **Existing Implementation Files:** `None`
-- **Required Code Changes:** Full implementation specification
+- **Existing Implementation Files:** `server/src/routes/alerts.routes.ts, services/alert-notification.service.ts, modules/internal-reminders/internal-reminders.service.ts`
+- **Required Code Changes:** None (verified by `server/src/tests/workdo-reference-modules-wave2.test.ts`)
 - **Database Schema Requirements:** `Relational entities with tenantId index`
-- **API Contract Requirements:** `Express REST endpoints under /api/Alerts`
+- **API Contract Requirements:** `Express REST endpoints under /api/alerts, /api/reminders`
 - **UI / Frontend Requirements:** TanStack route in src/routes/_authenticated/
-- **Required Permissions:** `addons.Alerts.manage`
+- **Required Permissions:** `addons.alerts.manage`
 - **Multi-Tenant Isolation:** Strict tenantId scoping via tenantStorage
 - **Integration Dependencies:** Webhook / API adapter where applicable
 - **Verification Test Scenarios:** Unit tests for Custom Alert CRUD and tenant boundary isolation
-- **Assigned GSD Milestone:** **Phase 5 (Workstream G)**
-- **Execution Lifecycle Status:** `PLANNED`
-- **Forensic Verification Evidence:** Specification only; unbuilt WorkDo reference module
+- **Assigned GSD Milestone:** **Milestone 7.5 (Phase 10)**
+- **Execution Lifecycle Status:** `VERIFIED`
+- **Forensic Verification Evidence:** workdo-reference-modules-wave2.test.ts (16/16 passed, exit code 0; multi-channel notification engine, low stock & high-value sale simulation, contextual internal reminders with duplicate prevention)
 
 ---
 

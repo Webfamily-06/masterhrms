@@ -22,6 +22,10 @@ This roadmap orchestrates the full transition from reverse-engineering discovery
 - [x] **Phase 7: Canonical Route Normalization & Alias Verification** - Wire 7 canonical Express route aliases for biometric punch, attendance summary, leave approval, shift swap approval, OKR objectives, OKR check-ins, and Tally import, promoting all 7 PARTIAL items to VERIFIED (Milestone 7.1-B).
 - [x] **Phase 8: External Integration Sandbox & Mock Harnesses** - Implement and verify deterministic mock test harnesses for all 10 BLOCKED_EXTERNAL items (WhatsApp, Twilio, MSG91, SMS Gateway, Google Workspace, WooCommerce, Shopify, Turnstile), promoting all 10 to VERIFIED (Milestone 7.3).
 - [x] **Phase 9: Internal WorkDo Add-on Modules Verification (Wave 1: Content, Strategy & Operations)** - Verify 10 internal WorkDo add-on modules across Digital Certificate Studio, Strategy Matrix Frameworks (SWOT, PEST, PESTEL, Porter's 5 Forces), Document Vault, Contract Staffing & Billing, Flexible Benefit Plan (FBP), Todo Checklists, and Workspace Notes Studio (Milestone 7.4).
+- [x] **Phase 10: Internal WorkDo Add-on Modules Verification (Wave 2: Communication, Productivity & Mobility)** - Verify 10 internal WorkDo add-on modules across File Sharing (ADDON-053), Document Types & Templates (ADDON-073), Quotation (ADDON-074), Contact Management (ADDON-078), Email Box (ADDON-102), Call Hub (ADDON-104), Meeting Hub (ADDON-113), Rotas & Shift Management (ADDON-117), Project Template (ADDON-119), and Custom Alert (ADDON-122) (Milestone 7.5).
+- [x] **Phase 11: Internal WorkDo Add-on Modules Verification (Wave 3: Knowledge, Learning & Operations)** - Verify 10 internal WorkDo add-on modules across Newsletter (ADDON-048), Feedback (ADDON-049), Knowledge Base (ADDON-054), Diagram (ADDON-055), Portfolio (ADDON-056), Resume Builder (ADDON-057), Spreadsheet (ADDON-061), Innovation Center (ADDON-062), Business Model Canvas (ADDON-064), and Marketing Plan (ADDON-065) (Milestone 7.6).
+- [x] **Phase 12: Internal WorkDo Add-on Modules Verification (Wave 4: Operations, Finance & Strategy)** - Verify 10 internal WorkDo add-on modules across McKinsey 7-S Framework (ADDON-066), Asset Borrow & Rent (ADDON-082), Financial Goal (ADDON-083), Retainer (ADDON-084), Recurring Invoice & Bill (ADDON-088), Team Workload (ADDON-091), Time Tracker (ADDON-092), Procurement (ADDON-095), Petty Cash (ADDON-097), and Signature (ADDON-121) (Milestone 7.7).
+- [x] **Phase 13: Final Internal WorkDo Add-on Modules Verification (Wave 5: Menus, Leads, LMS, eBooks, Roadmaps, Requests & Navigation)** - Verify the final 8 internal WorkDo reference add-on modules: Restaurant Menu (ADDON-051), Google Leads (ADDON-052), Job Search / Job Board (ADDON-099), LMS / Learning Management System (ADDON-100), eBook Library (ADDON-101), Roadmap Central (ADDON-106), Request Management (ADDON-109), and Sidebar Menu Builder (ADDON-111), bringing 100% of all internal WorkDo reference modules to `VERIFIED` status and reducing `PLANNED` to 0 (Milestone 7.8 Final).
 
 ---
 
@@ -168,5 +172,85 @@ Plans:
 
 Plans:
 - [x] 09-01: Author automated test suite for Wave 1 WorkDo reference modules and promote all 10 items to VERIFIED.
+
+---
+
+### Phase 10: Internal WorkDo Add-on Modules Verification (Wave 2: Communication, Productivity & Mobility)
+**Goal**: Empirically verify 10 internal WorkDo add-on modules currently categorized as `PLANNED` across File Sharing, Document Types & Templates, Quotations, Contact Management, Email Box, Call Hub, Meeting Hub, Rotas & Shift Management, Project Template, and Custom Alert by authoring and executing comprehensive native automated test suites (`node:test` + `node:assert/strict`), promoting all 10 items to `VERIFIED` (Milestone 7.5).
+**Depends on**: Phase 9
+**Requirements**: REQ-W2-01, REQ-W2-02, REQ-W2-03, REQ-W2-04, REQ-W2-05, REQ-W2-06, REQ-W2-07, REQ-W2-08, REQ-W2-09, REQ-W2-10
+**Success Criteria**:
+  1. `ADDON-053` (File Sharing): File permission hierarchy (`VIEWER`, `EDITOR`, `MANAGER`, `OWNER`), zero-byte file entity linking, and multi-tenant isolation verified.
+  2. `ADDON-073` (Document Types & Templates): Default standard document types seeding, required/optional compliance categories, and tenant scoping verified.
+  3. `ADDON-074` (Quotation): Proposal creation with `proposalNo`, line items, client details, status lifecycle, one-click conversion to Sale, and client digital signature verified.
+  4. `ADDON-078` (Contact Management): `CrmContact` CRUD lifecycle, directory fields, tags, and multi-tenant query isolation verified.
+  5. `ADDON-102` (Email Box): `UserEmailAccount` with AES-256-GCM encrypted credentials, IMAP/POP3 & SMTP security protocols, and outbound status probe verified.
+  6. `ADDON-104` (Call Hub): Direct and group VoIP/WebRTC call session lifecycle, participant heartbeat tracking with atomic metadata merge, and serverless-safe stale session reaper verified.
+  7. `ADDON-113` (Meeting Hub): Meeting rooms, meeting type masters, conflict-free meeting scheduling, and action items lifecycle verified.
+  8. `ADDON-117` (Rotas & Shift Management): Default shift definitions seeding, custom shift creation, shift roster scheduling, and peer shift swap decision workflow verified.
+  9. `ADDON-119` (Project Template): Standard project templates (Healthcare, Agile, HR, Marketing), one-click project instantiation, and milestone tracking verified.
+  10. `ADDON-122` (Custom Alert): Multi-channel notification engine (Slack, Telegram, WhatsApp, SMS), threshold triggers, and contextual internal reminders verified.
+  11. All tests in `server/src/tests/workdo-reference-modules-wave2.test.ts` pass with exit code 0.
+  12. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 10-01: Author automated test suite for Wave 2 WorkDo reference modules and promote all 10 items to VERIFIED.
+
+---
+
+### Phase 11: Internal WorkDo Add-on Modules Verification (Wave 3: Knowledge, Learning & Operations)
+**Goal**: Empirically verify 10 internal WorkDo reference add-on modules currently categorized as `PLANNED` across Newsletter, Feedback, Knowledge Base, Diagram, Portfolio, Resume Builder, Spreadsheet, Innovation Center, Business Model Canvas, and Marketing Plan by authoring and executing comprehensive native automated test suites (`node:test` + `node:assert/strict`), promoting all 10 items to `VERIFIED` (Milestone 7.6).
+**Depends on**: Phase 10
+**Success Criteria**:
+  1. All 10 modules implemented with PostgreSQL transactional models or Settings JSON store with strict `scope: "TENANT"` and `valueType: "JSON"`.
+  2. All 15 tests in `server/src/tests/workdo-reference-modules-wave3.test.ts` pass with exit code 0.
+  3. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 11-01: Author automated test suite for Wave 3 WorkDo reference modules and promote all 10 items to VERIFIED.
+
+---
+
+### Phase 12: Internal WorkDo Add-on Modules Verification (Wave 4: Operations, Finance & Strategy)
+**Goal**: Empirically verify 10 internal WorkDo reference add-on modules currently categorized as `PLANNED` across McKinsey 7-S Framework, Asset Borrow & Rent, Financial Goal, Retainer, Recurring Invoice & Bill, Team Workload, Time Tracker, Procurement, Petty Cash, and Signature by authoring and executing comprehensive native automated test suites (`node:test` + `node:assert/strict`), promoting all 10 items to `VERIFIED` (Milestone 7.7).
+**Depends on**: Phase 11
+**Success Criteria**:
+  1. `ADDON-066` (McKinsey 7-S Framework): 7 dimensions, document creation, impact scoring, strategic model `mckinsey7s` verified.
+  2. `ADDON-082` (Asset Borrow & Rent): Loan request submission, manager review/approval lifecycle, audit logging, tenant isolation verified.
+  3. `ADDON-083` (Financial Goal): Goal creation, progress updates, variance calculation, auto-transition to `achieved`, tenant isolation verified.
+  4. `ADDON-084` (Retainer): Upfront advance deposit, milestone drawdown, balance depletion, overdraw rejection guard, tenant isolation verified.
+  5. `ADDON-088` (Recurring Invoice & Bill): Recurrence billing calculation, automated Sale generation, nextIssueDate advancement verified.
+  6. `ADDON-091` (Team Workload): Aggregated tasks and timesheet hours, capacity utilization, over-allocation detection verified.
+  7. `ADDON-092` (Time Tracker): Active timer start/stop, duration calculation, automatic creation of formal Timesheet records in PostgreSQL verified.
+  8. `ADDON-095` (Procurement): Purchase order creation with supplier, warehouse, line item details, draft -> ordered -> received status workflow verified.
+  9. `ADDON-097` (Petty Cash): Cash register shift opening float, cashOut disbursements, cashIn receipts, closing shift zero variance reconciliation verified.
+  10. `ADDON-121` (Signature): 2048-bit RSA + SHA-256 digital signing, detached base64 signature, valid verification, tamper detection verified.
+  11. All 13 tests in `server/src/tests/workdo-reference-modules-wave4.test.ts` pass with exit code 0.
+  12. Regression suite across Waves 1–4 passes 62/62 tests with exit code 0.
+  13. Zero TypeScript compilation errors.
+
+Plans:
+- [x] 12-01: Author automated test suite for Wave 4 WorkDo reference modules and promote all 10 items to VERIFIED.
+
+---
+
+### Phase 13: Final Internal WorkDo Add-on Modules Verification (Wave 5: Menus, Leads, LMS, eBooks, Roadmaps, Requests & Navigation)
+**Goal**: Implement and verify the final 8 internal WorkDo reference add-on modules currently categorized as `PLANNED` (Restaurant Menu, Google Leads, Job Board, LMS, eBook Library, Roadmap Central, Request Management, Sidebar Menu Builder), bringing 100% of all internal WorkDo reference modules to `VERIFIED` status and reducing `PLANNED` items to 0 (Milestone 7.8 Final).
+**Depends on**: Phase 12
+**Success Criteria**:
+  1. `ADDON-051` (Restaurant Menu): Category management, dietary badges, real-time availability toggles, QR code link generation verified.
+  2. `ADDON-052` (Google Leads): Lead form webhook ingestion, automated `CrmContact` creation, campaign attribution, webhook idempotency verified.
+  3. `ADDON-099` (Job Board): Public job search discovery, candidate application submission, recruitment stage progression (`applied` -> `shortlisted`) verified.
+  4. `ADDON-100` (LMS): Course curriculum creation, employee enrollment, progress tracking, passing score check, completion certificate issuance verified.
+  5. `ADDON-101` (eBook Library): Digital publication storage, format categorization (PDF, EPUB), reading session tracking, download counter verified.
+  6. `ADDON-106` (Roadmap Central): Quarterly horizon planning (Q1-Q4), initiative tracking, community upvoting toggle, lifecycle status progression verified.
+  7. `ADDON-109` (Request Management): Service request submission across operational categories, review and approval workflow (PENDING -> APPROVED -> FULFILLED) verified.
+  8. `ADDON-111` (Sidebar Menu Builder): Custom navigation links, role-based visibility filtering, visibility toggle, menu reordering verified.
+  9. All 10 tests in `server/src/tests/workdo-reference-modules-wave5.test.ts` pass with exit code 0.
+  10. Full cumulative regression suite across Waves 1–5 passes 72/72 tests with exit code 0.
+  11. Zero TypeScript compilation errors across server and root client.
+
+Plans:
+- [x] 13-01: Author and verify the final 8 internal WorkDo reference add-on modules, reducing PLANNED items to 0.
 
 

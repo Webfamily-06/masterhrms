@@ -13,7 +13,7 @@ export const crmRouter = Router();
 // Enforce Product CRM Entitlement on all authenticated workspace CRM operations
 crmRouter.use((req, res, next) => {
   const p = req.path || req.url || "";
-  if (p.startsWith("/proposals/public")) {
+  if (p.startsWith("/proposals/public") || p.startsWith("/quotations/public")) {
     return next();
   }
   return requireAuth(req as any, res, (err?: any) => {
@@ -137,7 +137,7 @@ crmRouter.post("/leads", requireAuth, resolveTenantContext, requirePermission("c
       entityType: "CrmLead",
       entityId: lead.id,
       newState: { title: lead.title, value: Number(lead.value), stage: lead.stage },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.status(201).json({
       id: lead.id,
@@ -201,7 +201,7 @@ crmRouter.put("/leads/:id", requireAuth, resolveTenantContext, requirePermission
       entityId: id,
       oldState: { stage: existing.stage, value: Number(existing.value) },
       newState: dataToUpdate,
-    }).catch(() => {});
+    }).catch(() => { });
 
     if (body.stage && body.stage !== existing.stage) {
       await OutboxService.createOutboxEvent({
@@ -211,7 +211,7 @@ crmRouter.put("/leads/:id", requireAuth, resolveTenantContext, requirePermission
         entityId: id,
         actorId: (req.user as any)?.userId || (req.user as any)?.id,
         payload: { id, fromStage: existing.stage, toStage: body.stage },
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     return res.json({ success: true, id, lead: updated });
@@ -244,7 +244,7 @@ crmRouter.delete("/leads/:id", requireAuth, resolveTenantContext, requirePermiss
       entityType: "CrmLead",
       entityId: id,
       oldState: { title: existing.title, contactName: existing.contactName },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.json({ success: true, message: "Lead removed" });
   } catch (err: any) {
@@ -315,7 +315,7 @@ crmRouter.post("/leads/:id/convert", requireAuth, resolveTenantContext, requireP
       entityType: "CrmLead",
       entityId: id,
       newState: { dealId: result.deal.id, dealName: result.deal.name },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.status(201).json({
       success: true,
@@ -479,7 +479,7 @@ crmRouter.post("/deals", requireAuth, resolveTenantContext, async (req: AuthRequ
       entityType: "CrmDeal",
       entityId: deal.id,
       newState: { name: deal.name, value: Number(deal.value), stage: deal.stage, customer: deal.customer },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return res.status(201).json({
       id: deal.id,
@@ -546,7 +546,7 @@ crmRouter.put("/deals/:id", requireAuth, resolveTenantContext, async (req: AuthR
       entityId: id,
       oldState: { name: existing.name, stage: existing.stage, value: Number(existing.value) },
       newState: dataToUpdate,
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:deal:updated", {
       id: updated.id,
@@ -596,7 +596,7 @@ crmRouter.patch("/deals/:id/stage", requireAuth, resolveTenantContext, async (re
       entityId: id,
       oldState: { stage: existing.stage, status: existing.status },
       newState: { stage: updated.stage, status: updated.status },
-    }).catch(() => {});
+    }).catch(() => { });
 
     await OutboxService.createOutboxEvent({
       tenantId,
@@ -605,7 +605,7 @@ crmRouter.patch("/deals/:id/stage", requireAuth, resolveTenantContext, async (re
       entityId: id,
       actorId: (req.user as any)?.userId || (req.user as any)?.id,
       payload: { id, stage: updated.stage, status: updated.status, value: Number(existing.value) },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:deal:stageChanged", {
       id: updated.id,
@@ -645,7 +645,7 @@ crmRouter.delete("/deals/:id", requireAuth, resolveTenantContext, async (req: Au
       entityType: "CrmDeal",
       entityId: id,
       oldState: { name: existing.name, customer: existing.customer, value: Number(existing.value) },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:deal:deleted", { id });
 
@@ -660,8 +660,8 @@ crmRouter.delete("/deals/:id", requireAuth, resolveTenantContext, async (req: Au
 // CRM PROPOSALS & QUOTATIONS
 // ==========================================
 
-// GET /api/crm/proposals - List proposals
-crmRouter.get("/proposals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+// GET /api/crm/proposals or /api/crm/quotations - List proposals / quotations
+crmRouter.get(["/proposals", "/quotations"], requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const pagination = parsePaginationParams(req, "createdAt", 20);
@@ -704,8 +704,8 @@ crmRouter.get("/proposals", requireAuth, resolveTenantContext, async (req: AuthR
   }
 });
 
-// POST /api/crm/proposals - Create proposal
-crmRouter.post("/proposals", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+// POST /api/crm/proposals or /api/crm/quotations - Create proposal / quotation
+crmRouter.post(["/proposals", "/quotations"], requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const body = req.body;
@@ -760,8 +760,8 @@ crmRouter.post("/proposals", requireAuth, resolveTenantContext, async (req: Auth
   }
 });
 
-// PATCH /api/crm/proposals/:id - Update proposal status and fields
-crmRouter.patch("/proposals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+// PATCH /api/crm/proposals/:id or /api/crm/quotations/:id - Update proposal status and fields
+crmRouter.patch(["/proposals/:id", "/quotations/:id"], requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -821,8 +821,8 @@ crmRouter.patch("/proposals/:id", requireAuth, resolveTenantContext, async (req:
   }
 });
 
-// POST /api/crm/proposals/:id/convert - One-click convert proposal to formal Sale Invoice
-crmRouter.post("/proposals/:id/convert", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+// POST /api/crm/proposals/:id/convert or /api/crm/quotations/:id/convert - One-click convert proposal to formal Sale Invoice
+crmRouter.post(["/proposals/:id/convert", "/quotations/:id/convert"], requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -966,8 +966,8 @@ crmRouter.post("/proposals/:id/convert-to-project", requireAuth, resolveTenantCo
   }
 });
 
-// DELETE /api/crm/proposals/:id - Delete proposal
-crmRouter.delete("/proposals/:id", requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
+// DELETE /api/crm/proposals/:id or /api/crm/quotations/:id - Delete proposal
+crmRouter.delete(["/proposals/:id", "/quotations/:id"], requireAuth, resolveTenantContext, async (req: AuthRequest, res: Response) => {
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -984,8 +984,8 @@ crmRouter.delete("/proposals/:id", requireAuth, resolveTenantContext, async (req
 // PUBLIC CLIENT QUOTATION SELF-SERVICE PORTAL
 // ==========================================
 
-// GET /api/crm/proposals/public/:id - Public Client view of quotation
-crmRouter.get("/proposals/public/:id", async (req, res: Response) => {
+// GET /api/crm/proposals/public/:id or /api/crm/quotations/public/:id - Public Client view of quotation
+crmRouter.get(["/proposals/public/:id", "/quotations/public/:id"], async (req, res: Response) => {
   try {
     const { id } = req.params;
     const proposal = await prisma.crmProposal.findUnique({
@@ -1041,8 +1041,8 @@ crmRouter.get("/proposals/public/:id", async (req, res: Response) => {
   }
 });
 
-// POST /api/crm/proposals/public/:id/respond - Client Accept or Decline quotation
-crmRouter.post("/proposals/public/:id/respond", async (req, res: Response) => {
+// POST /api/crm/proposals/public/:id/respond or /api/crm/quotations/public/:id/respond - Client Accept or Decline quotation
+crmRouter.post(["/proposals/public/:id/respond", "/quotations/public/:id/respond"], async (req, res: Response) => {
   try {
     const { id } = req.params;
     const { action, signatureName, notes } = req.body;
@@ -1230,7 +1230,7 @@ crmRouter.post("/contacts", requireAuth, resolveTenantContext, async (req: AuthR
       entityType: "CrmContact",
       entityId: created.id,
       newState: { name: created.name, email: created.email, company: created.company },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:contact:created", { id: created.id, name: created.name });
 
@@ -1303,7 +1303,7 @@ crmRouter.put("/contacts/:id", requireAuth, resolveTenantContext, async (req: Au
       entityId: id,
       oldState: { name: existing.name, email: existing.email },
       newState: dataToUpdate,
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:contact:updated", { id: updated.id, name: updated.name });
 
@@ -1357,7 +1357,7 @@ crmRouter.delete("/contacts/:id", requireAuth, resolveTenantContext, async (req:
       entityType: "CrmContact",
       entityId: id,
       oldState: { name: existing.name, email: existing.email },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:contact:deleted", { id });
 
@@ -1479,7 +1479,7 @@ crmRouter.post("/companies", requireAuth, resolveTenantContext, async (req: Auth
       entityType: "CrmCompany",
       entityId: created.id,
       newState: { name: created.name, industry: created.industry },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:company:created", { id: created.id, name: created.name });
 
@@ -1535,7 +1535,7 @@ crmRouter.put("/companies/:id", requireAuth, resolveTenantContext, async (req: A
       entityId: id,
       oldState: { name: existing.name },
       newState: dataToUpdate,
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:company:updated", { id: updated.id, name: updated.name });
 
@@ -1579,7 +1579,7 @@ crmRouter.delete("/companies/:id", requireAuth, resolveTenantContext, async (req
       entityType: "CrmCompany",
       entityId: id,
       oldState: { name: existing.name },
-    }).catch(() => {});
+    }).catch(() => { });
 
     broadcastToTenant(tenantId, "crm:company:deleted", { id });
 

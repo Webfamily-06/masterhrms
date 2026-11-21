@@ -98,6 +98,27 @@ import { helpdeskRouter } from "./routes/helpdesk.routes";
 import { platformSupportRouter } from "./routes/platform-support.routes";
 import { announcementsRouter } from "./routes/announcements.routes";
 import { organizationRouter } from "./routes/organization.routes";
+import { documentTypesRouter } from "./routes/document-types.routes";
+import { hrMeetingsRouter } from "./routes/hr-meetings.routes";
+import { newsletterRouter } from "./routes/newsletter.routes";
+import { feedbackRouter } from "./routes/feedback.routes";
+import { knowledgeBaseRouter } from "./routes/knowledge-base.routes";
+import { diagramsRouter } from "./routes/diagrams.routes";
+import { portfolioRouter } from "./routes/portfolio.routes";
+import { resumeBuilderRouter } from "./routes/resume-builder.routes";
+import { spreadsheetRouter } from "./routes/spreadsheet.routes";
+import { financialGoalsRouter } from "./routes/financial-goals.routes";
+import { retainerRouter } from "./routes/retainer.routes";
+import { teamWorkloadRouter } from "./routes/team-workload.routes";
+import { timeTrackerRouter } from "./routes/time-tracker.routes";
+import { restaurantMenuRouter } from "./routes/restaurant-menu.routes";
+import { googleLeadsRouter } from "./routes/google-leads.routes";
+import { jobBoardRouter } from "./routes/job-board.routes";
+import { lmsRouter } from "./routes/lms.routes";
+import { ebookRouter } from "./routes/ebook.routes";
+import { roadmapCentralRouter } from "./routes/roadmap-central.routes";
+import { requestManagementRouter } from "./routes/request-management.routes";
+import { sidebarMenuRouter } from "./routes/sidebar-menu.routes";
 import { formsRouter } from "./routes/forms.routes";
 import { complianceRouter } from "./routes/compliance.routes";
 import { biometricRouter, publicBiometricRouter, iclockRouter } from "./routes/biometric.routes";
@@ -238,7 +259,7 @@ function isOriginAllowed(origin: string): boolean {
     if (cachedCustom && cachedCustom.status === "approved" && cachedCustom.dnsStatus === "verified") {
       return true;
     }
-  } catch {}
+  } catch { }
   return false;
 }
 
@@ -331,7 +352,7 @@ app.use(
             await fs.promises.writeFile(tmpPath, blob.buffer);
             await fs.promises.rename(tmpPath, abs);
           }
-        } catch {}
+        } catch { }
       })();
 
       res.setHeader("X-Content-Type-Options", "nosniff");
@@ -661,6 +682,48 @@ app.use("/api/organization", organizationRouter);
 app.use("/api/v1/organization", organizationRouter);
 app.use("/api/hr/organization", organizationRouter);
 app.use("/api/v1/hr/organization", organizationRouter);
+app.use("/api/document-types", documentTypesRouter);
+app.use("/api/v1/document-types", documentTypesRouter);
+app.use("/api/hr-meetings", hrMeetingsRouter);
+app.use("/api/v1/hr-meetings", hrMeetingsRouter);
+app.use("/api/newsletter", newsletterRouter);
+app.use("/api/v1/newsletter", newsletterRouter);
+app.use("/api/feedback", feedbackRouter);
+app.use("/api/v1/feedback", feedbackRouter);
+app.use("/api/knowledge-base", knowledgeBaseRouter);
+app.use("/api/v1/knowledge-base", knowledgeBaseRouter);
+app.use("/api/diagrams", diagramsRouter);
+app.use("/api/v1/diagrams", diagramsRouter);
+app.use("/api/portfolio", portfolioRouter);
+app.use("/api/v1/portfolio", portfolioRouter);
+app.use("/api/resume-builder", resumeBuilderRouter);
+app.use("/api/v1/resume-builder", resumeBuilderRouter);
+app.use("/api/spreadsheets", spreadsheetRouter);
+app.use("/api/v1/spreadsheets", spreadsheetRouter);
+app.use("/api/financial-goals", financialGoalsRouter);
+app.use("/api/v1/financial-goals", financialGoalsRouter);
+app.use("/api/retainers", retainerRouter);
+app.use("/api/v1/retainers", retainerRouter);
+app.use("/api/team-workload", teamWorkloadRouter);
+app.use("/api/v1/team-workload", teamWorkloadRouter);
+app.use("/api/time-tracker", timeTrackerRouter);
+app.use("/api/v1/time-tracker", timeTrackerRouter);
+app.use("/api/restaurant-menu", restaurantMenuRouter);
+app.use("/api/v1/restaurant-menu", restaurantMenuRouter);
+app.use("/api/google-leads", googleLeadsRouter);
+app.use("/api/v1/google-leads", googleLeadsRouter);
+app.use("/api/job-board", jobBoardRouter);
+app.use("/api/v1/job-board", jobBoardRouter);
+app.use("/api/lms", lmsRouter);
+app.use("/api/v1/lms", lmsRouter);
+app.use("/api/ebooks", ebookRouter);
+app.use("/api/v1/ebooks", ebookRouter);
+app.use("/api/roadmap", roadmapCentralRouter);
+app.use("/api/v1/roadmap", roadmapCentralRouter);
+app.use("/api/service-requests", requestManagementRouter);
+app.use("/api/v1/service-requests", requestManagementRouter);
+app.use("/api/sidebar-menu", sidebarMenuRouter);
+app.use("/api/v1/sidebar-menu", sidebarMenuRouter);
 
 // Platform Foundation APIs (v1 & unversioned alias)
 app.use("/api/v1", platformFoundationRouter);
@@ -946,7 +1009,7 @@ const handleGracefulShutdown = async (signal: string) => {
   } else {
     try {
       await prisma.$disconnect();
-    } catch (_) {}
+    } catch (_) { }
     process.exit(0);
   }
 };
