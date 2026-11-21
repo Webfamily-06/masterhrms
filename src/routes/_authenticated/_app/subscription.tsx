@@ -201,6 +201,10 @@ export function SubscriptionPage() {
     queryKey: ["realtime-purchased-addons-v2", tenantId],
     queryFn: async () => {
       try {
+        const res = await api.get("/addons/purchased");
+        if (Array.isArray(res) && res.length > 0) {
+          return res as PurchasedAddonItem[];
+        }
         const page = await api.get(`/cms/pages/${purchasedSlugKey}`);
         if (Array.isArray(page?.content) && page.content.length > 0) {
           return page.content as PurchasedAddonItem[];
@@ -516,8 +520,8 @@ export function SubscriptionPage() {
               Explore our marketplace to activate modules like WhatsApp Alerts, POS Billing, AI Studio, or Biometric Hardware Sync.
             </p>
             <Button size="sm" className="mt-4 gap-1.5 font-bold text-xs" asChild>
-              <Link to="/marketplace">
-                <Store className="size-3.5" /> Open Marketplace
+              <Link to="/tenant/addon">
+                <Store className="size-3.5" /> Open Add-on Marketplace
               </Link>
             </Button>
           </Card>
@@ -547,6 +551,21 @@ export function SubscriptionPage() {
                       <span>Activated:</span>
                       <span>{addon.purchasedAt ? new Date(addon.purchasedAt).toLocaleDateString() : "Active"}</span>
                     </div>
+                    <div className="flex justify-between items-center text-amber-600 dark:text-amber-400 font-semibold">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="size-3 text-amber-500" />
+                        <span>Expires / Renews:</span>
+                      </span>
+                      <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 font-bold">
+                        {addon.expiresAt
+                          ? new Date(addon.expiresAt).toLocaleDateString(undefined, {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : "Active"}
+                      </Badge>
+                    </div>
                     {addon.paymentMethod && (
                       <div className="flex justify-between">
                         <span>Paid Via:</span>
@@ -564,7 +583,11 @@ export function SubscriptionPage() {
                       </Link>
                     </Button>
                   ) : (
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">Installed</Badge>
+                    <Button size="sm" variant="outline" className="w-full h-8 text-xs font-bold gap-1.5" asChild>
+                      <Link to="/tenant/addon">
+                        <Store className="size-3.5 text-primary" /> Manage in Marketplace
+                      </Link>
+                    </Button>
                   )}
                 </div>
               </Card>

@@ -12,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useSession, useCurrentProfile } from "@/lib/session";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +66,11 @@ import {
   Navigation,
   Check,
   CheckCircle,
+  CreditCard,
+  Calendar,
+  Receipt,
+  Download,
+  Building,
 } from "lucide-react";
 import { formatSystemAmount, DEFAULT_CURRENCY_SETTINGS, SystemCurrencySettings } from "@/lib/currency";
 
@@ -413,6 +421,157 @@ function MarketplaceAdmin() {
   const [categoryInputName, setCategoryInputName] = useState("");
   const [categoryToDelete, setCategoryToDelete] = useState<CategoryDetail | null>(null);
   const [deleteCategoryModalOpen, setDeleteCategoryModalOpen] = useState(false);
+
+  // User Profile & Tenant Role Context
+  const { user } = useSession();
+  const { data: profile } = useCurrentProfile(user);
+  const userRoles = profile?.roles || [];
+  const isSuperAdmin = userRoles.includes("super_admin");
+
+  // Fetch Tenant Entitlements for live installed status
+  const { data: entitlementsData } = useQuery({
+    queryKey: ["addons-entitlements"],
+    queryFn: async () => {
+      try {
+        const res = await api.get("/addons/entitlements");
+        return res?.entitlements || {};
+      } catch {
+        return {};
+      }
+    },
+  });
+  const entitlements: Record<string, any> = entitlementsData || {};
+
+  // Addon Checkout & Purchase State
+  const [purchasingAddon, setPurchasingAddon] = useState<Addon | null>(null);
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutDuration, setCheckoutDuration] = useState<"1_month" | "1_year">("1_month");
+  const [selectedPaymentGateway, setSelectedPaymentGateway] = useState<
+    "razorpay" | "paypal" | "stripe" | "bank_transfer"
+  >("razorpay");
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [offlineRefNo, setOfflineRefNo] = useState("");
+  const [offlineReceiptPreview, setOfflineReceiptPreview] = useState<string | null>(null);
+  const offlineFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Free Install Mutation
+  const installFreeMutation = useMutation({
+    mutationFn: (addon: Addon) => api.post(`/addons/${addon.slug}/install`),
+    onSuccess: (_, addon) => {
+      toast.success(`Add-on "${addon.name}" installed successfully!`);
+      qc.invalidateQueries({ queryKey: ["addons-entitlements"] });
+      qc.invalidateQueries({ queryKey: ["realtime-purchased-addons-v2"] });
+      qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+      qc.invalidateQueries({ queryKey: ["tenant-billing-invoices"] });
+      if (detailsModalOpen && viewingAddon?.slug === addon.slug) {
+        setDetailsModalOpen(false);
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to install add-on.");
+    },
+  });
+
+  function handleStartPaidCheckout(addon: Addon) {
+    setPurchasingAddon(addon);
+    setCheckoutDuration("1_month");
+    setSelectedPaymentGateway("razorpay");
+    setOfflineRefNo("");
+    setOfflineReceiptPreview(null);
+    setCheckoutModalOpen(true);
+  }
+
+  function handleOfflineFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => setOfflineReceiptPreview(String(evt.target?.result || ""));
+    reader.readAsDataURL(file);
+  }
+
+  async function handleExecuteCheckout() {
+    if (!purchasingAddon) return;
+    setIsCheckingOut(true);
+
+    try {
+      if (selectedPaymentGateway === "razorpay") {
+        const orderData = await api.post(`/addons/${purchasingAddon.slug}/checkout`, {
+          duration: checkoutDuration,
+          paymentMethod: "razorpay",
+        });
+
+        if (!orderData || !orderData.invoiceId) {
+          throw new Error("Failed to initialize checkout invoice.");
+        }
+
+        toast.info("Launching Razorpay Payment Gateway...");
+
+        const rzpResponse = await openRazorpayCheckout({
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: purchasingAddon.name,
+          description: `Add-on License valid through ${new Date(orderData.periodEnd).toLocaleDateString()}`,
+          userName: profile?.full_name || user?.email || "Workspace Administrator",
+          userEmail: user?.email || "billing@workspace.com",
+          tenantId: profile?.tenant_id || "default",
+          keyId: orderData.keyId,
+          orderId: orderData.orderId,
+        });
+
+        if (!rzpResponse || !rzpResponse.razorpay_payment_id) {
+          throw new Error("Payment was cancelled or response is incomplete.");
+        }
+
+        toast.info("Verifying payment signature and activating add-on...");
+        const verifyRes = await api.post(`/addons/${purchasingAddon.slug}/verify-payment`, {
+          invoiceId: orderData.invoiceId,
+          razorpay_order_id: rzpResponse.razorpay_order_id || orderData.orderId,
+          razorpay_payment_id: rzpResponse.razorpay_payment_id,
+          razorpay_signature: rzpResponse.razorpay_signature,
+          gateway: "razorpay",
+        });
+
+        toast.success(verifyRes.message || `Add-on "${purchasingAddon.name}" activated successfully!`);
+        setCheckoutModalOpen(false);
+        setPurchasingAddon(null);
+        qc.invalidateQueries({ queryKey: ["addons-entitlements"] });
+        qc.invalidateQueries({ queryKey: ["realtime-purchased-addons-v2"] });
+        qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+        qc.invalidateQueries({ queryKey: ["tenant-billing-invoices"] });
+        if (detailsModalOpen) setDetailsModalOpen(false);
+        return;
+      }
+
+      if (selectedPaymentGateway === "bank_transfer") {
+        if (!offlineRefNo.trim()) {
+          throw new Error("Please enter your Bank Transaction / UTR / Reference Number.");
+        }
+        if (!offlineReceiptPreview) {
+          throw new Error("Please attach your payment receipt screenshot.");
+        }
+
+        const offlineRes = await api.post(`/addons/${purchasingAddon.slug}/submit-offline-payment`, {
+          duration: checkoutDuration,
+          referenceNo: offlineRefNo.trim(),
+          receiptUrl: offlineReceiptPreview,
+          notes: `Add-on purchase submitted by ${profile?.full_name || user?.email}`,
+        });
+
+        toast.success(offlineRes.message || "Payment proof submitted! Super Admin will review and activate your add-on.");
+        setCheckoutModalOpen(false);
+        setPurchasingAddon(null);
+        qc.invalidateQueries({ queryKey: ["tenant-billing-invoices"] });
+        qc.invalidateQueries({ queryKey: ["realtime-tenant-invoices"] });
+        if (detailsModalOpen) setDetailsModalOpen(false);
+        return;
+      }
+    } catch (err: any) {
+      console.error("Checkout error:", err);
+      toast.error(err?.message || "Payment process could not be completed.");
+    } finally {
+      setIsCheckingOut(false);
+    }
+  }
 
   // 1. Fetch System Settings for authoritative currency
   const { data: systemPlatformSettings } = useQuery({
@@ -920,32 +1079,61 @@ function MarketplaceAdmin() {
               Browse All Add-ons <ArrowRight className="size-4" />
             </Button>
 
-            {/* Sync Canonical 133 Catalog Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => syncCanonicalMutation.mutate()}
-              disabled={syncCanonicalMutation.isPending}
-              className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl px-3"
-              title="Ensure all 133 canonical addons from documentation matrix are synchronized"
-            >
-              {syncCanonicalMutation.isPending ? (
-                <Loader2 className="size-3.5 animate-spin text-emerald-600" />
-              ) : (
-                <RefreshCw className="size-3.5 text-emerald-600" />
-              )}
-              Sync 133 Addons
-            </Button>
+            {!isSuperAdmin && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-slate-100 rounded-xl px-3.5"
+                >
+                  <Link href="/tenant/subscription">
+                    <Package className="size-3.5 text-indigo-600" /> My Subscriptions
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-slate-100 rounded-xl px-3.5"
+                >
+                  <Link href="/tenant/billing">
+                    <Receipt className="size-3.5 text-emerald-600" /> Billing & Invoices
+                  </Link>
+                </Button>
+              </>
+            )}
 
-            {/* New Addon Action Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openNewAddon}
-              className="border-slate-200 hover:bg-slate-50 gap-1.5 text-xs h-10 font-semibold rounded-xl px-3"
-            >
-              <Plus className="size-3.5 text-[#00a86b]" /> New Addon
-            </Button>
+            {isSuperAdmin && (
+              <>
+                {/* Sync Canonical 133 Catalog Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncCanonicalMutation.mutate()}
+                  disabled={syncCanonicalMutation.isPending}
+                  className="gap-1.5 text-xs h-10 font-semibold border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl px-3"
+                  title="Ensure all 133 canonical addons from documentation matrix are synchronized"
+                >
+                  {syncCanonicalMutation.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <RefreshCw className="size-3.5 text-emerald-600" />
+                  )}
+                  Sync 133 Addons
+                </Button>
+
+                {/* New Addon Action Button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openNewAddon}
+                  className="border-slate-200 hover:bg-slate-50 gap-1.5 text-xs h-10 font-semibold rounded-xl px-3"
+                >
+                  <Plus className="size-3.5 text-[#00a86b]" /> New Addon
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1085,16 +1273,25 @@ function MarketplaceAdmin() {
                         <AddonCard
                           key={addon.id}
                           addon={addon}
+                          entitlement={entitlements[addon.slug]}
                           onViewDetails={() => openViewDetails(addon)}
                           onEdit={() => openEditAddon(addon)}
                           onToggleStatus={(newStatus) =>
                             toggleStatusMutation.mutate({ id: addon.id, newStatus })
                           }
                           onDelete={() => confirmDeleteAddon(addon)}
+                          onInstallFree={() => installFreeMutation.mutate(addon)}
+                          onPurchasePaid={() => handleStartPaidCheckout(addon)}
+                          isInstalling={
+                            installFreeMutation.isPending &&
+                            installFreeMutation.variables?.id === addon.id
+                          }
                           isToggling={
                             toggleStatusMutation.isPending &&
                             toggleStatusMutation.variables?.id === addon.id
                           }
+                          isSuperAdmin={isSuperAdmin}
+                          activeCurrencyConfig={activeCurrencyConfig}
                         />
                       ))}
                     </div>
@@ -1203,6 +1400,84 @@ function MarketplaceAdmin() {
                 </div>
               )}
 
+              {/* Installation & Licensing Status Box */}
+              {(() => {
+                const ent = viewingAddon ? entitlements[viewingAddon.slug] : null;
+                const isInstalled = Boolean(ent?.isInstalled || ent?.isActive);
+                const price = Number(viewingAddon.price_monthly ?? 0);
+
+                if (isInstalled) {
+                  return (
+                    <div className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle2 className="size-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Installed & Active on Workspace</p>
+                          <p className="text-[11px] text-emerald-700/90 dark:text-emerald-400">
+                            License renewal / expiry:{" "}
+                            <strong className="font-mono">
+                              {ent?.renewsAt
+                                ? new Date(ent.renewsAt).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  })
+                                : "Active Subscription"}
+                            </strong>
+                          </p>
+                        </div>
+                      </div>
+                      {viewingAddon.install_url && (
+                        <Button size="sm" asChild className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 font-bold rounded-xl shadow-xs">
+                          <a href={viewingAddon.install_url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="size-3.5" /> Open Module
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-3.5 rounded-xl border bg-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block font-medium">Pricing & Access:</span>
+                      <span className="text-sm font-bold text-foreground">
+                        {price === 0
+                          ? "Free Included Extension"
+                          : `${formatSystemAmount(price, activeCurrencyConfig)} / month`}
+                      </span>
+                      {price > 0 && (
+                        <span className="text-[11px] text-emerald-600 block font-medium">
+                          Annual plan: {formatSystemAmount(Math.round(price * 12 * 0.85), activeCurrencyConfig)} / year (Save 15%)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {price === 0 ? (
+                        <Button
+                          size="sm"
+                          onClick={() => installFreeMutation.mutate(viewingAddon)}
+                          disabled={installFreeMutation.isPending}
+                          className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 rounded-xl font-bold px-4 shadow-xs"
+                        >
+                          {installFreeMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                          Install Free Add-on
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartPaidCheckout(viewingAddon)}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs gap-1.5 rounded-xl font-bold px-4 shadow-xs"
+                        >
+                          <ShoppingCart className="size-3.5" /> Purchase & Install Add-on
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Metadata Bar */}
               <div className="p-3.5 rounded-xl border bg-secondary/10 flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -1240,16 +1515,18 @@ function MarketplaceAdmin() {
               </Button>
 
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setDetailsModalOpen(false);
-                    openEditAddon(viewingAddon);
-                  }}
-                  className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 rounded-xl font-semibold"
-                >
-                  <Pencil className="size-3.5" /> Edit Addon
-                </Button>
+                {isSuperAdmin && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setDetailsModalOpen(false);
+                      openEditAddon(viewingAddon);
+                    }}
+                    className="bg-[#00a86b] hover:bg-[#008f5b] text-white text-xs gap-1.5 rounded-xl font-semibold"
+                  >
+                    <Pencil className="size-3.5" /> Edit Addon
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => setDetailsModalOpen(false)} className="rounded-xl text-xs">
                   Close
                 </Button>
@@ -1717,20 +1994,42 @@ function MarketplaceAdmin() {
 // ==========================================
 function AddonCard({
   addon,
+  entitlement,
   onViewDetails,
   onEdit,
   onToggleStatus,
   onDelete,
+  onInstallFree,
+  onPurchasePaid,
+  isInstalling,
   isToggling,
+  isSuperAdmin,
+  activeCurrencyConfig,
 }: {
   addon: Addon;
+  entitlement?: {
+    isPurchased: boolean;
+    renewsAt: string | null;
+    status: string;
+    invoiceNo?: string | null;
+  };
   onViewDetails: () => void;
   onEdit: () => void;
   onToggleStatus: (newStatus: string) => void;
   onDelete: () => void;
+  onInstallFree: () => void;
+  onPurchasePaid: () => void;
+  isInstalling?: boolean;
   isToggling?: boolean;
+  isSuperAdmin?: boolean;
+  activeCurrencyConfig: Partial<SystemCurrencySettings>;
 }) {
   const isEnabled = addon.status !== "disabled";
+  const isInstalled = !!entitlement?.isPurchased;
+  const isFree = Number(addon.price_monthly) <= 0;
+  const priceDisplay = isFree
+    ? "Free"
+    : `${formatSystemAmount(Number(addon.price_monthly), activeCurrencyConfig)} / mo`;
 
   return (
     <Card
@@ -1738,32 +2037,65 @@ function AddonCard({
         !isEnabled ? "opacity-75 bg-muted/20 border-dashed" : ""
       }`}
     >
-      {/* Top Controls: Enable/Disable Switch & Edit Button */}
+      {/* Top Controls: For Super Admin -> Switch & Edit; For Tenant -> Status / Price Badge */}
       <div className="w-full flex items-center justify-between mb-2">
-        {/* Enable / Disable Switch */}
-        <div className="flex items-center gap-1.5" title={isEnabled ? "Click to disable addon" : "Click to enable addon"}>
-          <Switch
-            checked={isEnabled}
-            disabled={isToggling}
-            onCheckedChange={(checked) => onToggleStatus(checked ? "active" : "disabled")}
-            className="scale-75 origin-left data-[state=checked]:bg-[#00a86b]"
-          />
-          <span className="text-[10px] font-mono text-muted-foreground select-none">
-            {isEnabled ? "Active" : "Disabled"}
-          </span>
-        </div>
+        {isSuperAdmin ? (
+          <>
+            {/* Enable / Disable Switch */}
+            <div
+              className="flex items-center gap-1.5"
+              title={isEnabled ? "Click to disable addon" : "Click to enable addon"}
+            >
+              <Switch
+                checked={isEnabled}
+                disabled={isToggling}
+                onCheckedChange={(checked) =>
+                  onToggleStatus(checked ? "active" : "disabled")
+                }
+                className="scale-75 origin-left data-[state=checked]:bg-[#00a86b]"
+              />
+              <span className="text-[10px] font-mono text-muted-foreground select-none">
+                {isEnabled ? "Active" : "Disabled"}
+              </span>
+            </div>
 
-        {/* Quick Edit Button */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
-            title="Edit Addon & Storage Images"
-          >
-            <Pencil className="size-3.5" />
-          </button>
-        </div>
+            {/* Quick Edit Button */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+                title="Edit Addon & Storage Images"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Price tag */}
+            <Badge
+              variant="secondary"
+              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                isFree
+                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200"
+                  : "bg-muted text-foreground"
+              }`}
+            >
+              {priceDisplay}
+            </Badge>
+
+            {/* Installed status indicator */}
+            {isInstalled ? (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200">
+                <CheckCircle2 className="size-3 text-emerald-600" />
+                Installed
+              </span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">Available</span>
+            )}
+          </>
+        )}
       </div>
 
       {/* Centered Icon */}
@@ -1790,8 +2122,48 @@ function AddonCard({
         </h3>
       </div>
 
-      {/* View Details Link (Matching WorkDo green link style) */}
-      <div className="mt-2.5 pt-2 border-t border-border/50 w-full flex items-center justify-center">
+      {/* Action Area: Install Button for Tenant or View Details */}
+      <div className="mt-2.5 pt-2 border-t border-border/50 w-full flex flex-col gap-2 items-center justify-center">
+        {!isSuperAdmin && (
+          <div className="w-full">
+            {isInstalled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-8 text-xs font-semibold rounded-xl border-emerald-200 text-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/30 hover:bg-emerald-100 cursor-default"
+                onClick={onViewDetails}
+              >
+                <CheckCircle2 className="size-3.5 text-emerald-600 mr-1.5" />
+                Installed
+              </Button>
+            ) : isFree ? (
+              <Button
+                size="sm"
+                disabled={isInstalling || !isEnabled}
+                onClick={onInstallFree}
+                className="w-full h-8 text-xs font-semibold rounded-xl bg-[#00a86b] hover:bg-[#008f5b] text-white shadow-xs"
+              >
+                {isInstalling ? (
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Package className="size-3.5 mr-1.5" />
+                )}
+                Install (Free)
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                disabled={!isEnabled}
+                onClick={onPurchasePaid}
+                className="w-full h-8 text-xs font-semibold rounded-xl bg-[#00a86b] hover:bg-[#008f5b] text-white shadow-xs"
+              >
+                <ShoppingCart className="size-3.5 mr-1.5" />
+                Buy · {priceDisplay}
+              </Button>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onViewDetails}

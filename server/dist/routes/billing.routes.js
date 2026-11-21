@@ -1125,6 +1125,41 @@ exports.billingRouter.get("/invoices", auth_1.requireAuth, async (req, res) => {
     }
 });
 // ---------------------------------------------------------------------------
+// 6.1 GET /api/billing/invoices/:id/download - Tenant invoice PDF download
+// ---------------------------------------------------------------------------
+exports.billingRouter.get("/invoices/:id/download", auth_1.requireAuth, async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { id } = req.params;
+        if (!tenantId)
+            return res.status(400).json({ error: "Tenant context required." });
+        const invoice = await db.billingInvoice.findFirst({
+            where: {
+                OR: [{ id }, { invoiceNo: id }],
+                ...(req.user?.roles?.includes("super_admin") ? {} : { tenantId }),
+            },
+        });
+        if (!invoice) {
+            return res.status(404).json({ error: "Billing invoice not found." });
+        }
+        const canonical = await (0, invoice_engine_service_1.getAuthoritativeCanonicalInvoice)(invoice.id);
+        if (!canonical) {
+            return res.status(404).json({ error: "Canonical invoice could not be resolved." });
+        }
+        const pdfBuffer = await (0, invoice_pdf_service_1.generateInvoicePdf)(canonical);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="Invoice-${canonical.invoiceNo}.pdf"`);
+        res.setHeader("Content-Length", pdfBuffer.length);
+        res.setHeader("Cache-Control", "no-cache");
+        return res.send(pdfBuffer);
+    }
+    catch (err) {
+        console.error("[billing/invoices/download] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to download invoice PDF." });
+    }
+});
+// ---------------------------------------------------------------------------
 // 7. POST /api/billing/webhook (Shared Webhook Handler)
 // ---------------------------------------------------------------------------
 async function handleRazorpayWebhook(req, res) {

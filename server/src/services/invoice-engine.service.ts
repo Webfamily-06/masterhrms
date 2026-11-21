@@ -653,14 +653,32 @@ export async function getAuthoritativeCanonicalInvoice(id: string): Promise<Invo
     });
 
     const invoiceNo = inv.invoiceNo || `SUB-INV-${inv.id.slice(0, 8).toUpperCase()}`;
-    const planName = inv.subscription?.plan?.name || "Enterprise SaaS Plan";
+    let planName = inv.subscription?.plan?.name;
+    let isAddon = false;
+    if (!planName && inv.planId) {
+      if (inv.planId.startsWith("addon_")) {
+        isAddon = true;
+        const slug = inv.planId.replace("addon_", "");
+        const addon = await db.addon.findUnique({ where: { slug } });
+        planName = addon ? `Add-on: ${addon.name}` : `Add-on: ${slug}`;
+      } else {
+        const plan = await db.subscriptionPlan.findUnique({ where: { id: inv.planId } });
+        if (plan) planName = plan.name;
+      }
+    }
+    if (!planName) {
+      planName = inv.invoiceNo?.startsWith("ADDON-INV") ? "Add-on Extension" : "Enterprise SaaS Plan";
+    }
+
     const periodStr =
       inv.periodStart && inv.periodEnd
         ? `${formatDocumentDate(inv.periodStart)} to ${formatDocumentDate(inv.periodEnd)}`
         : "Standard Billing Cycle";
 
     const itemDesc = `${planName} (${inv.billingCycle || "Monthly"})`;
-    const itemSubDesc = inv.billableUsers
+    const itemSubDesc = isAddon || inv.invoiceNo?.startsWith("ADDON-INV")
+      ? `Modular feature extension license active through ${inv.periodEnd ? formatDocumentDate(inv.periodEnd) : "renewal period"}`
+      : inv.billableUsers
       ? `Tier license for ${inv.billableUsers} billable seats with dedicated tenant compute`
       : "Cloud ERP subscription tier license and tenant isolation compute";
 

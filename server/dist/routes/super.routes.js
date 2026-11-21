@@ -3702,6 +3702,40 @@ exports.superRouter.post("/transactions/:id/approve", auth_1.requireAuth, auth_1
                 },
             });
         }
+        // 4.1 If this invoice is for an Addon, activate the TenantAddon entitlement and module
+        if (invoice.planId?.startsWith("addon_") || invoice.invoiceNo?.startsWith("ADDON-INV")) {
+            const cleanSlug = invoice.planId?.startsWith("addon_")
+                ? invoice.planId.replace("addon_", "")
+                : String(invoice.planId || "").toLowerCase();
+            if (cleanSlug) {
+                const catalogItem = await db.addon.findUnique({ where: { slug: cleanSlug } });
+                await db.$transaction(async (tx) => {
+                    await tx.tenantAddon.upsert({
+                        where: { tenantId_addonSlug: { tenantId: invoice.tenantId, addonSlug: cleanSlug } },
+                        create: {
+                            tenantId: invoice.tenantId,
+                            addonSlug: cleanSlug,
+                            status: "active",
+                            plan: "paid_addon",
+                            renewsAt: invoice.periodEnd || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
+                            features: catalogItem?.features || ["full_access"],
+                        },
+                        update: {
+                            status: "active",
+                            plan: "paid_addon",
+                            renewsAt: invoice.periodEnd || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000),
+                        },
+                    });
+                    if (tx.tenantModule) {
+                        await tx.tenantModule.upsert({
+                            where: { tenantId_moduleKey: { tenantId: invoice.tenantId, moduleKey: cleanSlug } },
+                            create: { tenantId: invoice.tenantId, moduleKey: cleanSlug, isEnabled: true },
+                            update: { isEnabled: true },
+                        });
+                    }
+                });
+            }
+        }
         // 5. Update CMS page system-monetization-plans bank transfers list
         try {
             const page = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });

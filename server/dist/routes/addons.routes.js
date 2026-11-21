@@ -1,14 +1,44 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addonsRouter = void 0;
 exports.getRelatedSlugs = getRelatedSlugs;
 const express_1 = require("express");
+const crypto_1 = __importDefault(require("crypto"));
 const prisma_1 = require("../prisma");
 const auth_1 = require("../middleware/auth");
 const tenant_context_middleware_1 = require("../middleware/tenant-context.middleware");
 const audit_service_1 = require("../services/audit.service");
 const outbox_service_1 = require("../services/outbox.service");
+const gateway_verification_service_1 = require("../services/gateway-verification.service");
+const invoice_engine_service_1 = require("../services/invoice-engine.service");
+const invoice_pdf_service_1 = require("../services/invoice-pdf.service");
+const email_1 = require("../lib/email");
+const socket_1 = require("../socket");
+const branding_resolver_service_1 = require("../services/branding/branding-resolver.service");
+const settings_service_1 = require("../services/settings/settings.service");
 exports.addonsRouter = (0, express_1.Router)();
+async function resolveWorkspaceBillingContext(tenantId) {
+    const scope = tenantId ? "TENANT" : "PLATFORM";
+    const [branding, paymentsGroup] = await Promise.all([
+        (0, branding_resolver_service_1.resolveBranding)({ scope, tenantId: tenantId || null }).catch(() => null),
+        settings_service_1.SettingsService.getGroup(scope, tenantId || null, "payments").catch(() => null),
+    ]);
+    const pv = paymentsGroup?.values || {};
+    const ps = paymentsGroup?.sources || {};
+    const workspaceCurrency = branding?.locale?.defaultCurrency || "INR";
+    const currency = (ps["payments.currency"] === "TENANT" || ps["payments.currency"] === "PLATFORM") && pv["payments.currency"]
+        ? String(pv["payments.currency"]).toUpperCase()
+        : workspaceCurrency.toUpperCase();
+    const currencySymbol = branding?.locale?.currencySymbol || (currency === "USD" ? "$" : currency === "EUR" ? "€" : "₹");
+    const keyId = pv["payments.razorpay_key_id"] ||
+        process.env.RAZORPAY_KEY_ID ||
+        "rzp_test_MasterHRMSKey";
+    const appName = branding?.appName || "Master HRMS & ERP";
+    return { currency, currencySymbol, keyId, appName };
+}
 // Enforce authentication and request-scoped tenant context for all tenant addon routes
 exports.addonsRouter.use(auth_1.requireAuth, tenant_context_middleware_1.resolveTenantContext);
 function getRelatedSlugs(cleanSlug) {
@@ -198,14 +228,85 @@ exports.addonsRouter.get("/entitlements", async (req, res) => {
     }
 });
 /**
+ * GET /api/addons/purchased
+ * Returns all installed/purchased add-ons for the authenticated tenant,
+ * joined with Addon catalog metadata and authoritative expiry/renewal dates.
+ */
+exports.addonsRouter.get("/purchased", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const tenantAddons = await db.tenantAddon.findMany({
+            where: {
+                tenantId,
+                status: { in: ["active", "trial"] },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+        const slugs = tenantAddons.map((t) => t.addonSlug);
+        const catalogItems = await db.addon.findMany({
+            where: { slug: { in: slugs } },
+        });
+        const catalogMap = new Map(catalogItems.map((c) => [c.slug, c]));
+        const paidInvoices = await db.billingInvoice.findMany({
+            where: {
+                tenantId,
+                status: "paid",
+            },
+            orderBy: { createdAt: "desc" },
+            take: 100,
+        });
+        const now = new Date();
+        const result = tenantAddons.map((t) => {
+            const catalog = catalogMap.get(t.addonSlug);
+            const isExpired = (t.status === "trial" && t.trialEndsAt && now > new Date(t.trialEndsAt)) ||
+                (t.renewsAt && now > new Date(t.renewsAt));
+            // Find matching invoice if any
+            const matchingInvoice = paidInvoices.find((inv) => inv.planId === `addon_${t.addonSlug}` ||
+                inv.planId === t.addonSlug ||
+                inv.invoiceNo?.toLowerCase().includes(t.addonSlug.toLowerCase()));
+            const price = catalog?.priceMonthly != null ? Number(catalog.priceMonthly) : 0;
+            const effectiveExpiry = t.renewsAt || t.trialEndsAt || new Date(t.createdAt.getTime() + 365 * 24 * 60 * 60 * 1000);
+            return {
+                id: t.id,
+                addonId: catalog?.id || t.id,
+                addonSlug: t.addonSlug,
+                name: catalog?.name || t.addonSlug,
+                category: catalog?.category || "Extension",
+                icon: catalog?.icon || null,
+                price,
+                status: isExpired ? "expired" : t.status,
+                plan: t.plan,
+                purchasedAt: t.createdAt.toISOString(),
+                expiresAt: effectiveExpiry.toISOString(),
+                renewsAt: t.renewsAt ? t.renewsAt.toISOString() : effectiveExpiry.toISOString(),
+                trialEndsAt: t.trialEndsAt ? t.trialEndsAt.toISOString() : null,
+                paymentMethod: matchingInvoice?.paymentMethod || (price === 0 ? "Free Included" : "Online Gateway"),
+                paymentId: matchingInvoice?.gatewayPaymentId || matchingInvoice?.bankTransferRef || null,
+                invoiceNo: matchingInvoice?.invoiceNo || null,
+                install_url: catalog?.installUrl || catalog?.install_url || null,
+                features: catalog?.features || t.features || [],
+            };
+        });
+        return res.json(result);
+    }
+    catch (err) {
+        console.error("[addons/purchased] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to fetch purchased add-ons." });
+    }
+});
+/**
  * POST /api/addons/:addonSlug/install
  * Authoritative Addon Installation Rule:
  * 1. Resolves authoritative catalog price server-side (never trusts client).
  * 2. If free (price == 0) or included in active tenant subscription plan:
  *    - Enables addon for tenant workspace immediately.
  *    - Persists TenantAddon and Tenant.enabledModules transactionally.
- *    - Zero payment gateway redirection.
- *    - Idempotent on repeated calls.
+ *    - Generates genuine $0 BillingInvoice (ADDON-INV-...) for tracking.
+ *    - Sets renewsAt = 1 year ahead.
  * 3. If paid (price > 0) and not included:
  *    - Rejects with 402 Payment Required.
  */
@@ -272,7 +373,9 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
                 });
             }
         }
-        // 4. Transactional install & enablement
+        const now = new Date();
+        const renewsAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year renewal
+        // 4. Transactional install & enablement + $0 Invoice for audit & billing tracking
         const entitlement = await db.$transaction(async (tx) => {
             const ent = await tx.tenantAddon.upsert({
                 where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
@@ -281,11 +384,13 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
                     addonSlug: cleanSlug,
                     status: "active",
                     plan: publishedPrice === 0 ? "free_tier" : isIncludedInPlan ? "plan_included" : "paid_addon",
+                    renewsAt,
                     features: catalogItem?.features || ["full_access"],
                 },
                 update: {
                     status: "active",
                     plan: publishedPrice === 0 ? "free_tier" : isIncludedInPlan ? "plan_included" : "paid_addon",
+                    renewsAt,
                 },
             });
             // Update tenant module enablement in TenantModule
@@ -294,6 +399,34 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
                     where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
                     create: { tenantId, moduleKey: cleanSlug, isEnabled: true },
                     update: { isEnabled: true },
+                });
+            }
+            // Ensure a billing invoice exists so it appears in /tenant/billing
+            const existingInvoice = await tx.billingInvoice.findFirst({
+                where: {
+                    tenantId,
+                    planId: `addon_${cleanSlug}`,
+                },
+            });
+            if (!existingInvoice) {
+                const count = await tx.billingInvoice.count({ where: { tenantId } });
+                const invoiceNo = `ADDON-INV-${now.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+                const billingCtx = await resolveWorkspaceBillingContext(tenantId);
+                await tx.billingInvoice.create({
+                    data: {
+                        tenantId,
+                        invoiceNo,
+                        amount: 0,
+                        currency: billingCtx.currency,
+                        status: "paid",
+                        planId: `addon_${cleanSlug}`,
+                        billingCycle: "annual",
+                        pricingModel: "free_included",
+                        paymentMethod: publishedPrice === 0 ? "Free Tier" : "Plan Included",
+                        periodStart: now,
+                        periodEnd: renewsAt,
+                        paidAt: now,
+                    },
                 });
             }
             return ent;
@@ -305,7 +438,7 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
             action: "addon.installed",
             entityType: "TenantAddon",
             entityId: entitlement.id,
-            newState: { addonSlug: cleanSlug, plan: entitlement.plan, price: publishedPrice },
+            newState: { addonSlug: cleanSlug, plan: entitlement.plan, price: publishedPrice, renewsAt },
         }).catch(() => { });
         await outbox_service_1.OutboxService.createOutboxEvent({
             tenantId,
@@ -315,18 +448,441 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
             actorId: userId || "SYSTEM",
             payload: { addonSlug: cleanSlug, plan: entitlement.plan },
         }).catch(() => { });
+        (0, socket_1.broadcastToTenant)(tenantId, "addon:installed", {
+            addonSlug: cleanSlug,
+            status: "active",
+            renewsAt: renewsAt.toISOString(),
+        });
         return res.json({
             success: true,
             message: `Add-on "${catalogItem?.name || cleanSlug}" installed and enabled successfully.`,
             entitlement: {
                 ...entitlement,
                 isActive: true,
+                renewsAt,
             },
         });
     }
     catch (err) {
         console.error("[addons/install] error:", err);
         return res.status(500).json({ error: err.message || "Failed to install add-on." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/checkout
+ * Initiates checkout for a commercial add-on:
+ * Creates BillingInvoice in "open" status, generates gateway order ID, and returns payment metadata.
+ */
+exports.addonsRouter.post("/:addonSlug/checkout", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { addonSlug } = req.params;
+        const { duration = "1_month", paymentMethod = "razorpay" } = req.body;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const catalogItem = await db.addon.findUnique({ where: { slug: cleanSlug } });
+        if (!catalogItem) {
+            return res.status(404).json({ error: `Add-on "${cleanSlug}" not found in catalog.` });
+        }
+        const priceMonthly = catalogItem.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        if (priceMonthly <= 0) {
+            return res.json({ requiresPayment: false, message: "Add-on is free." });
+        }
+        const isAnnual = duration === "1_year";
+        const amount = isAnnual ? Math.round(priceMonthly * 12 * 0.85) : priceMonthly; // 15% annual discount
+        const now = new Date();
+        const periodStart = now;
+        const periodEnd = isAnnual
+            ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+            : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const billingCtx = await resolveWorkspaceBillingContext(tenantId);
+        const count = await db.billingInvoice.count({ where: { tenantId } });
+        const invoiceNo = `ADDON-INV-${now.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+        const orderId = `order_${crypto_1.default.randomBytes(8).toString("hex")}`;
+        const invoice = await db.billingInvoice.create({
+            data: {
+                tenantId,
+                invoiceNo,
+                amount,
+                currency: billingCtx.currency,
+                status: "open",
+                planId: `addon_${cleanSlug}`,
+                billingCycle: isAnnual ? "annual" : "monthly",
+                pricingModel: "addon",
+                paymentMethod,
+                gatewayOrderId: orderId,
+                periodStart,
+                periodEnd,
+            },
+        });
+        return res.status(201).json({
+            invoiceId: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+            orderId,
+            amount,
+            currency: billingCtx.currency,
+            currencySymbol: billingCtx.currencySymbol,
+            keyId: billingCtx.keyId,
+            addonSlug: cleanSlug,
+            addonName: catalogItem.name,
+            periodEnd: periodEnd.toISOString(),
+            duration: isAnnual ? "1_year" : "1_month",
+        });
+    }
+    catch (err) {
+        console.error("[addons/checkout] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to create checkout order." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/verify-payment
+ * Verifies gateway payment signature and activates add-on entitlement.
+ */
+exports.addonsRouter.post("/:addonSlug/verify-payment", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const userId = req.user?.userId;
+        const { addonSlug } = req.params;
+        const { invoiceId, razorpay_order_id = req.body.razorpayOrderId || req.body.orderId, razorpay_payment_id = req.body.razorpayPaymentId || req.body.paymentId, razorpay_signature = req.body.razorpaySignature || req.body.signature, paypal_order_id = req.body.paypalOrderId, paypal_capture_id = req.body.paypalCaptureId, payment_intent_id = req.body.paymentIntentId, gateway = "razorpay", } = req.body;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        if (!invoiceId) {
+            return res.status(400).json({ error: "invoiceId is required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const [invoice, catalogItem] = await Promise.all([
+            db.billingInvoice.findFirst({
+                where: { id: invoiceId, tenantId },
+            }),
+            db.addon.findUnique({ where: { slug: cleanSlug } }),
+        ]);
+        if (!invoice) {
+            return res.status(404).json({ error: "Billing invoice not found." });
+        }
+        if (invoice.status === "paid") {
+            return res.json({ success: true, message: "Invoice already verified and paid." });
+        }
+        const providerKey = (gateway || (paypal_order_id ? "paypal" : payment_intent_id ? "stripe" : "razorpay")).toLowerCase();
+        let orderId = razorpay_order_id;
+        let paymentId = razorpay_payment_id;
+        if (providerKey === "paypal" || paypal_order_id) {
+            const pOrderId = String(paypal_order_id || "");
+            const result = await (0, gateway_verification_service_1.captureAndVerifyPayPalOrder)({
+                orderId: pOrderId,
+                expectedAmount: Number(invoice.amount),
+                expectedCurrency: invoice.currency || "USD",
+            });
+            if (!result.verified) {
+                return res.status(400).json({ error: result.error || "PayPal verification failed." });
+            }
+            orderId = result.orderId || pOrderId;
+            paymentId = result.paymentId || paypal_capture_id || orderId;
+        }
+        else if (providerKey === "stripe" || payment_intent_id) {
+            const result = await (0, gateway_verification_service_1.verifyStripePayment)({
+                paymentIntentId: payment_intent_id,
+                sessionId: req.body.sessionId,
+                expectedAmount: Number(invoice.amount),
+                expectedCurrency: invoice.currency || "USD",
+            });
+            if (!result.verified) {
+                return res.status(400).json({ error: result.error || "Stripe verification failed." });
+            }
+            orderId = result.orderId || payment_intent_id;
+            paymentId = result.paymentId || payment_intent_id;
+        }
+        else {
+            // Default: Razorpay
+            if (!razorpay_order_id || !razorpay_payment_id) {
+                return res.status(400).json({ error: "Razorpay order ID and payment ID are required." });
+            }
+            const result = await (0, gateway_verification_service_1.verifyRazorpayPayment)({
+                orderId: razorpay_order_id,
+                paymentId: razorpay_payment_id,
+                signature: razorpay_signature,
+                expectedAmountPaise: Math.round(Number(invoice.amount) * 100),
+                expectedCurrency: invoice.currency || "INR",
+            });
+            if (!result.verified) {
+                return res.status(422).json({ error: result.error || "Razorpay signature verification failed." });
+            }
+        }
+        const now = new Date();
+        // Transactionally update invoice and activate tenant addon entitlement
+        const entitlement = await db.$transaction(async (tx) => {
+            await tx.billingInvoice.update({
+                where: { id: invoice.id },
+                data: {
+                    status: "paid",
+                    paidAt: now,
+                    paymentMethod: providerKey,
+                    gatewayOrderId: orderId || invoice.gatewayOrderId,
+                    gatewayPaymentId: paymentId,
+                },
+            });
+            const ent = await tx.tenantAddon.upsert({
+                where: { tenantId_addonSlug: { tenantId, addonSlug: cleanSlug } },
+                create: {
+                    tenantId,
+                    addonSlug: cleanSlug,
+                    status: "active",
+                    plan: "paid_addon",
+                    renewsAt: invoice.periodEnd,
+                    features: catalogItem?.features || ["full_access"],
+                },
+                update: {
+                    status: "active",
+                    plan: "paid_addon",
+                    renewsAt: invoice.periodEnd,
+                },
+            });
+            if (tx.tenantModule) {
+                await tx.tenantModule.upsert({
+                    where: { tenantId_moduleKey: { tenantId, moduleKey: cleanSlug } },
+                    create: { tenantId, moduleKey: cleanSlug, isEnabled: true },
+                    update: { isEnabled: true },
+                });
+            }
+            return ent;
+        });
+        // Record PaymentGatewayTransaction ledger
+        try {
+            await db.paymentGatewayTransaction.upsert({
+                where: {
+                    tenantId_provider_providerOrderId: {
+                        tenantId,
+                        provider: providerKey,
+                        providerOrderId: orderId || invoice.invoiceNo,
+                    },
+                },
+                create: {
+                    tenantId,
+                    provider: providerKey,
+                    providerOrderId: orderId || invoice.invoiceNo,
+                    providerPaymentId: paymentId || orderId,
+                    amount: invoice.amount,
+                    currency: invoice.currency || "INR",
+                    status: "captured",
+                    method: providerKey === "paypal" ? "PayPal" : providerKey === "stripe" ? "Stripe" : "Razorpay",
+                    verifiedAt: now,
+                    payload: { orderId, paymentId, invoiceId: invoice.id, verifiedBy: req.user?.email },
+                },
+                update: {
+                    providerPaymentId: paymentId || orderId,
+                    status: "captured",
+                    verifiedAt: now,
+                    payload: { orderId, paymentId, invoiceId: invoice.id, verifiedBy: req.user?.email },
+                },
+            });
+        }
+        catch (gwErr) {
+            console.warn("Could not upsert paymentGatewayTransaction on addon verify:", gwErr);
+        }
+        // Audit and outbox logging
+        await audit_service_1.AuditService.logMutation({
+            tenantId,
+            actorId: userId || "SYSTEM",
+            action: "addon.purchased",
+            entityType: "TenantAddon",
+            entityId: entitlement.id,
+            newState: { addonSlug: cleanSlug, plan: "paid_addon", renewsAt: invoice.periodEnd },
+        }).catch(() => { });
+        await outbox_service_1.OutboxService.createOutboxEvent({
+            tenantId,
+            eventType: "addon.purchased",
+            entityType: "TenantAddon",
+            entityId: entitlement.id,
+            actorId: userId || "SYSTEM",
+            payload: { addonSlug: cleanSlug, plan: "paid_addon", invoiceId: invoice.id },
+        }).catch(() => { });
+        // Broadcast real-time socket events
+        (0, socket_1.broadcastToTenant)(tenantId, "addon:installed", {
+            addonSlug: cleanSlug,
+            status: "active",
+            renewsAt: invoice.periodEnd.toISOString(),
+        });
+        (0, socket_1.broadcastToTenant)(tenantId, "payment:confirmed", {
+            invoiceId: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+            status: "paid",
+        });
+        // Dispatch confirmation email with tax invoice PDF in background (non-blocking)
+        (async () => {
+            try {
+                const canonical = await (0, invoice_engine_service_1.getAuthoritativeCanonicalInvoice)(invoice.id);
+                if (canonical) {
+                    const pdfBuffer = await (0, invoice_pdf_service_1.generateInvoicePdf)(canonical);
+                    const recipientEmail = req.user?.email || canonical.customer.email;
+                    if (recipientEmail) {
+                        await (0, email_1.sendPaymentConfirmationEmail)({
+                            toEmail: recipientEmail,
+                            customerName: canonical.customer.name,
+                            tenantSlug: canonical.customer.slug || undefined,
+                            tenantId,
+                            planName: `Add-on: ${catalogItem?.name || cleanSlug}`,
+                            amount: Number(invoice.amount),
+                            currency: invoice.currency || "INR",
+                            paymentMethod: providerKey === "paypal" ? "PayPal" : providerKey === "stripe" ? "Stripe" : "Razorpay",
+                            transactionRef: paymentId,
+                            invoiceNo: invoice.invoiceNo || invoice.id,
+                            paidAt: now,
+                            pdfBuffer,
+                        });
+                    }
+                }
+            }
+            catch (mailErr) {
+                console.warn("Could not dispatch confirmation email for addon purchase:", mailErr?.message);
+            }
+        })();
+        return res.json({
+            success: true,
+            message: `Add-on "${catalogItem?.name || cleanSlug}" purchased and activated successfully! Active until ${new Date(invoice.periodEnd).toLocaleDateString()}.`,
+            entitlement: {
+                ...entitlement,
+                isInstalled: true,
+                isActive: true,
+                renewsAt: invoice.periodEnd,
+            },
+            invoice: {
+                id: invoice.id,
+                invoiceNo: invoice.invoiceNo,
+                amount: invoice.amount,
+                status: "paid",
+                periodEnd: invoice.periodEnd,
+            },
+        });
+    }
+    catch (err) {
+        console.error("[addons/verify-payment] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to verify add-on payment." });
+    }
+});
+/**
+ * POST /api/addons/:addonSlug/submit-offline-payment
+ * Submits Bank Transfer proof for an add-on purchase.
+ */
+exports.addonsRouter.post("/:addonSlug/submit-offline-payment", async (req, res) => {
+    try {
+        const db = prisma_1.rawPrisma || prisma_1.prisma;
+        const tenantId = req.user?.tenantId;
+        const { addonSlug } = req.params;
+        const { invoiceId, duration = "1_month", referenceNo, receiptUrl, notes } = req.body;
+        if (!tenantId) {
+            return res.status(400).json({ error: "Tenant context required." });
+        }
+        if (!referenceNo || !String(referenceNo).trim()) {
+            return res.status(400).json({ error: "Bank Transaction / UTR / Reference Number is required." });
+        }
+        if (!receiptUrl || typeof receiptUrl !== "string" || !receiptUrl.trim()) {
+            return res.status(400).json({ error: "Payment proof receipt screenshot is required." });
+        }
+        const cleanSlug = addonSlug.trim().toLowerCase();
+        const catalogItem = await db.addon.findUnique({ where: { slug: cleanSlug } });
+        if (!catalogItem) {
+            return res.status(404).json({ error: `Add-on "${cleanSlug}" not found in catalog.` });
+        }
+        const priceMonthly = catalogItem.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        const isAnnual = duration === "1_year";
+        const amount = isAnnual ? Math.round(priceMonthly * 12 * 0.85) : priceMonthly;
+        const now = new Date();
+        const periodStart = now;
+        const periodEnd = isAnnual
+            ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)
+            : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        let invoice = null;
+        if (invoiceId) {
+            invoice = await db.billingInvoice.findFirst({
+                where: { id: invoiceId, tenantId },
+            });
+            if (invoice) {
+                invoice = await db.billingInvoice.update({
+                    where: { id: invoice.id },
+                    data: {
+                        paymentMethod: "bank_transfer",
+                        bankTransferRef: String(referenceNo).trim(),
+                        status: "open",
+                    },
+                });
+            }
+        }
+        if (!invoice) {
+            const billingCtx = await resolveWorkspaceBillingContext(tenantId);
+            const count = await db.billingInvoice.count({ where: { tenantId } });
+            const invoiceNo = `ADDON-INV-${now.getFullYear()}-${String(count + 1).padStart(4, "0")}`;
+            invoice = await db.billingInvoice.create({
+                data: {
+                    tenantId,
+                    invoiceNo,
+                    amount,
+                    currency: billingCtx.currency,
+                    status: "open",
+                    planId: `addon_${cleanSlug}`,
+                    billingCycle: isAnnual ? "annual" : "monthly",
+                    pricingModel: "addon",
+                    paymentMethod: "bank_transfer",
+                    bankTransferRef: String(referenceNo).trim(),
+                    periodStart,
+                    periodEnd,
+                },
+            });
+        }
+        // Persist to system-monetization-plans bank transfers list for Super Admin review
+        try {
+            const page = await db.cmsPage.findUnique({ where: { slug: "system-monetization-plans" } });
+            let content = {};
+            if (page?.content) {
+                content = typeof page.content === "string" ? JSON.parse(page.content) : page.content;
+            }
+            const existingTransfers = Array.isArray(content.bankTransfers) ? content.bankTransfers : [];
+            const newTransfer = {
+                id: `bt-${Date.now()}`,
+                tenant_id: tenantId,
+                tenant_name: req.user?.name || req.user?.email || "Workspace Tenant",
+                amount: Number(invoice.amount),
+                currency: invoice.currency || "INR",
+                reference_no: String(referenceNo).trim(),
+                receipt_url: receiptUrl || null,
+                status: "pending",
+                date: now.toISOString().slice(0, 10),
+                item_type: "addon",
+                item_id: cleanSlug,
+                item_name: `Add-on: ${catalogItem.name}`,
+                invoice_id: invoice.id,
+                invoice_no: invoice.invoiceNo,
+                notes: notes || null,
+            };
+            await db.cmsPage.upsert({
+                where: { slug: "system-monetization-plans" },
+                create: {
+                    slug: "system-monetization-plans",
+                    title: "System Monetization Plans",
+                    content: { ...content, bankTransfers: [newTransfer, ...existingTransfers] },
+                },
+                update: {
+                    content: { ...content, bankTransfers: [newTransfer, ...existingTransfers] },
+                },
+            });
+        }
+        catch (cmsErr) {
+            console.warn("Could not save to system-monetization-plans:", cmsErr);
+        }
+        return res.json({
+            success: true,
+            message: `Bank transfer payment proof submitted (Ref: ${referenceNo})! Super Admin will review your payment receipt and activate ${catalogItem.name}.`,
+            invoiceId: invoice.id,
+            invoiceNo: invoice.invoiceNo,
+            status: "open",
+        });
+    }
+    catch (err) {
+        console.error("[addons/submit-offline-payment] error:", err);
+        return res.status(500).json({ error: err.message || "Failed to submit offline payment." });
     }
 });
 /**
