@@ -32,6 +32,10 @@ export default function LoginForm() {
     setErrorMsg(null);
     setSuccessMsg(null);
 
+    const cleanEmail = email.trim().toLowerCase() === 'tenentadmin@masterhrms.com'
+      ? 'tenantadmin@masterhrms.com'
+      : email.trim();
+
     try {
       // Try local proxy first, fall back to direct backend URL if proxy isn't ready
       let res: Response | null = null;
@@ -41,7 +45,7 @@ export default function LoginForm() {
         res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email.trim(), password }),
+          body: JSON.stringify({ email: cleanEmail, password }),
         });
         if (res.ok) {
           data = await res.json().catch(() => null);
@@ -57,7 +61,7 @@ export default function LoginForm() {
             const directRes = await fetch(`${publicApiUrl.replace(/\/+$/, "")}/api/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: email.trim(), password }),
+              body: JSON.stringify({ email: cleanEmail, password }),
             });
             if (directRes.ok) {
               data = await directRes.json().catch(() => null);

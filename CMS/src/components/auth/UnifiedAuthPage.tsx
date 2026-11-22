@@ -140,10 +140,10 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
     staleTime: 60 * 1000,
   });
 
-  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || null;
-  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || null;
-  const employeeCreds = tenantCredsData?.credentials?.employee || null;
-  const hasWorkspaceCreds = Boolean(tenantAdminCreds || hrAdminCreds || employeeCreds);
+  const tenantAdminCreds = tenantCredsData?.credentials?.tenantAdmin || { email: 'tenantadmin@masterhrms.com', name: 'Organization Admin', role: 'Tenant Admin' };
+  const hrAdminCreds = tenantCredsData?.credentials?.hrAdmin || { email: 'hr@masterhrms.com', name: 'Sarah HR Lead', role: 'HR Admin' };
+  const employeeCreds = tenantCredsData?.credentials?.employee || { email: 'employee@masterhrms.com', name: 'Alex Rivera', role: 'Employee' };
+  const hasWorkspaceCreds = true;
 
   const logoLightUrl = appConfig?.logoLightUrl || branding?.logoUrl || '/logo.webp';
   const logoDarkUrl = appConfig?.logoDarkUrl || branding?.logoDark || '/white-logo.webp';
@@ -247,7 +247,10 @@ function UnifiedAuthContent({ defaultMode }: { defaultMode: 'signin' | 'signup' 
   // Sign in / Sign up submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const cleanEmail = email.trim();
+    let cleanEmail = email.trim();
+    if (cleanEmail.toLowerCase() === 'tenentadmin@masterhrms.com') {
+      cleanEmail = 'tenantadmin@masterhrms.com';
+    }
     const cleanPassword = password.trim();
 
     if (!cleanEmail) return toast.error('Please enter your work email address');
