@@ -1786,3 +1786,59 @@ pre {
 }
 
 
+
+
+/* ─── GLOBAL DARK MODE FOUNDATION ENFORCEMENT ─── */
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) html,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) body,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .main-wrapper,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .page-wrapper,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .content,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) [class*="dashboard-scope"],
+.dashboard-scope:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]),
+.dark .dashboard-scope,
+[data-theme="dark"] .dashboard-scope,
+[data-theme-mode="dark"] .dashboard-scope {
+  background-color: #0b0f19 !important;
+  color: #cbd5e1 !important;
+  --bs-body-bg: #0b0f19 !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .bg-white,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope [class*="bg-white"] {
+  background-color: #111827 !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .bg-light,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope [class*="bg-light"] {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card-header,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card-footer {
+  background-color: #111827 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table {
+  --bs-table-bg: transparent !important;
+  background-color: transparent !important;
+}
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table th {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  color: #94a3b8 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table td {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .todo-item.bg-white {
+  background-color: #161f30 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}

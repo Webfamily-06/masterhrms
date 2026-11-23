@@ -745,7 +745,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className={cn(
-        "main-wrapper min-h-screen w-full relative",
+        "main-wrapper min-h-screen w-full relative bg-background",
         mobileOpen && "slide-nav",
         !fullView && collapsed && "mini-sidebar",
         fullView && "full-view full-width",
@@ -1120,8 +1120,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Main Page Wrapper */}
-      <div className={cn("page-wrapper flex flex-col justify-between", isChatRoute && "chat-page-wrapper")}>
-        <main className={cn("content min-w-0 flex-1", isChatRoute && "chat-page-content")}>
+      <div className={cn("page-wrapper flex flex-col justify-between bg-background", isChatRoute && "chat-page-wrapper")}>
+        <main className={cn("content min-w-0 flex-1 bg-background", isChatRoute && "chat-page-content")}>
           {isSuperAdmin && !profile?.tenant_id && !isPlatformOrShared ? (
             <AccessDenied
               moduleName="Tenant Workspace"

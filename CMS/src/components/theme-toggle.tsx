@@ -17,15 +17,19 @@ export function ThemeToggle({
     // Check initial dark class or localStorage - default is dark mode
     const saved = localStorage.getItem("theme");
     const isLight = saved === "light";
+    const themeStr = isLight ? "light" : "dark";
+    setIsDark(!isLight);
     if (isLight) {
-      setIsDark(false);
       document.documentElement.classList.remove("dark");
-      document.documentElement.setAttribute("data-theme", "light");
     } else {
-      setIsDark(true);
       document.documentElement.classList.add("dark");
-      document.documentElement.setAttribute("data-theme", "dark");
     }
+    document.documentElement.setAttribute("data-theme", themeStr);
+    document.documentElement.setAttribute("data-theme-mode", themeStr);
+    document.querySelectorAll(".dashboard-scope").forEach((el) => {
+      el.setAttribute("data-theme", themeStr);
+      el.setAttribute("data-theme-mode", themeStr);
+    });
   }, []);
 
   useEffect(() => {

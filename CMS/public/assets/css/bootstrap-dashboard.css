@@ -112,9 +112,20 @@
   font-size: 14px;
   color: #6B7280;
   line-height: 1.5;
-  background-color: #F8F9FA;
+  background-color: var(--bs-body-bg, #F8F9FA);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope,
+.dashboard-scope:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]),
+:is([data-theme="dark"], .dark) .dashboard-scope,
+[data-theme-mode="dark"] .dashboard-scope,
+[data-theme="dark"] .dashboard-scope,
+.dark .dashboard-scope {
+  background-color: #0b0f19 !important;
+  color: #cbd5e1 !important;
+  --bs-body-bg: #0b0f19 !important;
 }
 
 .dashboard-scope ::selection {
@@ -23106,8 +23117,12 @@
   border: 1px solid #1F2937;
   background: #212324;
 }
-:is([data-theme="dark"], .dark) .dashboard-scope .asset-list .asset-item .bar {
-  background: #F8F9FA;
+:is([data-theme="dark"], .dark, [data-theme-mode="dark"]) .dashboard-scope .asset-list .asset-item .bar {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+:is([data-theme="dark"], .dark, [data-theme-mode="dark"]) .dashboard-scope .asset-list .asset-item .bar .fill .percent {
+  background: #1f2937 !important;
+  color: #f8fafc !important;
 }
 :is([data-theme="dark"], .dark) .dashboard-scope .assets-by-department-card .assets-department-name {
   color: #F8F9FA;
@@ -31444,4 +31459,60 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
   color: #f8fafc !important;
   border-radius: 6px !important;
+}
+
+
+/* ─── GLOBAL DARK MODE FOUNDATION ENFORCEMENT ─── */
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) html,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) body,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .main-wrapper,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .page-wrapper,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .content,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) [class*="dashboard-scope"],
+.dashboard-scope:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]),
+.dark .dashboard-scope,
+[data-theme="dark"] .dashboard-scope,
+[data-theme-mode="dark"] .dashboard-scope {
+  background-color: #0b0f19 !important;
+  color: #cbd5e1 !important;
+  --bs-body-bg: #0b0f19 !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .bg-white,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope [class*="bg-white"] {
+  background-color: #111827 !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .bg-light,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope [class*="bg-light"] {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card-header,
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .card-footer {
+  background-color: #111827 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table {
+  --bs-table-bg: transparent !important;
+  background-color: transparent !important;
+}
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table th {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  color: #94a3b8 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .table td {
+  background-color: transparent !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .todo-item.bg-white {
+  background-color: #161f30 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }

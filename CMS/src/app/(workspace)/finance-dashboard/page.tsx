@@ -136,7 +136,7 @@ export default function FinanceDashboardPage() {
 					<nav>
 						<ol className="breadcrumb mb-0">
 							<li className="breadcrumb-item">
-								<a href="#"><i className="ti ti-smart-home"></i></a>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
 							</li>
 							<li className="breadcrumb-item">
 								Dashboard
@@ -178,7 +178,7 @@ export default function FinanceDashboardPage() {
 									<img src="/assets/img/bg/title-bg-01.png" alt="bg"
 										className="position-absolute top-0 start-0 title-bg z-n1 rounded-0" />
 								</div>
-								<a href="#"
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/budgets.html"
 									className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
 										className="ti ti-arrow-up-right"></i></a>
 							</div>
@@ -617,7 +617,7 @@ export default function FinanceDashboardPage() {
 					<div className="card flex-fill">
 						<div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
 							<h2 className="mb-0 card-title text-decoration-underline">Recent HR Transactions</h2>
-							<a href="#" className="btn btn-md btn-primary">View All</a>
+							<a href="https://smarthr.dreamstechnologies.com/hrm/html/payments.html" className="btn btn-md btn-primary">View All</a>
 						</div>
 						<div className="card-body p-0">
 							<div className="table-responsive">
@@ -635,17 +635,17 @@ export default function FinanceDashboardPage() {
 									</thead>
 									<tbody>
 										<tr>
-											<td><a href="#">TRX565545878</a></td>
+											<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX565545878</a></td>
 											<td>
 												<div className="d-flex align-items-center">
-													<a href="#"
+													<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
 														className="avatar avatar-md border avatar-rounded">
 														<img src="/assets/img/users/user-32.jpg" className="img-fluid"
 															alt="employee" />
 													</a>
 													<div className="ms-2">
 														<p className="fw-medium mb-0"><a
-															href="#">Anthony Lewis</a></p>
+															href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Anthony Lewis</a></p>
 													</div>
 												</div>
 											</td>
@@ -666,17 +666,17 @@ export default function FinanceDashboardPage() {
 											</td>
 										</tr>
 										<tr>
-											<td><a href="#">TRX654412454</a></td>
+											<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX654412454</a></td>
 											<td>
 												<div className="d-flex align-items-center">
-													<a href="#"
+													<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
 														className="avatar avatar-md border avatar-rounded">
 														<img src="/assets/img/users/user-09.jpg" className="img-fluid"
 															alt="employee" />
 													</a>
 													<div className="ms-2">
 														<p className="fw-medium mb-0"><a
-															href="#">Brian Villalobos</a>
+															href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Brian Villalobos</a>
 														</p>
 													</div>
 												</div>
@@ -698,17 +698,17 @@ export default function FinanceDashboardPage() {
 											</td>
 										</tr>
 										<tr>
-											<td><a href="#">TRX552145547</a></td>
+											<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX552145547</a></td>
 											<td>
 												<div className="d-flex align-items-center">
-													<a href="#"
+													<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
 														className="avatar avatar-md border avatar-rounded">
 														<img src="/assets/img/users/user-01.jpg" className="img-fluid"
 															alt="employee" />
 													</a>
 													<div className="ms-2">
 														<p className="fw-medium mb-0"><a
-															href="#">Harvey Smith</a></p>
+															href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Harvey Smith</a></p>
 													</div>
 												</div>
 											</td>
@@ -729,17 +729,17 @@ export default function FinanceDashboardPage() {
 											</td>
 										</tr>
 										<tr>
-											<td><a href="#">TRX254124457</a></td>
+											<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX254124457</a></td>
 											<td>
 												<div className="d-flex align-items-center">
-													<a href="#"
+													<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
 														className="avatar avatar-md border avatar-rounded">
 														<img src="/assets/img/users/user-33.jpg" className="img-fluid"
 															alt="employee" />
 													</a>
 													<div className="ms-2">
 														<p className="fw-medium mb-0"><a
-															href="#">Stephan Peralt</a></p>
+															href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Stephan Peralt</a></p>
 													</div>
 												</div>
 											</td>
@@ -760,17 +760,17 @@ export default function FinanceDashboardPage() {
 											</td>
 										</tr>
 										<tr>
-											<td><a href="#">TRX124512442</a></td>
+											<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX124512442</a></td>
 											<td>
 												<div className="d-flex align-items-center">
-													<a href="#"
+													<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
 														className="avatar avatar-md border avatar-rounded">
 														<img src="/assets/img/users/user-34.jpg" className="img-fluid"
 															alt="employee" />
 													</a>
 													<div className="ms-2">
 														<p className="fw-medium mb-0"><a
-															href="#">Doglas Martini</a></p>
+															href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Doglas Martini</a></p>
 													</div>
 												</div>
 											</td>
