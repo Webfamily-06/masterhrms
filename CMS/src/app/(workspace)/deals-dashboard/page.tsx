@@ -529,7 +529,7 @@ export default function DealsDashboardPage() {
 													<div className="d-flex align-items-center mb-2">
 														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
 															className="avatar rounded-circle border border-2">
-															<img src="/assets/img/payment-gateway/country-01.svg"
+															<img src="/flags/us.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
@@ -558,7 +558,7 @@ export default function DealsDashboardPage() {
 													<div className="d-flex align-items-center mb-2">
 														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
 															className="avatar rounded-circle border border-2">
-															<img src="/assets/img/payment-gateway/country-02.svg"
+															<img src="/flags/ae.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
@@ -587,7 +587,7 @@ export default function DealsDashboardPage() {
 													<div className="d-flex align-items-center mb-2">
 														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
 															className="avatar rounded-circle border border-2">
-															<img src="/assets/img/payment-gateway/country-03.svg"
+															<img src="/flags/sg.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
@@ -616,7 +616,7 @@ export default function DealsDashboardPage() {
 													<div className="d-flex align-items-center mb-2">
 														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
 															className="avatar rounded-circle border border-2">
-															<img src="/assets/img/payment-gateway/country-04.svg"
+															<img src="/flags/fr.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">
@@ -645,7 +645,7 @@ export default function DealsDashboardPage() {
 													<div className="d-flex align-items-center">
 														<a href="https://smarthr.dreamstechnologies.com/hrm/html/countries.html"
 															className="avatar rounded-circle border border-2">
-															<img src="/assets/img/payment-gateway/country-05.svg"
+															<img src="/flags/no.svg"
 																className="img-fluid rounded-circle" alt="img" />
 														</a>
 														<div className="ms-2">

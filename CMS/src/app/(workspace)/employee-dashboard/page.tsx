@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
+import { CountryFlag } from "@/components/ui/country-flag";
 import {
   Dialog,
   DialogContent,
@@ -176,7 +177,7 @@ export default function EmployeeDashboardPage() {
 							<div className="card-body rounded-top">
 								<div className="mb-3">
 									<span className="d-block mb-1 fs-13">Phone Number</span>
-									<p className="text-gray-9">+1 324 3453 545</p>
+									<p className="text-gray-9 d-flex align-items-center gap-1.5"><CountryFlag country="US" size="xs" /> +1 324 3453 545</p>
 								</div>
 								<div className="mb-3">
 									<span className="d-block mb-1 fs-13">Email Address</span>

@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { EMPLOYEE_DOCUMENT_CATEGORIES } from "@/lib/constants/employee-documents";
 import { COUNTRIES } from "@/lib/address/countries";
+import { CountrySelect } from "@/components/ui/country-select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { getStatesByCountry } from "@/lib/address/india-states";
 import { getDistrictsByState } from "@/lib/address/india-districts";
 import { lookupPincode } from "@/lib/address/address-lookup";
@@ -396,10 +398,11 @@ function NewEmployeeWizardPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Primary Phone</Label>
-                  <Input
+                  <PhoneInput
                     value={formData.phone}
-                    onChange={(e) => updateField("phone", e.target.value)}
-                    placeholder="+91 98765 43210"
+                    onChange={(val) => updateField("phone", val)}
+                    defaultCountry="IN"
+                    placeholder="98765 43210"
                   />
                 </div>
               </div>
@@ -416,21 +419,15 @@ function NewEmployeeWizardPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <Label>Country</Label>
-                  <Select
+                  <CountrySelect
                     value={formData.country}
                     onValueChange={(val) => {
                       updateField("country", val);
                       updateField("state", "");
                       updateField("district", "");
                     }}
-                  >
-                    <SelectTrigger><SelectValue placeholder="Select Country" /></SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c.code} value={c.name}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Select Country"
+                  />
                 </div>
 
                 <div className="space-y-1.5">
@@ -554,10 +551,11 @@ function NewEmployeeWizardPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Emergency Contact Phone</Label>
-                    <Input
+                    <PhoneInput
                       value={formData.emergencyContactPhone}
-                      onChange={(e) => updateField("emergencyContactPhone", e.target.value)}
-                      placeholder="+91 98765 12345"
+                      onChange={(val) => updateField("emergencyContactPhone", val)}
+                      defaultCountry="IN"
+                      placeholder="98765 12345"
                     />
                   </div>
 

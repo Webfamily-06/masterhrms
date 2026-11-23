@@ -7,6 +7,9 @@ import { useSession, useCurrentProfile } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CountrySelect } from "@/components/ui/country-select";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { CountryFlag } from "@/components/ui/country-flag";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -848,11 +851,11 @@ function ContactsPage() {
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Phone Number</Label>
-              <Input
-                placeholder="e.g. (163) 2459 315"
+              <PhoneInput
+                placeholder="2459 315"
                 value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="h-9 text-xs font-mono"
+                onChange={(val) => setForm({ ...form, phone: val })}
+                defaultCountry="US"
               />
             </div>
 
@@ -868,11 +871,10 @@ function ContactsPage() {
 
             <div className="space-y-1">
               <Label className="text-xs font-semibold">Country</Label>
-              <Input
-                placeholder="e.g. Germany"
+              <CountrySelect
                 value={form.country}
-                onChange={(e) => setForm({ ...form, country: e.target.value })}
-                className="h-9 text-xs"
+                onChange={(val) => setForm({ ...form, country: val })}
+                placeholder="Select country"
               />
             </div>
 

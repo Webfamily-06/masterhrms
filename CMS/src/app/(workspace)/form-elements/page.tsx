@@ -2,10 +2,15 @@
 
 import React, { useState } from "react";
 import { PreviewCard } from "@/components/ui/preview-card";
+import { CountrySelect } from "@/components/ui/country-select";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { CountryFlag } from "@/components/ui/country-flag";
 
 export default function FormElementsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [switchChecked, setSwitchChecked] = useState(true);
+  const [selectedCountry, setSelectedCountry] = useState("India");
+  const [phoneNumber, setPhoneNumber] = useState("+91 98765 43210");
 
   return (
     <div className="p-4 lg:p-6 space-y-6 max-w-7xl mx-auto">
@@ -223,6 +228,75 @@ export default function FormElementsPage() {
               <p className="text-[11px] text-rose-600 font-medium mt-1">
                 Invalid PAN format. Must match 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F).
               </p>
+            </div>
+          </div>
+        </PreviewCard>
+
+        {/* 5. Country Flag Select & Mobile Dial Code Inputs */}
+        <PreviewCard
+          title="Country Flags & Mobile Dial Code Selectors"
+          description="Country pickers with 255 SVG flags mapped to ISO country shortcodes, plus mobile phone inputs with interactive country dial code selectors."
+          code={`<CountrySelect value={country} onValueChange={setCountry} />
+<PhoneInput value={phone} onChange={setPhone} defaultCountry="IN" />
+<CountryFlag country="IN" size="md" />`}
+        >
+          <div className="space-y-4 p-1">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                Select Country (with Flag Preview & Search)
+              </label>
+              <CountrySelect
+                value={selectedCountry}
+                onValueChange={setSelectedCountry}
+                placeholder="Choose Country"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Selected: <span className="font-semibold text-foreground">{selectedCountry}</span>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                Mobile Number (with Country Code Flag Selector)
+              </label>
+              <PhoneInput
+                value={phoneNumber}
+                onChange={setPhoneNumber}
+                defaultCountry="IN"
+                placeholder="98765 43210"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Parsed formatted value: <span className="font-mono text-foreground font-semibold">{phoneNumber || "Empty"}</span>
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-border/40">
+              <label className="block text-xs font-semibold text-foreground mb-2">
+                Sample Country Flags by ISO Shortcode
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                {[
+                  { code: "IN", name: "India" },
+                  { code: "US", name: "USA" },
+                  { code: "GB", name: "UK" },
+                  { code: "AE", name: "UAE" },
+                  { code: "SG", name: "Singapore" },
+                  { code: "DE", name: "Germany" },
+                  { code: "FR", name: "France" },
+                  { code: "JP", name: "Japan" },
+                  { code: "CA", name: "Canada" },
+                  { code: "AU", name: "Australia" },
+                ].map((item) => (
+                  <div
+                    key={item.code}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border/70 bg-muted/20 text-xs text-foreground"
+                  >
+                    <CountryFlag country={item.code} size="sm" />
+                    <span className="font-medium">{item.name}</span>
+                    <span className="text-[10px] text-muted-foreground font-mono">({item.code})</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </PreviewCard>
