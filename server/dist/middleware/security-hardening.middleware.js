@@ -85,7 +85,7 @@ function createRateLimiter(options) {
  */
 exports.authRateLimiter = createRateLimiter({
     windowMs: 60 * 1000,
-    max: 20,
+    max: process.env.NODE_ENV === "production" ? 60 : 300,
     message: "Too many authentication attempts. Please wait 60 seconds before trying again.",
 });
 /**
