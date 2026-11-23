@@ -274,7 +274,7 @@ export default function AIPayrollForecastPage() {
   // 4. Cost Breakdown Donut (breakdown-chart)
   const breakdownOptions: any = {
     chart: { type: 'donut', height: 220 },
-    stroke: { show: true, width: 4, colors: ['#ffffff'], lineCap: 'round' },
+    stroke: { show: true, width: 4, colors: ['#111827'], lineCap: 'round' },
     colors: ['#0B4F6C', '#FFC107', '#1B84FF', '#FF6B2C'],
     labels: ['Salary', 'Taxes', 'Bonuses', 'Benefits'],
     dataLabels: { enabled: false },
@@ -284,8 +284,7 @@ export default function AIPayrollForecastPage() {
   const breakdownSeries = [70, 10, 14, 6];
 
   return (
-    <div className="dashboard-scope page-wrapper" style={{ minHeight: '100vh' }}>
-      <div className="content">
+    <div className="dashboard-scope w-full">
         
 				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
 					<div className="my-auto mb-2">
@@ -718,6 +717,5 @@ export default function AIPayrollForecastPage() {
 
 				</div>
       </div>
-    </div>
   );
 }

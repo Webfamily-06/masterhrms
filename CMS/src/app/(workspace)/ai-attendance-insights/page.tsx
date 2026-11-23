@@ -176,11 +176,11 @@ export default function AIAttendanceInsightsPage() {
         colorStops: [
           [
             { offset: 0, color: '#F58229', opacity: 0.4 },
-            { offset: 1, color: '#FEF1EB', opacity: 0.9 }
+            { offset: 1, color: '#F58229', opacity: 0 }
           ],
           [
             { offset: 0, color: '#0C4B5E', opacity: 0.3 },
-            { offset: 1, color: '#EDF2F4', opacity: 0.9 }
+            { offset: 1, color: '#0C4B5E', opacity: 0 }
           ]
         ]
       }
@@ -318,8 +318,7 @@ export default function AIAttendanceInsightsPage() {
   ];
 
   return (
-    <div className="dashboard-scope page-wrapper" style={{ minHeight: '100vh' }}>
-      <div className="content">
+    <div className="dashboard-scope w-full">
         
 				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
 					<div className="my-auto mb-2">
@@ -838,6 +837,5 @@ export default function AIAttendanceInsightsPage() {
 					</div>
 				</div>
       </div>
-    </div>
   );
 }

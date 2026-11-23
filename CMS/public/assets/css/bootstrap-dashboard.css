@@ -31516,3 +31516,29 @@ html {
   background-color: #161f30 !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
 }
+
+
+/* ── AI Center & Gradient Foundations in Dark Mode ── */
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope {
+  --primary-linear-gradient: linear-gradient(270deg, rgba(242, 101, 34, 0.2) 0%, #111827 100%) !important;
+  --warning-linear-gradient: linear-gradient(270deg, rgba(255, 193, 7, 0.2) 0%, #111827 100%) !important;
+  --success-linear-gradient: linear-gradient(270deg, rgba(3, 201, 90, 0.2) 0%, #111827 100%) !important;
+  --info-linear-gradient: linear-gradient(270deg, rgba(27, 132, 255, 0.2) 0%, #111827 100%) !important;
+  --success-gradient-100: linear-gradient(270deg, rgba(3, 201, 90, 0.15) 0%, #111827 100%) !important;
+  --danger-gradient-100: linear-gradient(270deg, rgba(231, 13, 13, 0.15) 0%, #111827 100%) !important;
+  --light-gradient-100: linear-gradient(270deg, rgba(255, 255, 255, 0.05) 0%, #111827 100%) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .text-dark {
+  color: #cbd5e1 !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .bg-white-100 {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+:is(.dark, [data-theme="dark"], [data-theme-mode="dark"]) .dashboard-scope .badge.bg-white {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}

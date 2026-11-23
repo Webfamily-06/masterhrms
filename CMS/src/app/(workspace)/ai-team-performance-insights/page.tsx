@@ -119,7 +119,7 @@ export default function AITeamPerformanceInsightsPage() {
         borderRadiusWhenStacked: 'all',
       }
     },
-    stroke: { show: true, width: 4, colors: ['#fff'] },
+    stroke: { show: true, width: 4, colors: ['#111827'] },
     dataLabels: { enabled: false },
     grid: {
       borderColor: '#E5E7EB',
@@ -358,8 +358,7 @@ export default function AITeamPerformanceInsightsPage() {
   }];
 
   return (
-    <div className="dashboard-scope page-wrapper" style={{ minHeight: '100vh' }}>
-      <div className="content">
+    <div className="dashboard-scope w-full">
         
 				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
 					<div className="my-auto mb-2">
@@ -809,6 +808,5 @@ export default function AITeamPerformanceInsightsPage() {
 				</div>
 				
       </div>
-    </div>
   );
 }

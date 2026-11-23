@@ -187,7 +187,7 @@ export default function AIHiringForecastPage() {
       stacked: true,
       toolbar: { show: false },
     },
-    colors: ['#FF6F28', '#FEF1EB'],
+    colors: ['#FF6F28', 'rgba(255, 111, 40, 0.25)'],
     plotOptions: {
       bar: {
         horizontal: false,
@@ -255,8 +255,7 @@ export default function AIHiringForecastPage() {
   const roleDemandSeries = [85, 70, 60, 55, 50];
 
   return (
-    <div className="dashboard-scope page-wrapper" style={{ minHeight: '100vh' }}>
-      <div className="content">
+    <div className="dashboard-scope w-full">
         
 				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
 					<div className="my-auto mb-2">
@@ -850,6 +849,5 @@ export default function AIHiringForecastPage() {
 				</div>
 				
       </div>
-    </div>
   );
 }
