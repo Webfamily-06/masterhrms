@@ -567,6 +567,9 @@ export const hrSidebar: HRMenuItem[] = [
     children: [
       { label: "Apex Charts", path: "/chart-apex", permission: "hrm.dashboard.view" },
       { label: "Chart Js", path: "/chart-js", permission: "hrm.dashboard.view" },
+      { label: "Morris Charts", path: "/chart-morris", permission: "hrm.dashboard.view" },
+      { label: "Flot Charts", path: "/chart-flot", permission: "hrm.dashboard.view" },
+      { label: "C3 Charts", path: "/chart-c3", permission: "hrm.dashboard.view" },
     ],
   },
 ];
