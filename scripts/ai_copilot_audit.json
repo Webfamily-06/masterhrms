@@ -1,0 +1,46 @@
+{
+  "copilotRefs": [
+    {
+      "file": "CMS/src/app/(workspace)/ai-business-advisor/page.tsx",
+      "pattern": "Copilot"
+    },
+    {
+      "file": "CMS/src/components/ai-copilot-widget.tsx",
+      "pattern": "AICopilotWidget"
+    },
+    {
+      "file": "CMS/src/components/dreams-sidebar.tsx",
+      "pattern": "Copilot"
+    },
+    {
+      "file": "CMS/src/components/layout/WorkspaceShell.tsx",
+      "pattern": "AICopilotWidget"
+    },
+    {
+      "file": "CMS/src/lib/breadcrumb-registry.ts",
+      "pattern": "Copilot"
+    },
+    {
+      "file": "CMS/src/nav/registry.ts",
+      "pattern": "Copilot"
+    }
+  ],
+  "tanstackCopilotRefs": [
+    {
+      "file": "src/components/ai-copilot-widget.tsx",
+      "pattern": "AICopilotWidget"
+    },
+    {
+      "file": "src/lib/breadcrumb-registry.ts",
+      "pattern": "Copilot"
+    },
+    {
+      "file": "src/routes/_authenticated/_app/ai-business-advisor.tsx",
+      "pattern": "Copilot"
+    },
+    {
+      "file": "src/routes/_authenticated/_app/route.tsx",
+      "pattern": "AICopilotWidget"
+    }
+  ]
+}

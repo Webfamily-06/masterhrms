@@ -1,0 +1,89 @@
+{
+  "brokenSidebarLinksCount": 3,
+  "brokenSidebarLinks": [
+    "/apps/file-manager",
+    "/payments",
+    "/document-types"
+  ],
+  "unmappedPagesCount": 526,
+  "mappedPagesCount": 138,
+  "duplicates": [
+    {
+      "feature": "Employee Dashboard",
+      "routes": [
+        "/employee-dashboard",
+        "/me/dashboard"
+      ],
+      "analysis": "Both routes implement identical SmartHR employee self-service dashboards. /me/dashboard is the portal convention, /employee-dashboard is the root alias."
+    },
+    {
+      "feature": "HR Dashboard",
+      "routes": [
+        "/hrm-dashboard",
+        "/hr/dashboard"
+      ],
+      "analysis": "hrm-dashboard is the SmartHR root clone; /hr/dashboard is the legacy WorkDo HR operations dashboard."
+    },
+    {
+      "feature": "Tenant / Admin Dashboard",
+      "routes": [
+        "/tenant/dashboard",
+        "/tenant"
+      ],
+      "analysis": "/tenant redirects to /tenant/dashboard."
+    },
+    {
+      "feature": "Support / Help Desk Dashboard",
+      "routes": [
+        "/support-dashboard",
+        "/help-desk-dashboard"
+      ],
+      "analysis": "/support-dashboard is the active SmartHR route; /help-desk-dashboard was legacy alias."
+    },
+    {
+      "feature": "Invoices & Billing",
+      "routes": [
+        "/invoices",
+        "/accounting/invoices",
+        "/recurring-invoices"
+      ],
+      "analysis": "/invoices is general sales invoices; /recurring-invoices handles subscription schedules; /accounting/invoices overlaps."
+    },
+    {
+      "feature": "Expenses",
+      "routes": [
+        "/expenses",
+        "/finance/expenses",
+        "/accounting/expenses"
+      ],
+      "analysis": "Multiple expense trackers across modules without a single ledger integration."
+    },
+    {
+      "feature": "Payments",
+      "routes": [
+        "/payments",
+        "/finance/payments"
+      ],
+      "analysis": "Payments appear under both Sales/Billing and Finance."
+    },
+    {
+      "feature": "Taxes",
+      "routes": [
+        "/taxes",
+        "/accounting/taxes"
+      ],
+      "analysis": "Tax rates defined in both Billing and Accounting settings."
+    },
+    {
+      "feature": "Projects & Tasks",
+      "routes": [
+        "/projects",
+        "/tasks",
+        "/todo",
+        "/scrumboard",
+        "/gantt"
+      ],
+      "analysis": "Five different task/planning representations across modules."
+    }
+  ]
+}

@@ -19,9 +19,8 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <link rel="stylesheet" href="/assets/libs/@phosphor-icons/web/fill/style.css" />
       <link rel="stylesheet" href="/assets/libs/lucide-static/font/lucide.css" />
       <link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css" />
-      <link rel="stylesheet" href="/assets/libs/@fortawesome/fontawesome-free/css/all.min.css" />
-      <link rel="stylesheet" href="/assets/css/bootstrap-dashboard.css" />
-      <link rel="stylesheet" href="/assets/css/style.css" />
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+      <link rel="stylesheet" href="/assets/css/bootstrap-dashboard.css?v=2" />
       <WorkspaceShell>{children}</WorkspaceShell>
     </>
   );
