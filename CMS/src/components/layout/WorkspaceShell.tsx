@@ -382,6 +382,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     "/settings",
     "/clear-cache",
     "/offline",
+    "/ui-",
+    "/form-",
+    "/tables-",
+    "/chart-",
+    "/data-tables",
   ];
 
   const CLIENT_ALLOWED_PREFIXES = [
@@ -417,7 +422,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     if (!loading && !isLoading && profile) {
       if (isEmployeeOnly) {
         const isAllowed = EMPLOYEE_ALLOWED_PREFIXES.some(
-          (p) => path === p || path.startsWith(p + "/")
+          (p) => path === p || path.startsWith(p + "/") || (p.endsWith("-") && path.startsWith(p))
         );
         if (!isAllowed) {
           navigate({ to: "/me/dashboard" });

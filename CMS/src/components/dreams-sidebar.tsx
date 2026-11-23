@@ -58,9 +58,20 @@ const HR_SUBMENU_KEY_MAP: Record<string, string> = {
   "Todo & Tasks": "hrAppsTodo",
   Settings: "hrSettings",
   "Settings & Administration": "hrSettingsAdmin",
+  "Base UI": "hrBaseUI",
+  "Advanced UI": "hrAdvancedUI",
+  Forms: "hrForms",
+  Tables: "hrTables",
+  Charts: "hrCharts",
 };
 
 const HR_ICON_MAP: Record<string, string> = {
+  // UI & Design System
+  "Base UI": "ph-squares-four",
+  "Advanced UI": "ph-shooting-star",
+  Forms: "ph-note-pencil",
+  Tables: "ph-table",
+  Charts: "ph-chart-pie-slice",
   // Applications
   Applications: "ph-grid-four",
   Chat: "ph-chat-circle-dots",

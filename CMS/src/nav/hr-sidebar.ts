@@ -500,6 +500,75 @@ export const hrSidebar: HRMenuItem[] = [
       },
     ],
   },
+
+  // ─── 09. UI & Design System ──────────────────────────────────────────────
+  {
+    label: "Base UI",
+    icon: "ph-squares-four",
+    permission: "hrm.dashboard.view",
+    children: [
+      { label: "Alerts", path: "/ui-alerts", permission: "hrm.dashboard.view" },
+      { label: "Accordion", path: "/ui-accordion", permission: "hrm.dashboard.view" },
+      { label: "Avatar", path: "/ui-avatar", permission: "hrm.dashboard.view" },
+      { label: "Badges", path: "/ui-badges", permission: "hrm.dashboard.view" },
+      { label: "Buttons", path: "/ui-buttons", permission: "hrm.dashboard.view" },
+      { label: "Button Group", path: "/ui-buttons-group", permission: "hrm.dashboard.view" },
+      { label: "Breadcrumb", path: "/ui-breadcrumb", permission: "hrm.dashboard.view" },
+      { label: "Cards", path: "/ui-cards", permission: "hrm.dashboard.view" },
+      { label: "Colors", path: "/ui-colors", permission: "hrm.dashboard.view" },
+      { label: "Collapse", path: "/ui-collapse", permission: "hrm.dashboard.view" },
+      { label: "Dropdowns", path: "/ui-dropdowns", permission: "hrm.dashboard.view" },
+      { label: "Grid", path: "/ui-grid", permission: "hrm.dashboard.view" },
+      { label: "Images", path: "/ui-images", permission: "hrm.dashboard.view" },
+      { label: "Modals", path: "/ui-modals", permission: "hrm.dashboard.view" },
+      { label: "Offcanvas", path: "/ui-offcanvas", permission: "hrm.dashboard.view" },
+      { label: "Pagination", path: "/ui-pagination", permission: "hrm.dashboard.view" },
+      { label: "Popovers", path: "/ui-popovers", permission: "hrm.dashboard.view" },
+      { label: "Progress", path: "/ui-progress", permission: "hrm.dashboard.view" },
+      { label: "Tabs", path: "/ui-nav-tabs", permission: "hrm.dashboard.view" },
+      { label: "Typography", path: "/ui-typography", permission: "hrm.dashboard.view" },
+    ],
+  },
+  {
+    label: "Advanced UI",
+    icon: "ph-shooting-star",
+    permission: "hrm.dashboard.view",
+    children: [
+      { label: "Dragula", path: "/ui-dragula", permission: "hrm.dashboard.view" },
+      { label: "Clipboard", path: "/ui-clipboard", permission: "hrm.dashboard.view" },
+      { label: "Range Slider", path: "/ui-rangeslider", permission: "hrm.dashboard.view" },
+      { label: "Lightbox", path: "/ui-lightbox", permission: "hrm.dashboard.view" },
+    ],
+  },
+  {
+    label: "Forms",
+    icon: "ph-note-pencil",
+    permission: "hrm.dashboard.view",
+    children: [
+      { label: "Form Elements", path: "/form-elements", permission: "hrm.dashboard.view" },
+      { label: "Select2", path: "/form-select2", permission: "hrm.dashboard.view" },
+      { label: "Form Editor", path: "/form-editors", permission: "hrm.dashboard.view" },
+      { label: "Form Picker", path: "/form-pickers", permission: "hrm.dashboard.view" },
+    ],
+  },
+  {
+    label: "Tables",
+    icon: "ph-table",
+    permission: "hrm.dashboard.view",
+    children: [
+      { label: "Basic Tables", path: "/tables-basic", permission: "hrm.dashboard.view" },
+      { label: "Data Table", path: "/data-tables", permission: "hrm.dashboard.view" },
+    ],
+  },
+  {
+    label: "Charts",
+    icon: "ph-chart-pie-slice",
+    permission: "hrm.dashboard.view",
+    children: [
+      { label: "Apex Charts", path: "/chart-apex", permission: "hrm.dashboard.view" },
+      { label: "Chart Js", path: "/chart-js", permission: "hrm.dashboard.view" },
+    ],
+  },
 ];
 
 /**
