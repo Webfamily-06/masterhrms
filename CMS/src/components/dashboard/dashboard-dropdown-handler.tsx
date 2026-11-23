@@ -4,29 +4,49 @@ import { useEffect } from "react";
 
 export function DashboardDropdownHandler() {
   useEffect(() => {
+    let isSyncing = false;
+
     // Synchronize dark/light theme attributes across html, body and all .dashboard-scope containers
     function syncTheme() {
-      const isDark =
-        document.documentElement.classList.contains("dark") ||
-        document.documentElement.getAttribute("data-theme") === "dark" ||
-        localStorage.getItem("theme") === "dark";
-      const theme = isDark ? "dark" : "light";
-      document.documentElement.setAttribute("data-theme", theme);
-      document.documentElement.setAttribute("data-theme-mode", theme);
-      if (isDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
+      if (isSyncing) return;
+      isSyncing = true;
+      try {
+        const isDark =
+          document.documentElement.classList.contains("dark") ||
+          document.documentElement.getAttribute("data-theme") === "dark" ||
+          (typeof window !== "undefined" && localStorage.getItem("theme") === "dark");
+        const theme = isDark ? "dark" : "light";
+
+        if (document.documentElement.getAttribute("data-theme") !== theme) {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
+        if (document.documentElement.getAttribute("data-theme-mode") !== theme) {
+          document.documentElement.setAttribute("data-theme-mode", theme);
+        }
+        if (isDark && !document.documentElement.classList.contains("dark")) {
+          document.documentElement.classList.add("dark");
+        } else if (!isDark && document.documentElement.classList.contains("dark")) {
+          document.documentElement.classList.remove("dark");
+        }
+        document.querySelectorAll(".dashboard-scope").forEach((el) => {
+          if (el.getAttribute("data-theme") !== theme) {
+            el.setAttribute("data-theme", theme);
+          }
+          if (el.getAttribute("data-theme-mode") !== theme) {
+            el.setAttribute("data-theme-mode", theme);
+          }
+        });
+      } finally {
+        setTimeout(() => {
+          isSyncing = false;
+        }, 50);
       }
-      document.querySelectorAll(".dashboard-scope").forEach((el) => {
-        el.setAttribute("data-theme", theme);
-        el.setAttribute("data-theme-mode", theme);
-      });
     }
 
     syncTheme();
 
     const observer = new MutationObserver((mutations) => {
+      if (isSyncing) return;
       for (const mutation of mutations) {
         if (mutation.attributeName === "class" || mutation.attributeName === "data-theme") {
           syncTheme();

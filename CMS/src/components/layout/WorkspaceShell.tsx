@@ -34,7 +34,7 @@ import {
   CalendarDays, Trophy, ShieldAlert, Timer, TrendingUp, UserCheck, UserX, PiggyBank, Percent, GitBranch, Coins, RefreshCw, Award, Gift, Phone, Repeat, Megaphone,
   Bell, History, Database, Code, Webhook, Lightbulb, Bot
 } from "lucide-react";
-import { api, clearToken, setToken } from "@/lib/api";
+import { api, clearToken, setToken, getAuthToken } from "@/lib/api";
 import { toast } from "sonner";
 import { WorkspaceUnavailableView } from "@/components/workspace-unavailable-view";
 import { useAppConfig } from "@/lib/useAppConfig";
@@ -421,8 +421,8 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   ];
 
   useEffect(() => {
-    if (!loading && !isLoading && !localStorage.getItem("hrms_auth_token")) {
-      navigate({ to: "/auth" });
+    if (!loading && !isLoading && !getAuthToken()) {
+      window.location.href = "/login";
       return;
     }
     if (!loading && !isLoading && profile && !profile.tenant_id) {
@@ -628,7 +628,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (loading || isLoading || (isSubLoading && !isSuperAdmin) || !profile) {
+  if (loading || isLoading || !profile) {
     return (
       <div className="min-h-screen grid place-items-center bg-background">
         <div className="flex flex-col items-center gap-3">

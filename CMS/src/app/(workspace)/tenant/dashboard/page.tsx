@@ -204,7 +204,7 @@ export default function TenantDashboardPage() {
 								<span className="input-icon-addon">
 									<i className="ti ti-calendar text-gray-9"></i>
 								</span>
-								<input type="text" className="form-control yearpicker" value="2025" />
+								<input type="text" className="form-control yearpicker" defaultValue="2025" />
 							</div>
 						</div>
 						<div className="ms-2 mb-2 head-icons">
@@ -781,7 +781,7 @@ export default function TenantDashboardPage() {
 									<li className="nav-item" role="presentation">
 										<a className="nav-link fw-medium active" data-bs-toggle="tab"
 											data-bs-target="#applicants" href="#applicants" aria-selected="false"
-											tabindex="-1" role="tab">Applicants</a>
+											tabIndex={-1} role="tab">Applicants</a>
 									</li>
 								</ul>
 								<div className="tab-content">

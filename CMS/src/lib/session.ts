@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, ApiError, clearToken } from "./api";
+import { api, ApiError, clearToken, getAuthToken } from "./api";
 
 export type SessionUser = {
   id: string;
@@ -38,16 +38,20 @@ export type ProfileWithRoles = {
  * Eliminates the duplicate /auth/me call that previously happened on every page load.
  */
 function useSessionQuery() {
-  const [token, setTokenState] = useState<string | null>(() =>
-    typeof window !== "undefined" ? localStorage.getItem("hrms_auth_token") : null
-  );
+  const [token, setTokenState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return getAuthToken() || null;
+  });
 
   // Keep token state in sync across browser tabs (e.g. login/logout in another tab)
   useEffect(() => {
-    const handleStorage = () => setTokenState(localStorage.getItem("hrms_auth_token"));
+    const handleStorage = () => setTokenState(getAuthToken() || null);
     window.addEventListener("storage", handleStorage);
     window.addEventListener("auth-token-changed", handleStorage);
-    return () => { window.removeEventListener("storage", handleStorage); window.removeEventListener("auth-token-changed", handleStorage); };
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("auth-token-changed", handleStorage);
+    };
   }, []);
 
   const query = useQuery({
