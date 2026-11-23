@@ -5,10 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -21,12 +17,13 @@ const Chart = lazy(() => import("react-apexcharts"));
 export default function RecruitmentDashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [newJobOpen, setNewJobOpen] = useState(false);
-
-  // AI Assistant chat
   const [aiMessage, setAiMessage] = useState("");
   const [aiMessages, setAiMessages] = useState<Array<{ sender: "ai" | "user"; text: string }>>([
-    { sender: "ai", text: "👋 Welcome to your AI Recruitment Assistant! I can screen candidates, draft job descriptions, and benchmark hiring velocity." },
+    { sender: "ai", text: "How can i help you today" }
   ]);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     setIsMounted(true);
@@ -44,489 +41,1162 @@ export default function RecruitmentDashboardPage() {
     },
   });
 
-  // Chart 1: Recruitment Funnel Donut Chart
-  const recruitmentOverviewChart: ApexCharts.ApexOptions = useMemo(
+  const recruitmentChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
-      chart: { type: "donut", height: 210 },
-      series: [45, 25, 18, 12],
-      labels: ["Applications", "Shortlisted", "Interviewed", "Hired"],
-      colors: ["#0d6efd", "#6366f1", "#f59e0b", "#10b981"],
-      stroke: { width: 0 },
-      dataLabels: { enabled: false },
-      legend: { show: false },
+      chart: {
+        type: "radialBar",
+        height: 220,
+        sparkline: { enabled: true }
+      },
       plotOptions: {
-        pie: {
-          donut: {
-            size: "75%",
-            labels: {
+        radialBar: {
+          startAngle: -100,
+          endAngle: 100,
+          hollow: {
+            size: "65%",
+          },
+          track: {
+            background: "#e9ecef",
+            strokeWidth: "97%",
+          },
+          dataLabels: {
+            name: {
               show: true,
-              total: { show: true, label: "Total Apps", fontSize: "11px", color: "#64748B", formatter: () => "2,384" },
+              fontSize: "12px",
+              fontWeight: 500,
+              color: "#6c757d",
+              offsetY: -5,
+            },
+            value: {
+              show: true,
+              fontSize: "20px",
+              fontWeight: 700,
+              color: "#212529",
+              offsetY: 5,
+              formatter: () => "2,384",
             },
           },
         },
       },
+      colors: ["#FF7028"],
+      labels: ["Total Applications"],
     }),
     []
   );
 
-  // Chart 2: Average Time To Hire Radial / Bar
-  const avgHireTimeChart: ApexCharts.ApexOptions = useMemo(
+  const avgHireTimeOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
-      chart: { type: "bar", height: 160, toolbar: { show: false } },
-      plotOptions: { bar: { horizontal: true, barHeight: "45%", borderRadius: 4 } },
-      series: [{ name: "Days", data: [5, 7, 10, 3] }],
-      xaxis: {
-        categories: ["Applied to Shortlisted", "Shortlisted", "Interview to Offer", "Acceptance"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
+      chart: {
+        type: "bar",
+        height: 220,
+        stacked: true,
+        toolbar: { show: false },
       },
-      yaxis: { labels: { style: { colors: "#64748B", fontSize: "11px" } } },
-      colors: ["#6366f1"],
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
+      plotOptions: {
+        bar: {
+          horizontal: false,
+          columnWidth: "45%",
+          borderRadius: 4,
+        },
+      },
+      colors: ["#0b4c5f", "#3e6f7c", "#9fb8bf", "#c9d8dc"],
+      xaxis: {
+        categories: ["Jan", "Feb", "Mar"],
+        axisBorder: { show: false },
+        axisTicks: { show: false },
+      },
+      yaxis: { show: false },
+      grid: { show: false },
+      legend: { show: false },
       dataLabels: { enabled: false },
     }),
     []
   );
 
-  const handleSendAiMessage = (promptText?: string) => {
-    const textToSend = promptText || aiMessage;
-    if (!textToSend.trim()) return;
-
-    setAiMessages((prev) => [...prev, { sender: "user", text: textToSend }]);
-    setAiMessage("");
-
-    setTimeout(() => {
-      let reply = "Recruitment analysis complete. Candidate pipeline shows high applicant response in Engineering and Design roles.";
-      if (textToSend.includes("Senior Developer")) {
-        reply = "Top Senior Developer candidates: 1) Alex Rivera (94% match, 7 yrs React/Node), 2) Maya Lin (91% match, System Architecture specialist).";
-      } else if (textToSend.includes("hiring report")) {
-        reply = "Hiring report generated: Overall velocity is 25 days (12% faster than industry benchmark). Offer acceptance rate is strong at 74.4%.";
-      }
-      setAiMessages((prev) => [...prev, { sender: "ai", text: reply }]);
-    }, 600);
-  };
+  const avgHireTimeSeries = useMemo(
+    () => [
+      { name: "Applied to Shortlisted", data: [2, 4, 3] },
+      { name: "Shortlisted", data: [1.7, 1.7, 1.7] },
+      { name: "Interview to Offer", data: [4, 2, 2] },
+      { name: "Acceptance", data: [3, 7, 5] },
+    ],
+    []
+  );
 
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* ── Page Header ── */}
-      <SmartHRHeader
-        title="Recruitment Dashboard"
-        actions={
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setNewJobOpen(true)}
-          >
-            <i className="ph-bold ph-plus me-1.5"></i> Add New Job
-          </Button>
-        }
-      />
+    <>
+      
+			<div className="content">
 
-      {/* ── Top Row: Candidates Hiring Analysis (8 cols) & Recruitment Overview (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Candidates Hiring Analysis Table */}
-        <Card className="p-5 lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-base font-bold text-foreground">Candidates Hiring Analysis</h3>
-                <p className="text-xs text-muted-foreground">Department-level funnel velocity across all stages</p>
-              </div>
-              <span className="text-xs bg-muted text-muted-foreground px-2.5 py-1 rounded-md border border-border">
-                Last 30 Days
-              </span>
-            </div>
+				{/*  Breadcrumb  */}
+				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">Recruitment Dashboard</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">Recruitment Dashboard</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+						<div className="me-2 mb-2">
+							<div className="input-icon w-100 position-relative">
+								<span className="input-icon-addon">
+									<i className="ti ti-calendar text-gray-9"></i>
+								</span>
+								<input type="text" className="form-control yearpicker" value="December 2025" />
+							</div>
+						</div>
+						<div className="me-2 mb-2">
+							<div className="dropdown">
+								<a href="#" onClick={(e) => e.preventDefault()}
+									className="dropdown-toggle btn btn-white d-inline-flex align-items-center"
+									data-bs-toggle="dropdown">
+									<i className="ti ti-arrow-bar-to-down me-1"></i>Download Report
+								</a>
+								<ul className="dropdown-menu  dropdown-menu-end p-3">
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Daily Report</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Weekly Report </a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Montly Report </a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Yearly Report </a>
+									</li>
+								</ul>
+							</div>
+						</div>
+						<a href="#" className="btn btn-primary-gradient mb-2"> <i className="ti ti-plus"></i> Add New Job</a>
+						<div className="ms-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-            <div className="overflow-x-auto border border-border/80 rounded-lg">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <tr>
-                    <th className="p-3 font-semibold">Department & Role</th>
-                    <th className="p-3 font-semibold text-center">Applicants</th>
-                    <th className="p-3 font-semibold text-center">Shortlisted</th>
-                    <th className="p-3 font-semibold text-center">Interviewed</th>
-                    <th className="p-3 font-semibold text-center">Offered</th>
-                    <th className="p-3 font-semibold text-center">Hired</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {[
-                    { dept: "Marketing", role: "Product Manager", app: 14, short: 8, int: 14, off: 14, hired: 14 },
-                    { dept: "Data Analyst", role: "Jr Data Analyst", app: 16, short: 12, int: 14, off: 14, hired: 14 },
-                    { dept: "Project Coordinator", role: "Jr Level", app: 24, short: 6, int: 14, off: 14, hired: 14 },
-                    { dept: "Design Lead", role: "UI Designer", app: 12, short: 8, int: 6, off: 5, hired: 14 },
-                    { dept: "Project Manager", role: "Senior Manager", app: 22, short: 20, int: 16, off: 12, hired: 4 },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-muted/40 transition-colors">
-                      <td className="p-3">
-                        <p className="font-bold text-foreground">{row.dept}</p>
-                        <p className="text-[11px] text-muted-foreground">{row.role}</p>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2.5 py-1 rounded-md font-semibold bg-primary text-white text-[11px] font-mono">
-                          {row.app}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2.5 py-1 rounded-md font-semibold bg-indigo-500 text-white text-[11px] font-mono">
-                          {row.short}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2.5 py-1 rounded-md font-semibold bg-slate-800 text-white text-[11px] font-mono">
-                          {row.int}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2.5 py-1 rounded-md font-semibold bg-sky-500 text-white text-[11px] font-mono">
-                          {row.off}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white text-[11px] font-mono">
-                          {row.hired}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+				{/*  start row  */}
+				<div className="row">
+					<div className="col-xl-8">
+						{/*  Candidate Hiring Analysis  */}
+						<div className="card position-relative analysis-card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<h3 className="mb-0 card-title">Candidates Hiring Analysis</h3>
+									<div className="d-flex align-items-center gap-3">
+										<div className="dropdown">
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="dropdown-toggle btn btn-light rounded-pill text-dark dropdown-icon-none"
+												data-bs-toggle="dropdown">
+												<i className="ti ti-adjustments-horizontal fs-16"></i>
+											</a>
+											<ul className="dropdown-menu dropdown-menu-end p-3">
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Daily
+														Report</a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Weekly
+														Report </a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Montly
+														Report </a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Yearly
+														Report </a>
+												</li>
+											</ul>
+										</div>
+										<a href="#"> <span><i
+													className="ti ti-square-arrow-down-filled text-dark"></i></span> Last 30
+											Days </a>
+									</div>
+								</div>
 
-          {/* 4 Summary Stat Metrics below table */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-border/60 mt-4 text-center">
-            <div className="p-2.5 border border-border/50 rounded-lg bg-muted/20">
-              <div className="size-8 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center mb-1">
-                <i className="ph ph-briefcase"></i>
-              </div>
-              <h4 className="text-xl font-bold text-foreground">47</h4>
-              <p className="text-[11px] text-muted-foreground">Open Positions</p>
-            </div>
-            <div className="p-2.5 border border-border/50 rounded-lg bg-muted/20">
-              <div className="size-8 mx-auto rounded-full bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-1">
-                <i className="ph ph-users-three"></i>
-              </div>
-              <h4 className="text-xl font-bold text-foreground">2,384</h4>
-              <p className="text-[11px] text-muted-foreground">Total Candidates</p>
-            </div>
-            <div className="p-2.5 border border-border/50 rounded-lg bg-muted/20">
-              <div className="size-8 mx-auto rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center mb-1">
-                <i className="ph ph-calendar-check"></i>
-              </div>
-              <h4 className="text-xl font-bold text-foreground">12</h4>
-              <p className="text-[11px] text-muted-foreground">Interviews Today</p>
-            </div>
-            <div className="p-2.5 border border-border/50 rounded-lg bg-muted/20">
-              <div className="size-8 mx-auto rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-1">
-                <i className="ph ph-file-text"></i>
-              </div>
-              <h4 className="text-xl font-bold text-foreground">28</h4>
-              <p className="text-[11px] text-muted-foreground">Offers Released</p>
-            </div>
-          </div>
-        </Card>
+								<div className="table-responsive candidates-table">
+									<table className="table table-nowrap table-borderless mb-0">
+										<thead>
+											<tr>
+												<th className="fw-bold bg-white px-2 ps-0">Department</th>
+												<th className="fw-normal bg-white px-2">Applicants</th>
+												<th className="fw-normal bg-white px-2">Shortlisted</th>
+												<th className="fw-normal bg-white px-2">Interviewed</th>
+												<th className="fw-normal bg-white px-2">Offered</th>
+												<th className="fw-normal bg-white px-2">Hired</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr>
+												<td className="px-0 pe-5">
+													<div className="d-flex align-items-center">
+														<div>
+															<h6 className="fw-normal mb-1 fs-14"><a
+																	href="invoice-details.html">Marketing</a></h6>
+															<span className="fs-13 d-inline-flex align-items-center">Product
+																Manager</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<div className="badge bg-primary fs-13  rounded-xxl py-2">14</div>
+												</td>
+												<td>
+													<div className="badge bg-secondary  fs-13 rounded-xxl py-2">08</div>
+												</td>
 
-        {/* Recruitment Overview Donut & Reminder (4 cols) */}
-        <div className="lg:col-span-4 space-y-4 flex flex-col justify-between">
-          <Card className="p-5 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-sm font-bold text-foreground">Recruitment Overview</h3>
-                <p className="text-xs text-muted-foreground">Funnel efficiency benchmarks</p>
-              </div>
-              <span className="text-[11px] text-muted-foreground">Monthly</span>
-            </div>
+												<td>
+													<div className="badge bg-light fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-            <div className="grid grid-cols-2 gap-3 text-center py-2 border-y border-border/50 my-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground">Offer Acceptance</p>
-                <h4 className="text-lg font-bold text-foreground">74.4%</h4>
-              </div>
-              <div className="border-l border-border/50">
-                <p className="text-[11px] text-muted-foreground">Overall Hire Rate</p>
-                <h4 className="text-lg font-bold text-emerald-600">2.7%</h4>
-              </div>
-            </div>
+												<td>
+													<div className="badge bg-light fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-            <div className="py-1">
-              {isMounted && (
-                <Suspense fallback={<div className="h-44 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                  <Chart options={recruitmentOverviewChart} series={recruitmentOverviewChart.series} type="donut" height={210} />
-                </Suspense>
-              )}
-            </div>
-          </Card>
+												<td>
+													<div className="badge bg-light fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0 pe-5">
+													<div className="d-flex align-items-center">
+														<div>
+															<h6 className="fw-normal mb-1 fs-14"><a
+																	href="invoice-details.html">Data Analyst</a></h6>
+															<span className="fs-13 d-inline-flex align-items-center">Jr Data
+																Analyst</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<div className="badge bg-primary  fs-13  rounded-xxl py-2">16</div>
+												</td>
+												<td>
+													<div className="badge bg-secondary   fs-13 rounded-xxl py-2">12</div>
+												</td>
 
-          {/* Quick Reminder Card */}
-          <div className="rounded-xl p-4 bg-gradient-to-br from-indigo-900 to-slate-900 text-white shadow-sm flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-300 bg-indigo-800/50 px-2 py-0.5 rounded">
-                Daily Priority
-              </span>
-              <h4 className="text-base font-bold text-white mt-2 mb-1">You have 21 Interviews Scheduled Today!</h4>
-              <p className="text-xs text-slate-300">Keep hiring managers synchronized and ensure evaluations are submitted promptly.</p>
-            </div>
-            <div className="pt-3 mt-2 border-t border-indigo-800/60 flex items-center justify-between">
-              <span className="text-xs text-indigo-200">21 Candidates in Queue</span>
-              <Button size="xs" variant="primary" onClick={() => toast.info("Opening interview coordination schedule...")}>
-                Schedule Now <i className="ph ph-arrow-right ms-1"></i>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-      {/* ── Row 2: AI Assistant, Average Time to Hire, Upcoming Schedules ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-        {/* AI Recruitment Assistant (4 cols) */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-border/50 mb-3">
-              <div className="flex items-center gap-2">
-                <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-base">
-                  <i className="ph-duotone ph-sparkle"></i>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-foreground">AI Recruitment Assistant</h4>
-                  <p className="text-[11px] text-muted-foreground">Screening & requisition copilot</p>
-                </div>
-              </div>
-              <Badge variant="soft" className="bg-emerald-500/10 text-emerald-600 text-[10px]">Online</Badge>
-            </div>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-            <div className="space-y-1.5 mb-3">
-              <button
-                type="button"
-                onClick={() => handleSendAiMessage("Analyze top candidates for Senior Developer role")}
-                className="w-full text-left text-[11px] p-2 rounded-md bg-muted/50 hover:bg-muted border border-border text-foreground transition-colors"
-              >
-                🔍 Analyze top candidates for Senior Developer role
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendAiMessage("Generate hiring report")}
-                className="w-full text-left text-[11px] p-2 rounded-md bg-muted/50 hover:bg-muted border border-border text-foreground transition-colors"
-              >
-                📊 Generate comprehensive hiring velocity report
-              </button>
-            </div>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0 pe-5">
+													<div className="d-flex align-items-center">
+														<div>
+															<h6 className="fw-normal mb-1 fs-14"><a
+																	href="invoice-details.html">Project Coordinator</a>
+															</h6>
+															<span className="fs-13 d-inline-flex align-items-center">Jr
+																Level</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<div className="badge bg-primary  fs-13  rounded-xxl py-2">24</div>
+												</td>
+												<td>
+													<div className="badge bg-secondary   fs-13 rounded-xxl py-2">06</div>
+												</td>
 
-            <div className="h-40 overflow-y-auto space-y-2 p-2.5 rounded-lg bg-muted/40 border border-border/50 text-xs mb-3">
-              {aiMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`p-2 rounded-lg max-w-[90%] text-[11px] ${msg.sender === "user" ? "bg-primary text-white" : "bg-card border border-border text-foreground"}`}>
-                    {msg.text}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={aiMessage}
-              onChange={(e) => setAiMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
-              placeholder="Ask anything about candidate requisitions..."
-              className="w-full text-xs bg-muted/40 border border-border rounded-lg px-2.5 py-1.5 text-foreground focus:outline-none"
-            />
-            <Button size="xs" variant="primary" onClick={() => handleSendAiMessage()}>
-              <i className="ph-bold ph-paper-plane-tilt"></i>
-            </Button>
-          </div>
-        </Card>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
 
-        {/* Average Time to Hire (4 cols) */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Average Time to Hire</h3>
-                <p className="text-xs text-muted-foreground">Days per hiring lifecycle milestone</p>
-              </div>
-              <span className="text-[11px] text-muted-foreground">30 Days</span>
-            </div>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0 pe-5">
+													<div className="d-flex align-items-center">
+														<div>
+															<h6 className="fw-normal mb-1 fs-14"><a
+																	href="invoice-details.html">Design Lead</a></h6>
+															<span className="fs-13 d-inline-flex align-items-center">UI
+																Designer</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<div className="badge bg-primary  fs-13  rounded-xxl py-2">12</div>
+												</td>
+												<td>
+													<div className="badge bg-secondary   fs-13 rounded-xxl py-2">08</div>
+												</td>
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-36 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={avgHireTimeChart} series={avgHireTimeChart.series} type="bar" height={160} />
-              </Suspense>
-            )}
+												<td>
+													<div className="badge bg-dark  fs-13 rounded-xxl py-2">06</div>
+												</td>
 
-            <div className="space-y-2 mt-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Applied to Shortlisted</span>
-                <span className="font-semibold bg-muted px-2 py-0.5 rounded">05 Days</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Shortlisted</span>
-                <span className="font-semibold bg-muted px-2 py-0.5 rounded">07 Days</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Interview to Offer</span>
-                <span className="font-semibold bg-muted px-2 py-0.5 rounded">10 Days</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Offer Acceptance</span>
-                <span className="font-semibold bg-muted px-2 py-0.5 rounded">03 Days</span>
-              </div>
-            </div>
-          </div>
+												<td>
+													<div className="badge bg-info  fs-13 rounded-xxl py-2">05</div>
+												</td>
 
-          <div className="mt-4 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-700 dark:text-emerald-400 text-xs flex items-center gap-2">
-            <i className="ph-bold ph-trend-up text-base"></i>
-            <span><strong>12% faster</strong> than current SaaS HR industry avg</span>
-          </div>
-        </Card>
+												<td>
+													<div className="badge bg-light  fs-13 rounded-xxl text-light py-2">14
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0 pe-5">
+													<div className="d-flex align-items-center">
+														<div>
+															<h6 className="fw-normal mb-1 fs-14"><a
+																	href="invoice-details.html">Project Manager</a></h6>
+															<span className="fs-13 d-inline-flex align-items-center">Senior
+																Manager</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<div className="badge bg-primary  fs-13  rounded-xxl py-2">22</div>
+												</td>
+												<td>
+													<div className="badge bg-secondary   fs-13 rounded-xxl py-2">20</div>
+												</td>
 
-        {/* Upcoming Schedules (4 cols) */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Upcoming Schedules</h3>
-                <p className="text-xs text-muted-foreground">Confirmed candidate interviews</p>
-              </div>
-              <Link to="/hr/recruitment/interviews" className="text-xs text-primary font-medium hover:underline">
-                View All
-              </Link>
-            </div>
+												<td>
+													<div className="badge bg-dark  fs-13 rounded-xxl py-2">16</div>
+												</td>
 
-            <div className="space-y-2.5">
-              {[
-                { date: "Mar 02", role: "Product Designer", time: "09:00 AM - 10:30 AM", avatar: "/ui-assets/avatar-01.jpg" },
-                { date: "Apr 22", role: "Marketing Manager", time: "01:00 PM - 02:00 PM", avatar: "/ui-assets/avatar-02.jpg" },
-                { date: "May 11", role: "Sr. Data Science", time: "11:00 AM - 12:30 PM", avatar: "/ui-assets/avatar-03.jpg" },
-                { date: "Jun 07", role: "Software Engineer", time: "02:00 PM - 03:30 PM", avatar: "/ui-assets/avatar-04.jpg" },
-                { date: "Aug 18", role: "Financial Analyst", time: "03:00 PM - 04:00 PM", avatar: "/ui-assets/avatar-05.jpg" },
-              ].map((item, idx) => (
-                <div key={idx} className="p-2 bg-muted/40 rounded-lg border border-border/40 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="size-9 rounded-md bg-card border border-border flex flex-col items-center justify-center text-center shrink-0">
-                      <span className="text-[9px] uppercase font-bold text-muted-foreground leading-none">{item.date.split(" ")[0]}</span>
-                      <span className="text-xs font-bold text-foreground leading-none mt-0.5">{item.date.split(" ")[1]}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{item.role}</p>
-                      <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
-                        <i className="ph ph-clock"></i> {item.time}
-                      </p>
-                    </div>
-                  </div>
-                  <img src={item.avatar} alt="candidate" className="size-7 rounded-full object-cover border border-border shrink-0" />
-                </div>
-              ))}
-            </div>
-          </div>
+												<td>
+													<div className="badge bg-info  fs-13  rounded-xxl py-2">12</div>
+												</td>
 
-          <Button variant="outline" size="xs" className="w-full mt-3" onClick={() => toast.info("Opening calendar sync...")}>
-            View Complete Schedule
-          </Button>
-        </Card>
-      </div>
+												<td>
+													<div className="badge bg-success  fs-13  rounded-xxl py-2">04</div>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
 
-      {/* ── Row 3: Stage Performance Funnel (5 Cards with colored progress bars) ── */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="border-l-2 border-primary pl-2.5">
-            <h3 className="text-base font-bold text-foreground">Stage Performance Pipeline</h3>
-            <p className="text-xs text-muted-foreground">Active applicant volume and conversion efficiency at each funnel stage</p>
-          </div>
-          <span className="text-xs text-muted-foreground">Rolling 30 Days</span>
-        </div>
+							</div>
+						</div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {[
-            { stage: "Applied", icon: "ph-identification-badge", count: "1,848", pct: "36.3%", color: "bg-blue-600", text: "text-blue-600", bgLight: "bg-blue-500/10" },
-            { stage: "Shortlisted", icon: "ph-hourglass-simple", count: "2,384", pct: "37.4%", color: "bg-indigo-600", text: "text-indigo-600", bgLight: "bg-indigo-500/10" },
-            { stage: "Interviewed", icon: "ph-calendar-check", count: "892", pct: "36.3%", color: "bg-slate-700", text: "text-slate-700", bgLight: "bg-slate-500/10" },
-            { stage: "Offered", icon: "ph-file-text", count: "324", pct: "26.5%", color: "bg-sky-500", text: "text-sky-500", bgLight: "bg-sky-500/10" },
-            { stage: "Hired", icon: "ph-user-check", count: "64", pct: "41.2%", color: "bg-emerald-600", text: "text-emerald-600", bgLight: "bg-emerald-500/10" },
-          ].map((item, idx) => (
-            <div key={idx} className="p-4 bg-muted/40 rounded-xl border border-border/60 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-foreground">{item.stage}</span>
-                <div className={`size-8 rounded-lg ${item.bgLight} ${item.text} flex items-center justify-center text-base`}>
-                  <i className={`ph ${item.icon}`}></i>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-2xl font-bold text-foreground mb-1">{item.count}</h4>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
-                  <span>Conversion rate</span>
-                  <span className="font-semibold text-foreground">{item.pct}</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div className={`h-full ${item.color} rounded-full`} style={{ width: item.pct }}></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
+						<div className="card">
+							<div className="card-body py-4">
+								<div className="row row-gap-4">
 
-      {/* ── Add New Job Requisition Modal ── */}
+									<div className="col-lg-3 col-md-6 col-sm-6 border-end">
+										<div className="d-flex align-items-center justify-content-center flex-column gap-2">
+											<div
+												className="rounded-3 bg-primary-transparent bg-outline-primary d-flex align-items-center justify-content-center p-2">
+												<i className="ti ti-briefcase fs-20"></i>
+											</div>
+											<div className="text-center">
+												<h5 className="mb-0 fw-semibold fs-24 mb-1">47</h5>
+												<p className="fs-14">Open Positions</p>
+											</div>
+										</div>
+									</div>
+
+									<div className="col-lg-3 col-md-6 col-sm-6 border-end">
+										<div className="d-flex align-items-center justify-content-center flex-column gap-2">
+											<div
+												className="rounded-3 bg-secondary-transparent bg-outline-secondary d-flex align-items-center justify-content-center p-2">
+												<i className="ti ti-users-group fs-20"></i>
+											</div>
+											<div className="text-center">
+												<h5 className="mb-0 fw-semibold fs-24 mb-1">2,384</h5>
+												<p className=" fs-14">Total Candidates</p>
+											</div>
+										</div>
+									</div>
+
+									<div className="col-lg-3 col-md-6 col-sm-6 border-end">
+										<div className="d-flex align-items-center justify-content-center flex-column gap-2">
+											<div
+												className="rounded-3 bg-dark-transparent bg-outline-dark d-flex align-items-center justify-content-center p-2">
+												<i className="ti ti-calendar-due fs-20"></i>
+											</div>
+											<div className="text-center">
+												<h5 className="mb-0 fw-semibold fs-24 mb-1">12</h5>
+												<p className=" fs-14">Interviews Today</p>
+											</div>
+										</div>
+									</div>
+
+									<div className="col-lg-3 col-md-6 col-sm-6">
+										<div className="d-flex align-items-center justify-content-center flex-column gap-2">
+											<div
+												className="rounded-3 bg-info-transparent bg-outline-info d-flex align-items-center justify-content-center p-2">
+												<i className="ti ti-files fs-20"></i>
+											</div>
+											<div className="text-center">
+												<h5 className="mb-0 fw-semibold fs-24 mb-1">28</h5>
+												<p className=" fs-14">Offers Released</p>
+											</div>
+										</div>
+									</div>
+
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div className="col-xl-4 d-flex flex-column">
+						{/*  Salary Range Distribution  */}
+						<div className="card">
+							<div className="card-body">
+								<div
+									className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3 gap-2">
+									<h3 className="mb-0 card-title">Recruitment Overview</h3>
+									<div className="d-flex align-items-center gap-3">
+										<a href="#"> <span><i
+													className="ti ti-square-arrow-down-filled text-dark"></i></span>
+											Monthly</a>
+									</div>
+								</div>
+
+								{/*  Top Stats  */}
+								<div className="d-flex justify-content-between align-items-center mb-3">
+									<div className="text-center">
+										<p className="mb-1  fw-medium">Offer Acceptance</p>
+										<h3 className="fw-bold mb-0">74.4%</h3>
+									</div>
+									<div className="text-center">
+										<p className="mb-1  fw-medium">Overall Hire Rate</p>
+										<h3 className="fw-bold mb-0">2.7%</h3>
+									</div>
+								</div>
+
+								{/*  Chart  */}
+								<div className="position-relative mx-auto recruitment-chart">
+									<canvas id="recruitment"></canvas>
+
+									{/*  Center Text  */}
+									<div className="position-absolute text-center"
+										style={{ bottom: "18%", left: "50%", transform: "translateX(-50%)" }}>
+										<h2 className="fw-bold mb-0">2,384</h2>
+										<p className="mb-0 ">Total Applications</p>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						{/*  Overview  */}
+						<div className="card bg-secondary position-relative overflow-hidden flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between z-2">
+								<div className="mb-4">
+									<p className="text-white mb-3">Quick Reminder</p>
+									<h3 className="text-white fw-normal fs-20 mb-2">You have 21 Interview Schedule Today!
+									</h3>
+									<p className="text-white">Dont forget to schedule interviews </p>
+								</div>
+								<div>
+									<a href="#"
+										className="btn-primary-gradient rounded-pill d-inline-flex align-items-center gap-2 p-1 ps-3">
+										Schedule Now
+										<span
+											className="btn btn-sm btn-icon bg-white rounded-circle d-flex align-items-center justify-content-center text-dark"><i
+												className="ti ti-chevrons-right fs-20"></i></span>
+									</a>
+								</div>
+							</div>
+							<img src="/assets/img/bg/bg-05.png" alt="bg" className="img-fluid recruitment-bg" />
+						</div>
+					</div>
+
+				</div>
+				{/*  end row  */}
+
+				{/*  start row  */}
+				<div className="row">
+					<div className="col-xl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div className="mb-3">
+									<div
+										className="d-flex flex-column justify-content-center align-items-center mb-4 gap-2">
+										<img src="/assets/img/robot.png" alt="robot"
+											className="bg-primary-gradient p-2 rounded-3 mb-2" />
+										<h4 className="mb-0">How can i help you today</h4>
+										<p className="d-flex align-items-center gap-2">AI Payroll Assistant <span
+												className="badge rounded-pill bg-success d-flex align-items-center gap-1"><i
+													className="ti ti-circle-filled fs-6 text-white"></i> Online</span></p>
+									</div>
+									<div>
+										<div className="d-flex align-items-center gap-2 flex-wrap mb-4">
+											<span className="click-tag bg-light border text-dark">Analyze top candidates for
+												Senior Developer role</span>
+											<span className="click-tag bg-light border text-dark">Generate hiring
+												report</span>
+										</div>
+										<div className="card bg-light border shadow-none rounded-md mb-0">
+											<div className="card-body">
+												<span className="d-flex align-items-center gap-1 mb-2 text-primary"> <i
+														className="ti ti-sparkles"></i> AI Assistant</span>
+												<p className="mb-0">👋 Welcome to your AI Recruitment Assistant! I'm here to
+													help you</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="chat-input-item mt-3 bg-white rounded-pill">
+									<input type="text" className="form-control"
+										placeholder="Ask me anything about Requirement" />
+									<a href="#" className="btn btn-icon"><i className="ti ti-send"></i></a>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
+
+					<div className="col-xl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<div
+										className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3 gap-2">
+										<h3 className="mb-0 card-title">Average Time to Hire</h3>
+										<div className="d-flex align-items-center gap-3">
+											<a href="#"> <span><i
+														className="ti ti-square-arrow-down-filled text-dark"></i></span>
+												Last 30 Days </a>
+										</div>
+									</div>
+									<div className="chartjs-wrapper-demo avghiretime-chart">
+										<canvas id="avghiretime"></canvas>
+									</div>
+
+									<div className="d-flex flex-column mb-3 gap-2">
+										<div className="d-flex align-items-center justify-content-between">
+											<div className="d-flex align-items-center">
+												<span
+													className="d-block border border-2 h-12 border-secondary border-opacity-100 rounded-5 me-2"></span>
+												<p className="fs-14">Applied to Shortlisted</p>
+											</div>
+											<p className="badge bg-light border rounded-3 btn-sm fs-13 text-dark">05</p>
+										</div>
+
+										<div className="d-flex align-items-center justify-content-between">
+											<div className="d-flex align-items-center">
+												<span
+													className="d-block border border-2 h-12 border-secondary border-opacity-75 rounded-5 me-2"></span>
+												<p className="fs-14">Shortlisted</p>
+											</div>
+											<p className="badge bg-light border rounded-3 btn-sm fs-13 text-dark">07</p>
+										</div>
+
+										<div className="d-flex align-items-center justify-content-between">
+											<div className="d-flex align-items-center">
+												<span
+													className="d-block border border-2 h-12 border-secondary border-opacity-50 rounded-5 me-2"></span>
+												<p className="fs-14">Interview to Offer</p>
+											</div>
+											<p className="badge bg-light border rounded-3 btn-sm fs-13 text-dark">10</p>
+										</div>
+
+										<div className="d-flex align-items-center justify-content-between">
+											<div className="d-flex align-items-center">
+												<span
+													className="d-block border border-2 h-12 border-secondary border-opacity-25 rounded-5 me-2"></span>
+												<p className="fs-14">Acceptance</p>
+											</div>
+											<p className="badge bg-light border rounded-3 btn-sm fs-13 text-dark">03</p>
+										</div>
+									</div>
+								</div>
+								<div
+									className="bg-soft-transparent-success rounded-3 text-start w-100 p-2 d-flex align-items-center gap-2 text-dark">
+									<div className="avatar avatar-md rounded-3 bg-success flex-shrink-0 p-0">
+										<span className="d-flex align-items-center"><i
+												className="ti ti-arrow-up-right fs-20"></i></span>
+									</div>
+									12% faster than industry avg
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
+
+					<div className="col-xl-4 d-flex">
+						{/*  Item 1  */}
+						<div className="card flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<div
+										className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3 gap-2">
+										<h3 className="mb-0 card-title">Upcoming Schedules</h3>
+										<div className="d-flex align-items-center gap-3">
+											<a href="#"> <span><i
+														className="ti ti-square-arrow-down-filled text-dark"></i></span>
+												Last 30 Days </a>
+										</div>
+									</div>
+
+									<div className="d-flex align-items-center justify-content-between mb-4">
+										<div className="d-flex align-items-center">
+											<div className="date-card border rounded-3">
+												<p className="m-0 fs-13">Mar</p>
+												<h4>02</h4>
+											</div>
+											<div>
+												<h6 className="fs-14 fw-medium text-truncate mb-1"><a href="#">Product
+														Designer</a></h6>
+												<p className="fs-13"><i className="ti ti-clock-hour-3"></i> 09:00 AM - 10:30 AM
+												</p>
+											</div>
+										</div>
+										<div className="avatar flex-shrink-0">
+											<img src="/assets/img/avatar/avatar-01.png" className="rounded-circle" alt="img" />
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-4">
+										<div className="d-flex align-items-center">
+											<div className="date-card border rounded-3">
+												<p className="m-0 fs-13">Apr</p>
+												<h4>22</h4>
+											</div>
+											<div>
+												<h6 className="fs-14 fw-medium text-truncate mb-1"><a href="#">Marketing
+														Manager</a></h6>
+												<p className="fs-13"><i className="ti ti-clock-hour-3"></i> 01:00 PM - 02:00 PM
+												</p>
+											</div>
+										</div>
+										<div className="avatar flex-shrink-0">
+											<img src="/assets/img/avatar/avatar-02.png" className="rounded-circle" alt="img" />
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-4">
+										<div className="d-flex align-items-center">
+											<div className="date-card border rounded-3">
+												<p className="m-0 fs-13">May</p>
+												<h4>11</h4>
+											</div>
+											<div>
+												<h6 className="fs-14 fw-medium text-truncate mb-1"><a href="#">Sr. Data
+														Science</a></h6>
+												<p className="fs-13"><i className="ti ti-clock-hour-3"></i> 11:00 AM - 12:30 PM
+												</p>
+											</div>
+										</div>
+										<div className="avatar flex-shrink-0">
+											<img src="/assets/img/avatar/avatar-03.jpg" className="rounded-circle" alt="img" />
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-4">
+										<div className="d-flex align-items-center">
+											<div className="date-card border rounded-3">
+												<p className="m-0 fs-13">Jun</p>
+												<h4>07</h4>
+											</div>
+											<div>
+												<h6 className="fs-14 fw-medium text-truncate mb-1"><a href="#">Software
+														Engineer</a></h6>
+												<p className="fs-13"><i className="ti ti-clock-hour-3"></i> 02:00 PM - 03:30 PM
+												</p>
+											</div>
+										</div>
+										<div className="avatar flex-shrink-0">
+											<img src="/assets/img/avatar/avatar-04.png" className="rounded-circle" alt="img" />
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-3">
+										<div className="d-flex align-items-center">
+											<div className="date-card border rounded-3">
+												<p className="m-0 fs-13">Aug</p>
+												<h4>18</h4>
+											</div>
+											<div>
+												<h6 className="fs-14 fw-medium text-truncate mb-1"><a href="#">Financial
+														Analyst</a></h6>
+												<p className="fs-13"><i className="ti ti-clock-hour-3"></i> 03:00 PM - 04:00 PM
+												</p>
+											</div>
+										</div>
+										<div className="avatar flex-shrink-0">
+											<img src="/assets/img/avatar/avatar-05.png" className="rounded-circle" alt="img" />
+										</div>
+									</div>
+								</div>
+
+								<a href="#" className="btn btn-primary-gradient w-100 mt-1">View All Schedule</a>
+							</div>
+						</div>
+
+					</div>
+					{/*  end col  */}
+				</div>
+				{/*  end row  */}
+
+				<div className="col-xl-12">
+					<div className="card">
+						<div className="card-body">
+
+							<div className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3 gap-2">
+								<h3 className="mb-0 card-title">Stage Performance</h3>
+								<div className="d-flex align-items-center gap-3">
+									<a href="#" className="btn btn-icon border bg-light rounded-pill p-2 text-dark"> <i
+											className="ti ti-adjustments-horizontal fs-16"></i> </a>
+									<a href="#"> <span><i className="ti ti-square-arrow-down-filled text-dark"></i></span>
+										Last 30 Days </a>
+								</div>
+							</div>
+
+							<div
+								className="row flex-wrap g-3 row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-lg-3 row-cols-xl-3 row-cols-xxl-5 performance-card">
+
+								<div className="col">
+									<div className="card shadow-none mb-0 flex-fill">
+										<div className="card-body">
+											<div className="d-flex align-items-center justify-content-between mb-4">
+												<div>
+													<p className="fw-semibold text-truncate mb-0">Applied</p>
+												</div>
+												<div
+													className="avatar avatar-lg bg-primary-gradient rounded-4 flex-shrink-0">
+													<i className="ti ti-id text-white fs-24"></i>
+												</div>
+											</div>
+											<div>
+												<h2 className="mb-2">1,848</h2>
+												<p className="fs-14 d-flex align-items-center justify-content-between mb-1">
+													Overall Progress <span className="fs-13 fw-normal">36.3%</span> </p>
+												<div className="progress progress-pill-primary">
+													<div className="progress-bar" role="progressbar" style={{ width: "36.3%" }}
+														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div className="col">
+									<div className="card shadow-none mb-0 flex-fill">
+										<div className="card-body">
+											<div className="d-flex align-items-center justify-content-between mb-4">
+
+												<div>
+													<p className="fw-semibold text-truncate mb-0">Shortlisted</p>
+												</div>
+												<div
+													className="avatar avatar-lg bg-secondary-gradient rounded-4 flex-shrink-0">
+													<i className="ti ti-hourglass-low text-white fs-24"></i>
+												</div>
+											</div>
+											<div>
+												<h2 className="mb-2">2,384 </h2>
+												<p className="fs-14 d-flex align-items-center justify-content-between mb-1">
+													Conversion rate <span className="fs-13 fw-normal">37.4%</span> </p>
+												<div className="progress progress-pill-secondary">
+													<div className="progress-bar" role="progressbar" style={{ width: "37.4%" }}
+														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div className="col">
+									<div className="card shadow-none mb-0 flex-fill">
+										<div className="card-body">
+											<div className="d-flex align-items-center justify-content-between mb-4">
+
+												<div>
+													<p className="fw-semibold text-truncate mb-0">Interviewed</p>
+												</div>
+												<div className="avatar avatar-lg bg-dark-gradient rounded-4 flex-shrink-0">
+													<i className="ti ti-calendar-up text-white fs-24"></i>
+												</div>
+											</div>
+											<div>
+												<h2 className="mb-2">892</h2>
+												<p className="fs-14 d-flex align-items-center justify-content-between mb-1">
+													Conversion rate <span className="fs-13 fw-normal">36.3%</span> </p>
+												<div className="progress progress-pill-dark">
+													<div className="progress-bar dark-progress" role="progressbar"
+														style={{ width: "36.3%" }} aria-valuenow="75" aria-valuemin="0"
+														aria-valuemax="100"></div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div className="col">
+									<div className="card shadow-none mb-0 flex-fill">
+										<div className="card-body">
+											<div className="d-flex align-items-center justify-content-between mb-4">
+
+												<div>
+													<p className="fw-semibold text-truncate mb-0">Offered</p>
+												</div>
+												<div className="avatar avatar-lg bg-info-gradient rounded-4 flex-shrink-0">
+													<i className="ti ti-file-description text-white fs-24"></i>
+												</div>
+											</div>
+											<div>
+												<h2 className="mb-2">324</h2>
+												<p className="fs-14 d-flex align-items-center justify-content-between mb-1">
+													Conversion rate <span className="fs-13 fw-normal">26.5%</span> </p>
+												<div className="progress progress-pill-info">
+													<div className="progress-bar" role="progressbar" style={{ width: "26.5%" }}
+														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<div className="col">
+									<div className="card shadow-none mb-0 flex-fill">
+										<div className="card-body">
+											<div className="d-flex align-items-center justify-content-between mb-4">
+
+												<div>
+													<p className="fw-semibold text-truncate mb-0">Hired</p>
+												</div>
+												<div
+													className="avatar avatar-lg bg-success-gradient rounded-4 flex-shrink-0">
+													<i className="ti ti-user-check text-white fs-24"></i>
+												</div>
+											</div>
+											<div>
+												<h2 className="mb-2">64</h2>
+												<p className="fs-14 d-flex align-items-center justify-content-between mb-1">
+													Conversion rate <span className="fs-13 fw-normal">41.2%</span> </p>
+												<div className="progress progress-pill-success">
+													<div className="progress-bar" role="progressbar" style={{ width: "41.2%" }}
+														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+							</div>
+
+						</div>
+					</div>
+				</div>
+
+				<div className="row">
+					{/*  Schedules  */}
+					<div className="col-xxl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div
+									className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3 gap-2">
+									<h3 className="mb-0 card-title">Recent Applications</h3>
+								</div>
+								<div className="border bg-light rounded-3 p-3 mb-4">
+									<div className="d-flex justify-content-between align-items-center">
+										<div className="d-flex align-items-center gap-2">
+											<span className="avatar avatar-rounded flex-shrink-0">
+												<img className="border border-white" src="/assets/img/users/user-49.jpg"
+													alt="img" />
+											</span>
+											<div>
+												<h6 className="text-truncate mb-1">Andrew Stuart</h6>
+												<div className="d-flex align-items-center flex-wrap">
+													<p className="fs-13">Frontend Developer</p>
+												</div>
+											</div>
+										</div>
+										<span className="badge badge-purple-transparent d-flex align-items-center gap-1"><i
+												className="ti ti-circle-filled fs-6 text-purple"></i> Interview</span>
+									</div>
+									<div className="d-flex align-items-center justify-content-between border-top mt-2 pt-2">
+										<p className="fs-13 mb-0"><i className="ti ti-user me-1"></i>7 years exp</p>
+										<p className="fs-13 mb-0"><i className="ti ti-calendar me-1"></i>Applied: Dec 27, 2025
+										</p>
+									</div>
+								</div>
+								<div className="border bg-light rounded-3 p-3 mb-3">
+									<div className="d-flex justify-content-between align-items-center">
+										<div className="d-flex align-items-center gap-2">
+											<span className="avatar avatar-rounded flex-shrink-0">
+												<img className="border border-white" src="/assets/img/users/user-50.jpg"
+													alt="img" />
+											</span>
+											<div>
+												<h6 className="text-truncate mb-1">Jessica Brown</h6>
+												<div className="d-flex align-items-center flex-wrap">
+													<p className="fs-13">UI/UX Designer</p>
+												</div>
+											</div>
+										</div>
+										<span
+											className="badge badge-secondary-transparent d-flex align-items-center gap-1"><i
+												className="ti ti-circle-filled fs-6 text-secondary"></i> Shortlisted</span>
+									</div>
+									<div className="d-flex align-items-center justify-content-between border-top mt-2 pt-2">
+										<p className="fs-13 mb-0"><i className="ti ti-user me-1"></i>7 years exp</p>
+										<p className="fs-13 mb-0"><i className="ti ti-calendar me-1"></i>Applied: Dec 27, 2025
+										</p>
+									</div>
+								</div>
+
+								<a className="btn btn-primary-gradient w-100 mt-2">View All Schedule</a>
+							</div>
+						</div>
+					</div>
+					{/*  /Schedules  */}
+
+					<div className="col-xxl-8">
+						<div className="card openings-table">
+							<div className="card-body">
+								<div className="pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+									<h3 className="mb-0 card-title">Active Job Openings</h3>
+									<a href="#" onClick={(e) => e.preventDefault()}
+										className="btn btn-white border btn-md d-inline-flex align-items-center"
+										data-bs-toggle="dropdown">
+										View All
+									</a>
+								</div>
+							</div>
+							<div className="table-responsive">
+								<table className="table table-nowrap mb-0">
+									<thead>
+										<tr>
+											<th>Job ID</th>
+											<th>Date</th>
+											<th>Job Title</th>
+											<th>Location</th>
+											<th>Department</th>
+											<th>Applicants</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr>
+											<td><a href="#">
+													<p className="text-gray-5">JOB-001</p>
+												</a></td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-calendar-up"></i> Jan 03, 2026
+												</h6>
+											</td>
+											<td>
+												<h6 className="fw-medium mb-1">Frontend Developer</h6>
+												<span
+													className="badge badge-danger-transparent d-inline-flex align-items-center text-danger">
+													High Priority </span>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-map-pin-pin"></i> Remote</h6>
+											</td>
+											<td>
+												<p>Engineering</p>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-user"></i> 1452</h6>
+											</td>
+										</tr>
+										<tr>
+											<td><a href="#">
+													<p className="text-gray-5">JOB-002</p>
+												</a></td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-calendar-up"></i> Jan 02, 2026
+												</h6>
+											</td>
+											<td>
+												<h6 className="fw-medium mb-1">Product Manager</h6>
+												<span
+													className="badge badge-danger-transparent d-inline-flex align-items-center text-danger">
+													High Priority </span>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-map-pin-pin"></i> Office</h6>
+											</td>
+											<td>
+												<p>Product</p>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-user"></i> 1342</h6>
+											</td>
+										</tr>
+										<tr>
+											<td><a href="#">
+													<p className="text-gray-5">JOB-003</p>
+												</a></td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-calendar-up"></i> Jan 02, 2026
+												</h6>
+											</td>
+											<td>
+												<h6 className="fw-medium mb-1">UX Designer</h6>
+												<span
+													className="badge badge-danger-transparent d-inline-flex align-items-center text-danger">
+													High Priority </span>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-map-pin-pin"></i> Hybrid</h6>
+											</td>
+											<td>
+												<p>Design</p>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-user"></i> 1287</h6>
+											</td>
+										</tr>
+										<tr>
+											<td><a href="#">
+													<p className="text-gray-5">JOB-004</p>
+												</a></td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-calendar-up"></i> Jan 01, 2026
+												</h6>
+											</td>
+											<td>
+												<h6 className="fw-medium mb-1">Sales Executive</h6>
+												<span
+													className="badge badge-info-transparent d-inline-flex align-items-center text-info">
+													Medium </span>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-map-pin-pin"></i> Office</h6>
+											</td>
+											<td>
+												<p>Sales</p>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-user"></i> 1198</h6>
+											</td>
+										</tr>
+										<tr>
+											<td><a href="#">
+													<p className="text-gray-5">JOB-005</p>
+												</a></td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-calendar-up"></i> Jan 01, 2026
+												</h6>
+											</td>
+											<td>
+												<h6 className="fw-medium mb-1">DevOps Engineer</h6>
+												<span
+													className="badge badge-info-transparent d-inline-flex align-items-center text-info">
+													Medium </span>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-map-pin-pin"></i> Office</h6>
+											</td>
+											<td>
+												<p>Engineering</p>
+											</td>
+											<td>
+												<h6 className="fw-normal"><i className="ti ti-user"></i> 1134</h6>
+											</td>
+										</tr>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+				</div>
+
+
+			</div>
+
+			<div className="footer d-sm-flex align-items-center justify-content-between border-top bg-white p-3">
+				<p className="mb-0">2014 - 2026 &copy; SmartHR.</p>
+				<p>Designed &amp; Developed By <a href="#" onClick={(e) => e.preventDefault()} className="text-primary">Dreams</a></p>
+			</div>
+
+		
+
+      {/* Add New Job Modal */}
       <Dialog open={newJobOpen} onOpenChange={setNewJobOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>Post New Job Requisition</DialogTitle>
+            <DialogTitle>Add New Job Requisition</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              toast.success("Job opening created successfully");
+              setNewJobOpen(false);
+            }}
+            className="space-y-4 pt-2"
+          >
             <div>
-              <label className="font-semibold block mb-1">Job Title</label>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Job Title</label>
               <input
+                required
                 type="text"
                 placeholder="e.g. Senior Frontend Engineer"
-                className="w-full border border-border rounded-md p-2 bg-card text-foreground"
+                className="form-control"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="font-semibold block mb-1">Department</label>
-                <select className="w-full border border-border rounded-md p-2 bg-card text-foreground">
-                  <option>Engineering</option>
-                  <option>Design</option>
-                  <option>Marketing</option>
-                  <option>Sales</option>
-                  <option>Finance</option>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Category / Department</label>
+                <select className="form-select">
+                  <option value="Engineering">Engineering</option>
+                  <option value="Design">Design</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Sales">Sales</option>
+                  <option value="Human Resources">Human Resources</option>
                 </select>
               </div>
               <div>
-                <label className="font-semibold block mb-1">Headcount Target</label>
-                <input
-                  type="number"
-                  defaultValue={1}
-                  className="w-full border border-border rounded-md p-2 bg-card text-foreground"
-                />
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Job Type</label>
+                <select className="form-select">
+                  <option value="Full Time">Full Time</option>
+                  <option value="Part Time">Part Time</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Remote">Remote</option>
+                </select>
               </div>
             </div>
-            <div>
-              <label className="font-semibold block mb-1">Location / Work Mode</label>
-              <select className="w-full border border-border rounded-md p-2 bg-card text-foreground">
-                <option>Hybrid (Headquarters)</option>
-                <option>On-Site (Office)</option>
-                <option>Fully Remote</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Number of Openings</label>
+                <input type="number" defaultValue={1} min={1} className="form-control" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-700 block mb-1">Closing Date</label>
+                <input type="date" className="form-control" />
+              </div>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setNewJobOpen(false)}>
+              <button type="button" onClick={() => setNewJobOpen(false)} className="btn btn-light">
                 Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  toast.success("Job requisition posted successfully!");
-                  setNewJobOpen(false);
-                }}
-              >
-                Create Requisition
-              </Button>
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Publish Requisition
+              </button>
             </div>
-          </div>
+          </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

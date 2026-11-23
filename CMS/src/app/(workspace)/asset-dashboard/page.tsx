@@ -2,575 +2,767 @@
 
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, unwrapArray, unwrapData } from "@/lib/api";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function AssetDashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
-  const [addAssetOpen, setAddAssetOpen] = useState(false);
-  const [scheduleMaintOpen, setScheduleMaintOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Fetch real-time assets
-  const { data: rawAssets = [] } = useQuery({
-    queryKey: ["assets-dashboard-list"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/hr/assets");
-        return unwrapArray(res);
-      } catch {
-        return [];
-      }
-    },
-  });
-
-  // Fetch asset overview aggregates
-  const { data: overviewData } = useQuery({
-    queryKey: ["assets-dashboard-overview"],
-    queryFn: async () => {
-      try {
-        const res = await api.get("/hr/assets/overview");
-        return unwrapData(res);
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // Chart 1: Purchase Trend Area Chart
-  const purchaseTrendOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 230, toolbar: { show: false } },
-      series: [{ name: "Assets Acquired", data: [35, 48, 62, 75, 82, 95, 110, 125, 98, 85, 78, 65] }],
-      xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" } } },
-      colors: ["#0d6efd"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // Chart 2: Assets by Department
-  const assetsByDeptOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 230, toolbar: { show: false } },
-      plotOptions: { bar: { horizontal: true, barHeight: "45%", borderRadius: 4, distributed: true } },
-      series: [{ name: "Assets", data: [420, 280, 195, 160, 110, 82] }],
-      xaxis: {
-        categories: ["Engineering", "Sales", "Finance", "HR", "Operations", "Legal"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#64748B", fontSize: "11px" } } },
-      colors: ["#0d6efd", "#4f46e5", "#06b6d4", "#f59e0b", "#ec4899", "#10b981"],
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { show: false },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // 3 Mini Sparklines
-  const totalAssetsSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 45, sparkline: { enabled: true } },
-      series: [{ data: [1100, 1150, 1180, 1210, 1235, 1247] }],
-      colors: ["#0d6efd"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-    }),
-    []
-  );
-
-  const assignedSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 45, sparkline: { enabled: true } },
-      series: [{ data: [780, 810, 835, 860, 875, 892] }],
-      colors: ["#10b981"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-    }),
-    []
-  );
-
-  const availableSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 45, sparkline: { enabled: true } },
-      series: [{ data: [320, 310, 305, 298, 290, 287] }],
-      colors: ["#f59e0b"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-    }),
-    []
-  );
-
-  // Chart 3: Assets by Category Donut
-  const categoriesDonutOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "donut", height: 180 },
-      series: [40, 20, 15, 15, 10],
-      labels: ["Laptops", "Monitors & Mice", "Writing Pads", "Keyboards", "Office Chairs"],
-      colors: ["#0d6efd", "#6366f1", "#06b6d4", "#f59e0b", "#94a3b8"],
-      stroke: { width: 0 },
-      dataLabels: { enabled: false },
-      legend: { show: false },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: "72%",
-            labels: {
-              show: true,
-              total: { show: true, label: "Total Types", fontSize: "10px", color: "#64748B", formatter: () => "5 Groups" },
-            },
-          },
-        },
-      },
-    }),
-    []
-  );
-
-  const assetList = useMemo(() => {
-    if (rawAssets && rawAssets.length > 0) {
-      return rawAssets.map((item: any, idx: number) => ({
-        id: item.assetTag || item.id || `AP-${String(idx + 1).padStart(3, "0")}`,
-        name: item.name || "Enterprise Hardware",
-        user: item.assignedEmployee ? `${item.assignedEmployee.firstName || ""} ${item.assignedEmployee.lastName || ""}`.trim() : "Unassigned",
-        purchaseDate: item.purchaseDate ? new Date(item.purchaseDate).toISOString().split("T")[0] : "2024-01-15",
-        warrantyExpiry: item.warrantyExpiry ? new Date(item.warrantyExpiry).toISOString().split("T")[0] : "2027-01-15",
-        status: item.status === "available" ? "Available" : item.status === "maintenance" ? "Under Repair" : "In Use",
-        badge: item.status === "available" ? "bg-amber-500/10 text-amber-600" : item.status === "maintenance" ? "bg-rose-500/10 text-rose-600" : "bg-emerald-500/10 text-emerald-600",
-      }));
-    }
-    return [
-      { id: "AP-782", name: 'Dell XPS 13" Ultrabook', user: "Sarah Johnson", purchaseDate: "2023-08-20", warrantyExpiry: "2026-08-20", status: "In Use", badge: "bg-emerald-500/10 text-emerald-600" },
-      { id: "AP-815", name: "HP EliteBook 840 G9", user: "David Lee", purchaseDate: "2023-09-10", warrantyExpiry: "2026-09-10", status: "In Use", badge: "bg-emerald-500/10 text-emerald-600" },
-      { id: "AP-236", name: "Lenovo ThinkPad X1 Carbon", user: "Jessica Brown", purchaseDate: "2024-01-15", warrantyExpiry: "2027-01-15", status: "In Use", badge: "bg-emerald-500/10 text-emerald-600" },
-      { id: "AP-512", name: 'Apple MacBook Pro 16" M2', user: "Amanda Lewis", purchaseDate: "2024-03-01", warrantyExpiry: "2027-03-01", status: "Available", badge: "bg-amber-500/10 text-amber-600" },
-      { id: "AP-904", name: "Ergonomic High-Back Mesh Chair", user: "Facility Floor 2", purchaseDate: "2024-05-12", warrantyExpiry: "2029-05-12", status: "Under Repair", badge: "bg-rose-500/10 text-rose-600" },
-    ];
-  }, [rawAssets]);
-
-  const filteredAssets = useMemo(() => {
-    return assetList.filter((a) => {
-      const matchSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) || a.id.toLowerCase().includes(searchQuery.toLowerCase()) || a.user.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = statusFilter === "all" || a.status.toLowerCase().includes(statusFilter.toLowerCase());
-      return matchSearch && matchStatus;
-    });
-  }, [assetList, searchQuery, statusFilter]);
-
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* ── Page Header ── */}
-      <SmartHRHeader
-        title="Asset Management"
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setScheduleMaintOpen(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-card border border-border-color rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <i className="ti ti-calendar-plus text-slate-500"></i> Schedule Maintenance
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddAssetOpen(true)}
-              className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg shadow-2xs hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-            >
-              <i className="ti ti-plus"></i> Add New Asset
-            </button>
-          </div>
-        }
-      />
+    <>
+      {/*  Breadcrumb  */}
+				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">Asset Management</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">Asset Management</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+						<a href="#" className="btn btn-white me-2 mb-2"> <i className="ti ti-user"></i> Add Assignee</a>
+						<a href="#" className="btn btn-secondary mb-2 me-2"> <i className="ti ti-calendar"></i> Schedule
+							Maintainance</a>
+						<a href="#" className="btn btn-primary-gradient mb-2"> <i className="ti ti-plus"></i> Add New Job</a>
+						<div className="ms-2 mb-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-      {/* ── Row 1: Purchase Trend (8 cols) & Assets by Department (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Purchase Trend */}
-        <Card className="p-5 lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-base font-bold text-foreground">Hardware Purchase Trend</h3>
-                <p className="text-xs text-muted-foreground">Capital acquisitions throughout the fiscal cycle</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold text-foreground font-mono">654 Units</span>
-                <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                  +18% <i className="ph-bold ph-arrow-up-right"></i>
-                </span>
-              </div>
-            </div>
+				{/*  start row  */}
+				<div className="row">
+					<div className="col-xl-8">
+						{/*  Candidate Hiring Analysis  */}
+						<div className="card position-relative analysis-card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2 mb-3">
+									<h3 className="mb-0 card-title">Purchase Trend</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Weekly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Yearly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-60 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={purchaseTrendOptions} series={purchaseTrendOptions.series} type="area" height={230} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
+								<div className="mb-1 d-flex align-items-center gap-2 flex-wrap">
+									<h4 className="mb-0">654</h4>
+									<div
+										className="border rounded-pill  bg-light fs-13 text-gray-9 d-flex align-items-center gap-2 p-2px ps-2">
+										+18%
+										<p
+											className="btn btn-sm btn-icon pe-none bg-success rounded-circle d-flex align-items-center justify-content-center  text-white">
+											<i className="ti ti-arrow-up-right fs-20"></i>
+										</p>
+									</div>
+									<p className="mb-0 fs-14">vs last year</p>
+								</div>
 
-        {/* Assets by Department */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3">
-              <h3 className="text-base font-bold text-foreground">Assets by Department</h3>
-              <p className="text-xs text-muted-foreground">Workstation & peripherals deployment</p>
-            </div>
+								<div id="purchase-trend" style={{ position: "relative" }}>
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "purchase-trend", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "purchase-trend", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-60 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={assetsByDeptOptions} series={assetsByDeptOptions.series} type="bar" height={230} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
-      </div>
+							</div>
+						</div>
+					</div>
 
-      {/* ── Row 2: 3 KPI Summary Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-4 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <i className="ph ph-desktop text-base text-primary"></i> Total Assets Registered
-            </span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full inline-flex items-center gap-0.5">
-              +9.25% <i className="ph-bold ph-arrow-up-right"></i>
-            </span>
-          </div>
-          <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-foreground">1,247</h3>
-            <div className="w-24">
-              {isMounted && (
-                <Suspense fallback={<div className="h-10"></div>}>
-                  <Chart options={totalAssetsSparkline} series={totalAssetsSparkline.series} type="area" height={45} />
-                </Suspense>
-              )}
-            </div>
-          </div>
-        </Card>
+					<div className="col-xl-4 d-flex flex-column">
+						{/*  Salary Range Distribution  */}
+						<div className="card">
+							<div className="card-body">
+								<div className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3">
+									<h5 className="mb-2">Assets by Department</h5>
+									<a href="#"><i className="ti ti-refresh fs-20 text-secondary"></i></a>
+								</div>
 
-        <Card className="p-4 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <i className="ph ph-user-check text-base text-emerald-600"></i> Assets Assigned
-            </span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full inline-flex items-center gap-0.5">
-              +9.25% <i className="ph-bold ph-arrow-up-right"></i>
-            </span>
-          </div>
-          <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-foreground">892</h3>
-            <div className="w-24">
-              {isMounted && (
-                <Suspense fallback={<div className="h-10"></div>}>
-                  <Chart options={assignedSparkline} series={assignedSparkline.series} type="area" height={45} />
-                </Suspense>
-              )}
-            </div>
-          </div>
-        </Card>
+								<div id="assets-department"></div>
 
-        <Card className="p-4 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
-              <i className="ph ph-box text-base text-amber-500"></i> Assets In Stock
-            </span>
-            <span className="text-xs font-bold text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-full inline-flex items-center gap-0.5">
-              -9.25% <i className="ph-bold ph-arrow-down-right"></i>
-            </span>
-          </div>
-          <div className="flex items-end justify-between">
-            <h3 className="text-3xl font-bold text-foreground">287</h3>
-            <div className="w-24">
-              {isMounted && (
-                <Suspense fallback={<div className="h-10"></div>}>
-                  <Chart options={availableSparkline} series={availableSparkline.series} type="area" height={45} />
-                </Suspense>
-              )}
-            </div>
-          </div>
-        </Card>
-      </div>
+							</div>
+						</div>
+					</div>
 
-      {/* ── Row 3: Asset Value & Depreciation (5 cols) & Assets by Category (7 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Asset Value & Depreciation */}
-        <div className="lg:col-span-5 space-y-4">
-          <Card className="p-4 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h4 className="text-sm font-bold text-foreground">Gross Asset Valuation</h4>
-                <p className="text-xs text-muted-foreground">Current replacement value</p>
-              </div>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                +22% vs last month
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-foreground my-2">$2.4M</h3>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className="h-full bg-primary rounded-full" style={{ width: "65%" }}></div>
-            </div>
-            <div className="flex justify-between text-[11px] text-muted-foreground mt-1 font-mono">
-              <span>$0</span>
-              <span>$2M</span>
-              <span>$4M Limit</span>
-            </div>
-          </Card>
+				</div>
+				{/*  end row  */}
 
-          <Card className="p-4 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <div className="border-l-2 border-rose-500 pl-2.5">
-                <h4 className="text-sm font-bold text-foreground">Accumulated Depreciation</h4>
-                <p className="text-xs text-muted-foreground">Book value amortization</p>
-              </div>
-              <span className="text-xs font-bold text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-full">
-                -18% Book Value
-              </span>
-            </div>
-            <h3 className="text-3xl font-bold text-foreground my-2">$1.8M</h3>
-            <p className="text-xs text-muted-foreground">Straight-line depreciation applied over 3-year standard IT hardware lifecycle.</p>
-          </Card>
-        </div>
+				{/*  start row  */}
+				<div className="row">
 
-        {/* Assets by Category */}
-        <Card className="p-5 lg:col-span-7 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Assets by Category</h3>
-                <p className="text-xs text-muted-foreground">Breakdown of inventory allocation</p>
-              </div>
-              <span className="text-xs text-muted-foreground">Active Pool</span>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-              <div className="md:col-span-5 flex justify-center">
-                {isMounted && (
-                  <Suspense fallback={<div className="h-44"></div>}>
-                    <Chart options={categoriesDonutOptions} series={categoriesDonutOptions.series} type="donut" height={180} />
-                  </Suspense>
-                )}
-              </div>
-              <div className="md:col-span-7 space-y-2.5">
-                {[
-                  { name: "Laptops & MacBooks", pct: 40, bar: "bg-blue-600" },
-                  { name: "Monitors & Ergonomic Mice", pct: 20, bar: "bg-indigo-600" },
-                  { name: "Digital Writing Pads", pct: 15, bar: "bg-cyan-500" },
-                  { name: "Mechanical Keyboards", pct: 15, bar: "bg-amber-500" },
-                  { name: "Ergonomic Chairs & Desks", pct: 10, bar: "bg-slate-500" },
-                ].map((cat, idx) => (
-                  <div key={idx} className="space-y-1">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span>{cat.name}</span>
-                      <span className="font-bold text-foreground">{cat.pct}%</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div className={`h-full ${cat.bar} rounded-full`} style={{ width: `${cat.pct}%` }}></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
+					<div className="col-xl-4">
+						<div className="card">
+							<div className="card-body">
+								<div className="mb-3 d-flex align-items-center justify-content-between flex-wrap">
+									<p className="mb-0 d-flex align-items-center"><i
+											className="ti ti-device-desktop text-primary fs-20 me-1"></i> Total Assets</p>
+									<p className="d-flex align-items-center fs-16 text-success fw-bold"><i
+											className="ti ti-square-rounded-chevron-up me-1"></i>9.25%</p>
+								</div>
+								<h2>1,247</h2>
+								<div id="total-assets"></div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
 
-      {/* ── Row 4: Active Assets & Equipment Registry Table ── */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="border-l-2 border-primary pl-2.5">
-            <h3 className="text-base font-bold text-foreground">Active Assets & Equipment Registry</h3>
-            <p className="text-xs text-muted-foreground">Live inventory with serial tags, warranty milestones, and assignees</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="text"
-              placeholder="Search tag or asset..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-xs border border-border rounded-md px-3 py-1.5 bg-card text-foreground"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs border border-border rounded-md px-2.5 py-1.5 bg-card text-foreground"
-            >
-              <option value="all">All Statuses</option>
-              <option value="in use">In Use</option>
-              <option value="available">Available</option>
-              <option value="under repair">Under Repair</option>
-            </select>
-          </div>
-        </div>
+					<div className="col-xl-4 ">
+						<div className="card">
+							<div className="card-body">
+								<div className="mb-3 d-flex align-items-center justify-content-between flex-wrap">
+									<p className="mb-0 d-flex align-items-center"><i
+											className="ti ti-user-star text-secondary fs-20 me-1"></i> Assets Assigned</p>
+									<p className="d-flex align-items-center fs-16 text-success fw-bold"><i
+											className="ti ti-square-rounded-chevron-up me-1"></i>9.25%</p>
+								</div>
+								<h2>892</h2>
+								<div id="assets-assigned"></div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
 
-        <div className="overflow-x-auto border border-border/80 rounded-lg">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
-              <tr>
-                <th className="p-3 font-semibold">Asset ID</th>
-                <th className="p-3 font-semibold">Asset Name</th>
-                <th className="p-3 font-semibold">Assigned To</th>
-                <th className="p-3 font-semibold">Purchase Date</th>
-                <th className="p-3 font-semibold">Warranty Expiry</th>
-                <th className="p-3 font-semibold">Status</th>
-                <th className="p-3 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredAssets.map((row, idx) => (
-                <tr key={idx} className="hover:bg-muted/40 transition-colors">
-                  <td className="p-3 font-mono font-medium text-primary">{row.id}</td>
-                  <td className="p-3 font-semibold text-foreground">{row.name}</td>
-                  <td className="p-3 text-muted-foreground">{row.user}</td>
-                  <td className="p-3 text-muted-foreground font-mono">{row.purchaseDate}</td>
-                  <td className="p-3 text-muted-foreground font-mono">{row.warrantyExpiry}</td>
-                  <td className="p-3">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${row.badge}`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toast.info(`Viewing specs for ${row.id}`)}
-                      className="p-1 text-muted-foreground hover:text-foreground transition-colors me-1"
-                    >
-                      <i className="ph ph-eye text-base"></i>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => toast.success(`Maintenance requested for ${row.id}`)}
-                      className="p-1 text-muted-foreground hover:text-primary transition-colors"
-                    >
-                      <i className="ph ph-wrench text-base"></i>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+					<div className="col-xl-4 ">
+						<div className="card">
+							<div className="card-body">
+								<div className="mb-3 d-flex align-items-center justify-content-between flex-wrap">
+									<p className="mb-0 d-flex align-items-center"><i
+											className="ti ti-cylinder-plus text-purple fs-20 me-1"></i> Assets Available</p>
+									<p className="d-flex align-items-center fs-16 text-danger fw-bold"><i
+											className="ti ti-square-rounded-chevron-down me-1"></i>9.25%</p>
+								</div>
+								<h2>287</h2>
+								<div id="assets-available"></div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
 
-      {/* ── Add New Asset Modal ── */}
-      <Dialog open={addAssetOpen} onOpenChange={setAddAssetOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Register New Hardware Asset</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
-            <div>
-              <label className="font-semibold block mb-1">Asset Tag / Name</label>
-              <input type="text" placeholder='e.g. Dell XPS 15" Laptop' className="w-full border border-border rounded-md p-2 bg-card text-foreground" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="font-semibold block mb-1">Category</label>
-                <select className="w-full border border-border rounded-md p-2 bg-card text-foreground">
-                  <option>Laptops</option>
-                  <option>Monitors</option>
-                  <option>Keyboards</option>
-                  <option>Mobile Devices</option>
-                  <option>Furniture</option>
-                </select>
-              </div>
-              <div>
-                <label className="font-semibold block mb-1">Purchase Cost</label>
-                <input type="number" defaultValue={1200} className="w-full border border-border rounded-md p-2 bg-card text-foreground" />
-              </div>
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Warranty Period</label>
-              <select className="w-full border border-border rounded-md p-2 bg-card text-foreground">
-                <option>1 Year Standard</option>
-                <option>2 Years Extended</option>
-                <option>3 Years ProSupport Plus</option>
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setAddAssetOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  toast.success("New hardware asset registered in system!");
-                  setAddAssetOpen(false);
-                }}
-              >
-                Save Asset
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+				</div>
+				{/*  end row  */}
 
-      {/* ── Schedule Maintenance Modal ── */}
-      <Dialog open={scheduleMaintOpen} onOpenChange={setScheduleMaintOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Schedule Hardware Maintenance</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
-            <div>
-              <label className="font-semibold block mb-1">Select Asset</label>
-              <select className="w-full border border-border rounded-md p-2 bg-card text-foreground">
-                {assetList.map((a) => (
-                  <option key={a.id} value={a.id}>{a.id} - {a.name} ({a.user})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Maintenance Date</label>
-              <input type="date" className="w-full border border-border rounded-md p-2 bg-card text-foreground" />
-            </div>
-            <div>
-              <label className="font-semibold block mb-1">Issue / Service Scope</label>
-              <textarea rows={3} placeholder="Describe service required (e.g. Battery replacement, OS upgrade)..." className="w-full border border-border rounded-md p-2 bg-card text-foreground"></textarea>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setScheduleMaintOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  toast.success("Maintenance window logged and technician notified!");
-                  setScheduleMaintOpen(false);
-                }}
-              >
-                Schedule Service
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+				<div className="row">
+					<div className="col-xl-5">
+						<div className="card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2 mb-3">
+									<h3 className="mb-0 card-title">Asset Value</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Weekly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+
+								<div className="mb-1 d-flex align-items-center gap-2 flex-wrap mb-3">
+									<h4 className="mb-0">$2.4M</h4>
+									<div
+										className="border rounded-pill bg-light fs-13 text-gray-9 d-flex align-items-center gap-2 p-2px ps-2">
+										+22%
+										<p
+											className="btn pe-none btn-sm btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+											<i className="ti ti-arrow-up-right fs-20 "></i>
+										</p>
+									</div>
+									<p className="mb-0 fs-14">vs last month</p>
+								</div>
+								<div className="d-flex align-items-center justify-content-between px-2 asset-value-lable">
+									<p className="fs-12 m-0 fw-semibold">0</p>
+									<p className="fs-12 m-0 fw-semibold">2M</p>
+									<p className="fs-12 m-0 fw-semibold">4M</p>
+								</div>
+								<div id="asset-value"></div>
+							</div>
+						</div>
+
+						<div className="card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2 mb-3">
+									<h3 className="mb-0 card-title">Depreciated Value</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+
+								<div className="d-flex justify-content-between align-items-center">
+									<div className="mb-1 d-flex flex-column gap-2">
+										<h4 className="mb-0">$1.8M</h4>
+										<div className="d-flex align-items-center gap-2">
+											<div
+												className="border rounded-pill bg-light fs-13 text-gray-9 d-flex align-items-center gap-2 p-2px ps-2">
+												+22% <p
+													className="btn pe-none btn-sm btn-icon bg-danger rounded-circle d-flex align-items-center justify-content-center  text-white">
+													<i className="ti ti-arrow-down-right fs-20"></i>
+												</p>
+											</div>
+											<p className="mb-0 fs-14">vs last month</p>
+										</div>
+									</div>
+									<div id="depreciated-value"></div>
+								</div>
+
+							</div>
+						</div>
+					</div>
+					<div className="col-xl-7 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap row-gap-2 mb-4">
+									<h3 className="mb-0 card-title">Assets by Category</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+
+								<div className="row d-flex align-items-center justify-content-center ">
+									<div className="col-md-6">
+										<div id="asset-categories-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "asset-categories-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "asset-categories-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+
+									<div className="col-md-6">
+										<div className="asset-list">
+
+											<div className="asset-item border rounded-pill">
+												<div className="bar">
+													<div className="fill fill-40">
+														<span className="percent">40%</span>
+													</div>
+													<span className="label">Laptops</span>
+												</div>
+											</div>
+
+											<div className="asset-item border rounded-pill">
+												<div className="bar">
+													<div className="fill fill-20">
+														<span className="percent">20%</span>
+													</div>
+													<span className="label">Mouse</span>
+												</div>
+											</div>
+
+											<div className="asset-item border rounded-pill">
+												<div className="bar">
+													<div className="fill fill-15">
+														<span className="percent">15%</span>
+													</div>
+													<span className="label">Writing Pad</span>
+												</div>
+											</div>
+
+											<div className="asset-item border rounded-pill">
+												<div className="bar">
+													<div className="fill fill-15">
+														<span className="percent">15%</span>
+													</div>
+													<span className="label">Keyboard</span>
+												</div>
+											</div>
+
+											<div className="asset-item border rounded-pill">
+												<div className="bar">
+													<div className="fill fill-5">
+														<span className="percent">5%</span>
+													</div>
+													<span className="label">Chairs</span>
+												</div>
+											</div>
+
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+
+				<div className="card job-opening-table">
+					<div className="card-body">
+
+						<div className="pb-2 d-flex align-items-center justify-content-between flex-wrap mb-3">
+							<h3 className="mb-0 card-title">Active Job Openings</h3>
+							<a href="#" className="btn btn-primary-gradient btn-sm d-inline-flex align-items-center">
+								View All
+							</a>
+						</div>
+
+						<div className="mb-4 d-flex align-items-center gap-2">
+							<div className="input-group input-group-flat d-inline-flex w-100">
+								<input type="text" className="form-control" placeholder="Search in HRMS" />
+								<span className="input-icon-addon border-end">
+									<i className="ti ti-search"></i>
+								</span>
+							</div>
+							<div className="dropdown w-100">
+								<a href="#" onClick={(e) => e.preventDefault()}
+									className="dropdown-toggle w-100 btn btn-white d-inline-flex align-items-center justify-content-between"
+									data-bs-toggle="dropdown">
+									All Status
+								</a>
+								<ul className="dropdown-menu  dropdown-menu-end p-3">
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">In Use</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Available</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Active</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Under Repair</a>
+									</li>
+								</ul>
+							</div>
+							<div className="dropdown w-100">
+								<a href="#" onClick={(e) => e.preventDefault()}
+									className="dropdown-toggle w-100 btn btn-white d-inline-flex align-items-center justify-content-between"
+									data-bs-toggle="dropdown">
+									All Categories
+								</a>
+								<ul className="dropdown-menu  dropdown-menu-end p-3">
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Laptops</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Mouse</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Keyboard</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Chairs</a>
+									</li>
+								</ul>
+							</div>
+						</div>
+
+					</div>
+
+					<div className="table-responsive">
+						<table className="table table-nowrap mb-0">
+							<thead>
+								<tr>
+									<th>Asset ID</th>
+									<th>Asset Name</th>
+									<th>Assigned To</th>
+									<th>Purchase Date</th>
+									<th>Warranty Expiry</th>
+									<th>Status</th>
+									<th>Action</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-782</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Dell XPS 13"</p>
+									</td>
+									<td>
+										<p>Sarah Johnson</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2022-08-20</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2025-08-20</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>In Use
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-815</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">HP EliteBook</p>
+									</td>
+									<td>
+										<p>David Lee</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2022-09-10</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2025-09-10</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-236</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Lenovo ThinkPad</p>
+									</td>
+									<td>
+										<p>Emily Wilson</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2022-10-01</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2025-10-01</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>In Use
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-947</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Apple iPad Pro</p>
+									</td>
+									<td>
+										<p>Unassigned</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2022-11-15</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2025-11-15</p>
+									</td>
+									<td>
+										<span className="badge badge-purple d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Available
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-529</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Samsung Monitor</p>
+									</td>
+									<td>
+										<p>Ashley Green</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2022-12-05</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2025-12-05</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-681</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Logitech Mouse</p>
+									</td>
+									<td>
+										<p>Andrew Brown</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2023-01-25</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2026-01-25</p>
+									</td>
+									<td>
+										<span className="badge badge-danger d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Under Repair
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-354</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Ergonomic Keyboard</p>
+									</td>
+									<td>
+										<p>Jessica White</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2023-02-14</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2026-02-14</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-496</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Office Chair</p>
+									</td>
+									<td>
+										<p>Jason Hill</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2023-03-08</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2026-03-08</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-123</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Standing Desk</p>
+									</td>
+									<td>
+										<p>Megan King</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2023-04-02</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2026-04-02</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+								<tr>
+									<td><a href="#">
+											<p className="text-gray-5">AP-069</p>
+										</a></td>
+									<td>
+										<p className="fw-medium text-dark">Plantronics Headset</p>
+									</td>
+									<td>
+										<p>Brandon Wright</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2023-05-19</p>
+									</td>
+									<td>
+										<p><i className="ti ti-calendar-up me-1"></i>2026-05-19</p>
+									</td>
+									<td>
+										<span className="badge badge-success d-inline-flex align-items-center badge-xs">
+											<i className="ti ti-point-filled "></i>Active
+										</span>
+									</td>
+									<td>
+										<div className="action-icon d-inline-flex">
+											<a href="#" className="me-1"><i className="ti ti-edit"></i></a>
+											<a href="#"><i className="ti ti-trash"></i></a>
+										</div>
+									</td>
+								</tr>
+
+							</tbody>
+
+						</table>
+					</div>
+
+				</div>
+
+
+			
+    </>
   );
 }

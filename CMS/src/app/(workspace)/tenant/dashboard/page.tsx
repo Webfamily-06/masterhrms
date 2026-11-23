@@ -1,915 +1,2017 @@
 'use client';
 
-import { useState, useMemo, Suspense } from "react";
-import dynamic from "next/dynamic";
-import { Link } from "@/lib/router-compat";
+import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { useTenantBranding } from "@/lib/useTenantBranding";
-import { useCurrentProfile } from "@/lib/session";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
-import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { Link } from "@/src/lib/router-compat";
+import { useCurrentProfile } from "@/lib/session";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
+const Chart = lazy(() => import("react-apexcharts"));
 
 export default function TenantDashboardPage() {
-  const { branding } = useTenantBranding();
+  const [isMounted, setIsMounted] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [leaveModalOpen, setLeaveModalOpen] = useState(false);
   const { data: profile } = useCurrentProfile();
-  const [applicantTab, setApplicantTab] = useState<"openings" | "applicants">("applicants");
 
-  const [todos, setTodos] = useState([
-    { id: 1, text: "Add Holidays to 2026 Calendar", done: false, tag: "HR" },
-    { id: 2, text: "Add Meeting to Client (Ignis Corp)", done: false, tag: "Meeting" },
-    { id: 3, text: "Review Quarterly Performance with Adrian", done: true, tag: "Review" },
-    { id: 4, text: "Executive Management Strategic Call", done: false, tag: "Strategy" },
-    { id: 5, text: "Finalize Monthly Payroll Approvals", done: false, tag: "Payroll" },
-    { id: 6, text: "Publish Updated Policy for Annual Increment", done: false, tag: "Policy" },
-  ]);
-
-  const { data: tenantMetrics } = useQuery({
-    queryKey: ["tenant-dashboard-metrics"],
-    queryFn: async () => {
-      try {
-        const res = await api.get<any>("/dashboard/tenant");
-        return res?.data || res || {};
-      } catch (err) {
-        return {};
-      }
-    },
-    refetchInterval: 30000,
-  });
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const userName = profile?.full_name?.split(" ")[0] || "Adrian";
-  const currencySymbol = tenantMetrics?.currencySymbol || branding.currencySymbol || "$";
 
-  // Chart: Employees by Department
-  const empDepartmentOptions: any = {
-    chart: { type: "bar", height: 220, toolbar: { show: false } },
-    colors: ["#0d6efd"],
-    plotOptions: {
-      bar: { borderRadius: 4, horizontal: true, barHeight: "45%" }
-    },
-    dataLabels: { enabled: false },
-    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
-    xaxis: {
-      categories: ["UI/UX", "Development", "Management", "HR", "Testing", "Marketing"],
-      labels: { style: { colors: "#64748b", fontSize: "12px" } }
-    },
-    yaxis: { labels: { style: { colors: "#64748b", fontSize: "12px" } } }
-  };
-  const empDepartmentSeries = [{ name: "Employees", data: [80, 110, 80, 20, 60, 100] }];
+  const attendanceChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: "donut",
+        height: 200,
+        toolbar: { show: false },
+      },
+      plotOptions: {
+        pie: {
+          startAngle: -90,
+          endAngle: 90,
+          offsetY: 10,
+          donut: {
+            size: "70%",
+          },
+        },
+      },
+      colors: ["#0C4B5E", "#03C95A", "#FFC107", "#E70D0D"],
+      labels: ["Late", "Present", "Permission", "Absent"],
+      legend: { show: false },
+      dataLabels: { enabled: false },
+    }),
+    []
+  );
 
-  // Chart: Sales Overview (Income vs Expenses)
-  const salesIncomeOptions: any = {
-    chart: { type: "bar", height: 280, stacked: true, toolbar: { show: false } },
-    colors: ["#0d6efd", "#cbd5e1"],
-    plotOptions: {
-      bar: { columnWidth: "55%", borderRadius: 4 }
-    },
-    dataLabels: { enabled: false },
-    stroke: { show: true, width: 2, colors: ["transparent"] },
-    grid: { borderColor: "rgba(100, 116, 139, 0.15)", strokeDashArray: 4 },
-    xaxis: {
-      categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-      labels: { style: { colors: "#64748b", fontSize: "11px" } }
-    },
-    yaxis: { labels: { style: { colors: "#64748b", fontSize: "11px" } } },
-    legend: { position: "top", horizontalAlign: "right" }
-  };
-  const salesIncomeSeries = [
-    { name: "Income", data: [40, 30, 45, 80, 85, 90, 80, 80, 80, 85, 20, 80] },
-    { name: "Expenses", data: [60, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20] }
-  ];
+  const attendanceChartSeries = useMemo(() => [40, 20, 30, 10], []);
 
-  // Chart: Attendance Overview Donut
-  const attendanceDonutOptions: any = {
-    chart: { type: "donut", height: 210 },
-    labels: ["Present", "Late", "Permission", "Absent"],
-    colors: ["#16a34a", "#64748b", "#f59e0b", "#e11d48"],
-    dataLabels: { enabled: false },
-    legend: { show: false },
-    plotOptions: {
-      pie: {
-        donut: {
-          size: "72%",
-          labels: {
-            show: true,
-            total: {
-              show: true,
-              label: "Attendance",
-              fontSize: "12px",
-              color: "#64748b",
-              formatter: () => "120/154"
-            }
-          }
-        }
-      }
-    }
-  };
-  const attendanceDonutSeries = [59, 21, 2, 15];
+  const projectChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: "donut",
+        height: 200,
+        toolbar: { show: false },
+      },
+      plotOptions: {
+        pie: {
+          startAngle: -90,
+          endAngle: 90,
+          offsetY: 10,
+          donut: {
+            size: "75%",
+          },
+        },
+      },
+      colors: ["#FFC107", "#1B84FF", "#44c4fa", "#0D7858"],
+      labels: ["Ongoing", "Onhold", "Completed", "Overdue"],
+      legend: { show: false },
+      dataLabels: { enabled: false },
+    }),
+    []
+  );
 
-  // Chart: Tasks Statistics Radial
-  const taskStatsOptions: any = {
-    chart: { type: "radialBar", height: 230 },
-    plotOptions: {
-      radialBar: {
-        hollow: { size: "65%" },
-        track: { background: "rgba(100, 116, 139, 0.1)" },
-        dataLabels: {
-          name: { show: true, fontSize: "12px", color: "#64748b", offsetY: -10 },
-          value: { show: true, fontSize: "22px", fontWeight: "bold", offsetY: 4, formatter: () => "124/165" }
-        }
-      }
-    },
-    colors: ["#0d6efd"],
-    labels: ["Tasks Done"]
-  };
-  const taskStatsSeries = [75];
-
-  const toggleTodo = (id: number) => {
-    setTodos((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
-  };
+  const projectChartSeries = useMemo(() => [20, 40, 20, 10], []);
 
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* Page Header */}
-      <SmartHRHeader title="Admin Dashboard" dateValue="2026" />
+    <>
+      {/*  Breadcrumb  */}
+				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">Admin Dashboard</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">Admin Dashboard</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
+						<div className="me-2 mb-2">
+							<div className="dropdown">
+								<a href="#" onClick={(e) => e.preventDefault()}
+									className="dropdown-toggle btn btn-white d-inline-flex align-items-center"
+									data-bs-toggle="dropdown">
+									<i className="ti ti-file-export me-1"></i>Export
+								</a>
+								<ul className="dropdown-menu  dropdown-menu-end p-3">
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1"><i
+												className="ti ti-file-type-pdf me-1"></i>Export as PDF</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1"><i
+												className="ti ti-file-type-xls me-1"></i>Export as Excel </a>
+									</li>
+								</ul>
+							</div>
+						</div>
+						<div className="mb-2">
+							<div className="input-icon w-100 position-relative">
+								<span className="input-icon-addon">
+									<i className="ti ti-calendar text-gray-9"></i>
+								</span>
+								<input type="text" className="form-control yearpicker" value="2025" />
+							</div>
+						</div>
+						<div className="ms-2 mb-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-      {/* Welcome Banner Card */}
-      <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="size-14 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl font-bold overflow-hidden">
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt={userName} className="size-full object-cover" />
-            ) : (
-              userName.charAt(0)
-            )}
-          </div>
-          <div>
-            <h3 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
-              Welcome Back, {userName}
-              <span className="text-xs font-normal text-muted-foreground px-2 py-0.5 rounded-full bg-muted border border-border/60">
-                Workspace Admin
-              </span>
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              You have <span className="text-primary font-semibold underline">21 Pending Approvals</span> & <span className="text-primary font-semibold underline">14 Leave Requests</span> requiring review today.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link to="/hr/calendar">
-            <Button variant="outline" size="sm">
-              <i className="ti ti-calendar-cog mr-1.5 text-sm" />
-              View Schedule
-            </Button>
-          </Link>
-          <Link to="/hr/leave/applications">
-            <Button variant="primary" size="sm">
-              <i className="ti ti-square-rounded-plus mr-1.5 text-sm" />
-              Leave Requests
-            </Button>
-          </Link>
-        </div>
-      </div>
+				{/*  Welcome Wrap  */}
+				<div className="card border-0">
+					<div className="card-body d-flex align-items-center justify-content-between flex-wrap pb-1">
+						<div className="d-flex align-items-center mb-3">
+							<span className="avatar avatar-xl flex-shrink-0">
+								<img src="/assets/img/profiles/avatar-31.jpg" className="rounded-circle" alt="img" />
+							</span>
+							<div className="ms-3">
+								<h3 className="mb-2">Welcome Back, Adrian <a href="#" onClick={(e) => e.preventDefault()} className="edit-icon"><i
+											className="ti ti-edit fs-14"></i></a></h3>
+								<p>You have <span className="text-primary text-decoration-underline">21</span> Pending
+									Approvals & <span className="text-primary text-decoration-underline">14</span> Leave
+									Requests</p>
+							</div>
+						</div>
+						<div className="d-flex align-items-center flex-wrap mb-1">
+							<a href="#" className="btn btn-white me-2 mb-2" data-bs-toggle="modal"
+								data-bs-target="#add_project"><i className="ti ti-calendar-cog me-1"></i>Add Schedule</a>
+							<a href="#" className="btn btn-primary mb-2" data-bs-toggle="modal"
+								data-bs-target="#add_leaves"><i className="ti ti-square-rounded-plus me-1"></i>Add
+								Requests</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Welcome Wrap  */}
 
-      {/* 8 Primary KPI Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-3">
-            <i className="ti ti-calendar-share text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Attendance Overview</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">120/154</div>
-          <Link to="/hr/attendance/records" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View Details <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+				<div className="row">
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center mb-3">
-            <i className="ti ti-browser text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Total Projects</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">90/125</div>
-          <Link to="/projects" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+					{/*  Widget Info  */}
+					<div className="col-xxl-8 d-flex">
+						<div className="row flex-fill">
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-primary mb-2">
+											<i className="ti ti-calendar-share fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Attendance Overview</h6>
+										<h3 className="mb-3">120/154</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/attendance-employee.html" className="link-default">View Details</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-secondary mb-2">
+											<i className="ti ti-browser fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Project's</h6>
+										<h3 className="mb-3">90/125</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/projects.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-info mb-2">
+											<i className="ti ti-users-group fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Clients</h6>
+										<h3 className="mb-3">69/86</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/clients.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-pink mb-2">
+											<i className="ti ti-checklist fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Total No of Tasks</h6>
+										<h3 className="mb-3">96/100</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/tasks.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-purple mb-2">
+											<i className="ti ti-moneybag fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Earnings</h6>
+										<h3 className="mb-3">$21,445</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/expenses.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-danger mb-2">
+											<i className="ti ti-browser fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Profit This Week</h6>
+										<h3 className="mb-3">$5,544</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/purchase-transaction.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-success mb-2">
+											<i className="ti ti-users-group fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">Job Applicants</h6>
+										<h3 className="mb-3">98</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/job-list.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+							<div className="col-md-3 col-sm-6 d-flex">
+								<div className="card flex-fill">
+									<div className="card-body">
+										<span className="avatar rounded-circle bg-dark mb-2">
+											<i className="ti ti-user-star fs-16"></i>
+										</span>
+										<h6 className="fs-13 fw-medium text-default mb-1">New Hire</h6>
+										<h3 className="mb-3">45/48</h3>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/candidates.html" className="link-default">View All</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Widget Info  */}
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-sky-500/10 text-sky-600 flex items-center justify-center mb-3">
-            <i className="ti ti-users-group text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Total Clients</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">69/86</div>
-          <Link to="/clients" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+					{/*  Employees By Department  */}
+					<div className="col-xxl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Employees By Department</h5>
+								<div className="dropdown mb-2">
+									<a href="#" onClick={(e) => e.preventDefault()}
+										className="btn btn-white border btn-md d-inline-flex align-items-center"
+										data-bs-toggle="dropdown">
+										<i className="ti ti-calendar me-1"></i>This Week
+									</a>
+									<ul className="dropdown-menu  dropdown-menu-end p-3">
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Month</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Week</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Last Week</a>
+										</li>
+									</ul>
+								</div>
+							</div>
+							<div className="card-body">
+								<div id="emp-department"></div>
+								<p className="fs-13"><i className="ti ti-circle-filled me-2 fs-8 text-primary"></i>No of
+									Employees increased by <span className="text-success fw-bold">+20%</span> from last Week
+								</p>
+							</div>
+						</div>
+					</div>
+					{/*  /Employees By Department  */}
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center mb-3">
-            <i className="ti ti-checklist text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Total Tasks</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">96/100</div>
-          <Link to="/tasks" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+				</div>
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center mb-3">
-            <i className="ti ti-moneybag text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Earnings</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">{currencySymbol}21,445</div>
-          <Link to="/invoices" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+				<div className="row">
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-3">
-            <i className="ti ti-trending-up text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Profit This Week</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">{currencySymbol}5,544</div>
-          <Link to="/profit-loss" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+					{/*  Total Employee  */}
+					<div className="col-xxl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Employee Status</h5>
+								<div className="dropdown mb-2">
+									<a href="#" onClick={(e) => e.preventDefault()}
+										className="btn btn-white border btn-md d-inline-flex align-items-center"
+										data-bs-toggle="dropdown">
+										<i className="ti ti-calendar me-1 fs-14"></i>This Week
+									</a>
+									<ul className="dropdown-menu  dropdown-menu-end p-3">
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Month</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Week</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+										</li>
+									</ul>
+								</div>
+							</div>
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between mb-1">
+									<p className="fs-13 mb-3">Total Employee</p>
+									<h3 className="mb-3">154</h3>
+								</div>
+								<div className="progress-stacked emp-stack mb-3">
+									<div className="progress" role="progressbar" aria-label="Segment one" aria-valuenow="15"
+										aria-valuemin="0" aria-valuemax="100" style={{ width: "40%" }}>
+										<div className="progress-bar bg-warning"></div>
+									</div>
+									<div className="progress" role="progressbar" aria-label="Segment two" aria-valuenow="30"
+										aria-valuemin="0" aria-valuemax="100" style={{ width: "20%" }}>
+										<div className="progress-bar bg-secondary"></div>
+									</div>
+									<div className="progress" role="progressbar" aria-label="Segment three"
+										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "10%" }}>
+										<div className="progress-bar bg-danger"></div>
+									</div>
+									<div className="progress" role="progressbar" aria-label="Segment four"
+										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "30%" }}>
+										<div className="progress-bar bg-pink"></div>
+									</div>
+								</div>
+								<div className="border mb-3">
+									<div className="row gx-0">
+										<div className="col-6">
+											<div className="p-2 flex-fill border-end border-bottom">
+												<p className="fs-13 mb-2"><i
+														className="ti ti-square-rounded-filled text-primary fs-12 me-2"></i>Fulltime
+													<span className="text-gray-9">(48%)</span>
+												</p>
+												<h2 className="fs-40 fw-bold">112</h2>
+											</div>
+										</div>
+										<div className="col-6">
+											<div className="p-2 flex-fill border-bottom text-end">
+												<p className="fs-13 mb-2"><i
+														className="ti ti-square-rounded0filled me-2 text-secondary fs-12"></i>Contract
+													<span className="text-gray-9">(20%)</span>
+												</p>
+												<h2 className="fs-40 fw-bold">112</h2>
+											</div>
+										</div>
+										<div className="col-6">
+											<div className="p-2 flex-fill border-end">
+												<p className="fs-13 mb-2"><i
+														className="ti ti-square-rounded-filled me-2 text-danger fs-12"></i>Probation
+													<span className="text-gray-9">(22%)</span>
+												</p>
+												<h2 className="fs-40 fw-bold">12</h2>
+											</div>
+										</div>
+										<div className="col-6">
+											<div className="p-2 flex-fill text-end">
+												<p className="fs-13 mb-2"><i
+														className="ti ti-square-rounded-filled text-pink me-2 fs-12"></i>WFH
+													<span className="text-gray-9">(20%)</span>
+												</p>
+												<h2 className="fs-40 fw-bold">04</h2>
+											</div>
+										</div>
+									</div>
+								</div>
+								<h6 className="mb-2">Top Performer</h6>
+								<div
+									className="p-2 d-flex align-items-center justify-content-between border border-primary bg-primary-100 br-5 mb-4 perfomer-card">
+									<div className="d-flex align-items-center overflow-hidden">
+										<span className="me-2">
+											<i className="ti ti-award-filled text-primary fs-24"></i>
+										</span>
+										<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html" className="avatar avatar-md me-2">
+											<img src="/assets/img/profiles/avatar-24.jpg"
+												className="rounded-circle border border-white" alt="img" />
+										</a>
+										<div>
+											<h6 className="text-truncate mb-1 fs-14 fw-medium"><a
+													href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Daniel Esbella</a></h6>
+											<p className="fs-13">IOS Developer</p>
+										</div>
+									</div>
+									<div className="text-end">
+										<p className="fs-13 mb-1">Performance</p>
+										<h5 className="text-primary">99%</h5>
+									</div>
+								</div>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-light btn-md w-100">View All Employees</a>
+							</div>
+						</div>
+					</div>
+					{/*  /Total Employee  */}
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center mb-3">
-            <i className="ti ti-users-group text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">Job Applicants</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">98</div>
-          <Link to="/hr/recruitment/job-postings" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
+					{/*  Attendance Overview  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Attendance Overview</h5>
+								<div className="dropdown mb-2">
+									<a href="#" onClick={(e) => e.preventDefault()}
+										className="border btn btn-white btn-md d-inline-flex align-items-center"
+										data-bs-toggle="dropdown">
+										<i className="ti ti-calendar me-1 fs-14"></i>Today
+									</a>
+									<ul className="dropdown-menu  dropdown-menu-end p-3">
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Month</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This Week</a>
+										</li>
+										<li>
+											<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+										</li>
+									</ul>
+								</div>
+							</div>
+							<div className="card-body">
+								<div className="chartjs-wrapper-demo position-relative mb-4">
+									<canvas id="attendance" height="200"></canvas>
+									<div className="position-absolute text-center attendance-canvas">
+										<p className="fs-13 mb-1">Total Attendance</p>
+										<h3>120</h3>
+									</div>
+								</div>
+								<h6 className="mb-3">Status</h6>
+								<div className="d-flex align-items-center justify-content-between">
+									<p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1"></i>Present
+									</p>
+									<p className="f-13 fw-medium text-gray-9 mb-2">59%</p>
+								</div>
+								<div className="d-flex align-items-center justify-content-between">
+									<p className="f-13 mb-2"><i className="ti ti-circle-filled text-secondary me-1"></i>Late</p>
+									<p className="f-13 fw-medium text-gray-9 mb-2">21%</p>
+								</div>
+								<div className="d-flex align-items-center justify-content-between">
+									<p className="f-13 mb-2"><i className="ti ti-circle-filled text-warning me-1"></i>Permission
+									</p>
+									<p className="f-13 fw-medium text-gray-9 mb-2">2%</p>
+								</div>
+								<div className="d-flex align-items-center justify-content-between mb-2">
+									<p className="f-13 mb-2"><i className="ti ti-circle-filled text-danger me-1"></i>Absent</p>
+									<p className="f-13 fw-medium text-gray-9 mb-2">15%</p>
+								</div>
+								<div
+									className="bg-light br-5 box-shadow-xs p-2 pb-0 d-flex align-items-center justify-content-between flex-wrap">
+									<div className="d-flex align-items-center">
+										<p className="mb-2 me-2">Total Absenties</p>
+										<div className="avatar-list-stacked avatar-group-sm mb-2">
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/profiles/avatar-27.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/profiles/avatar-30.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img src="/assets/img/profiles/avatar-14.jpg" alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img src="/assets/img/profiles/avatar-29.jpg" alt="img" />
+											</span>
+											<a className="avatar bg-primary avatar-rounded text-fixed-white fs-10"
+												href="#" onClick={(e) => e.preventDefault()}>
+												+1
+											</a>
+										</div>
+									</div>
+									<a href="https://smarthr.dreamstechnologies.com/hrm/html/leaves.html" className="fs-13 link-primary text-decoration-underline mb-2">View
+										Details</a>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Attendance Overview  */}
 
-        <div className="p-4 rounded-xl border border-border/80 bg-card shadow-xs hover:border-primary/40 transition-all">
-          <div className="size-9 rounded-lg bg-slate-500/10 text-slate-700 dark:text-slate-300 flex items-center justify-center mb-3">
-            <i className="ti ti-user-star text-lg" />
-          </div>
-          <span className="text-xs font-medium text-muted-foreground">New Hires</span>
-          <div className="text-2xl font-bold tracking-tight text-foreground mt-1">45/48</div>
-          <Link to="/hr/recruitment/candidates" className="text-xs text-primary font-medium hover:underline inline-flex items-center mt-2">
-            View All <i className="ti ti-arrow-right ml-1 text-[10px]" />
-          </Link>
-        </div>
-      </div>
+					{/*  Clock-In/Out  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div
+								className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
+								<h5 className="mb-0">Clock-In/Out</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="dropdown-toggle btn btn-white btn-md d-inline-flex align-items-center border-0 fs-13 me-2"
+											data-bs-toggle="dropdown">
+											All Departments
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()}
+													className="dropdown-item rounded-1">Finance</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()}
+													className="dropdown-item rounded-1">Development</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()}
+													className="dropdown-item rounded-1">Marketing</a>
+											</li>
+										</ul>
+									</div>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>Today
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</div>
+							<div className="card-body">
+								<div>
+									<div
+										className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
+												<img src="/assets/img/profiles/avatar-24.jpg"
+													className="rounded-circle border border-2" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h6 className="fs-14 fw-medium text-truncate">Daniel Esbella</h6>
+												<p className="fs-13">UI/UX Designer</p>
+											</div>
+										</div>
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="link-default me-2"><i
+													className="ti ti-clock-share"></i></a>
+											<span
+												className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i
+													className="ti ti-circle-filled fs-5 me-1"></i>09:15</span>
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-3 p-2 border br-5">
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
+												<img src="/assets/img/profiles/avatar-23.jpg"
+													className="rounded-circle border border-2" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h6 className="fs-14 fw-medium">Doglas Martini</h6>
+												<p className="fs-13">Project Manager</p>
+											</div>
+										</div>
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="link-default me-2"><i
+													className="ti ti-clock-share"></i></a>
+											<span
+												className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i
+													className="ti ti-circle-filled fs-5 me-1"></i>09:36</span>
+										</div>
+									</div>
+									<div className="mb-3 p-2 border br-5">
+										<div className="d-flex align-items-center justify-content-between">
+											<div className="d-flex align-items-center">
+												<a href="#" onClick={(e) => e.preventDefault()} className="avatar flex-shrink-0">
+													<img src="/assets/img/profiles/avatar-27.jpg"
+														className="rounded-circle border border-2" alt="img" />
+												</a>
+												<div className="ms-2">
+													<h6 className="fs-14 fw-medium text-truncate">Brian Villalobos</h6>
+													<p className="fs-13">PHP Developer</p>
+												</div>
+											</div>
+											<div className="d-flex align-items-center">
+												<a href="#" onClick={(e) => e.preventDefault()} className="link-default me-2"><i
+														className="ti ti-clock-share"></i></a>
+												<span
+													className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i
+														className="ti ti-circle-filled fs-5 me-1"></i>09:15</span>
+											</div>
+										</div>
+										<div
+											className="d-flex align-items-center justify-content-between flex-wrap mt-2 border br-5 p-2 pb-0">
+											<div>
+												<p className="mb-1 d-inline-flex align-items-center"><i
+														className="ti ti-circle-filled text-success fs-5 me-1"></i>Clock In
+												</p>
+												<h6 className="fs-13 fw-normal mb-2">10:30 AM</h6>
+											</div>
+											<div>
+												<p className="mb-1 d-inline-flex align-items-center"><i
+														className="ti ti-circle-filled text-danger fs-5 me-1"></i>Clock Out
+												</p>
+												<h6 className="fs-13 fw-normal mb-2">09:45 AM</h6>
+											</div>
+											<div>
+												<p className="mb-1 d-inline-flex align-items-center"><i
+														className="ti ti-circle-filled text-warning fs-5 me-1"></i>Production
+												</p>
+												<h6 className="fs-13 fw-normal mb-2">09:21 Hrs</h6>
+											</div>
+										</div>
+									</div>
+								</div>
+								<h6 className="mb-2">Late</h6>
+								<div
+									className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
+									<div className="d-flex align-items-center">
+										<span className="avatar flex-shrink-0">
+											<img src="/assets/img/profiles/avatar-29.jpg"
+												className="rounded-circle border border-2" alt="img" />
+										</span>
+										<div className="ms-2">
+											<h6 className="fs-14 fw-medium text-truncate">Anthony Lewis <span
+													className="fs-10 fw-medium d-inline-flex align-items-center badge badge-danger"><i
+														className="ti ti-clock-hour-11 me-1"></i>30 Min</span></h6>
+											<p className="fs-13">Marketing Head</p>
+										</div>
+									</div>
+									<div className="d-flex align-items-center">
+										<a href="#" onClick={(e) => e.preventDefault()} className="link-default me-2"><i
+												className="ti ti-clock-share"></i></a>
+										<span
+											className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i
+												className="ti ti-circle-filled fs-5 me-1"></i>08:35</span>
+									</div>
+								</div>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/attendance-report.html" className="btn btn-light btn-md w-100">View All
+									Attendance</a>
+							</div>
+						</div>
+					</div>
+					{/*  /Clock-In/Out  */}
 
-      {/* Row 2: Department Distribution + Employee Status */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Employees by Department Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-semibold text-foreground text-sm">Employees By Department</h4>
-              <p className="text-xs text-muted-foreground">Headcount distribution across active functional units</p>
-            </div>
-            <span className="text-xs text-emerald-600 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-              +20% vs Last Month
-            </span>
-          </div>
-          <div className="min-h-[220px]">
-            <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Department Chart...</div>}>
-              <Chart options={empDepartmentOptions} series={empDepartmentSeries} type="bar" height={220} />
-            </Suspense>
-          </div>
-          <div className="text-xs text-muted-foreground flex items-center gap-2 pt-2 border-t border-border/60">
-            <i className="ti ti-info-circle text-primary text-sm" />
-            Engineering and Marketing units currently represent 58% of aggregate payroll headcount.
-          </div>
-        </div>
+				</div>
 
-        {/* Employee Status & Top Performer */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-foreground text-sm">Employee Status</h4>
-              <Badge variant="soft">Total 154</Badge>
-            </div>
+				<div className="row">
 
-            {/* Stacked Progress Bar */}
-            <div className="h-2.5 w-full bg-muted rounded-full overflow-hidden flex mb-4">
-              <div style={{ width: "48%" }} className="bg-primary" title="Fulltime: 48%" />
-              <div style={{ width: "20%" }} className="bg-sky-500" title="Contract: 20%" />
-              <div style={{ width: "22%" }} className="bg-amber-500" title="Probation: 22%" />
-              <div style={{ width: "10%" }} className="bg-rose-500" title="WFH: 10%" />
-            </div>
+					{/*  Jobs Applicants  */}
+					<div className="col-xxl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Jobs Applicants</h5>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/job-list.html" className="btn btn-light btn-md mb-2">View All</a>
+							</div>
+							<div className="card-body">
+								<ul className="nav nav-tabs tab-style-1 nav-justified d-sm-flex d-block p-0 mb-4"
+									role="tablist">
+									<li className="nav-item" role="presentation">
+										<a className="nav-link fw-medium" data-bs-toggle="tab" data-bs-target="#openings"
+											aria-current="page" href="#openings" aria-selected="true"
+											role="tab">Openings</a>
+									</li>
+									<li className="nav-item" role="presentation">
+										<a className="nav-link fw-medium active" data-bs-toggle="tab"
+											data-bs-target="#applicants" href="#applicants" aria-selected="false"
+											tabindex="-1" role="tab">Applicants</a>
+									</li>
+								</ul>
+								<div className="tab-content">
+									<div className="tab-pane fade" id="openings">
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0 bg-gray-100">
+													<img src="/assets/img/icons/apple.svg"
+														className="img-fluid rounded-circle w-auto h-auto" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#" onClick={(e) => e.preventDefault()}>Senior IOS Developer</a></p>
+													<span className="fs-12">No of Openings : 25 </span>
+												</div>
+											</div>
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="btn btn-light btn-sm p-0 btn-icon d-flex align-items-center justify-content-center"><i
+													className="ti ti-edit"></i></a>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0 bg-gray-100">
+													<img src="/assets/img/icons/php.svg" className="img-fluid w-auto h-auto"
+														alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#" onClick={(e) => e.preventDefault()}>Junior PHP Developer</a></p>
+													<span className="fs-12">No of Openings : 20 </span>
+												</div>
+											</div>
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="btn btn-light btn-sm p-0 btn-icon d-flex align-items-center justify-content-center"><i
+													className="ti ti-edit"></i></a>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0 bg-gray-100">
+													<img src="/assets/img/icons/react.svg"
+														className="img-fluid w-auto h-auto" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#" onClick={(e) => e.preventDefault()}>Junior React Developer </a></p>
+													<span className="fs-12">No of Openings : 30 </span>
+												</div>
+											</div>
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="btn btn-light btn-sm p-0 btn-icon d-flex align-items-center justify-content-center"><i
+													className="ti ti-edit"></i></a>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-0">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0 bg-gray-100">
+													<img src="/assets/img/icons/laravel-icon.svg"
+														className="img-fluid w-auto h-auto" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#" onClick={(e) => e.preventDefault()}>Senior Laravel Developer</a></p>
+													<span className="fs-12">No of Openings : 40 </span>
+												</div>
+											</div>
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="btn btn-light btn-sm p-0 btn-icon d-flex align-items-center justify-content-center"><i
+													className="ti ti-edit"></i></a>
+										</div>
+									</div>
+									<div className="tab-pane fade show active" id="applicants">
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0">
+													<img src="/assets/img/users/user-09.jpg"
+														className="img-fluid rounded-circle" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a href="#">Brian
+															Villalobos</a></p>
+													<span className="fs-13 d-inline-flex align-items-center">Exp : 5+
+														Years<i
+															className="ti ti-circle-filled fs-4 mx-2 text-primary"></i>USA</span>
+												</div>
+											</div>
+											<span className="badge badge-secondary badge-xs">UI/UX Designer</span>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0">
+													<img src="/assets/img/users/user-32.jpg"
+														className="img-fluid rounded-circle" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#">Anthony Lewis</a></p>
+													<span className="fs-13 d-inline-flex align-items-center">Exp : 4+
+														Years<i
+															className="ti ti-circle-filled fs-4 mx-2 text-primary"></i>USA</span>
+												</div>
+											</div>
+											<span className="badge badge-info badge-xs">Python Developer</span>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-4">
+											<div className="d-flex align-items-center">
+												<a href="#" className="avatar overflow-hidden flex-shrink-0">
+													<img src="/assets/img/users/user-32.jpg"
+														className="img-fluid rounded-circle" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#">Stephan Peralt</a></p>
+													<span className="fs-13 d-inline-flex align-items-center">Exp : 6+
+														Years<i
+															className="ti ti-circle-filled fs-4 mx-2 text-primary"></i>USA</span>
+												</div>
+											</div>
+											<span className="badge badge-pink badge-xs">Android Developer</span>
+										</div>
+										<div className="d-flex align-items-center justify-content-between mb-0">
+											<div className="d-flex align-items-center">
+												<a href="#" onClick={(e) => e.preventDefault()}
+													className="avatar overflow-hidden flex-shrink-0">
+													<img src="/assets/img/users/user-34.jpg"
+														className="img-fluid rounded-circle" alt="img" />
+												</a>
+												<div className="ms-2 overflow-hidden">
+													<p className="text-dark fw-medium text-truncate mb-0"><a
+															href="#" onClick={(e) => e.preventDefault()}>Doglas Martini</a></p>
+													<span className="fs-13 d-inline-flex align-items-center">Exp : 2+
+														Years<i
+															className="ti ti-circle-filled fs-4 mx-2 text-primary"></i>USA</span>
+												</div>
+											</div>
+											<span className="badge badge-purple badge-xs">React Developer</span>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Jobs Applicants  */}
 
-            <div className="grid grid-cols-2 gap-2 text-xs border border-border/70 rounded-lg p-3 bg-muted/20 mb-4">
-              <div className="border-r border-border/60 pr-2">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-primary" /> Fulltime (48%)
-                </span>
-                <span className="text-base font-bold text-foreground">112</span>
-              </div>
-              <div className="pl-2">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-sky-500" /> Contract (20%)
-                </span>
-                <span className="text-base font-bold text-foreground">30</span>
-              </div>
-              <div className="border-r border-t border-border/60 pr-2 pt-2">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-amber-500" /> Probation (22%)
-                </span>
-                <span className="text-base font-bold text-foreground">12</span>
-              </div>
-              <div className="pl-2 pt-2 border-t border-border/60">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <span className="size-2 rounded-full bg-rose-500" /> Remote (10%)
-                </span>
-                <span className="text-base font-bold text-foreground">04</span>
-              </div>
-            </div>
+					{/*  Employees  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Employees</h5>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-light btn-md mb-2">View All</a>
+							</div>
+							<div className="card-body p-0 employee-table">
+								<div className="table-responsive">
+									<table className="table table-nowrap mb-0">
+										<tbody>
+											<tr>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+															<img src="/assets/img/users/user-32.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="#" onClick={(e) => e.preventDefault()}>Anthony
+																	Lewis</a></h6>
+															<span className="fs-12">Finance</span>
+														</div>
+													</div>
+												</td>
+												<td className="text-end">
+													<span className="badge badge-secondary-transparent badge-xs">
+														Finance
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="#" className="avatar">
+															<img src="/assets/img/users/user-09.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="#">Brian Villalobos</a></h6>
+															<span className="fs-12">PHP Developer</span>
+														</div>
+													</div>
+												</td>
+												<td className="text-end">
+													<span
+														className="badge badge-danger-transparent badge-xs">Development</span>
+												</td>
+											</tr>
+											<tr>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="#" className="avatar">
+															<img src="/assets/img/users/user-01.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="#">Stephan Peralt</a></h6>
+															<span className="fs-12">Executive</span>
+														</div>
+													</div>
+												</td>
+												<td className="text-end">
+													<span className="badge badge-info-transparent badge-xs">Marketing</span>
+												</td>
+											</tr>
+											<tr>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+															<img src="/assets/img/users/user-34.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="#" onClick={(e) => e.preventDefault()}>Doglas
+																	Martini</a></h6>
+															<span className="fs-12">Project Manager</span>
+														</div>
+													</div>
+												</td>
+												<td className="text-end">
+													<span className="badge badge-purple-transparent badge-xs">Manager</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="border-0">
+													<div className="d-flex align-items-center">
+														<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+															<img src="/assets/img/users/user-37.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="#" onClick={(e) => e.preventDefault()}>Anthony
+																	Lewis</a></h6>
+															<span className="fs-12">UI/UX Designer</span>
+														</div>
+													</div>
+												</td>
+												<td className="border-0 text-end">
+													<span className="badge badge-pink-transparent badge-xs">UI/UX
+														Design</span>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Employees  */}
 
-            {/* Top Performer Card */}
-            <div className="p-3 rounded-lg border border-primary/20 bg-primary/5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="size-9 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold text-sm">
-                  <i className="ti ti-award text-base" />
-                </div>
-                <div>
-                  <h6 className="text-xs font-semibold text-foreground">Daniel Esbella</h6>
-                  <p className="text-[11px] text-muted-foreground">Lead iOS Developer</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <span className="text-[10px] text-muted-foreground block">Rating</span>
-                <span className="text-xs font-bold text-primary">99%</span>
-              </div>
-            </div>
-          </div>
+					{/*  Todo  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Todo</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown mb-2 me-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>Today
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+									<a href="#"
+										className="btn btn-primary btn-icon btn-xs rounded-circle d-flex align-items-center justify-content-center p-0 mb-2"
+										data-bs-toggle="modal" data-bs-target="#add_todo"><i
+											className="ti ti-plus fs-16"></i></a>
+								</div>
+							</div>
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div className="d-flex align-items-center todo-item border bg-white p-2 br-5">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo1" />
+										<label className="form-check-label fw-medium" htmlFor="todo1">Add Holidays</label>
+									</div>
+								</div>
+								<div className="d-flex align-items-center todo-item border p-2 br-5 bg-primary-transparent">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo2" />
+										<label className="form-check-label fw-medium" htmlFor="todo2">Add Meeting to
+											Client</label>
+									</div>
+								</div>
+								<div className="d-flex align-items-center todo-item border p-2 br-5 bg-danger-transparent">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo3" />
+										<label className="form-check-label fw-medium" htmlFor="todo3">Chat with Adrian</label>
+									</div>
+								</div>
+								<div className="d-flex align-items-center todo-item border p-2 br-5 bg-purple-transparent">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo4" />
+										<label className="form-check-label fw-medium" htmlFor="todo4">Management Call</label>
+									</div>
+								</div>
+								<div className="d-flex align-items-center todo-item border p-2 br-5 bg-info-transparent">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo5" />
+										<label className="form-check-label fw-medium" htmlFor="todo5">Add Payroll</label>
+									</div>
+								</div>
+								<div className="d-flex align-items-center todo-item border p-2 br-5 bg-warning-transparent">
+									<i className="ti ti-grid-dots me-2"></i>
+									<div className="form-check">
+										<input className="form-check-input" type="checkbox" id="todo6" />
+										<label className="form-check-label fw-medium" htmlFor="todo6">Add Policy for Increment
+										</label>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Todo  */}
 
-          <Link to="/hr/employees">
-            <Button variant="outline" size="sm" className="w-full mt-2">
-              View All Employees
-            </Button>
-          </Link>
-        </div>
-      </div>
+				</div>
 
-      {/* Row 3: Attendance Donut & Clock-In/Out Widget */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Attendance Donut */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Attendance Overview</h4>
-            <span className="text-xs text-muted-foreground">Today</span>
-          </div>
-          <div className="min-h-[210px] flex items-center justify-center">
-            <Suspense fallback={<div className="h-[210px] flex items-center justify-center text-xs text-muted-foreground">Loading Chart...</div>}>
-              <Chart options={attendanceDonutOptions} series={attendanceDonutSeries} type="donut" height={210} />
-            </Suspense>
-          </div>
-          <div className="space-y-1.5 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-600" /> Present
-              </span>
-              <span className="font-medium text-foreground">59% (91)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-slate-500" /> Late
-              </span>
-              <span className="font-medium text-foreground">21% (32)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-amber-500" /> Permission
-              </span>
-              <span className="font-medium text-foreground">2% (3)</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-rose-600" /> Absent
-              </span>
-              <span className="font-medium text-foreground">15% (23)</span>
-            </div>
-          </div>
-        </div>
+				<div className="row">
 
-        {/* Clock-In/Out Realtime Feed */}
-        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-foreground text-sm">Clock-In / Clock-Out</h4>
-              <Link to="/hr/attendance/records" className="text-xs text-primary hover:underline">
-                View Full Attendance Report
-              </Link>
-            </div>
-            <div className="space-y-2.5">
-              <div className="p-3 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                    DE
-                  </div>
-                  <div>
-                    <h6 className="text-xs font-semibold text-foreground">Daniel Esbella</h6>
-                    <p className="text-[11px] text-muted-foreground">UI/UX Designer</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-emerald-600 font-medium">In: 09:15 AM</span>
-                  <span className="text-muted-foreground">Production: 08:30 Hrs</span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-semibold text-[11px]">On Time</span>
-                </div>
-              </div>
+					{/*  Sales Overview  */}
+					<div className="col-xl-7 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Sales Overview</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="dropdown-toggle dropdown-sm btn btn-white border-0 btn-sm d-inline-flex align-items-center fs-13 me-2"
+											data-bs-toggle="dropdown">
+											All Departments
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">UI/UX
+													Designer</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">HR
+													Manager</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Junior
+													Tester</a>
+											</li>
+										</ul>
+									</div>
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>Today
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</div>
+							<div className="card-body pb-0">
+								<div className="d-flex align-items-center justify-content-between flex-wrap">
+									<div className="d-flex align-items-center mb-1">
+										<p className="fs-13 text-gray-9 me-3 mb-0"><i
+												className="ti ti-square-rounded-filled me-2 text-primary"></i>Income</p>
+										<p className="fs-13 text-gray-9 mb-0"><i
+												className="ti ti-square-rounded-filled me-2 text-gray-2"></i>Expenses</p>
+									</div>
+									<p className="fs-13 mb-1">Last Updated at 11:30PM</p>
+								</div>
+								<div id="sales-income"></div>
+							</div>
+						</div>
+					</div>
+					{/*  /Sales Overview  */}
 
-              <div className="p-3 rounded-lg border border-border/70 bg-muted/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-sky-500/10 text-sky-600 font-bold text-xs flex items-center justify-center">
-                    DM
-                  </div>
-                  <div>
-                    <h6 className="text-xs font-semibold text-foreground">Doglas Martini</h6>
-                    <p className="text-[11px] text-muted-foreground">Project Manager</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-emerald-600 font-medium">In: 09:36 AM</span>
-                  <span className="text-muted-foreground">Production: 08:15 Hrs</span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 font-semibold text-[11px]">On Time</span>
-                </div>
-              </div>
+					{/*  Invoices  */}
+					<div className="col-xl-5 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Invoices</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="dropdown-toggle dropdown-sm btn btn-white btn-sm d-inline-flex align-items-center fs-13 me-2 border-0"
+											data-bs-toggle="dropdown">
+											Invoices
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()}
+													className="dropdown-item rounded-1">Invoices</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Paid</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Unpaid</a>
+											</li>
+										</ul>
+									</div>
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>This Week
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</div>
+							<div className="card-body pt-2">
+								<div className="table-responsive pt-1">
+									<table className="table table-nowrap table-borderless mb-0">
+										<tbody>
+											<tr>
+												<td className="px-0">
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+															<img src="/assets/img/users/user-39.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Redesign Website</a>
+															</h6>
+															<span
+																className="fs-13 d-inline-flex align-items-center">#INVOO2<i
+																	className="ti ti-circle-filled fs-4 mx-1 text-primary"></i>Logistics</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<p className="fs-13 mb-1">Payment</p>
+													<h6 className="fw-medium">$3560</h6>
+												</td>
+												<td className="px-0 text-end">
+													<span
+														className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i
+															className="ti ti-circle-filled fs-5 me-1"></i>Unpaid</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0">
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+															<img src="/assets/img/users/user-40.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Module
+																	Completion</a></h6>
+															<span
+																className="fs-13 d-inline-flex align-items-center">#INVOO5<i
+																	className="ti ti-circle-filled fs-4 mx-1 text-primary"></i>Yip
+																Corp</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<p className="fs-13 mb-1">Payment</p>
+													<h6 className="fw-medium">$4175</h6>
+												</td>
+												<td className="px-0 text-end">
+													<span
+														className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i
+															className="ti ti-circle-filled fs-5 me-1"></i>Unpaid</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0">
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+															<img src="/assets/img/users/user-55.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Change
+																	on Emp Module</a></h6>
+															<span
+																className="fs-13 d-inline-flex align-items-center">#INVOO3<i
+																	className="ti ti-circle-filled fs-4 mx-1 text-primary"></i>Ignis
+																LLP</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<p className="fs-13 mb-1">Payment</p>
+													<h6 className="fw-medium">$6985</h6>
+												</td>
+												<td className="px-0 text-end">
+													<span
+														className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i
+															className="ti ti-circle-filled fs-5 me-1"></i>Unpaid</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0">
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+															<img src="/assets/img/users/user-42.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Changes
+																	on the Board</a></h6>
+															<span
+																className="fs-13 d-inline-flex align-items-center">#INVOO2<i
+																	className="ti ti-circle-filled fs-4 mx-1 text-primary"></i>Ignis
+																LLP</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<p className="fs-13 mb-1">Payment</p>
+													<h6 className="fw-medium">$1457</h6>
+												</td>
+												<td className="px-0 text-end">
+													<span
+														className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i
+															className="ti ti-circle-filled fs-5 me-1"></i>Unpaid</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="px-0">
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html" className="avatar">
+															<img src="/assets/img/users/user-44.jpg"
+																className="img-fluid rounded-circle" alt="img" />
+														</a>
+														<div className="ms-2">
+															<h6 className="fw-medium"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">Hospital Management</a>
+															</h6>
+															<span
+																className="fs-13 d-inline-flex align-items-center">#INVOO6<i
+																	className="ti ti-circle-filled fs-4 mx-1 text-primary"></i>HCL
+																Corp</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<p className="fs-13 mb-1">Payment</p>
+													<h6 className="fw-medium">$6458</h6>
+												</td>
+												<td className="px-0 text-end">
+													<span
+														className="badge badge-success-transparent badge-xs d-inline-flex align-items-center"><i
+															className="ti ti-circle-filled fs-5 me-1"></i>Paid</span>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice.html" className="btn btn-light btn-md w-100 mt-2">View All</a>
+							</div>
+						</div>
+					</div>
+					{/*  /Invoices  */}
 
-              <div className="p-3 rounded-lg border border-rose-500/20 bg-rose-500/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-rose-500/10 text-rose-600 font-bold text-xs flex items-center justify-center">
-                    AL
-                  </div>
-                  <div>
-                    <h6 className="text-xs font-semibold text-foreground">Anthony Lewis</h6>
-                    <p className="text-[11px] text-muted-foreground">Marketing Lead</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="text-rose-600 font-medium">In: 10:15 AM</span>
-                  <span className="text-rose-600 font-semibold px-2 py-0.5 rounded bg-rose-500/10 text-[11px]">Late by 45 Min</span>
-                </div>
-              </div>
-            </div>
-          </div>
+				</div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-border/60 text-xs text-muted-foreground">
-            <span>Biometric gateway synced 3 minutes ago</span>
-            <Link to="/hr/attendance/shifts" className="text-primary hover:underline">
-              Manage Shift Rosters
-            </Link>
-          </div>
-        </div>
-      </div>
+				<div className="row">
 
-      {/* Row 4: Jobs Applicants, Recent Staff Table & Interactive Todo List */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Job Openings / Applicants */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Recruitment Pipeline</h4>
-            <div className="flex rounded-lg border border-border/70 p-0.5 bg-muted/40 text-xs">
-              <button
-                type="button"
-                className={cn("px-2.5 py-1 rounded-md font-medium transition-all", applicantTab === "applicants" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground")}
-                onClick={() => setApplicantTab("applicants")}
-              >
-                Applicants
-              </button>
-              <button
-                type="button"
-                className={cn("px-2.5 py-1 rounded-md font-medium transition-all", applicantTab === "openings" ? "bg-card text-foreground shadow-2xs" : "text-muted-foreground")}
-                onClick={() => setApplicantTab("openings")}
-              >
-                Openings
-              </button>
-            </div>
-          </div>
+					{/*  Projects  */}
+					<div className="col-xxl-8 col-xl-7 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Projects</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>September
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</div>
+							<div className="card-body p-0">
+								<div className="table-responsive">
+									<table className="table table-nowrap mb-0">
+										<thead>
+											<tr>
+												<th>ID</th>
+												<th>Name</th>
+												<th>Team</th>
+												<th>Hours</th>
+												<th>Priority</th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-001</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Office
+															Management App</a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-02.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-03.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-05.jpg" alt="img" />
+														</span>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">15/255 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "40%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-danger d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>High
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-002</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Clinic
+															Management </a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-06.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-07.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-08.jpg" alt="img" />
+														</span>
+														<a className="avatar bg-primary avatar-rounded text-fixed-white fs-10 fw-medium"
+															href="#" onClick={(e) => e.preventDefault()}>
+															+1
+														</a>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">15/255 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "40%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-success d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>Low
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-003</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Educational
+															Platform</a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-06.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-08.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-09.jpg" alt="img" />
+														</span>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">40/255 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-pink d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>Medium
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-004</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Chat & Call
+															Mobile App</a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-11.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-12.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-13.jpg" alt="img" />
+														</span>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">35/155 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-danger d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>High
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-005</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Travel Planning
+															Website</a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-17.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-18.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-19.jpg" alt="img" />
+														</span>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">50/235 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-pink d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>Medium
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html" className="link-default">PRO-006</a></td>
+												<td>
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Service Booking
+															Software</a></h6>
+												</td>
+												<td>
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-06.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-08.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-09.jpg" alt="img" />
+														</span>
+													</div>
+												</td>
+												<td>
+													<p className="mb-1">40/255 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
+													</div>
+												</td>
+												<td>
+													<span
+														className="badge badge-success d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>Low
+													</span>
+												</td>
+											</tr>
+											<tr>
+												<td className="border-0"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html"
+														className="link-default">PRO-008</a></td>
+												<td className="border-0">
+													<h6 className="fw-medium"><a href="https://smarthr.dreamstechnologies.com/hrm/html/project-details.html">Travel Planning
+															Website</a></h6>
+												</td>
+												<td className="border-0">
+													<div className="avatar-list-stacked avatar-group-sm">
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-15.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-16.jpg" alt="img" />
+														</span>
+														<span className="avatar avatar-rounded">
+															<img className="border border-white"
+																src="/assets/img/profiles/avatar-17.jpg" alt="img" />
+														</span>
+														<a className="avatar bg-primary avatar-rounded text-fixed-white fs-10 fw-medium"
+															href="#" onClick={(e) => e.preventDefault()}>
+															+2
+														</a>
+													</div>
+												</td>
+												<td className="border-0">
+													<p className="mb-1">15/255 Hrs</p>
+													<div className="progress progress-xs w-100" role="progressbar"
+														aria-valuenow="45" aria-valuemin="0" aria-valuemax="100">
+														<div className="progress-bar bg-primary" style={{ width: "45%" }}></div>
+													</div>
+												</td>
+												<td className="border-0">
+													<span
+														className="badge badge-pink d-inline-flex align-items-center badge-xs">
+														<i className="ti ti-point-filled me-1"></i>Medium
+													</span>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Projects  */}
 
-          {applicantTab === "applicants" ? (
-            <div className="space-y-3">
-              {[
-                { name: "Brian Villalobos", role: "UI/UX Designer", exp: "5+ Years", loc: "USA", badge: "Reviewing" },
-                { name: "Anthony Lewis", role: "Python Engineer", exp: "4+ Years", loc: "UK", badge: "Interviewed" },
-                { name: "Stephan Peralt", role: "Android Developer", exp: "6+ Years", loc: "Canada", badge: "Shortlisted" },
-                { name: "Doglas Martini", role: "React Developer", exp: "2+ Years", loc: "USA", badge: "Technical Test" },
-              ].map((c) => (
-                <div key={c.name} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-muted/30 transition-colors">
-                  <div>
-                    <h6 className="font-semibold text-foreground">{c.name}</h6>
-                    <span className="text-muted-foreground text-[11px]">{c.role} • {c.exp}</span>
-                  </div>
-                  <Badge variant="soft" className="text-[10px]">{c.badge}</Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {[
-                { title: "Senior iOS Developer", openings: 25, dept: "Mobile Engineering" },
-                { title: "Junior PHP Developer", openings: 20, dept: "Backend" },
-                { title: "Junior React Developer", openings: 30, dept: "Frontend" },
-                { title: "Senior Laravel Architect", openings: 10, dept: "Core API" },
-              ].map((j) => (
-                <div key={j.title} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-muted/30 transition-colors">
-                  <div>
-                    <h6 className="font-semibold text-foreground">{j.title}</h6>
-                    <span className="text-muted-foreground text-[11px]">{j.dept}</span>
-                  </div>
-                  <Badge variant="outline" className="text-[10px]">{j.openings} Openings</Badge>
-                </div>
-              ))}
-            </div>
-          )}
+					{/*  Tasks Statistics  */}
+					<div className="col-xxl-4 col-xl-5 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Tasks Statistics</h5>
+								<div className="d-flex align-items-center">
+									<div className="dropdown mb-2">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md d-inline-flex align-items-center"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar me-1 fs-14"></i>This Week
+										</a>
+										<ul className="dropdown-menu  dropdown-menu-end p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Month</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">This
+													Week</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">Today</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</div>
+							<div className="card-body">
+								<div className="chartjs-wrapper-demo position-relative mb-4">
+									<canvas id="mySemiDonutChart" height="190"></canvas>
+									<div className="position-absolute text-center attendance-canvas">
+										<p className="fs-13 mb-1">Total Tasks</p>
+										<h3>124/165</h3>
+									</div>
+								</div>
+								<div className="d-flex align-items-center flex-wrap">
+									<div className="border-end text-center me-2 pe-2 mb-3">
+										<p className="fs-13 d-inline-flex align-items-center mb-1"><i
+												className="ti ti-circle-filled fs-10 me-1 text-warning"></i>Ongoing</p>
+										<h5>24%</h5>
+									</div>
+									<div className="border-end text-center me-2 pe-2 mb-3">
+										<p className="fs-13 d-inline-flex align-items-center mb-1"><i
+												className="ti ti-circle-filled fs-10 me-1 text-info"></i>On Hold </p>
+										<h5>10%</h5>
+									</div>
+									<div className="border-end text-center me-2 pe-2 mb-3">
+										<p className="fs-13 d-inline-flex align-items-center mb-1"><i
+												className="ti ti-circle-filled fs-10 me-1 text-danger"></i>Overdue</p>
+										<h5>16%</h5>
+									</div>
+									<div className="text-center me-2 pe-2 mb-3">
+										<p className="fs-13 d-inline-flex align-items-center mb-1"><i
+												className="ti ti-circle-filled fs-10 me-1 text-success"></i>Ongoing</p>
+										<h5>40%</h5>
+									</div>
+								</div>
+								<div
+									className="bg-dark br-5 p-3 pb-0 d-flex align-items-center justify-content-between hrs-card">
+									<div className="mb-2">
+										<h4 className="text-success">389/689 hrs</h4>
+										<p className="fs-13 mb-0">Spent on Overall Tasks This Week</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Tasks Statistics  */}
 
-          <Link to="/hr/recruitment/job-postings">
-            <Button variant="outline" size="sm" className="w-full">
-              Manage Job Postings
-            </Button>
-          </Link>
-        </div>
+				</div>
 
-        {/* Employees Table Widget */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Active Workforce</h4>
-            <Link to="/hr/employees" className="text-xs text-primary hover:underline">
-              View All (154)
-            </Link>
-          </div>
+				<div className="row">
 
-          <div className="divide-y divide-border/60">
-            {[
-              { name: "Anthony Lewis", dept: "Finance", role: "Sr. Accountant", badge: "Finance" },
-              { name: "Brian Villalobos", dept: "Development", role: "PHP Developer", badge: "Tech" },
-              { name: "Stephan Peralt", dept: "Marketing", role: "Campaign Executive", badge: "Growth" },
-              { name: "Doglas Martini", dept: "Management", role: "Project Manager", badge: "Lead" },
-              { name: "Sara Connor", dept: "Design", role: "Product Designer", badge: "Creative" },
-            ].map((emp) => (
-              <div key={emp.name} className="py-2.5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="size-7 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center">
-                    {emp.name.split(" ").map((n) => n[0]).join("")}
-                  </div>
-                  <div>
-                    <h6 className="font-semibold text-foreground">{emp.name}</h6>
-                    <span className="text-muted-foreground text-[11px]">{emp.role}</span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/60 text-[10px]">
-                  {emp.dept}
-                </span>
-              </div>
-            ))}
-          </div>
+					{/*  Schedules  */}
+					<div className="col-xxl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Schedules</h5>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/candidates.html" className="btn btn-light btn-md mb-2">View All</a>
+							</div>
+							<div className="card-body">
+								<div className="bg-light p-3 br-5 mb-4">
+									<span className="badge badge-secondary badge-xs mb-1">UI/ UX Designer</span>
+									<h6 className="mb-2 text-truncate">Interview Candidates - UI/UX Designer</h6>
+									<div className="d-flex align-items-center flex-wrap">
+										<p className="fs-13 mb-1 me-2"><i className="ti ti-calendar-event me-2"></i>Thu, 15 Feb
+											2025</p>
+										<p className="fs-13 mb-1"><i className="ti ti-clock-hour-11 me-2"></i>01:00 PM - 02:20
+											PM</p>
+									</div>
+									<div className="d-flex align-items-center justify-content-between border-top mt-2 pt-3">
+										<div className="avatar-list-stacked avatar-group-sm">
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-49.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-13.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-11.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-22.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-58.jpg"
+													alt="img" />
+											</span>
+											<a className="avatar bg-primary avatar-rounded text-fixed-white fs-10 fw-medium"
+												href="#" onClick={(e) => e.preventDefault()}>
+												+3
+											</a>
+										</div>
+										<a href="#" className="btn btn-white">Join Meeting</a>
+									</div>
+								</div>
+								<div className="bg-light p-3 br-5 mb-0">
+									<span className="badge badge-dark badge-xs mb-1">IOS Developer</span>
+									<h6 className="mb-2 text-truncate">Interview Candidates - IOS Developer</h6>
+									<div className="d-flex align-items-center flex-wrap">
+										<p className="fs-13 mb-1 me-2"><i className="ti ti-calendar-event me-2"></i>Thu, 15 Feb
+											2025</p>
+										<p className="fs-13 mb-1"><i className="ti ti-clock-hour-11 me-2"></i>02:00 PM - 04:20
+											PM</p>
+									</div>
+									<div className="d-flex align-items-center justify-content-between border-top mt-2 pt-3">
+										<div className="avatar-list-stacked avatar-group-sm">
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-49.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-13.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-11.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-22.jpg"
+													alt="img" />
+											</span>
+											<span className="avatar avatar-rounded">
+												<img className="border border-white" src="/assets/img/users/user-58.jpg"
+													alt="img" />
+											</span>
+											<a className="avatar bg-primary avatar-rounded text-fixed-white fs-10 fw-medium"
+												href="#" onClick={(e) => e.preventDefault()}>
+												+3
+											</a>
+										</div>
+										<a href="#" className="btn btn-white">Join Meeting</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Schedules  */}
 
-          <Link to="/hr/employees">
-            <Button variant="outline" size="sm" className="w-full">
-              Employee Directory
-            </Button>
-          </Link>
-        </div>
+					{/*  Recent Activities  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Recent Activities</h5>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/activity.html" className="btn btn-light btn-md mb-2">View All</a>
+							</div>
+							<div className="card-body">
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-38.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a
+															href="javscript:void(0);">Matt Morgan</a></h6>
+													<p className="fs-13">05:30 PM</p>
+												</div>
+												<p className="fs-13">Added New Project <span className="text-primary">HRMS
+														Dashboard</span></p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-01.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Jay
+															Ze</a></h6>
+													<p className="fs-13">05:00 PM</p>
+												</div>
+												<p className="fs-13">Commented on Uploaded Document</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-19.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a
+															href="javscript:void(0);">Mary Donald</a></h6>
+													<p className="fs-13">05:30 PM</p>
+												</div>
+												<p className="fs-13">Approved Task Projects</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-11.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a
+															href="javscript:void(0);">George David</a></h6>
+													<p className="fs-13">06:00 PM</p>
+												</div>
+												<p className="fs-13">Requesting Access to Module Tickets</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-20.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a
+															href="javscript:void(0);">Aaron Zeen</a></h6>
+													<p className="fs-13">06:30 PM</p>
+												</div>
+												<p className="fs-13">Downloaded App Reportss</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="recent-item">
+									<div className="d-flex justify-content-between">
+										<div className="d-flex align-items-center w-100">
+											<a href="javscript:void(0);" className="avatar  flex-shrink-0">
+												<img src="/assets/img/users/user-08.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 flex-fill">
+												<div className="d-flex align-items-center justify-content-between">
+													<h6 className="fs-medium text-truncate"><a
+															href="javscript:void(0);">Hendry Daniel</a></h6>
+													<p className="fs-13">05:30 PM</p>
+												</div>
+												<p className="fs-13">Completed New Project <span>HMS</span></p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Recent Activities  */}
 
-        {/* Interactive Todo List */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-semibold text-foreground text-sm">Action Items (Todo)</h4>
-              <Badge variant="warning">{todos.filter((t) => !t.done).length} Pending</Badge>
-            </div>
+					{/*  Birthdays  */}
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+								<h5 className="mb-2">Birthdays</h5>
+								<a href="#" onClick={(e) => e.preventDefault()} className="btn btn-light btn-md mb-2">View All</a>
+							</div>
+							<div className="card-body pb-1">
+								<h6 className="mb-2">Today</h6>
+								<div className="p-2 border border-dashed rounded mb-3 birthday-card active">
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+												<img src="/assets/img/users/user-38.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 overflow-hidden">
+												<h6 className="fs-medium "><a href="#">Andrew Jermia </a></h6>
+												<p className="fs-13">IOS Developer</p>
+											</div>
+										</div>
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="btn btn-sm btn-white flex-shrink-0 border-0"><i
+												className="ti ti-cake me-1"></i>Send</a>
+									</div>
+								</div>
+								<h6 className="mb-2">Tomorrow</h6>
+								<div className="p-2 border border-dashed rounded mb-3 birthday-card">
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+												<img src="/assets/img/users/user-10.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 overflow-hidden">
+												<h6 className="fs-medium"><a href="#" onClick={(e) => e.preventDefault()}>Mary Zeen</a></h6>
+												<p className="fs-13">UI/UX Designer</p>
+											</div>
+										</div>
+										<a href="#" onClick={(e) => e.preventDefault()} className="btn btn-sm btn-white flex-shrink-0"><i
+												className="ti ti-cake me-1"></i>Send</a>
+									</div>
+								</div>
+								<div className="p-2 border border-dashed rounded mb-3 birthday-card">
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<a href="#" onClick={(e) => e.preventDefault()} className="avatar">
+												<img src="/assets/img/users/user-09.jpg" className="rounded-circle"
+													alt="img" />
+											</a>
+											<div className="ms-2 overflow-hidden">
+												<h6 className="fs-medium "><a href="#" onClick={(e) => e.preventDefault()}>Antony Lewis</a>
+												</h6>
+												<p className="fs-13">Android Developer</p>
+											</div>
+										</div>
+										<a href="#" onClick={(e) => e.preventDefault()} className="btn btn-sm btn-white"><i
+												className="ti ti-cake me-1"></i>Send</a>
+									</div>
+								</div>
+								<h6 className="mb-2">25 Jan 2025</h6>
+								<div className="p-2 border border-dashed rounded mb-3 birthday-card">
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<span className="avatar">
+												<img src="/assets/img/users/user-12.jpg" className="rounded-circle"
+													alt="img" />
+											</span>
+											<div className="ms-2 overflow-hidden">
+												<h6 className="fs-medium "><a href="#"> Doglas Martini </a></h6>
+												<p className="fs-13">.Net Developer</p>
+											</div>
+										</div>
+										<a href="#" onClick={(e) => e.preventDefault()} className="btn btn-sm flex-shrink-0 btn-white"><i
+												className="ti ti-cake me-1"></i>Send</a>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  /Birthdays  */}
 
-            <div className="space-y-2">
-              {todos.map((todo) => (
-                <div
-                  key={todo.id}
-                  onClick={() => toggleTodo(todo.id)}
-                  className={cn(
-                    "p-2.5 rounded-lg border text-xs flex items-center justify-between cursor-pointer transition-all",
-                    todo.done
-                      ? "border-border/60 bg-muted/40 text-muted-foreground line-through"
-                      : "border-border/80 bg-card hover:border-primary/40"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={todo.done}
-                      onChange={() => {}}
-                      className="rounded border-border text-primary size-3.5 pointer-events-none"
-                    />
-                    <span>{todo.text}</span>
-                  </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground">
-                    {todo.tag}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
+				</div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={() => {
-              const text = prompt("Enter new action item:");
-              if (text) {
-                setTodos((p) => [...p, { id: Date.now(), text, done: false, tag: "General" }]);
-                toast.success("Todo item added!");
-              }
+			
+
+      {/* Add Schedule Modal */}
+      <Dialog open={scheduleModalOpen} onOpenChange={setScheduleModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Schedule</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              toast.success("Schedule added successfully");
+              setScheduleModalOpen(false);
             }}
+            className="space-y-4 pt-2"
           >
-            <i className="ti ti-plus mr-1 text-sm" /> Add New Task
-          </Button>
-        </div>
-      </div>
-
-      {/* Row 5: Financial Operations (Sales Overview Chart & Recent Invoices) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Sales & Cashflow Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-semibold text-foreground text-sm">Income vs Expenses</h4>
-              <p className="text-xs text-muted-foreground">Monthly cash flow balance and financial commitments</p>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Title</label>
+              <input required type="text" placeholder="e.g. Client Review Meeting" className="form-control" />
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="size-2 rounded-full bg-primary" /> Income
-              </span>
-              <span className="flex items-center gap-1.5 text-muted-foreground">
-                <span className="size-2 rounded-full bg-slate-300 dark:bg-slate-700" /> Expenses
-              </span>
-            </div>
-          </div>
-          <div className="min-h-[280px]">
-            <Suspense fallback={<div className="h-[280px] flex items-center justify-center text-xs text-muted-foreground">Loading Financial Chart...</div>}>
-              <Chart options={salesIncomeOptions} series={salesIncomeSeries} type="bar" height={280} />
-            </Suspense>
-          </div>
-        </div>
-
-        {/* Invoices List */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Recent Invoices</h4>
-            <Link to="/invoices" className="text-xs text-primary hover:underline">
-              View All
-            </Link>
-          </div>
-
-          <div className="divide-y divide-border/60">
-            {[
-              { id: "INV-002", title: "Redesign Website", client: "Logistics Pro", amount: "$3,560", status: "Unpaid" },
-              { id: "INV-005", title: "Module Completion", client: "Yip Corp", amount: "$4,175", status: "Unpaid" },
-              { id: "INV-003", title: "Change on Emp Module", client: "Ignis LLP", amount: "$6,985", status: "Unpaid" },
-              { id: "INV-006", title: "Hospital Management", client: "HCL Corp", amount: "$6,458", status: "Paid" },
-            ].map((inv) => (
-              <div key={inv.id} className="py-2.5 flex items-center justify-between text-xs">
-                <div>
-                  <h6 className="font-semibold text-foreground">{inv.title}</h6>
-                  <span className="text-muted-foreground text-[11px]">{inv.id} • {inv.client}</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-bold text-foreground block">{inv.amount}</span>
-                  <span className={cn("text-[10px] font-semibold px-1.5 py-0.2 rounded", inv.status === "Paid" ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600")}>
-                    {inv.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <Link to="/invoices">
-            <Button variant="outline" size="sm" className="w-full">
-              Invoice Ledger
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Row 6: Active Projects & Task Hour Telemetry */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Projects Data Table */}
-        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
             <div>
-              <h4 className="font-semibold text-foreground text-sm">Project Deliverables</h4>
-              <p className="text-xs text-muted-foreground">Milestone progression and capacity consumption</p>
+              <label className="text-xs font-semibold text-gray-700 block mb-1">Date & Time</label>
+              <input required type="datetime-local" className="form-control" />
             </div>
-            <Link to="/projects" className="text-xs text-primary hover:underline">
-              View All Projects
-            </Link>
-          </div>
-
-          <div className="overflow-x-auto border border-border/80 rounded-lg">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="p-3">ID</th>
-                  <th className="p-3">Name</th>
-                  <th className="p-3">Logged Hours</th>
-                  <th className="p-3">Priority</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {[
-                  { id: "PRO-001", name: "Office Management App", hours: "15/255 Hrs", pct: 40, priority: "High", pColor: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
-                  { id: "PRO-002", name: "Clinic Management System", hours: "15/255 Hrs", pct: 20, priority: "Low", pColor: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" },
-                  { id: "PRO-003", name: "Educational LMS Platform", hours: "40/255 Hrs", pct: 50, priority: "Medium", pColor: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
-                  { id: "PRO-004", name: "Chat & Call Mobile App", hours: "35/155 Hrs", pct: 50, priority: "High", pColor: "text-rose-600 bg-rose-500/10 border-rose-500/20" },
-                  { id: "PRO-005", name: "Travel Planning Website", hours: "50/235 Hrs", pct: 60, priority: "Medium", pColor: "text-amber-600 bg-amber-500/10 border-amber-500/20" },
-                ].map((p) => (
-                  <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="p-3 font-semibold text-primary">{p.id}</td>
-                    <td className="p-3 font-medium text-foreground">{p.name}</td>
-                    <td className="p-3">
-                      <div className="flex items-center gap-2">
-                        <span className="w-16 text-[11px] text-muted-foreground">{p.hours}</span>
-                        <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
-                          <div style={{ width: `${p.pct}%` }} className="bg-primary h-full" />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-semibold border", p.pColor)}>
-                        {p.priority}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Tasks Statistics Semi-Donut */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-foreground text-sm">Tasks Statistics</h4>
-              <Badge variant="soft">124/165 Done</Badge>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setScheduleModalOpen(false)} className="btn btn-light">
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Save Schedule
+              </button>
             </div>
-            <div className="min-h-[220px] flex items-center justify-center">
-              <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">Loading Task Stats...</div>}>
-                <Chart options={taskStatsOptions} series={taskStatsSeries} type="radialBar" height={220} />
-              </Suspense>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-center text-xs border-t border-border/60 pt-3">
-              <div className="p-2 rounded bg-muted/20">
-                <span className="text-muted-foreground block text-[11px]">Ongoing</span>
-                <span className="font-bold text-amber-600">24%</span>
-              </div>
-              <div className="p-2 rounded bg-muted/20">
-                <span className="text-muted-foreground block text-[11px]">On Hold</span>
-                <span className="font-bold text-sky-600">10%</span>
-              </div>
-              <div className="p-2 rounded bg-muted/20">
-                <span className="text-muted-foreground block text-[11px]">Overdue</span>
-                <span className="font-bold text-rose-600">16%</span>
-              </div>
-              <div className="p-2 rounded bg-muted/20">
-                <span className="text-muted-foreground block text-[11px]">Completed</span>
-                <span className="font-bold text-emerald-600">50%</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-3 rounded-lg bg-slate-900 text-white flex items-center justify-between mt-2">
-            <div>
-              <span className="text-xs font-bold text-emerald-400">389 / 689 Hrs</span>
-              <p className="text-[10px] text-slate-300">Spent on overall tasks this week</p>
-            </div>
-            <i className="ti ti-clock text-xl text-slate-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* Row 7: Interview Schedules, Recent Activities & Birthdays */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Schedules */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Upcoming Schedules</h4>
-            <Link to="/hr/calendar" className="text-xs text-primary hover:underline">
-              Full Calendar
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 space-y-2">
-              <Badge variant="soft" className="text-[10px]">UI/UX Designer</Badge>
-              <h6 className="text-xs font-semibold text-foreground">Interview Candidate - Sarah Jenkins</h6>
-              <div className="text-[11px] text-muted-foreground flex items-center gap-3">
-                <span><i className="ti ti-calendar mr-1" />Today</span>
-                <span><i className="ti ti-clock mr-1" />01:00 PM - 02:00 PM</span>
-              </div>
-              <Button size="xs" variant="primary" className="w-full mt-1">
-                <i className="ti ti-video mr-1" /> Join Virtual Meeting
-              </Button>
-            </div>
-
-            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 space-y-2">
-              <Badge variant="outline" className="text-[10px]">iOS Developer</Badge>
-              <h6 className="text-xs font-semibold text-foreground">Technical Assessment - Alex Miller</h6>
-              <div className="text-[11px] text-muted-foreground flex items-center gap-3">
-                <span><i className="ti ti-calendar mr-1" />Tomorrow</span>
-                <span><i className="ti ti-clock mr-1" />03:30 PM - 04:30 PM</span>
-              </div>
-              <Button size="xs" variant="outline" className="w-full mt-1">
-                <i className="ti ti-video mr-1" /> Join Meeting Room
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activities Feed */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Recent Activities</h4>
-            <Link to="/activity-logs" className="text-xs text-primary hover:underline">
-              Audit Logs
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {[
-              { user: "Matt Morgan", action: "Added new project milestone", target: "HRMS Portal", time: "10 mins ago" },
-              { user: "Jay Ze", action: "Uploaded revised NDA agreement", target: "Contracts", time: "45 mins ago" },
-              { user: "Mary Donald", action: "Approved leave request for", target: "Daniel Esbella", time: "1 hour ago" },
-              { user: "George David", action: "Created procurement order", target: "Hardware PO#104", time: "2 hours ago" },
-            ].map((act, i) => (
-              <div key={i} className="flex items-start gap-2.5 text-xs">
-                <div className="size-6 rounded-full bg-primary/10 text-primary font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                  {act.user.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-foreground">
-                    <span className="font-semibold">{act.user}</span> {act.action} <span className="text-primary font-medium">{act.target}</span>
-                  </p>
-                  <span className="text-[10px] text-muted-foreground">{act.time}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Birthdays Celebrations */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-foreground text-sm">Celebrations & Birthdays</h4>
-            <Badge variant="soft">Team Morale</Badge>
-          </div>
-
-          <div className="space-y-3">
-            <div className="p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-semibold text-amber-600 block">Today! 🎂</span>
-                <h6 className="text-xs font-semibold text-foreground">Andrew Jermia</h6>
-                <span className="text-[11px] text-muted-foreground">iOS Developer</span>
-              </div>
-              <Button size="xs" variant="primary" onClick={() => toast.success("Birthday wishes sent to Andrew!")}>
-                Send Wishes
-              </Button>
-            </div>
-
-            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-medium text-muted-foreground block">Tomorrow</span>
-                <h6 className="text-xs font-semibold text-foreground">Mary Zeen</h6>
-                <span className="text-[11px] text-muted-foreground">UI/UX Designer</span>
-              </div>
-              <Button size="xs" variant="outline" onClick={() => toast.success("Reminder set for Mary's birthday!")}>
-                Remind Me
-              </Button>
-            </div>
-
-            <div className="p-3 rounded-lg border border-border/80 bg-muted/20 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-medium text-muted-foreground block">Jan 25</span>
-                <h6 className="text-xs font-semibold text-foreground">Doglas Martini</h6>
-                <span className="text-[11px] text-muted-foreground">.NET Lead</span>
-              </div>
-              <Button size="xs" variant="ghost" onClick={() => toast.success("Schedule card prepared!")}>
-                Schedule Card
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

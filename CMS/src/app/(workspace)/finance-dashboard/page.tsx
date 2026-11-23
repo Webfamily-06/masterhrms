@@ -5,611 +5,683 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function FinanceDashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-
-  // AI Assistant Chat state
-  const [aiMessage, setAiMessage] = useState("");
-  const [aiMessages, setAiMessages] = useState<Array<{ sender: "ai" | "user"; text: string }>>([
-    { sender: "ai", text: "👋 Hi! I'm your AI HR Finance Assistant. I can help analyze payroll costs, forecast operating budgets, and audit compensation variances." },
-  ]);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const { data: financeData } = useQuery({
-    queryKey: ["finance-dashboard-realtime"],
-    queryFn: async () => {
-      try {
-        const res: any = await api.get("/dashboard/finance");
-        return res?.data || res || {};
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // Chart 1: Payroll Sparkline
-  const payrollSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 50, sparkline: { enabled: true } },
-      series: [{ data: [1.2, 1.5, 1.8, 2.1, 2.3, 2.45] }],
-      colors: ["#10b981"],
-      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
-    }),
-    []
-  );
-
-  // Chart 2: Reimbursement Sparkline
-  const reimbursementSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 50, sparkline: { enabled: true } },
-      series: [{ data: [85, 92, 110, 105, 118, 124.2] }],
-      colors: ["#f43f5e"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-    }),
-    []
-  );
-
-  // Chart 3: Headcount vs Payroll Growth (Dual Column / Line)
-  const headcountChartOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 240, toolbar: { show: false } },
-      plotOptions: { bar: { columnWidth: "40%", borderRadius: 4 } },
-      series: [
-        { name: "Payroll Growth", data: [45, 52, 68, 85] },
-        { name: "Head Count", data: [35, 42, 50, 62] },
-      ],
-      xaxis: {
-        categories: ["1st Quarter", "2nd Quarter", "3rd Quarter", "4th Quarter"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" }, formatter: (v) => `${v}%` } },
-      colors: ["#0d6efd", "#94a3b8"],
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { position: "top", horizontalAlign: "right" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // Chart 4: HR Cost Breakdown Donut
-  const costBreakdownOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "donut", height: 180 },
-      series: [184, 89, 66, 96, 42, 56],
-      labels: ["Salaries", "Benefits", "Bonuses", "Overtime", "Training", "Incentives"],
-      colors: ["#0d6efd", "#4f46e5", "#06b6d4", "#f59e0b", "#ec4899", "#10b981"],
-      stroke: { width: 0 },
-      dataLabels: { enabled: false },
-      legend: { show: false },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: "72%",
-            labels: {
-              show: true,
-              total: { show: true, label: "Total Cost", fontSize: "10px", color: "#64748B", formatter: () => "$533K" },
-            },
-          },
-        },
-      },
-    }),
-    []
-  );
-
-  // Chart 5: Department Budget vs Actual
-  const budgetVsActualOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 230, toolbar: { show: false } },
-      plotOptions: { bar: { columnWidth: "45%", borderRadius: 4 } },
-      series: [
-        { name: "Budget Allocated", data: [650, 420, 310, 280, 240, 190] },
-        { name: "Actual Spent", data: [590, 395, 305, 295, 210, 175] },
-      ],
-      xaxis: {
-        categories: ["Engineering", "Sales", "HR Ops", "Finance", "Marketing", "Support"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" }, formatter: (v) => `$${v}K` } },
-      colors: ["#0d6efd", "#10b981"],
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { position: "top", horizontalAlign: "right" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // Chart 6: Financial Health Area
-  const financialHealthOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 160, toolbar: { show: false } },
-      series: [{ name: "Capital Balance", data: [380, 410, 395, 430, 445, 456.5] }],
-      xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
-      },
-      yaxis: { show: false },
-      colors: ["#0d6efd"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
-      grid: { show: false },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  const handleSendAiMessage = (promptText?: string) => {
-    const textToSend = promptText || aiMessage;
-    if (!textToSend.trim()) return;
-
-    setAiMessages((prev) => [...prev, { sender: "user", text: textToSend }]);
-    setAiMessage("");
-
-    setTimeout(() => {
-      let reply = "Financial budget telemetry analyzed. Overall variance is within 3.8% of planned cap, with HR Operations running well below allowance.";
-      if (textToSend.includes("forecast") || textToSend.includes("budget")) {
-        reply = "Q1-Q2 Budget Forecast: Projected workforce spend is $4.9M, factoring in 18 approved new hires and standard annual compensation increments.";
-      } else if (textToSend.includes("variance") || textToSend.includes("actual")) {
-        reply = "Variance alert: Marketing spent $295K against a $280K budget (+5.3% variance) driven by Q4 campaign media buys.";
-      }
-      setAiMessages((prev) => [...prev, { sender: "ai", text: reply }]);
-    }, 600);
-  };
-
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* ── Page Header ── */}
-      <SmartHRHeader
-        title="Finance Dashboard"
-        dateValue="2026"
-      />
+    <>
+      {/*  Breadcrumb  */}
+				<div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">Finance Dashboard</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="https://smarthr.dreamstechnologies.com/hrm/html/index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">Finance Dashboard</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-3 mb-2">
+						<div className="input-icon position-relative">
+							<span className="input-icon-addon">
+								<i className="ti ti-calendar text-gray-9"></i>
+							</span>
+							<input type="text" className="form-control date-range bookingrange"
+								placeholder="dd/mm/yyyy - dd/mm/yyyy" />
+						</div>
+						<a href="#" className="btn btn-primary d-inline-flex align-items-center"><i
+								className="ti ti-file-export me-1"></i>Export CSV</a>
+						<div className="mt-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-      {/* ── Row 1: Budget Remaining (6 cols), Total Payroll (3 cols), Reimbursement (3 cols) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-        {/* Budget Remaining Card */}
-        <Card className="p-5 lg:col-span-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg">
-                <i className="ph-duotone ph-vault"></i>
-              </div>
-              <span className="text-xs text-muted-foreground">Updated: 15 Jan 2026</span>
-            </div>
-            <div className="mb-4">
-              <p className="text-xs text-muted-foreground">Budget Remaining</p>
-              <div className="flex items-center gap-2">
-                <h3 className="text-3xl font-bold text-foreground">$2,458,900</h3>
-                <span className="size-6 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xs">
-                  <i className="ph-bold ph-caret-up"></i>
-                </span>
-              </div>
-            </div>
+				{/*  start row  */}
+				<div className="row">
 
-            {/* 3 Progress Bars */}
-            <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border/50">
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">Salary Budget</p>
-                <div className="h-2 rounded-full bg-muted overflow-hidden mb-1">
-                  <div className="h-full bg-primary rounded-full" style={{ width: "100%" }}></div>
-                </div>
-                <p className="text-xs font-bold text-foreground font-mono">$1,229,450</p>
-              </div>
+					<div className="col-xl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<div className="avatar drop-shadow-xs border border-white avatar-rounded z-1">
+										<img src="/assets/img/icons/title-icon-01.svg" alt="icon"
+											className="img-fluid w-auto h-auto rounded-0" />
+										<img src="/assets/img/bg/title-bg-01.png" alt="bg"
+											className="position-absolute top-0 start-0 title-bg z-n1 rounded-0" />
+									</div>
+									<a href="https://smarthr.dreamstechnologies.com/hrm/html/budgets.html"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-arrow-up-right"></i></a>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<div>
+										<p className="mb-1">Budget Remaining</p>
+										<h2 className="d-inline-flex align-items-center">$2,458,900 <span
+												className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-xs bg-success text-white pe-none rounded-circle ms-2"><i
+													className="ti ti-caret-up-filled"></i></span></h2>
+									</div>
+									<div>
+										<span className="border rounded-pill d-inline-flex align-items-center py-1 px-2"><i
+												className="ti ti-calendar-stats me-1"></i>Updated : 15 Jan 2025</span>
+									</div>
+								</div>
+								<div className="row g-2">
+									<div className="col-5">
+										<p className="fs-12 text-dark mb-1">Salary Budget</p>
+										<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
+											aria-valuemin="0" aria-valuemax="100">
+											<div className="progress-bar progress-bar-striped" style={{ width: "100%" }}>
+											</div>
+										</div>
+										<p className="mb-0">$1,229,450</p>
+									</div>
+									<div className="col-3">
+										<p className="fs-12 text-dark mb-1">Benefits</p>
+										<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
+											aria-valuemin="0" aria-valuemax="100">
+											<div className="progress-bar progress-bar-striped bg-secondary"
+												style={{ width: "100%" }}>
+											</div>
+										</div>
+										<p className="mb-0">$491,780</p>
+									</div>
+									<div className="col-4">
+										<p className="fs-12 text-dark mb-1">HR Operations</p>
+										<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
+											aria-valuemin="0" aria-valuemax="100">
+											<div className="progress-bar progress-bar-striped bg-dark" style={{ width: "100%" }}>
+											</div>
+										</div>
+										<p className="mb-0">$737,670</p>
+									</div>
+								</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">Benefits</p>
-                <div className="h-2 rounded-full bg-muted overflow-hidden mb-1">
-                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: "100%" }}></div>
-                </div>
-                <p className="text-xs font-bold text-foreground font-mono">$491,780</p>
-              </div>
+					<div className="col-xl-3 col-md-6 d-flex">
+						<div className="card z-1 flex-fill overflow-hidden">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+										<div className="avatar drop-shadow-xs border border-white avatar-rounded z-1">
+											<img src="/assets/img/icons/title-icon-02.svg" alt="icon"
+												className="img-fluid w-auto h-auto rounded-0" />
+											<img src="/assets/img/bg/title-bg-02.png" alt="bg"
+												className="position-absolute top-0 start-0 title-bg z-n1 rounded-0" />
+										</div>
+										<a href="#"
+											className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+												className="ti ti-refresh"></i></a>
+									</div>
+									<div className="mb-4">
+										<p className="mb-1">Total Payroll</p>
+										<h2 className="mb-0 d-inline-flex align-items-center">$2,458,900 <span
+												className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-xs bg-success text-white pe-none rounded-circle ms-2"><i
+													className="ti ti-caret-up-filled"></i></span></h2>
+									</div>
+								</div>
+								<div id="payroll-payment"></div>
+							</div> {/*  end card body  */}
+							<img src="/assets/img/bg/dashboard-bg.png" alt="bg"
+								className="img-fluid position-absolute top-0 start-0 z-n1 w-100" />
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-              <div>
-                <p className="text-[11px] text-muted-foreground mb-1">HR Operations</p>
-                <div className="h-2 rounded-full bg-muted overflow-hidden mb-1">
-                  <div className="h-full bg-slate-700 rounded-full" style={{ width: "100%" }}></div>
-                </div>
-                <p className="text-xs font-bold text-foreground font-mono">$737,670</p>
-              </div>
-            </div>
-          </div>
-        </Card>
+					<div className="col-xl-3 col-md-6 d-flex">
+						<div className="card z-1 flex-fill overflow-hidden">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+										<div className="avatar drop-shadow-xs border border-white avatar-rounded z-1">
+											<img src="/assets/img/icons/title-icon-03.svg" alt="icon"
+												className="img-fluid w-auto h-auto rounded-0" />
+											<img src="/assets/img/bg/title-bg-03.png" alt="bg"
+												className="position-absolute top-0 start-0 title-bg z-n1 rounded-0" />
+										</div>
+										<a href="#"
+											className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+												className="ti ti-refresh"></i></a>
+									</div>
+									<div className="mb-4">
+										<p className="mb-1">Reimbrusement</p>
+										<h2 className="mb-0 d-inline-flex align-items-center">$124,200 <span
+												className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-xs bg-danger text-white pe-none rounded-circle ms-2"><i
+													className="ti ti-caret-down-filled"></i></span></h2>
+									</div>
+								</div>
+								<div id="reimbrusement-chart" className="mt-auto">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "reimbrusement-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "reimbrusement-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+							</div> {/*  end card body  */}
+							<img src="/assets/img/bg/attendance-bg.png" alt="bg"
+								className="img-fluid position-absolute top-0 start-0 z-n1 w-100" />
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-        {/* Total Payroll Card */}
-        <Card className="p-5 lg:col-span-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="size-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-lg">
-                <i className="ph-duotone ph-money"></i>
-              </div>
-              <span className="size-6 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xs">
-                <i className="ph-bold ph-caret-up"></i>
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Payroll</p>
-              <h3 className="text-2xl font-bold text-foreground mb-2">$2,458,900</h3>
-            </div>
-          </div>
-          <div className="pt-2">
-            {isMounted && (
-              <Suspense fallback={<div className="h-12"></div>}>
-                <Chart options={payrollSparkline} series={payrollSparkline.series} type="bar" height={50} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
+				</div>
+				{/*  end row  */}
 
-        {/* Reimbursement Card */}
-        <Card className="p-5 lg:col-span-3 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="size-10 rounded-full bg-rose-500/10 text-rose-600 flex items-center justify-center text-lg">
-                <i className="ph-duotone ph-receipt"></i>
-              </div>
-              <span className="size-6 rounded-full bg-rose-500/10 text-rose-600 flex items-center justify-center text-xs">
-                <i className="ph-bold ph-caret-down"></i>
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Reimbursements</p>
-              <h3 className="text-2xl font-bold text-foreground mb-2">$124,200</h3>
-            </div>
-          </div>
-          <div className="pt-2">
-            {isMounted && (
-              <Suspense fallback={<div className="h-12"></div>}>
-                <Chart options={reimbursementSparkline} series={reimbursementSparkline.series} type="area" height={50} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
-      </div>
+				{/*  start row  */}
+				<div className="row">
 
-      {/* ── Row 2: Headcount vs Payroll Growth (8 cols) & HR Cost Breakdown (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Headcount vs Payroll Growth */}
-        <Card className="p-5 lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-base font-bold text-foreground">Headcount vs Payroll Growth</h3>
-                <p className="text-xs text-muted-foreground">Quarterly compensation trajectory comparison</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded">
-                  +14% YoY
-                </span>
-              </div>
-            </div>
+					<div className="col-xl-8 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body pb-0">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<h2 className="card-title mb-0 text-decoration-underline">Headcount vs Payroll Growth
+									</h2>
+									<div className="d-flex align-items-center gap-3">
+										<p className="mb-0"><i className="ti ti-square-filled text-primary me-2"></i>Payroll
+											Growth</p>
+										<p className="mb-0"><i className="ti ti-square-filled text-gray-2 me-2"></i>Head Count
+										</p>
+									</div>
+									<a href="#"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-download"></i></a>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+									<div>
+										<h3 className="main-title mb-1">+14%</h3>
+										<p className="mb-0">Increased From the Last Quarter</p>
+									</div>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="btn btn-white btn-sm d-inline-flex align-items-center rounded-pill"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar-due me-1"></i>1st Quarter
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													1st Quarter
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													2nd Quarter
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													3rd Quarter
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													4th Quarter
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div id="headcount-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "headcount-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "headcount-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-60 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={headcountChartOptions} series={headcountChartOptions.series} type="bar" height={240} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
+					<div className="col-xl-4 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<h2 className="card-title mb-0 text-decoration-underline">HR Cost Breakdown</h2>
+									<a href="#"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-refresh"></i></a>
+								</div>
+								<div className="mb-2">
+									<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "cost_chart", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+    </Suspense>
+  )}
+</div>
+								</div>
 
-        {/* HR Cost Breakdown */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-2">
-              <h3 className="text-base font-bold text-foreground">HR Cost Breakdown</h3>
-              <p className="text-xs text-muted-foreground">Operational expenditure categories</p>
-            </div>
+								<div className="row g-3">
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary ps-2">
+											<p className="fs-12 mb-1">Salaries</p>
+											<h3 className="fs-14 mb-0">184K</h3>
+										</div>
+									</div>
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary-800 ps-2">
+											<p className="fs-12 mb-1">Benefits</p>
+											<h3 className="fs-14 mb-0">89K</h3>
+										</div>
+									</div>
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary-700 ps-2">
+											<p className="fs-12 mb-1">Bonuses</p>
+											<h3 className="fs-14 mb-0">66K</h3>
+										</div>
+									</div>
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary-600 ps-2">
+											<p className="fs-12 mb-1">Overtime</p>
+											<h3 className="fs-14 mb-0">96K</h3>
+										</div>
+									</div>
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary-500 ps-2">
+											<p className="fs-12 mb-1">Training</p>
+											<h3 className="fs-14 mb-0">42K</h3>
+										</div>
+									</div>
+									<div className="col-6 col-sm-4">
+										<div className="border-start border-2 border-secondary-400 ps-2">
+											<p className="fs-12 mb-1">Incentives</p>
+											<h3 className="fs-14 mb-0">56K</h3>
+										</div>
+									</div>
+								</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-            <div className="py-1">
-              {isMounted && (
-                <Suspense fallback={<div className="h-44 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                  <Chart options={costBreakdownOptions} series={costBreakdownOptions.series} type="donut" height={180} />
-                </Suspense>
-              )}
-            </div>
+				</div>
 
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50 text-xs">
-              <div className="border-l-2 border-blue-600 pl-2">
-                <p className="text-[11px] text-muted-foreground">Salaries</p>
-                <h5 className="font-bold text-foreground font-mono">184K</h5>
-              </div>
-              <div className="border-l-2 border-indigo-600 pl-2">
-                <p className="text-[11px] text-muted-foreground">Benefits</p>
-                <h5 className="font-bold text-foreground font-mono">89K</h5>
-              </div>
-              <div className="border-l-2 border-cyan-500 pl-2">
-                <p className="text-[11px] text-muted-foreground">Bonuses</p>
-                <h5 className="font-bold text-foreground font-mono">66K</h5>
-              </div>
-              <div className="border-l-2 border-amber-500 pl-2">
-                <p className="text-[11px] text-muted-foreground">Overtime</p>
-                <h5 className="font-bold text-foreground font-mono">96K</h5>
-              </div>
-              <div className="border-l-2 border-pink-500 pl-2">
-                <p className="text-[11px] text-muted-foreground">Training</p>
-                <h5 className="font-bold text-foreground font-mono">42K</h5>
-              </div>
-              <div className="border-l-2 border-emerald-600 pl-2">
-                <p className="text-[11px] text-muted-foreground">Incentives</p>
-                <h5 className="font-bold text-foreground font-mono">56K</h5>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
+				{/*  start row  */}
+				<div className="row">
 
-      {/* ── Row 3: AI HR Finance Assistant (4 cols) & Dept Budget vs Actual (8 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* AI Assistant */}
-        <Card className="p-5 lg:col-span-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-border/50 mb-3">
-              <div className="flex items-center gap-2">
-                <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-base">
-                  <i className="ph-duotone ph-robot"></i>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-foreground">AI HR Finance Assistant</h4>
-                  <p className="text-[11px] text-muted-foreground">Predictive compensation analytics</p>
-                </div>
-              </div>
-              <Badge variant="soft" className="bg-emerald-500/10 text-emerald-600 text-[10px]">Online</Badge>
-            </div>
+					<div className="col-xxl-4 col-xl-5 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+										<div className="d-flex align-items-center">
+											<div
+												className="avatar drop-shadow-xs border border-white avatar-rounded z-1 me-2">
+												<img src="/assets/img/icons/title-icon-04.svg" alt="icon"
+													className="img-fluid w-auto h-auto" />
+												<img src="/assets/img/bg/title-bg-04.png" alt="icon"
+													className="position-absolute top-0 start-0 title-bg z-n1" />
+											</div>
+											<div>
+												<h2 className="sub-title mb-1">How can i help today</h2>
+												<p className="fs-13 mb-0">AI HR Finance Assistant</p>
+											</div>
+										</div>
+										<a href="#"
+											className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+												className="ti ti-refresh"></i></a>
+									</div>
+									<div className="card bg-light border-0 shadow-none rounded-4 mb-1">
+										<div className="card-body">
+											<span className="d-flex align-items-center gap-1 mb-2 text-primary"> <i
+													className="ti ti-sparkles"></i> AI Assistant</span>
+											<p className="mb-0">👋 Hi! I'm your AI HR Finance Assistant. I can help you
+												analyze payroll costs, forecast budgets, identify compensation trends.
+											</p>
+										</div>
+									</div>
+								</div>
+								<div className="chat-input-item bg-white w-100 rounded-3 mt-3">
+									<input type="text" className="form-control"
+										placeholder="Ask me anything about Finance...." />
+									<button type="submit" className="btn btn-dark btn-icon rounded-3"><i
+											className="ti ti-send"></i></button>
+								</div>
+							</div>
+						</div>
+					</div>
 
-            <div className="space-y-1.5 mb-3">
-              <button
-                type="button"
-                onClick={() => handleSendAiMessage("Forecast next quarter payroll budget")}
-                className="w-full text-left text-[11px] p-2 rounded-md bg-muted/50 hover:bg-muted border border-border text-foreground transition-colors"
-              >
-                📈 Forecast next quarter payroll budget
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSendAiMessage("Analyze department budget variances")}
-                className="w-full text-left text-[11px] p-2 rounded-md bg-muted/50 hover:bg-muted border border-border text-foreground transition-colors"
-              >
-                📊 Analyze department budget variances
-              </button>
-            </div>
+					<div className="col-xxl-8 col-xl-7 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body pb-0">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<h2 className="card-title mb-0 text-decoration-underline">Department Budget vs Actual
+									</h2>
+									<a href="#"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-download"></i></a>
+								</div>
+								<div id="budget-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "budget-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "budget-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-            <div className="h-36 overflow-y-auto space-y-2 p-2.5 rounded-lg bg-muted/40 border border-border/50 text-xs mb-3">
-              {aiMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`p-2 rounded-lg max-w-[90%] text-[11px] ${msg.sender === "user" ? "bg-primary text-white" : "bg-card border border-border text-foreground"}`}>
-                    {msg.text}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+				</div>
 
-          <div className="flex items-center gap-1.5">
-            <input
-              type="text"
-              value={aiMessage}
-              onChange={(e) => setAiMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendAiMessage()}
-              placeholder="Ask about payroll trends, budgets, or audits..."
-              className="w-full text-xs bg-muted/40 border border-border rounded-lg px-2.5 py-1.5 text-foreground focus:outline-none"
-            />
-            <Button size="xs" variant="primary" onClick={() => handleSendAiMessage()}>
-              <i className="ph-bold ph-paper-plane-tilt"></i>
-            </Button>
-          </div>
-        </Card>
+				{/*  start row  */}
+				<div className="row">
 
-        {/* Department Budget vs Actual */}
-        <Card className="p-5 lg:col-span-8 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Department Budget vs Actual</h3>
-                <p className="text-xs text-muted-foreground">Expenditure comparison across main cost centers</p>
-              </div>
-              <span className="text-xs text-muted-foreground">YTD 2026</span>
-            </div>
+					<div className="col-xxl-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<div className="d-flex align-items-center gap-2 flex-wrap">
+										<h2 className="card-title mb-0 text-decoration-underline">Financial Health</h2>
+										<div className="dropdown">
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="btn btn-white btn-sm d-inline-flex align-items-center rounded-pill"
+												data-bs-toggle="dropdown">
+												<i className="ti ti-calendar-due me-1"></i>Yearly
+											</a>
+											<ul className="dropdown-menu mt-2 p-3">
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Monthly
+													</a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Yearly
+													</a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Today
+													</a>
+												</li>
+											</ul>
+										</div>
+									</div>
+									<a href="#"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-download"></i></a>
+								</div>
+								<div className="d-sm-flex align-items-end gap-3 justify-content-between">
+									<div id="finance-chart" className="w-100 mb-sm-0 mb-2">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "finance-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "finance-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									<div className="flex-shrink-0 text-sm-end">
+										<p className="mb-1">Total Amount</p>
+										<h2 className="main-title mb-3">$4,56,545</h2>
+										<p className="fs-12"><span
+												className="badge bg-success d-inline-flex align-items-center me-1"><i
+													className="ti ti-arrow-up-right me-1"></i>2.5%</span> vs Last Year</p>
+									</div>
+								</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-60 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={budgetVsActualOptions} series={budgetVsActualOptions.series} type="bar" height={230} />
-              </Suspense>
-            )}
-          </div>
-        </Card>
-      </div>
+					<div className="col-xxl-3 col-md-6 d-flex">
+						<div className="card bg-secondary z-1 overflow-hidden flex-fill">
+							<div className="card-body d-flex flex-column justify-content-between">
+								<div>
+									<h2 className="card-title text-decoration-underline text-white mb-2">Payroll Forecast
+									</h2>
+									<p className="text-white mb-3">Upgrade to Payroll Forecasting to predict upcoming salary
+										expenses, optimize cash flow, and make confident financial decisions.</p>
+								</div>
+								<a href="#" className="btn btn-xl btn-primary w-100">Upgrade Now</a>
+							</div> {/*  end card body  */}
+							<img src="/assets/img/bg/payroll-bg.png" alt="bg"
+								className="img-fluid position-absolute top-0 start-0 h-100 w-100 z-n1 blend-luminosity" />
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-      {/* ── Row 4: Financial Health (6 cols), Payroll Forecast Promo (3 cols), Pending Payments (3 cols) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-        {/* Financial Health */}
-        <Card className="p-5 lg:col-span-6 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Financial Health</h3>
-                <p className="text-xs text-muted-foreground">Rolling available operating liquidity</p>
-              </div>
-              <span className="text-xs font-semibold bg-emerald-500/10 text-emerald-600 px-2 py-0.5 rounded">
-                +2.5% vs Last Year
-              </span>
-            </div>
+					<div className="col-xxl-3 col-md-6 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+									<h2 className="card-title mb-0 text-decoration-underline">Pending Payments</h2>
+									<a href="#"
+										className="btn btn-icon d-inline-flex align-items-center justify-content-center btn-light rounded-circle"><i
+											className="ti ti-download"></i></a>
+								</div>
+								<div className="d-flex align-items-center justify-content-between mb-3">
+									<p className="mb-0">Total Amount</p>
+									<h3 className="card-title mb-0">$69856</h3>
+								</div>
+								<div className="avatar-list-stacked avatar-group mb-3">
+									<a href="#" className="avatar avatar-rounded">
+										<img className="border border-white" src="/assets/img/users/user-31.jpg" alt="user" />
+									</a>
+									<a href="#" className="avatar avatar-rounded">
+										<img className="border border-white" src="/assets/img/users/user-32.jpg" alt="user" />
+									</a>
+									<a href="#" className="avatar avatar-rounded">
+										<img className="border border-white" src="/assets/img/users/user-29.jpg" alt="user" />
+									</a>
+									<a href="#" className="avatar avatar-rounded">
+										<img className="border border-white" src="/assets/img/users/user-56.jpg" alt="user" />
+									</a>
+									<a className="avatar bg-light border avatar-rounded fs-16 text-dark fw-normal" href="#">
+										+9
+									</a>
+								</div>
+								<a href="#" className="btn btn-dark d-flex align-items-center justify-content-center"><i
+										className="ti ti-moneybag me-1"></i>Transfer Now</a>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
 
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-              <div className="sm:col-span-8">
-                {isMounted && (
-                  <Suspense fallback={<div className="h-36"></div>}>
-                    <Chart options={financialHealthOptions} series={financialHealthOptions.series} type="area" height={160} />
-                  </Suspense>
-                )}
-              </div>
-              <div className="sm:col-span-4 text-center sm:text-right">
-                <p className="text-xs text-muted-foreground">Total Capital Reserves</p>
-                <h3 className="text-2xl font-bold text-foreground font-mono">$4,565,450</h3>
-                <p className="text-[11px] text-emerald-600 font-semibold mt-1">Solvent & Verified</p>
-              </div>
-            </div>
-          </div>
-        </Card>
+				</div>
+				{/*  end row  */}
 
-        {/* Payroll Forecast Promo Card */}
-        <div className="lg:col-span-3 rounded-xl bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-300 bg-indigo-800/50 px-2 py-0.5 rounded">
-              AI Powered Feature
-            </span>
-            <h4 className="text-base font-bold text-white mt-2 mb-1">Payroll Forecasting</h4>
-            <p className="text-xs text-slate-300">Predict upcoming salary expenses, model new headcount impact, and optimize operating cash flow.</p>
-          </div>
-          <Button variant="primary" size="sm" className="w-full mt-4" onClick={() => toast.success("Payroll Forecasting module enabled!")}>
-            Explore Forecast Model
-          </Button>
-        </div>
+				{/*  start row  */}
+				<div className="row">
 
-        {/* Pending Payments Card */}
-        <Card className="p-5 lg:col-span-3 flex flex-col justify-between">
-          <div>
-            <div className="border-l-2 border-amber-500 pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Pending Payments</h3>
-                <p className="text-xs text-muted-foreground">Reimbursements in queue</p>
-              </div>
-            </div>
+					<div className="col-xl-12">
+						<div className="card flex-fill">
+							<div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+								<h2 className="mb-0 card-title text-decoration-underline">Recent HR Transactions</h2>
+								<a href="https://smarthr.dreamstechnologies.com/hrm/html/payments.html" className="btn btn-md btn-primary">View All</a>
+							</div>
+							<div className="card-body p-0">
+								<div className="table-responsive">
+									<table className="table table-nowrap table-striped mb-0">
+										<thead>
+											<tr>
+												<th>Transaction ID</th>
+												<th>Employee</th>
+												<th>Catgeory</th>
+												<th>Amount</th>
+												<th>Date</th>
+												<th>Status</th>
+												<th></th>
+											</tr>
+										</thead>
+										<tbody>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX565545878</a></td>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
+															className="avatar avatar-md border avatar-rounded">
+															<img src="/assets/img/users/user-32.jpg" className="img-fluid"
+																alt="employee" />
+														</a>
+														<div className="ms-2">
+															<p className="fw-medium mb-0"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Anthony Lewis</a></p>
+														</div>
+													</div>
+												</td>
+												<td>Bonus</td>
+												<td className="text-dark">$15,000</td>
+												<td><i className="ti ti-calendar-up me-1"></i><span className="text-dark">Jan
+														06, 2026</span></td>
+												<td>
+													<span className="badge badge-success-transparent">Approved</span>
+												</td>
+												<td>
+													<div className="action-icon d-inline-flex">
+														<a href="#" className="me-2"><i className="ti ti-printer"></i></a>
+														<a href="#" onClick={(e) => e.preventDefault()} data-bs-toggle="modal"
+															data-bs-target="#delete_modal"><i
+																className="ti ti-trash"></i></a>
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX654412454</a></td>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
+															className="avatar avatar-md border avatar-rounded">
+															<img src="/assets/img/users/user-09.jpg" className="img-fluid"
+																alt="employee" />
+														</a>
+														<div className="ms-2">
+															<p className="fw-medium mb-0"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Brian Villalobos</a>
+															</p>
+														</div>
+													</div>
+												</td>
+												<td>Training</td>
+												<td className="text-dark">$2,500</td>
+												<td><i className="ti ti-calendar-up me-1"></i><span className="text-dark">Jan
+														05, 2026</span></td>
+												<td>
+													<span className="badge badge-pink-transparent">Pending</span>
+												</td>
+												<td>
+													<div className="action-icon d-inline-flex">
+														<a href="#" className="me-2"><i className="ti ti-printer"></i></a>
+														<a href="#" onClick={(e) => e.preventDefault()} data-bs-toggle="modal"
+															data-bs-target="#delete_modal"><i
+																className="ti ti-trash"></i></a>
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX552145547</a></td>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
+															className="avatar avatar-md border avatar-rounded">
+															<img src="/assets/img/users/user-01.jpg" className="img-fluid"
+																alt="employee" />
+														</a>
+														<div className="ms-2">
+															<p className="fw-medium mb-0"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Harvey Smith</a></p>
+														</div>
+													</div>
+												</td>
+												<td>Commission</td>
+												<td className="text-dark">$124,500</td>
+												<td><i className="ti ti-calendar-up me-1"></i><span className="text-dark">Jan
+														04, 2026</span></td>
+												<td>
+													<span className="badge badge-purple-transparent">Processing</span>
+												</td>
+												<td>
+													<div className="action-icon d-inline-flex">
+														<a href="#" className="me-2"><i className="ti ti-printer"></i></a>
+														<a href="#" onClick={(e) => e.preventDefault()} data-bs-toggle="modal"
+															data-bs-target="#delete_modal"><i
+																className="ti ti-trash"></i></a>
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX254124457</a></td>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
+															className="avatar avatar-md border avatar-rounded">
+															<img src="/assets/img/users/user-33.jpg" className="img-fluid"
+																alt="employee" />
+														</a>
+														<div className="ms-2">
+															<p className="fw-medium mb-0"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Stephan Peralt</a></p>
+														</div>
+													</div>
+												</td>
+												<td>Reimbursement</td>
+												<td className="text-dark">$1,250</td>
+												<td><i className="ti ti-calendar-up me-1"></i><span className="text-dark">Jan
+														03, 2026</span></td>
+												<td>
+													<span className="badge badge-pink-transparent">Pending</span>
+												</td>
+												<td>
+													<div className="action-icon d-inline-flex">
+														<a href="#" className="me-2"><i className="ti ti-printer"></i></a>
+														<a href="#" onClick={(e) => e.preventDefault()} data-bs-toggle="modal"
+															data-bs-target="#delete_modal"><i
+																className="ti ti-trash"></i></a>
+													</div>
+												</td>
+											</tr>
+											<tr>
+												<td><a href="https://smarthr.dreamstechnologies.com/hrm/html/invoice-details.html">TRX124512442</a></td>
+												<td>
+													<div className="d-flex align-items-center">
+														<a href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html"
+															className="avatar avatar-md border avatar-rounded">
+															<img src="/assets/img/users/user-34.jpg" className="img-fluid"
+																alt="employee" />
+														</a>
+														<div className="ms-2">
+															<p className="fw-medium mb-0"><a
+																	href="https://smarthr.dreamstechnologies.com/hrm/html/employee-details.html">Doglas Martini</a></p>
+														</div>
+													</div>
+												</td>
+												<td>Payroll</td>
+												<td className="text-dark">$782,000</td>
+												<td><i className="ti ti-calendar-up me-1"></i><span className="text-dark">Jan
+														02, 2026</span></td>
+												<td>
+													<span className="badge badge-secondary-transparent">Processed</span>
+												</td>
+												<td>
+													<div className="action-icon d-inline-flex">
+														<a href="#" className="me-2"><i className="ti ti-printer"></i></a>
+														<a href="#" onClick={(e) => e.preventDefault()} data-bs-toggle="modal"
+															data-bs-target="#delete_modal"><i
+																className="ti ti-trash"></i></a>
+													</div>
+												</td>
+											</tr>
+										</tbody>
+									</table>
+								</div>
+							</div> {/*  end card body  */}
+						</div> {/*  end card  */}
+					</div> {/*  end col  */}
+				</div>
+				{/*  end row  */}
 
-            <div className="mb-3">
-              <p className="text-xs text-muted-foreground">Total Queued Amount</p>
-              <h3 className="text-2xl font-bold text-foreground font-mono">$69,856</h3>
-            </div>
-
-            <div className="flex -space-x-1.5 mb-4">
-              {["/ui-assets/avatar-01.jpg", "/ui-assets/avatar-02.jpg", "/ui-assets/avatar-03.jpg", "/ui-assets/avatar-04.jpg"].map((src, i) => (
-                <img key={i} src={src} className="size-7 rounded-full border border-card object-cover" alt="claimant" />
-              ))}
-              <span className="size-7 rounded-full bg-muted border border-card flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                +9
-              </span>
-            </div>
-          </div>
-
-          <Button variant="primary" size="sm" className="w-full" onClick={() => setTransferModalOpen(true)}>
-            <i className="ph ph-paper-plane-tilt me-1"></i> Transfer Now
-          </Button>
-        </Card>
-      </div>
-
-      {/* ── Row 5: Recent HR Transactions Data Table ── */}
-      <Card className="p-5 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="border-l-2 border-primary pl-2.5">
-            <h3 className="text-base font-bold text-foreground">Recent HR Transactions</h3>
-            <p className="text-xs text-muted-foreground">Ledger of processed bonuses, trainings, and employee expense reimbursements</p>
-          </div>
-          <Button variant="outline" size="xs" onClick={() => toast.info("Opening all transaction ledger...")}>
-            View All Transactions
-          </Button>
-        </div>
-
-        <div className="overflow-x-auto border border-border/80 rounded-lg">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
-              <tr>
-                <th className="p-3 font-semibold">Transaction ID</th>
-                <th className="p-3 font-semibold">Employee</th>
-                <th className="p-3 font-semibold">Category</th>
-                <th className="p-3 font-semibold">Amount</th>
-                <th className="p-3 font-semibold">Date</th>
-                <th className="p-3 font-semibold">Status</th>
-                <th className="p-3 font-semibold text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {[
-                { id: "TRX565545878", name: "Anthony Lewis", avatar: "/ui-assets/avatar-02.jpg", category: "Bonus", amount: "$15,000", date: "Jan 06, 2026", status: "Approved", badge: "bg-emerald-500/10 text-emerald-600" },
-                { id: "TRX654412454", name: "Brian Villalobos", avatar: "/ui-assets/avatar-03.jpg", category: "Training", amount: "$2,500", date: "Jan 05, 2026", status: "Pending", badge: "bg-pink-500/10 text-pink-600" },
-                { id: "TRX552145547", name: "Harvey Smith", avatar: "/ui-assets/avatar-04.jpg", category: "Commission", amount: "$124,500", date: "Jan 04, 2026", status: "Processing", badge: "bg-purple-500/10 text-purple-600" },
-                { id: "TRX254124457", name: "Stephan Peralt", avatar: "/ui-assets/avatar-05.jpg", category: "Salary Advance", amount: "$7,200", date: "Jan 03, 2026", status: "Approved", badge: "bg-emerald-500/10 text-emerald-600" },
-                { id: "TRX142589632", name: "Doglas Martini", avatar: "/ui-assets/avatar-06.jpg", category: "Hardware Reimbursement", amount: "$1,850", date: "Jan 02, 2026", status: "Approved", badge: "bg-emerald-500/10 text-emerald-600" },
-              ].map((row, idx) => (
-                <tr key={idx} className="hover:bg-muted/40 transition-colors">
-                  <td className="p-3 font-mono font-medium text-primary">{row.id}</td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <img src={row.avatar} alt={row.name} className="size-7 rounded-full object-cover border border-border" />
-                      <span className="font-semibold text-foreground">{row.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-muted-foreground">{row.category}</td>
-                  <td className="p-3 font-mono font-bold text-foreground">{row.amount}</td>
-                  <td className="p-3 text-muted-foreground">{row.date}</td>
-                  <td className="p-3">
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${row.badge}`}>
-                      {row.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => toast.success(`Receipt printed for ${row.id}`)}
-                      className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                      title="Print Voucher"
-                    >
-                      <i className="ph ph-printer text-base"></i>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* ── Transfer Confirmation Dialog ── */}
-      <Dialog open={transferModalOpen} onOpenChange={setTransferModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Process Pending Disbursements</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2 text-xs">
-            <p className="text-muted-foreground">
-              You are about to initiate ACH/Direct Deposit transfers for 13 approved employee expense and commission claims.
-            </p>
-            <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1">
-              <div className="flex justify-between"><span>Total Batch Count:</span><span className="font-bold">13 Claims</span></div>
-              <div className="flex justify-between"><span>Total Outflow:</span><span className="font-bold font-mono text-primary">$69,856.00</span></div>
-              <div className="flex justify-between"><span>Settlement Date:</span><span>Immediate (Next-Day ACH)</span></div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setTransferModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  toast.success("Disbursement file dispatched to banking network!");
-                  setTransferModalOpen(false);
-                }}
-              >
-                Confirm Transfer
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+			
+    </>
   );
 }

@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
@@ -16,314 +15,770 @@ export default function SupportDashboardPage() {
     setIsMounted(true);
   }, []);
 
-  const { data: supData } = useQuery({
-    queryKey: ["dashboard-support"],
-    queryFn: async () => {
-      try {
-        const res: any = await api.get("/dashboard/support");
-        return res?.data || res || {};
-      } catch (err) {
-        return {};
-      }
-    },
-    refetchInterval: 30000,
-  });
-
-  // 1. Ticket Trends Area Chart
-  const ticketTrendsOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 260, toolbar: { show: false } },
-      series: [
-        { name: "Tickets Created", data: [45, 60, 75, 50, 65, 80, 95, 70, 85, 90, 110, 125] },
-        { name: "Tickets Resolved", data: [40, 55, 70, 48, 60, 75, 90, 68, 80, 85, 105, 120] },
-      ],
-      colors: ["#0d6efd", "#10b981"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.15 },
-      xaxis: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" } } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { position: "top", horizontalAlign: "right", fontSize: "11px" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // 2. Tickets By Status Donut Chart
-  const ticketsByStatusOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "donut", height: 260 },
-      labels: ["Resolved", "Pending", "Open", "Overdue"],
-      series: [540, 210, 160, 58],
-      colors: ["#10b981", "#f59e0b", "#0d6efd", "#f43f5e"],
-      legend: { position: "bottom", fontSize: "11px" },
-      dataLabels: { enabled: false },
-      plotOptions: { pie: { donut: { size: "72%" } } },
-    }),
-    []
-  );
-
-  // 3. SLA Compliance Radial Chart
-  const slaComplianceOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "radialBar", height: 220 },
-      series: [94.6],
-      colors: ["#10b981"],
-      plotOptions: {
-        radialBar: {
-          hollow: { size: "70%" },
-          dataLabels: {
-            name: { show: false },
-            value: { fontSize: "24px", fontWeight: "bold", color: "#1e293b", offsetY: 8, formatter: (v) => `${v}%` },
-          },
-        },
-      },
-    }),
-    []
-  );
-
-  // 4. Backlog Growth Line Chart
-  const backlogGrowthOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "line", height: 220, toolbar: { show: false } },
-      series: [{ name: "Backlog Items", data: [45, 52, 48, 62, 58, 42, 38, 49, 44, 40] }],
-      colors: ["#f59e0b"],
-      stroke: { curve: "smooth", width: 2.5 },
-      xaxis: {
-        categories: ["W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8", "W9", "W10"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
   return (
-    <div className="w-full min-w-0 space-y-5">
-      {/* ── Breadcrumb & Actions Header ── */}
-      <SmartHRHeader title="Help Desk Dashboard" dateValue="2026" />
+    <>
+      {/*  Breadcrumb  */}
+				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">Help Desk Dashboard</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">Help Desk Dashboard</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+						<a href="#" className="btn btn-white me-2 mb-2"> <i className="ti ti-user"></i> Assign Agent</a>
+						<a href="#" className="btn btn-secondary me-2 mb-2"> <i className="ti ti-clock-check"></i> Close
+							Ticket</a>
+						<a href="#" className="btn btn-primary-gradient mb-2"> <i className="ti ti-plus"></i> Create Ticket</a>
+						<div className="ms-2 mb-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-      {/* ── ROW 1: 6 Top Metric Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {[
-          { label: "Total Tickets", val: "2,847", change: "+12%", color: "text-primary", bg: "bg-primary/10", icon: "ti-ticket" },
-          { label: "Open Tickets", val: "342", change: "+5%", color: "text-amber-500", bg: "bg-amber-500/10", icon: "ti-folder-open" },
-          { label: "Resolved Tickets", val: "128", change: "-3%", color: "text-emerald-600", bg: "bg-emerald-500/10", icon: "ti-circle-check" },
-          { label: "Avg Response", val: "2.4h", change: "-15m", color: "text-indigo-600", bg: "bg-indigo-500/10", icon: "ti-clock" },
-          { label: "Pending Tickets", val: "23", change: "+2%", color: "text-pink-600", bg: "bg-pink-500/10", icon: "ti-hourglass-low" },
-          { label: "Overdue Tickets", val: "42", change: "-8%", color: "text-rose-600", bg: "bg-rose-500/10", icon: "ti-alert-triangle" },
-        ].map((item, idx) => (
-          <div key={idx} className="bg-white dark:bg-card border border-border-color rounded-xl p-4 shadow-2xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className={`size-8 rounded-lg ${item.bg} ${item.color} flex items-center justify-center text-base`}>
-                <i className={`ti ${item.icon}`}></i>
-              </span>
-              <span className="text-[10px] font-semibold text-emerald-600">{item.change}</span>
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0.5">{item.val}</h3>
-            <p className="text-[11px] text-slate-500 truncate">{item.label}</p>
-          </div>
-        ))}
-      </div>
+				{/*  Processing  */}
+				<div className="row">
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none ticket-card bg-primary-transparent card-1">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-primary rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Total Tickets</p>
+									<h2 className="mb-0">2,847</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											+12.5%
+											<p
+												className="btn pe-none btn-sm btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-up-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-primary"></span>
+						</div>
+					</div>
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none ticket-card bg-secondary-transparent card-2">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-secondary rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Open Tickets</p>
+									<h2 className="mb-0">342</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											+8.2%
+											<p
+												className="btn btn-sm pe-none btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-up-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-secondary"></span>
+						</div>
+					</div>
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none ticket-card bg-success-transparent card-3">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-success rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Resolved Today</p>
+									<h2 className="mb-0">128</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											+15.5%
+											<p
+												className="btn pe-none btn-sm btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-up-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-success"></span>
+						</div>
+					</div>
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none ticket-card bg-info-transparent card-4">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-info rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Avg Time</p>
+									<h2 className="mb-0">2.4h</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											+12.3%
+											<p
+												className="btn pe-none btn-sm btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-up-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-info"></span>
+						</div>
+					</div>
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none border-0 ticket-card bg-danger-transparent card-5">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-danger rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Overdue</p>
+									<h2 className="mb-0">23</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											-5.2%
+											<p
+												className="btn pe-none btn-sm btn-icon bg-danger rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-down-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-danger"></span>
+						</div>
+					</div>
+					<div className="col-xl-2 col-lg-4 col-md-6">
+						<div className="card shadow-none ticket-card bg-pink-transparent card-6">
+							<div className="card-body">
+								<div className="d-inline-flex flex-column gap-3">
+									<div className="avatar avatar-lg bg-pink rounded-3 flex-shrink-0">
+										<i className="ti ti-users-plus text-white fs-24"></i>
+									</div>
+									<p className="mb-0 text-gray-6">Active Agents</p>
+									<h2 className="mb-0">42</h2>
+									<div>
+										<div
+											className="rounded-pill bg-light fs-13 text-gray-9 d-inline-flex align-items-center gap-2 p-2px ps-2">
+											+8.2%
+											<p
+												className="btn pe-none btn-sm btn-icon bg-success rounded-circle d-flex align-items-center justify-content-center text-white">
+												<i className="ti ti-arrow-up-right fs-20 "></i>
+											</p>
+										</div>
+									</div>
+								</div>
+							</div>
+							<span className="bg-pink"></span>
+						</div>
+					</div>
+				</div>
 
-      {/* ── ROW 2: Ticket Trends (8 cols) + Tickets By Status (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Ticket Trends */}
-        <div className="lg:col-span-8 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Ticket Trends
-              </h2>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-64 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={ticketTrendsOptions} series={ticketTrendsOptions.series} type="area" height={260} />
-              </Suspense>
-            )}
-          </div>
-        </div>
+				{/*  start row  */}
+				<div className="row">
+					<div className="col-xxl-6 d-flex">
+						{/*  Ticket Trends  */}
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
+									<h3 className="mb-0 card-title">Ticket Trends</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
 
-        {/* Tickets By Status */}
-        <div className="lg:col-span-4 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Tickets By Status
-              </h2>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-64 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={ticketsByStatusOptions} series={ticketsByStatusOptions.series} type="donut" height={260} />
-              </Suspense>
-            )}
-          </div>
-        </div>
-      </div>
+								<div>
+									<div id="ticket-trends">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "ticket-trends", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "ticket-trends", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									<div className="d-flex align-items-center justify-content-center gap-3 flex-wrap">
+										<p className="d-flex align-items-center gap-1 mb-0 text-dark"> <i
+												className="ti ti-circle-filled text-primary fs-14"></i> Created </p>
+										<p className="d-flex align-items-center gap-1 mb-0 text-dark"> <i
+												className="ti ti-circle-filled text-secondary fs-14"></i> Resolved </p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div className="col-xxl-6 d-flex">
+						{/*  Ticket Trends  */}
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+									<h3 className="mb-0 card-title">Tickets By Status</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
 
-      {/* ── ROW 3: SLA Compliance (6 cols) + Backlog Growth (6 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* SLA Compliance */}
-        <div className="lg:col-span-6 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                SLA Compliance
-              </h2>
-            </div>
-            <div className="flex items-center justify-around py-2">
-              <div className="text-center">
-                {isMounted && (
-                  <Suspense fallback={<div className="h-44"></div>}>
-                    <Chart options={slaComplianceOptions} series={slaComplianceOptions.series} type="radialBar" height={200} />
-                  </Suspense>
-                )}
-                <p className="text-xs font-semibold text-emerald-600 mt-1">First Response SLA: 98.2%</p>
-              </div>
-              <div className="space-y-3 text-xs">
-                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
-                  <p className="text-slate-400 text-[11px] mb-0.5">Met SLA</p>
-                  <p className="font-bold text-slate-900 dark:text-white text-sm">2,692 tickets</p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
-                  <p className="text-slate-400 text-[11px] mb-0.5">Breached SLA</p>
-                  <p className="font-bold text-rose-500 text-sm">155 tickets</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+								<div className="row align-items-center justify-content-center">
+									<div className="col-lg-6">
+										<div id="ticket-status">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "ticket-status", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "ticket-status", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+									<div className="col-lg-6">
+										<div className="d-flex justify-content-between align-items-center mb-3">
+											<p className="mb-0">Total Tickets</p>
+											<h2 className="main-title">968</h2>
+										</div>
+										<div className="d-flex flex-column gap-3">
+											<div
+												className="bg-light d-flex align-items-center justify-content-between rounded-pill px-3 py-2">
+												<p className="mb-0 d-flex align-items-center gap-1"><i
+														className="ti ti-square-filled fs-8 text-primary"></i> Open</p>
+												<p className="mb-0 fw-semibold text-dark">653</p>
+											</div>
+											<div
+												className="bg-light d-flex align-items-center justify-content-between rounded-pill px-3 py-2">
+												<p className="mb-0 d-flex align-items-center gap-1"><i
+														className="ti ti-square-filled fs-8 text-info"></i> In Progres</p>
+												<p className="mb-0 fw-semibold text-dark">342</p>
+											</div>
+											<div
+												className="bg-light d-flex align-items-center justify-content-between rounded-pill px-3 py-2">
+												<p className="mb-0 d-flex align-items-center gap-1"><i
+														className="ti ti-square-filled fs-8 text-warning"></i> On Hold</p>
+												<p className="mb-0 fw-semibold text-dark">185</p>
+											</div>
+											<div
+												className="bg-light d-flex align-items-center justify-content-between rounded-pill px-3 py-2">
+												<p className="mb-0 d-flex align-items-center gap-1"><i
+														className="ti ti-square-filled fs-8 text-purple"></i> Closed</p>
+												<p className="mb-0 fw-semibold text-dark">67</p>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				{/*  end row  */}
 
-        {/* Backlog Growth */}
-        <div className="lg:col-span-6 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Backlog Growth
-              </h2>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-52 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={backlogGrowthOptions} series={backlogGrowthOptions.series} type="line" height={200} />
-              </Suspense>
-            )}
-          </div>
-        </div>
-      </div>
+				{/*  start row  */}
+				<div className="row mb-4 row-gap-4">
+					<div className="col-xxl-4 col-xl-6 d-flex">
+						<div className="card mb-0 flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 ">
+									<h3 className="mb-0 card-title">SLA Compliance</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div className="sla-wrapper">
+									<div id="sla-compliance">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "sla-compliance", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "sla-compliance", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+								</div>
+								<div className="d-flex flex-column gap-3">
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<span
+												className="d-block border border-2 h-12 border-success rounded-5 me-2"></span>
+											<p>First Response SLA</p>
+										</div>
+										<span
+											className="badge bg-success d-inline-flex align-items-center gap-1 rounded-pill fs-13">96.2%</span>
+									</div>
 
-      {/* ── ROW 4: Tickets by Category ── */}
-      <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
-        <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">
-            Tickets by Category
-          </h2>
-        </div>
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<span
+												className="d-block border border-2 h-12 border-success rounded-5 me-2"></span>
+											<p className="fs-14">Resolution SLA</p>
+										</div>
+										<span
+											className="badge bg-success d-inline-flex align-items-center gap-1 rounded-pill fs-13">92.8%</span>
+									</div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { cat: "Technical Support", count: 485, pct: "35%", color: "bg-blue-600" },
-            { cat: "Billing & Invoicing", count: 342, pct: "25%", color: "bg-indigo-600" },
-            { cat: "Account Access", count: 268, pct: "19%", color: "bg-purple-600" },
-            { cat: "General Inquiries", count: 195, pct: "14%", color: "bg-pink-600" },
-            { cat: "Feature Request", count: 412, pct: "30%", color: "bg-amber-500" },
-            { cat: "Feedback & Other", count: 145, pct: "10%", color: "bg-emerald-600" },
-          ].map((c, idx) => (
-            <div key={idx} className="p-3 rounded-xl border border-border-color bg-slate-50/70 dark:bg-slate-800/40">
-              <p className="text-[11px] text-slate-500 mb-1 truncate">{c.cat}</p>
-              <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-2">{c.count}</h4>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                <div className={`h-full ${c.color} rounded-full`} style={{ width: c.pct }}></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+									<div className="d-flex align-items-center justify-content-between">
+										<div className="d-flex align-items-center">
+											<span
+												className="d-block border border-2 h-12 border-warning rounded-5 me-2"></span>
+											<p className="fs-14">Escalation SLA</p>
+										</div>
+										<span
+											className="badge bg-danger d-inline-flex align-items-center gap-1 rounded-pill fs-13">89.5%</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
 
-      {/* ── ROW 5: Agent Performance (7 cols) + Activity Feed (5 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Agent Performance */}
-        <div className="lg:col-span-7 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
-          <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Agent Performance
-            </h2>
-            <Link to="/helpdesk" className="text-xs text-primary hover:underline font-semibold">
-              View All
-            </Link>
-          </div>
+					<div className="col-xxl-4 col-xl-6">
+						<div className="card mb-0">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+									<h3 className="mb-0 card-title">Backlog Growth</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border-color text-slate-400 text-left">
-                  <th className="pb-2 font-semibold">Agent</th>
-                  <th className="pb-2 font-semibold text-center">Resolved</th>
-                  <th className="pb-2 font-semibold text-center">Avg Time</th>
-                  <th className="pb-2 font-semibold text-right">CSAT</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-color">
-                {[
-                  { name: "Michael Johnson", role: "Sr. Support Agent", resolved: 142, avgTime: "1.8h", csat: "98%", avatar: "/assets/img/users/user-26.jpg" },
-                  { name: "Emily Davis", role: "Help Desk Lead", resolved: 128, avgTime: "2.1h", csat: "96%", avatar: "/assets/img/users/user-31.jpg" },
-                  { name: "Robert Martinez", role: "Technical Specialist", resolved: 115, avgTime: "2.4h", csat: "94%", avatar: "/assets/img/users/user-27.jpg" },
-                  { name: "Megan Walker", role: "Customer Advocate", resolved: 98, avgTime: "3.0h", csat: "92%", avatar: "/assets/img/users/user-56.jpg" },
-                ].map((agent, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <img src={agent.avatar} alt={agent.name} className="size-7 rounded-full object-cover" />
-                        <div>
-                          <p className="font-bold text-slate-900 dark:text-white">{agent.name}</p>
-                          <p className="text-[10px] text-slate-400">{agent.role}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-center font-bold text-slate-800 dark:text-slate-200">{agent.resolved}</td>
-                    <td className="py-2.5 text-center text-slate-500">{agent.avgTime}</td>
-                    <td className="py-2.5 text-right font-bold text-emerald-600">{agent.csat}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+								<div id="backlog-growth">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "backlog-growth", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "backlog-growth", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
 
-        {/* Activity Feed */}
-        <div className="lg:col-span-5 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="border rounded-lg border-l-4 border-l-primary flex items-center justify-between p-2.5 mb-4 bg-slate-50/50 dark:bg-slate-800/30">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Activity Feed
-              </h2>
-            </div>
+								<p className="mb-0 gap-2 text-dark text-center">
+									<span className="badge bg-success rounded-circle p-1 me-2">
+										<i className="ti ti-caret-up-filled text-white fs-14"></i>
+									</span>
+									12% Compared to Last Week
+								</p>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
 
-            <div className="space-y-3">
-              {[
-                { title: "Michael Chen replied to TKT-1247", time: "10 mins ago", icon: "ti-message-dots text-primary bg-primary/10" },
-                { title: "New ticket assigned to Sarah Johnson", time: "25 mins ago", icon: "ti-user-plus text-indigo-600 bg-indigo-500/10" },
-                { title: "TKT-1240 marked as resolved", time: "1 hour ago", icon: "ti-check text-emerald-600 bg-emerald-500/10" },
-                { title: "SLA deadline approaching for TKT-1235", time: "2 hours ago", icon: "ti-alarm text-amber-500 bg-amber-500/10" },
-              ].map((act, idx) => (
-                <div key={idx} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-border-color flex items-center gap-3">
-                  <span className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${act.icon}`}>
-                    <i className="text-sm"></i>
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{act.title}</p>
-                    <p className="text-[10px] text-slate-400">{act.time}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+					<div className="col-xxl-4 col-xl-12">
+						<div className="card mb-0">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
+									<h3 className="mb-0 card-title">Tickets by Category</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+
+								<div className="position-relative mb-4" style={{ height: "200px" }}>
+									<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "ticket-category", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+    </Suspense>
+  )}
+</div>
+									<div className="gauge-center-text">Compliance</div>
+								</div>
+
+								<div className="row row-gap-4">
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-primary text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">IT Support</p>
+											<h4 className="fs-14">485</h4>
+										</div>
+									</div>
+
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-secondary text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">HR</p>
+											<h4 className="fs-14">342</h4>
+										</div>
+									</div>
+
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-success text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Payroll</p>
+											<h4 className="fs-14">268</h4>
+										</div>
+									</div>
+
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-warning text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Access</p>
+											<h4 className="fs-14">195</h4>
+										</div>
+									</div>
+
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-info text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Hardware</p>
+											<h4 className="fs-14">412</h4>
+										</div>
+									</div>
+
+									<div className="col-lg-4 col-md-4">
+										<div className="border-5 border-start border-danger text-center">
+											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Other</p>
+											<h4 className="fs-14">145</h4>
+										</div>
+									</div>
+
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  end col  */}
+				</div>
+				{/*  end row  */}
+
+				<div className="row">
+					<div className="col-xxl-8 col-xl-12">
+						<div className="card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+									<h3 className="mb-0 card-title">Agent Performance</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Monthly
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div className="agent-grid-wrapper">
+									<div className="card shadow-none">
+										<div className="d-flex align-items-center">
+											<a href="invoice-details.html" className="avatar">
+												<img src="/assets/img/avatar/avatar-01.png"
+													className="img-fluid rounded-circle" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h4 className="fw-medium fs-14 mb-1">Michael Johnson</h4>
+												<p className="d-inline-flex align-items-center mb-0"><i
+														className="ti ti-star-filled text-warning me-1"></i>4.6</p>
+											</div>
+										</div>
+										<div>
+											<p className="fs-13 mb-1">Avg Resolution Time</p>
+											<p className="fw-medium mb-0 text-dark">1.8h</p>
+										</div>
+										<div>
+											<div className="d-flex justify-content-between align-items-center chart-title">
+												<p className="text-dark mb-0">Resolution Rate</p>
+												<p className="text-dark mb-0">70%</p>
+											</div>
+											<div className="agent-performance" data-filled="17"></div>
+										</div>
+									</div>
+									<div className="card shadow-none">
+										<div className="d-flex align-items-center">
+											<a href="invoice-details.html" className="avatar">
+												<img src="/assets/img/avatar/avatar-02.png"
+													className="img-fluid rounded-circle" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h4 className="fw-medium fs-14 mb-1">Emily Davis</h4>
+												<p className="d-inline-flex align-items-center mb-0"><i
+														className="ti ti-star-filled text-warning me-1"></i>4.8</p>
+											</div>
+										</div>
+										<div>
+											<p className="fs-13 mb-1">Avg Resolution Time</p>
+											<p className="fw-medium mb-0 text-dark">1.4h</p>
+										</div>
+										<div>
+											<div className="d-flex justify-content-between align-items-center chart-title">
+												<p className="text-dark mb-0">Resolution Rate</p>
+												<p className="text-dark mb-0">95%</p>
+											</div>
+											<div className="agent-performance" data-filled="19"></div>
+										</div>
+									</div>
+									<div className="card shadow-none">
+										<div className="d-flex align-items-center">
+											<a href="invoice-details.html" className="avatar">
+												<img src="/assets/img/avatar/avatar-03.jpg"
+													className="img-fluid rounded-circle" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h4 className="fw-medium fs-14 mb-1">Robert Martinez</h4>
+												<p className="d-inline-flex align-items-center mb-0"><i
+														className="ti ti-star-filled text-warning me-1"></i>4.3</p>
+											</div>
+										</div>
+										<div>
+											<p className="fs-13 mb-1">Avg Resolution Time</p>
+											<p className="fw-medium mb-0 text-dark">1.1h</p>
+										</div>
+										<div>
+											<div className="d-flex justify-content-between align-items-center chart-title">
+												<p className="text-dark mb-0">Resolution Rate</p>
+												<p className="text-dark mb-0">60%</p>
+											</div>
+											<div className="agent-performance" data-filled="16"></div>
+										</div>
+									</div>
+									<div className="card mb-0 shadow-none">
+										<div className="d-flex align-items-center">
+											<a href="invoice-details.html" className="avatar">
+												<img src="/assets/img/avatar/avatar-04.png"
+													className="img-fluid rounded-circle" alt="img" />
+											</a>
+											<div className="ms-2">
+												<h4 className="fw-medium fs-14 mb-1">Megan Walker</h4>
+												<p className="d-inline-flex align-items-center mb-0"><i
+														className="ti ti-star-filled text-warning me-1"></i>4.5 </p>
+											</div>
+										</div>
+										<div>
+											<p className="fs-13 mb-1">Avg Resolution Time</p>
+											<p className="fw-medium mb-0 text-dark">1.9h</p>
+										</div>
+										<div>
+											<div className="d-flex justify-content-between align-items-center chart-title">
+												<p className="text-dark mb-0">Resolution Rate</p>
+												<p className="text-dark mb-0">80%</p>
+											</div>
+											<div className="agent-performance" data-filled="18"></div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/*  Clock-In/Out  */}
+					<div className="col-xxl-4 col-xl-12 d-flex">
+						<div className="card flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
+									<h3 className="mb-0 card-title">Activity Feed</h3>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Today
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+
+								<div className="">
+									<div className="d-flex align-items-center justify-content-between mb-3 p-2 br-5">
+										<div className="d-flex align-items-center">
+											<span
+												className="avatar rounded-circle bg-transparent-primary text-primary mb-2 flex-shrink-0">
+												<i className="ti ti-brand-hipchat fs-16"></i>
+											</span>
+											<div className="ms-3">
+												<h4 className="fs-14 fw-medium text-truncate mb-1">Michael Chen replied to
+													TKT-1247</h4>
+												<p className="fs-13 mb-1">Added troubleshooting steps for connect</p>
+												<p className="fs-13"><i className="ti ti-clock-record"></i> 5 min ago</p>
+											</div>
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-3 p-2 br-5">
+										<div className="d-flex align-items-center">
+											<span
+												className="avatar rounded-circle bg-transparent-secondary text-secondary mb-2 flex-shrink-0">
+												<i className="ti ti-user fs-16"></i>
+											</span>
+											<div className="ms-3">
+												<h4 className="fs-14 fw-medium text-truncate mb-1">New ticket assigned to
+													Sarah Johnson</h4>
+												<p className="fs-13 mb-1">TKT-1248: Network connectivity issues</p>
+												<p className="fs-13"><i className="ti ti-clock-record"></i> 12 min ago</p>
+											</div>
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-3 p-2 br-5">
+										<div className="d-flex align-items-center">
+											<span
+												className="avatar rounded-circle bg-transparent-success text-success mb-2 flex-shrink-0">
+												<i className="ti ti-checklist fs-16"></i>
+											</span>
+											<div className="ms-3">
+												<h4 className="fs-14 fw-medium text-truncate mb-1">TKT-1240 marked as
+													resolved</h4>
+												<p className="fs-13 mb-1">Password reset completed successfully</p>
+												<p className="fs-13"><i className="ti ti-clock-record"></i> 34 min ago</p>
+											</div>
+										</div>
+									</div>
+									<div className="d-flex align-items-center justify-content-between mb-3 p-2 br-5">
+										<div className="d-flex align-items-center">
+											<span
+												className="avatar rounded-circle bg-transparent-danger text-danger mb-2 flex-shrink-0">
+												<i className="ti ti-calendar-x fs-16"></i>
+											</span>
+											<div className="ms-3">
+												<h4 className="fs-14 fw-medium text-truncate mb-1">SLA deadline approaching
+												</h4>
+												<p className="fs-13 mb-1">TKT-1239 has 2 hours remaining</p>
+												<p className="fs-13"><i className="ti ti-clock-record"></i> 45 min ago</p>
+											</div>
+										</div>
+									</div>
+								</div>
+								<a href="#" className="btn btn-light btn-md w-100 py-2">View All Activity</a>
+							</div>
+						</div>
+					</div>
+					{/*  /Clock-In/Out  */}
+				</div>
+
+			
+    </>
   );
 }

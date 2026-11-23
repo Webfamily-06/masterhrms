@@ -5,652 +5,849 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { SmartHRHeader } from "@/components/ui/smarthr-header";
-import { Badge } from "@/components/ui/badge";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
-export default function ITAdminDashboardPage() {
+export default function ItAdminDashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
-  const [activeEnv, setActiveEnv] = useState<"production" | "staging" | "dev">("production");
-  const [storageDay, setStorageDay] = useState<"1D" | "7D" | "1M" | "1Y">("1Y");
-  const [usageRange, setUsageRange] = useState<"1H" | "1D" | "1W" | "1M">("1W");
-  const [accessRange, setAccessRange] = useState<"Today" | "Weekly" | "Monthly">("Today");
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const { data: itData } = useQuery({
-    queryKey: ["dashboard-it-admin-realtime"],
-    queryFn: async () => {
-      try {
-        const res: any = await api.get("/dashboard/it-admin");
-        return res?.data || res || {};
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  // 4 Top Sparklines
-  const uptimeSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 40, width: 80, sparkline: { enabled: true } },
-      series: [{ data: [99.5, 99.8, 99.9, 99.7, 99.9, 99.9] }],
-      colors: ["#10b981"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-      tooltip: { enabled: false },
-    }),
-    []
-  );
-
-  const apiSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 40, width: 80, sparkline: { enabled: true } },
-      series: [{ data: [12, 14, 18, 15, 16, 14] }],
-      colors: ["#0d6efd"],
-      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
-      tooltip: { enabled: false },
-    }),
-    []
-  );
-
-  const ticketsSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "line", height: 40, width: 80, sparkline: { enabled: true } },
-      series: [{ data: [24, 20, 22, 19, 21, 18] }],
-      colors: ["#f59e0b"],
-      stroke: { curve: "smooth", width: 2 },
-      tooltip: { enabled: false },
-    }),
-    []
-  );
-
-  const jobsSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 40, width: 80, sparkline: { enabled: true } },
-      series: [{ data: [10, 11, 12, 12, 12, 12] }],
-      colors: ["#8b5cf6"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.2 },
-      tooltip: { enabled: false },
-    }),
-    []
-  );
-
-  // Storage Usage by Module Bar Chart
-  const storageChartOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 230, toolbar: { show: false } },
-      plotOptions: { bar: { columnWidth: "40%", borderRadius: 4, distributed: true } },
-      series: [{ name: "Storage (GB)", data: [145, 98, 220, 180, 75, 310] }],
-      xaxis: {
-        categories: ["Core HR", "Payroll Engine", "Biometric Logs", "Recruitment Files", "Leave Records", "Doc Vault"],
-        labels: { style: { colors: "#94A3B8", fontSize: "11px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "11px" }, formatter: (v) => `${v} GB` } },
-      colors: ["#0d6efd", "#4f46e5", "#06b6d4", "#f59e0b", "#ec4899", "#10b981"],
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { show: false },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // MFA Radial Bar
-  const mfaChartOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "donut", height: 160 },
-      labels: ["MFA Enforced", "Standard Login"],
-      series: [89, 11],
-      colors: ["#10b981", "#E2E8F0"],
-      legend: { position: "bottom", fontSize: "11px" },
-      dataLabels: { enabled: false },
-      plotOptions: { pie: { donut: { size: "75%" } } },
-    }),
-    []
-  );
-
-  // Login Activity Area Chart
-  const loginActivityOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "area", height: 180, toolbar: { show: false } },
-      series: [
-        { name: "Successful Logins", data: [450, 720, 1150, 980, 890, 640, 1280, 1420, 980, 420] },
-        { name: "Failed Attempts", data: [12, 18, 47, 24, 15, 8, 22, 35, 19, 7] },
-      ],
-      colors: ["#0d6efd", "#f43f5e"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { opacity: 0.15 },
-      xaxis: {
-        categories: ["9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { position: "top", horizontalAlign: "right", fontSize: "11px" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // HRMS Usage Trend Line Chart
-  const usageTrendOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "line", height: 160, toolbar: { show: false } },
-      series: [
-        { name: "Web App", data: [420, 680, 850, 920, 880, 520, 310] },
-        { name: "Mobile App", data: [310, 480, 620, 750, 690, 480, 260] },
-      ],
-      colors: ["#0d6efd", "#10b981"],
-      stroke: { curve: "smooth", width: 2 },
-      xaxis: {
-        categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      legend: { position: "top", horizontalAlign: "right", fontSize: "11px" },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
-  // Security mini charts
-  const failedSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
-      series: [{ data: [15, 22, 38, 47] }],
-      colors: ["#0d6efd"],
-      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
-    }),
-    []
-  );
-
-  const alertsSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
-      series: [{ data: [5, 8, 10, 12] }],
-      colors: ["#6366f1"],
-      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
-    }),
-    []
-  );
-
-  const blockedSparkline: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
-      series: [{ data: [12, 19, 21, 27] }],
-      colors: ["#f59e0b"],
-      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
-    }),
-    []
-  );
-
-  // Integration Error Counts Bar Chart
-  const integrationErrorOptions: ApexCharts.ApexOptions = useMemo(
-    () => ({
-      chart: { type: "bar", height: 160, toolbar: { show: false } },
-      series: [{ name: "Errors", data: [4, 1, 8, 0, 2, 5] }],
-      xaxis: {
-        categories: ["Slack Bot", "Zoom Meet", "Stripe API", "Google Auth", "Biometric ZK", "Email SMTP"],
-        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
-      },
-      yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      colors: ["#f43f5e"],
-      plotOptions: { bar: { columnWidth: "35%", borderRadius: 3 } },
-      grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
-      dataLabels: { enabled: false },
-    }),
-    []
-  );
-
   return (
-    <div className="w-full min-w-0 space-y-5">
-      {/* ── Breadcrumb & Actions Header ── */}
-      <SmartHRHeader
-        title="IT Admin Dashboard"
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-card border border-border-color rounded-lg text-xs shadow-2xs">
-              <span className="size-6 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-                <i className="ti ti-server text-sm"></i>
-              </span>
-              <span className="text-slate-500">
-                Active Users{" "}
-                <strong className="text-slate-900 dark:text-white font-bold ml-1">
-                  248
-                </strong>
-              </span>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-card border border-border-color rounded-lg text-xs shadow-2xs">
-              <span className="size-6 rounded bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold">
-                <i className="ti ti-info-octagon text-sm"></i>
-              </span>
-              <span className="text-slate-500">
-                Security Alerts{" "}
-                <strong className="text-slate-900 dark:text-white font-bold ml-1">
-                  3
-                </strong>
-              </span>
-            </div>
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-border-color">
-              {(["production", "staging", "dev"] as const).map((env) => (
-                <button
-                  key={env}
-                  type="button"
-                  onClick={() => {
-                    setActiveEnv(env);
-                    toast.info(`Switched environment view to ${env.toUpperCase()}`);
-                  }}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition-colors ${
-                    activeEnv === env
-                      ? "bg-white dark:bg-card text-primary shadow-2xs font-bold"
-                      : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                  }`}
-                >
-                  {env}
-                </button>
-              ))}
-            </div>
-          </div>
-        }
-        showExport={false}
-        showDatePicker={false}
-      />
+    <>
+      {/*  Breadcrumb  */}
+				<div className="d-xl-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+					<div className="my-auto mb-2">
+						<h2 className="mb-1">IT Admin Dashbaord</h2>
+						<nav>
+							<ol className="breadcrumb mb-0">
+								<li className="breadcrumb-item">
+									<a href="index.html"><i className="ti ti-smart-home"></i></a>
+								</li>
+								<li className="breadcrumb-item">
+									Dashboard
+								</li>
+								<li className="breadcrumb-item active" aria-current="page">IT Admin Dashbaord</li>
+							</ol>
+						</nav>
+					</div>
+					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+						<div className="active-user-item">
+							<div className="avatar avatar-md bg-success rounded"> <i className="ti ti-server fs-16"></i> </div>
+							<p className="fs-12 mb-0">Active Users <span className="fs-14 fw-semibold text-dark ms-1">248</span>
+							</p>
+						</div>
+						<div className="active-user-item">
+							<div className="avatar avatar-md bg-danger rounded"> <i className="ti ti-info-octagon fs-16"></i>
+							</div>
+							<p className="fs-12 mb-0">Security Alerts <span
+									className="fs-14 fw-semibold text-dark ms-1">3</span> </p>
+						</div>
+						<ul className="nav nav-tabs nav-tabs-solid custom-solid-tab">
+							<li className="nav-item"><a className="nav-link active" href="#solid-tab1"
+									data-bs-toggle="tab">Production</a></li>
+							<li className="nav-item"><a className="nav-link" href="#solid-tab2" data-bs-toggle="tab">Staging</a>
+							</li>
+							<li className="nav-item"><a className="nav-link" href="#solid-tab3"
+									data-bs-toggle="tab">Development</a></li>
+						</ul>
+						<div className=" mt-2 head-icons">
+							<a href="#" onClick={(e) => e.preventDefault()} className="" data-bs-toggle="tooltip" data-bs-placement="top"
+								data-bs-original-title="Collapse" id="collapse-header">
+								<i className="ti ti-chevrons-up"></i>
+							</a>
+						</div>
+					</div>
+				</div>
+				{/*  /Breadcrumb  */}
 
-      {/* ── Row 1: 4 System Health Metrics with Sparklines ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* System Uptime */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-xs text-slate-500 font-medium">HRMS System Uptime</p>
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-0.5">99.9%</h3>
-            <p className="text-[11px] text-slate-400">Last 30 days</p>
-          </div>
-          <div className="text-end">
-            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
-              <i className="ti ti-clock-share text-base"></i>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-10 w-20"></div>}>
-                <Chart options={uptimeSparkline} series={uptimeSparkline.series} type="area" height={40} width={80} />
-              </Suspense>
-            )}
-          </div>
-        </div>
 
-        {/* API Status */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-xs text-slate-500 font-medium">API Status</p>
-            </div>
-            <h3 className="text-2xl font-bold text-emerald-600 mb-0.5">Healthy</h3>
-            <p className="text-[11px] text-slate-400">All operational</p>
-          </div>
-          <div className="text-end">
-            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
-              <i className="ti ti-api-app text-base"></i>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-10 w-20"></div>}>
-                <Chart options={apiSparkline} series={apiSparkline.series} type="bar" height={40} width={80} />
-              </Suspense>
-            )}
-          </div>
-        </div>
+				{/*  HRMS System Uptime  */}
+				<div className="row row-gap-4 mb-4">
 
-        {/* Open IT Tickets */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-xs text-slate-500 font-medium">Open IT Tickets</p>
-            </div>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-0.5">18</h3>
-            <p className="text-[11px] text-rose-500 font-semibold">5 high priority</p>
-          </div>
-          <div className="text-end">
-            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
-              <i className="ti ti-badge text-base"></i>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-10 w-20"></div>}>
-                <Chart options={ticketsSparkline} series={ticketsSparkline.series} type="line" height={40} width={80} />
-              </Suspense>
-            )}
-          </div>
-        </div>
+					{/*  Item 1  */}
+					<div className="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 d-flex">
+						<div className="card mb-0 flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+									<p className="mb-0">HRMS System Uptime</p>
+									<div className="avatar avatar bg-light rounded-circle border">
+										<i className="ti ti-clock-share text-gray-6 fs-20"></i>
+									</div>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+									<div>
+										<h2 className="main-title mb-1">99.9%</h2>
+										<p className="mb-0 fs-13">Last 30 days</p>
+									</div>
+									<div>
+										<div id="uptime-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "uptime-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "uptime-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 
-        {/* Background Jobs */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-xs text-slate-500 font-medium">Background Jobs</p>
-            </div>
-            <h3 className="text-2xl font-bold text-purple-600 mb-0.5">Running</h3>
-            <p className="text-[11px] text-slate-400">12/12 jobs healthy</p>
-          </div>
-          <div className="text-end">
-            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
-              <i className="ti ti-briefcase-2 text-base"></i>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-10 w-20"></div>}>
-                <Chart options={jobsSparkline} series={jobsSparkline.series} type="area" height={40} width={80} />
-              </Suspense>
-            )}
-          </div>
-        </div>
-      </div>
+					{/*  Item 2  */}
+					<div className="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 d-flex">
+						<div className="card mb-0 flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+									<p className="mb-0">API Status</p>
+									<div className="avatar avatar bg-light rounded-circle border">
+										<i className="ti ti-api-app text-gray-6 fs-20"></i>
+									</div>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+									<div>
+										<h2 className="main-title mb-1">Healthy</h2>
+										<p className="mb-0 fs-13">All operational</p>
+									</div>
+									<div>
+										<div id="api-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "api-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "api-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 
-      {/* ── Row 2: Storage Usage by Module (8 cols) & MFA + Quick Actions (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Storage Usage by Module */}
-        <div className="lg:col-span-8 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i className="ti ti-server text-primary text-base"></i>
-                Storage Usage by Module (GB)
-              </h2>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-border-color">
-                {(["1D", "7D", "1M", "1Y"] as const).map((range) => (
-                  <button
-                    key={range}
-                    type="button"
-                    onClick={() => setStorageDay(range)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
-                      storageDay === range
-                        ? "bg-white dark:bg-card text-primary shadow-2xs font-bold"
-                        : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                    }`}
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
-            </div>
+					{/*  Item 3  */}
+					<div className="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 d-flex">
+						<div className="card mb-0 flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+									<p className="mb-0">Open IT Tickets</p>
+									<div className="avatar avatar bg-light rounded-circle border">
+										<i className="ti ti-badge text-gray-6 fs-20"></i>
+									</div>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+									<div>
+										<h2 className="main-title mb-1">18</h2>
+										<p className="mb-0 fs-13">5 high priority</p>
+									</div>
+									<div>
+										<div id="tickets-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "tickets-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "tickets-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 
-            {isMounted && (
-              <Suspense fallback={<div className="h-60 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-                <Chart options={storageChartOptions} series={storageChartOptions.series} type="bar" height={230} />
-              </Suspense>
-            )}
+					{/*  Item 4  */}
+					<div className="col-xxl-3 col-xl-6 col-lg-6 col-md-6 col-sm-6 d-flex">
+						<div className="card mb-0 flex-fill">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+									<p className="mb-0">Background Jobs</p>
+									<div className="avatar avatar bg-light rounded-circle border">
+										<i className="ti ti-briefcase-2 text-gray-6 fs-20"></i>
+									</div>
+								</div>
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+									<div>
+										<h2 className="main-title mb-1">Running</h2>
+										<p className="mb-0 fs-13">12/12 jobs healthy</p>
+									</div>
+									<div>
+										<div id="jobs-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "jobs-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "jobs-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-            {/* 6 Module Uptime Badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-border-color mt-4">
-              {[
-                { name: "Hr", uptime: "Uptime: 99.9%", ok: true },
-                { name: "Payroll Engine", uptime: "Uptime: 96.9%", ok: true },
-                { name: "Attendance Sync", uptime: "Uptime: 99.9%", ok: true },
-                { name: "Recruitment Module", uptime: "Downtime: 19.9%", ok: false },
-                { name: "Leave Management", uptime: "Uptime: 91.9%", ok: true },
-                { name: "Document Storage", uptime: "Uptime: 95.9%", ok: true },
-              ].map((m, idx) => (
-                <div key={idx} className="p-3 rounded-lg border border-border-color bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
-                  <div>
-                    <p className="text-[11px] text-slate-500 mb-0.5">{m.name}</p>
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{m.uptime}</p>
-                  </div>
-                  <i className={`ti ${m.ok ? "ti-shield-check-filled text-emerald-500" : "ti-settings-filled text-rose-500"} text-lg`}></i>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+				{/*  Storage Usage by Module   */}
+				<div className="row row-gap-4 mb-4">
+					<div className="col-xxl-8">
+						<div className="card mb-0">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-2">
+									<h2 className="card-title d-flex align-items-center gap-2 mb-0"><i
+											className="ti ti-server text-primary fs-16"></i>Storage Usage by Module (GB)
+									</h2>
+									<div className="day-active-item one d-inline-flex align-items-center gap-2">
+										<button className="day">1D</button>
+										<button className="day">7D</button>
+										<button className="day">1M</button>
+										<button className="day active">1Y</button>
+									</div>
+								</div>
 
-        {/* MFA Enabled Users & Quick IT Actions (4 cols) */}
-        <div className="lg:col-span-4 space-y-5 flex flex-col justify-between">
-          {/* MFA Card */}
-          <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i className="ti ti-shield text-primary text-base"></i>
-                MFA Enabled Users
-              </h2>
-            </div>
-            <p className="text-xs text-slate-500 mb-2 flex items-center justify-between">
-              <span>2,168 out of 2,436 users</span>
-              <strong className="text-slate-900 dark:text-white font-bold">89%</strong>
-            </p>
-            <div className="py-1">
-              {isMounted && (
-                <Suspense fallback={<div className="h-36"></div>}>
-                  <Chart options={mfaChartOptions} series={mfaChartOptions.series} type="donut" height={160} />
-                </Suspense>
-              )}
-            </div>
-          </div>
+								<div id="storages-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "storages-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "storages-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
 
-          {/* Quick IT Actions */}
-          <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-              <i className="ti ti-settings-2 text-primary text-base"></i>
-              Quick IT Actions
-            </h2>
+								{/*  start row  */}
+								<div className="row row-gap-4 mt-3">
+									{/*  Item 1  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Hr</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Uptime: 99.9%<span><i
+															className="ti ti-shield-check-filled text-success fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+									{/*  Item 2  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Payroll Engine</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Uptime: 96.9%<span><i
+															className="ti ti-shield-check-filled text-success fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+									{/*  Item 1  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Attendance Sync</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Uptime: 99.9%<span><i
+															className="ti ti-shield-check-filled text-success fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+									{/*  Item 1  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Recruitment Module</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Downtime:19.9%<span><i
+															className="ti ti-settings-filled text-danger fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+									{/*  Item 1  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Leave Management</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Uptime: 91.9%<span><i
+															className="ti ti-shield-check-filled text-success fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+									{/*  Item 1  */}
+									<div className="col-md-4 col-sm-6">
+										<div className="card border bg-light mb-0">
+											<div className="card-body">
+												<p className="mb-2 fs-13">Document Storage</p>
+												<h3
+													className="mb-0 fs-14 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+													Uptime: 95.9%<span><i
+															className="ti ti-shield-check-filled text-success fs-16"></i></span>
+												</h3>
+											</div>
+										</div>
+									</div>
+								</div>
+								{/*  end row  */}
+							</div>
+						</div>
+					</div>
+					<div className="col-xxl-4">
+						<div className="card">
+							<div className="card-body">
+								<h2 className="card-title d-flex align-items-center gap-2 mb-4"><i
+										className="ti ti-shield text-primary fs-16"></i>
+									MFA Enabled Users
+								</h2>
+								<p
+									className="sub-title d-flex align-items-center justify-content-between flex-wrap gap-2 text-dark">
+									<span className="fw-normal text-gray-6 fs-14"> 2,168 out of 2,436 users</span> 89%
+								</p>
+								<div id="mfa-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "mfa-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "mfa-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+							</div>
+						</div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              {[
-                { title: "Restart Services", icon: "ti-refresh", action: () => toast.success("Restarting HRMS container services...") },
-                { title: "Sync Biometric", icon: "ti-fingerprint", action: () => toast.success("Biometric hardware sync triggered!") },
-                { title: "Clear Cache", icon: "ti-trash", action: () => toast.success("Redis & application cache purged!") },
-                { title: "Schedule Maint", icon: "ti-calendar-event", action: () => toast.info("Opening maintenance window scheduler...") },
-                { title: "Stop Jobs", icon: "ti-player-stop", action: () => toast.error("Background workers paused.") },
-                { title: "Re-run Payroll", icon: "ti-player-play", action: () => toast.success("Dispatched payroll batch job retry.") },
-              ].map((act, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={act.action}
-                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-border-color text-slate-700 dark:text-slate-200 transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <div className="size-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm">
-                    <i className={`ti ${act.icon}`}></i>
-                  </div>
-                  <span className="text-[11px] font-semibold leading-tight">{act.title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+						<div className="card mb-0">
+							<div className="card-body">
+								<h2 className="card-title d-flex align-items-center gap-2 mb-4"><i
+										className="ti ti-settings-2 text-primary fs-16"></i>Quick IT Actions</h2>
 
-      {/* ── Row 3: User Access & Peak Hours ── */}
-      <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">
-            User Access & Role Management
-          </h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium">Peak Hours (Today)</span>
-            <div className="flex items-center gap-2.5 text-xs">
-              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                <i className="ti ti-square-rounded-filled text-primary text-xs"></i> Low (0-50%)
-              </span>
-              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                <i className="ti ti-square-rounded-filled text-emerald-500 text-xs"></i> Medium (50-70%)
-              </span>
-              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                <i className="ti ti-square-rounded-filled text-amber-500 text-xs"></i> High (70-90%)
-              </span>
-              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-                <i className="ti ti-square-rounded-filled text-rose-500 text-xs"></i> Peak (90-100%)
-              </span>
-            </div>
-          </div>
-        </div>
+								<div className="row row-gap-4">
+									{/*  Item 1  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-1.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Restart HRMS Services</p>
+										</div>
+									</div>
+									{/*  Item 2  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-2.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Sync Biometric </p>
+										</div>
+									</div>
+									{/*  Item 3  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-3.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Clear System Cache</p>
+										</div>
+									</div>
+									{/*  Item 4  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-4.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Schedule Maintenance</p>
+										</div>
+									</div>
+									{/*  Item 5  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-5.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Stop Background Jobs</p>
+										</div>
+									</div>
+									{/*  Item 6  */}
+									<div className="col-xxl-6 col-xl-4 col-lg-6 col-md-6 col-sm-6">
+										<div className="text-center">
+											<div className="avatar avatar-xl bg-dark rounded-circle p-3 mb-2">
+												<img src="/assets/img/icons/action-icon-6.svg" alt="action"
+													className="img-fluid img-1 " />
+											</div>
+											<p className="mb-0 fw-medium">Re-run Payroll Job</p>
+										</div>
+									</div>
+								</div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2.5 mb-5">
-          {[
-            { hour: "9 AM", load: 85, color: "bg-primary" },
-            { hour: "10 AM", load: 92, color: "bg-rose-500" },
-            { hour: "11 AM", load: 78, color: "bg-primary" },
-            { hour: "12 AM", load: 45, color: "bg-emerald-500" },
-            { hour: "1 AM", load: 38, color: "bg-emerald-500" },
-            { hour: "2 AM", load: 68, color: "bg-amber-500" },
-            { hour: "3 AM", load: 82, color: "bg-primary" },
-            { hour: "4 AM", load: 85, color: "bg-rose-500" },
-            { hour: "5 AM", load: 88, color: "bg-primary" },
-            { hour: "6 AM", load: 52, color: "bg-amber-500" },
-          ].map((item, idx) => (
-            <div key={idx} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-border-color text-center">
-              <p className="text-[11px] text-slate-500 mb-1 flex items-center justify-between">
-                <span>{item.hour}</span>
-                <i className={`ti ti-circle-filled text-[7px] ${item.load > 90 ? "text-rose-500" : item.load > 70 ? "text-primary" : "text-emerald-500"}`}></i>
-              </p>
-              <h5 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">{item.load}%</h5>
-              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.load}%` }}></div>
-              </div>
-            </div>
-          ))}
-        </div>
+							</div>
+						</div>
+					</div>
+				</div>
 
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white mb-2">Login Count Analysis</h2>
-          {isMounted && (
-            <Suspense fallback={<div className="h-44 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
-              <Chart options={loginActivityOptions} series={loginActivityOptions.series} type="area" height={180} />
-            </Suspense>
-          )}
-        </div>
-      </div>
+				{/*  User Access & Role Management  */}
+				<div className="card">
+					<div className="card-body pb-0">
+						<div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-4">
+							<h2 className="card-title mb-0"> User Access & Role Management </h2>
+							<div className="dropdown">
+								<a href="#" onClick={(e) => e.preventDefault()}
+									className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+									data-bs-toggle="dropdown">
+									<i className="ti ti-calendar fs-14"></i> Today
+								</a>
+								<ul className="dropdown-menu mt-2 p-3">
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+											Today
+										</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+											Weekly
+										</a>
+									</li>
+									<li>
+										<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+											Monthly
+										</a>
+									</li>
+								</ul>
+							</div>
+						</div>
+						<div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-4">
+							<p className="fs-14 fw-semibold text-gray-9 mb-0">Peak Hours (Today)</p>
+							<div className="d-flex align-items-center gap-3 flex-wrap">
+								<p className="d-flex align-items-center gap-1 mb-0"> <i
+										className="ti ti-square-rounded-filled text-primary fs-15"></i> Low (0-50%) </p>
+								<p className="d-flex align-items-center gap-1 mb-0"> <i
+										className="ti ti-square-rounded-filled text-success fs-15"></i> Medium (50-70%) </p>
+								<p className="d-flex align-items-center gap-1 mb-0"> <i
+										className="ti ti-square-rounded-filled text-warning fs-15"></i> High (70-90%) </p>
+								<p className="d-flex align-items-center gap-1 mb-0"> <i
+										className="ti ti-square-rounded-filled text-danger fs-15"></i> Peak (90-100%) </p>
+							</div>
+						</div>
 
-      {/* ── Row 4: Usage Trend, Security & Compliance, User Roles, Integration Errors ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5">
-        {/* HRMS Usage Trend & Security (5 cols) */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs lg:col-span-5 flex flex-col justify-between space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i className="ti ti-script text-primary text-base"></i>
-                HRMS Usage Trend
-              </h2>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-border-color text-[11px]">
-                {(["1H", "1D", "1W", "1M"] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setUsageRange(r)}
-                    className={`px-2 py-0.5 rounded font-semibold transition-colors ${
-                      usageRange === r ? "bg-white dark:bg-card text-primary shadow-2xs font-bold" : "text-slate-500"
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-36"></div>}>
-                <Chart options={usageTrendOptions} series={usageTrendOptions.series} type="line" height={160} />
-              </Suspense>
-            )}
-          </div>
+						{/*  start row  */}
+						<div className="row row-gap-4 row-cols-1 row-cols-sm-2 row-cols-md-5 mb-4">
+							{/*  Item 1  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">9 AM <i
+												className="ti ti-circle-filled text-primary fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											85%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-primary progress-bar-striped" role="progressbar"
+												style={{ width: "85%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 2  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">10 AM <i
+												className="ti ti-circle-filled text-danger fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											92%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-danger progress-bar-striped" role="progressbar"
+												style={{ width: "92%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 3  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">11 AM <i
+												className="ti ti-circle-filled text-primary fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											78%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-primary progress-bar-striped" role="progressbar"
+												style={{ width: "78%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 4  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">12 AM <i
+												className="ti ti-circle-filled text-success fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											45%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-success progress-bar-striped" role="progressbar"
+												style={{ width: "45%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 5  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">1 AM <i
+												className="ti ti-circle-filled text-success fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											38%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-success progress-bar-striped" role="progressbar"
+												style={{ width: "38%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 6  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">2 AM <i
+												className="ti ti-circle-filled text-warning fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											68%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-warning progress-bar-striped" role="progressbar"
+												style={{ width: "68%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 7  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">3 AM <i
+												className="ti ti-circle-filled text-primary fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											82%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-primary progress-bar-striped" role="progressbar"
+												style={{ width: "82%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 8  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">4 AM <i
+												className="ti ti-circle-filled text-danger fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											85%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-danger progress-bar-striped" role="progressbar"
+												style={{ width: "85%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 9  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">5 AM <i
+												className="ti ti-circle-filled text-primary fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											88%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-primary progress-bar-striped" role="progressbar"
+												style={{ width: "88%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+							{/*  Item 10  */}
+							<div className="col">
+								<div className="card border mb-0">
+									<div className="card-body">
+										<p className="mb-2 fs-13 d-flex align-items-center justify-content-between">6 AM <i
+												className="ti ti-circle-filled text-warning fs-8"></i> </p>
+										<h3
+											className="mb-3 fs-16 fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+											52%</h3>
+										<div className="progress progress-xs mb-2">
+											<div className="progress-bar bg-warning progress-bar-striped" role="progressbar"
+												style={{ width: "52%" }}></div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+						{/*  end row  */}
 
-          <div className="pt-4 border-t border-border-color space-y-3">
-            <h4 className="text-xs font-bold text-slate-900 dark:text-white">Security & Compliance</h4>
-            <div className="space-y-3">
-              {/* Failed Logins */}
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">47</h3>
-                  <div className="border-l border-border-color pl-3">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Failed Logins</p>
-                    <p className="text-[10px] text-slate-400 mb-0">Last 24h</p>
-                  </div>
-                </div>
-                {isMounted && (
-                  <Suspense fallback={<div className="h-8 w-16"></div>}>
-                    <Chart options={failedSparkline} series={failedSparkline.series} type="bar" height={35} width={70} />
-                  </Suspense>
-                )}
-              </div>
+						<h2 className="card-title mb-0"> Login Count Analysis </h2>
+						<div id="logactivity-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "logactivity-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "logactivity-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+					</div>
+				</div>
 
-              {/* Suspicious Alerts */}
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">12</h3>
-                  <div className="border-l border-border-color pl-3">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Suspicious Alerts</p>
-                    <p className="text-[10px] text-slate-400 mb-0">Active</p>
-                  </div>
-                </div>
-                {isMounted && (
-                  <Suspense fallback={<div className="h-8 w-16"></div>}>
-                    <Chart options={alertsSparkline} series={alertsSparkline.series} type="bar" height={35} width={70} />
-                  </Suspense>
-                )}
-              </div>
+				{/*  start row  */}
+				<div className="row row-gap-4 mb-4">
+					<div className="col-xxl-5 d-flex">
+						<div className="card flex-fill mb-0">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+									<h2 className="card-title d-flex align-items-center gap-2 mb-0"><i
+											className="ti ti-script text-primary fs-16"></i>HRMS Usage Trend</h2>
+									<div className="day-active-item one d-inline-flex align-items-center gap-2">
+										<button className="day">1H</button>
+										<button className="day">1D</button>
+										<button className="day active">1W</button>
+										<button className="day">1m</button>
+									</div>
+								</div>
+								<div className="mb-3">
+									<div id="Usage-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "Usage-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "Usage-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+								</div>
 
-              {/* Blocked IPs */}
-              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">27</h3>
-                  <div className="border-l border-border-color pl-3">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Blocked IPs</p>
-                    <p className="text-[10px] text-slate-400 mb-0">Currently blocked</p>
-                  </div>
-                </div>
-                {isMounted && (
-                  <Suspense fallback={<div className="h-8 w-16"></div>}>
-                    <Chart options={blockedSparkline} series={blockedSparkline.series} type="bar" height={35} width={70} />
-                  </Suspense>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+								{/*  Security   */}
+								<div>
+									<div className="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-4">
+										<h2 className="mb-0 fs-14"> Security & Compliance </h2>
+										<div className="dropdown">
+											<a href="#" onClick={(e) => e.preventDefault()}
+												className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+												data-bs-toggle="dropdown">
+												<i className="ti ti-calendar fs-14"></i> Today
+											</a>
+											<ul className="dropdown-menu mt-2 p-3">
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Today
+													</a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Weekly
+													</a>
+												</li>
+												<li>
+													<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+														Monthly
+													</a>
+												</li>
+											</ul>
+										</div>
+									</div>
 
-        {/* User Roles & Integration Errors (7 cols) */}
-        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs lg:col-span-7 flex flex-col justify-between space-y-4">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
-              <i className="ti ti-script text-primary text-base"></i>
-              User Roles Distribution
-            </h2>
+									{/*  Item 1  */}
+									<div
+										className="d-flex flex-md-row flex-column align-items-md-center align-items-start justify-content-between gap-3 flex-wrap mb-4">
+										<div className="security-item d-flex align-items-center gap-4">
+											<h3 className="main-title mb-0">47 <span className="bg-primary line"></span></h3>
+											<h4 className="fs-14 mb-0">
+												Failed Logins
+												<span className="pt-1 d-block fs-12 fw-normal text-gray-6">Last 24h</span>
+											</h4>
+										</div>
+										<div id="failed-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "failed-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "failed-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { role: "Employees", count: 2145, pct: "88%", color: "bg-blue-600" },
-                { role: "Managers", count: 234, pct: "9.6%", color: "bg-indigo-600" },
-                { role: "HR Operations", count: 45, pct: "1.8%", color: "bg-slate-700" },
-                { role: "Admins", count: 12, pct: "0.5%", color: "bg-amber-500" },
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-border-color">
-                  <p className="text-[11px] text-slate-500 mb-0.5">{item.role}</p>
-                  <div className="h-2 rounded my-1.5 bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                    <div className={`h-full ${item.color} rounded`} style={{ width: item.pct }}></div>
-                  </div>
-                  <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 mb-0">{item.count}</h4>
-                </div>
-              ))}
-            </div>
-          </div>
+									{/*  Item 2  */}
+									<div
+										className="d-flex flex-md-row flex-column  align-items-md-center align-items-start justify-content-between gap-3 flex-wrap mb-4">
+										<div className="security-item d-flex align-items-center gap-4">
+											<h3 className="main-title mb-0">12 <span className="bg-secondary line"></span></h3>
+											<h4 className="fs-14 mb-0">
+												Suspicious Alerts
+												<span className="pt-1 d-block fs-12 fw-normal text-gray-6">Active</span>
+											</h4>
+										</div>
+										<div id="alerts-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "alerts-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "alerts-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
 
-          <div className="pt-4 border-t border-border-color">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <i className="ti ti-sparkles text-primary text-base"></i>
-                Integration Error Counts (24h)
-              </h2>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
-                Healthy SLA
-              </span>
-            </div>
-            {isMounted && (
-              <Suspense fallback={<div className="h-36"></div>}>
-                <Chart options={integrationErrorOptions} series={integrationErrorOptions.series} type="bar" height={160} />
-              </Suspense>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+									{/*  Item 3  */}
+									<div
+										className="d-flex flex-md-row flex-column  align-items-md-center align-items-start justify-content-between gap-3 flex-wrap">
+										<div className="security-item d-flex align-items-center gap-4">
+											<h3 className="main-title mb-0">27 <span className="bg-warning line"></span></h3>
+											<h4 className="fs-14 mb-0">
+												Blocked IPs
+												<span className="pt-1 d-block fs-12 fw-normal text-gray-6">Currently
+													blocked</span>
+											</h4>
+										</div>
+										<div id="blocked-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "blocked-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "blocked-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div className="col-xxl-7">
+						{/*  User Roles Distribution  */}
+						<div className="card">
+							<div className="card-body">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+									<h2 className="card-title d-flex align-items-center gap-2 mb-0"><i
+											className="ti ti-script text-primary fs-16"></i>User Roles Distribution</h2>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Today
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div
+									className="d-flex align-items-start align-items-md-center flex-column flex-md-row gap-3">
+									{/*  Item 1  */}
+									<div className="user-role-item one">
+										<p className="mb-0 fs-12 text-dark">Employees</p>
+										<div className="progress progress-xl my-1 rounded">
+											<div className="progress-bar bg-primary progress-bar-striped" role="progressbar"
+												style={{ width: "100%" }}></div>
+										</div>
+										<p className="mb-0">2145</p>
+									</div>
+
+									{/*  Item 2  */}
+									<div className="user-role-item two">
+										<p className="mb-0 fs-12 text-dark">Managers</p>
+										<div className="progress progress-xl my-1 rounded">
+											<div className="progress-bar bg-secondary progress-bar-striped"
+												role="progressbar" style={{ width: "100%" }}></div>
+										</div>
+										<p className="mb-0">234</p>
+									</div>
+
+									{/*  Item 3  */}
+									<div className="user-role-item three">
+										<p className="mb-0 fs-12 text-dark">HR Operations</p>
+										<div className="progress progress-xl my-1 rounded">
+											<div className="progress-bar bg-dark progress-bar-striped" role="progressbar"
+												style={{ width: "100%" }}></div>
+										</div>
+										<p className="mb-0">45</p>
+									</div>
+
+									{/*  Item 4  */}
+									<div className="user-role-item four">
+										<p className="mb-0 fs-12 text-dark">Admins</p>
+										<div className="progress progress-xl my-1 rounded">
+											<div className="progress-bar bg-warning progress-bar-striped" role="progressbar"
+												style={{ width: "100%" }}></div>
+										</div>
+										<p className="mb-0">12</p>
+									</div>
+								</div>
+
+							</div>
+						</div>
+
+						{/*  Integration Error Counts (24h)  */}
+						<div className="card mb-0">
+							<div className="card-body pb-0">
+								<div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-1">
+									<h2 className="card-title d-flex align-items-center gap-2 mb-0"><i
+											className="ti ti-sparkles text-primary fs-16"></i>Integration Error Counts (24h)
+									</h2>
+									<div className="dropdown">
+										<a href="#" onClick={(e) => e.preventDefault()}
+											className="border btn btn-white btn-md fw-normal d-inline-flex align-items-center justify-content-center rounded gap-1 fw-medium"
+											data-bs-toggle="dropdown">
+											<i className="ti ti-calendar fs-14"></i> Today
+										</a>
+										<ul className="dropdown-menu mt-2 p-3">
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Today
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Weekly
+												</a>
+											</li>
+											<li>
+												<a href="#" onClick={(e) => e.preventDefault()} className="dropdown-item rounded-1">
+													Monthly
+												</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+								<div id="error-chart">
+  {isMounted && (
+    <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
+      <Chart options={{ chart: { id: "error-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "error-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+    </Suspense>
+  )}
+</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				{/*  end row  */}
+
+			
+    </>
   );
 }

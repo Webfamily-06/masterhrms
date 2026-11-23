@@ -20,6 +20,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <link rel="stylesheet" href="/assets/libs/lucide-static/font/lucide.css" />
       <link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css" />
       <link rel="stylesheet" href="/assets/libs/@fortawesome/fontawesome-free/css/all.min.css" />
+      <link rel="stylesheet" href="/assets/css/bootstrap.min.css" />
       <link rel="stylesheet" href="/assets/css/style.css" />
       <WorkspaceShell>{children}</WorkspaceShell>
     </>
