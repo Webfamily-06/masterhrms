@@ -388,7 +388,7 @@ export default function InventoryDashboardPage() {
                 Manage Stock <i className="ph ph-caret-right text-[10px]"></i>
               </Link>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[280px] overflow-y-auto scrollbar-thin">
               <table className="w-full text-start border-collapse text-xs">
                 <tbody>
                   {warehouses.length === 0 ? (
@@ -451,6 +451,112 @@ export default function InventoryDashboardPage() {
                       </tr>
                     ))
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        
+        {/* Row 2.5: Suppliers & Recent Stocks Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+          {/* Suppliers Hub */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <i className="ph-duotone ph-truck text-primary text-base"></i>
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Suppliers</h3>
+              </div>
+              <Link to="/suppliers" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
+                Manage Suppliers <i className="ph ph-caret-right text-[10px]"></i>
+              </Link>
+            </div>
+            <div className="overflow-x-auto max-h-[280px] overflow-y-auto scrollbar-thin">
+              <table className="w-full text-start border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border-color text-muted-foreground bg-light dark:bg-slate-800">
+                    <th className="py-2 px-2 text-start">Supplier</th>
+                    <th className="py-2 px-2 text-start">Category</th>
+                    <th className="py-2 px-2 text-center">Orders</th>
+                    <th className="py-2 px-2 text-end">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Apex Global Logistics</td>
+                    <td className="py-2 px-2 text-muted-foreground">Logistics & Freight</td>
+                    <td className="py-2 px-2 text-center font-semibold">142</td>
+                    <td className="py-2 px-2 text-end"><span className="badge bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Silicon Electronics Ltd</td>
+                    <td className="py-2 px-2 text-muted-foreground">Hardware Components</td>
+                    <td className="py-2 px-2 text-center font-semibold">98</td>
+                    <td className="py-2 px-2 text-end"><span className="badge bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Universal Paper & Print</td>
+                    <td className="py-2 px-2 text-muted-foreground">Stationery & Office</td>
+                    <td className="py-2 px-2 text-center font-semibold">76</td>
+                    <td className="py-2 px-2 text-end"><span className="badge bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">OmniTech Packaging Corp</td>
+                    <td className="py-2 px-2 text-muted-foreground">Packaging & Crates</td>
+                    <td className="py-2 px-2 text-center font-semibold">54</td>
+                    <td className="py-2 px-2 text-end"><span className="badge bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded text-[10px]">Active</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Stocks Activity */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <i className="ph-duotone ph-arrows-left-right text-primary text-base"></i>
+                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Recent Stocks</h3>
+              </div>
+              <Link to="/manage-stock" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
+                Stock Log <i className="ph ph-caret-right text-[10px]"></i>
+              </Link>
+            </div>
+            <div className="overflow-x-auto max-h-[280px] overflow-y-auto scrollbar-thin">
+              <table className="w-full text-start border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-border-color text-muted-foreground bg-light dark:bg-slate-800">
+                    <th className="py-2 px-2 text-start">Product</th>
+                    <th className="py-2 px-2 text-start">SKU</th>
+                    <th className="py-2 px-2 text-center">Type</th>
+                    <th className="py-2 px-2 text-end">Qty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Dell Latitude 5420</td>
+                    <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground">SKU-DL-5420</td>
+                    <td className="py-2 px-2 text-center"><span className="badge bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px]">Stock IN</span></td>
+                    <td className="py-2 px-2 text-end font-semibold text-emerald-600">+25</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Logitech MX Master 3S</td>
+                    <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground">SKU-LG-MX3S</td>
+                    <td className="py-2 px-2 text-center"><span className="badge bg-rose-50 text-rose-700 px-1.5 py-0.5 rounded text-[10px]">Stock OUT</span></td>
+                    <td className="py-2 px-2 text-end font-semibold text-rose-600">-12</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Ergonomic Mesh Chair Pro</td>
+                    <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground">SKU-CH-ERGO</td>
+                    <td className="py-2 px-2 text-center"><span className="badge bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px]">Stock IN</span></td>
+                    <td className="py-2 px-2 text-end font-semibold text-emerald-600">+10</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Cisco Meraki MR44 AP</td>
+                    <td className="py-2 px-2 font-mono text-[11px] text-muted-foreground">SKU-NW-MR44</td>
+                    <td className="py-2 px-2 text-center"><span className="badge bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded text-[10px]">Transfer</span></td>
+                    <td className="py-2 px-2 text-end font-semibold text-amber-600">8</td>
+                  </tr>
                 </tbody>
               </table>
             </div>

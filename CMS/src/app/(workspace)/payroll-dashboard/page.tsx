@@ -568,35 +568,53 @@ export default function PayrollDashboardPage() {
 											Batches</span> </h2>
 								</div>
 
-								<div className="process-chart">
-									<div className="chart-1 chart">
-										<h3 className="title">
-											1120 Employees
-											<span>$2,184,500</span>
-										</h3>
-										<div className="graph"></div>
-									</div>
-									<div className="chart-2 chart">
-										<h3 className="title">
-											60 Employees
-											<span>$124,850</span>
-										</h3>
-										<div className="graph"></div>
-									</div>
-									<div className="chart-3 chart">
-										<h3 className="title">
-											63 Employees
-											<span>$154,850</span>
-										</h3>
-										<div className="graph"></div>
-									</div>
-									<div id="process-chart">
+								<div className="row align-items-center my-3">
+									<div className="col-12 col-md-5 d-flex justify-content-center">
+										<div id="process-chart" style={{ width: "200px", height: "200px" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={processRadialOptions} series={processRadialSeries} type="radialBar" height={250} width="100%" />
+      <Chart options={{
+        ...processRadialOptions,
+        chart: { height: 200, type: 'radialBar', sparkline: { enabled: true } },
+        plotOptions: {
+          radialBar: {
+            hollow: { size: '60%' },
+            dataLabels: {
+              name: { show: true, fontSize: '12px', color: '#6B7280', offsetY: -5 },
+              value: { show: true, fontSize: '20px', fontWeight: 'bold', offsetY: 5, formatter: (val: any) => `${val}%` }
+            }
+          }
+        }
+      }} series={processRadialSeries} type="radialBar" height={200} width={200} />
     </Suspense>
   )}
 </div>
+									</div>
+									<div className="col-12 col-md-7">
+										<div className="process-chart d-flex align-items-center justify-content-around mt-0">
+											<div className="chart-1 chart">
+												<h3 className="title">
+													1120 Employees
+													<span>$2,184,500</span>
+												</h3>
+												<div className="graph"></div>
+											</div>
+											<div className="chart-2 chart">
+												<h3 className="title">
+													60 Employees
+													<span>$124,850</span>
+												</h3>
+												<div className="graph"></div>
+											</div>
+											<div className="chart-3 chart">
+												<h3 className="title">
+													63 Employees
+													<span>$154,850</span>
+												</h3>
+												<div className="graph"></div>
+											</div>
+										</div>
+									</div>
 								</div>
 
 								<div className="d-flex align-items-center gap-3 mt-3 flex-wrap">

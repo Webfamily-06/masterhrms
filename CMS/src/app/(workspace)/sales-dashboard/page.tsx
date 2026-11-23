@@ -280,26 +280,26 @@ export default function SalesDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-border-color rounded-md p-4 xl:col-span-4 relative overflow-hidden shadow-xs flex flex-col justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-4 relative overflow-hidden shadow-xs flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg max-lg:text-[17px] text-title mb-0">Sales by Region</h3>
+                <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Sales by Region</h3>
                 <div className="relative inline-flex">
                   <button
                     type="button"
                     onClick={() => setYearDropdownOpen(!yearDropdownOpen)}
-                    className="cursor-pointer btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white transition-colors"
+                    className="cursor-pointer btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white transition-colors"
                   >
                     {selectedYear} <i className="icon-chevron-down"></i>
                   </button>
 
                   {yearDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-32 bg-white border border-border-color shadow-lg rounded-md p-1 z-50 space-y-1">
+                    <div className="absolute right-0 top-full mt-2 w-32 bg-white dark:bg-slate-800 border border-border-color shadow-lg rounded-md p-1 z-50 space-y-1">
                       {["2026", "2025", "2024"].map((yr) => (
                         <button
                           key={yr}
                           onClick={() => { setSelectedYear(yr); setYearDropdownOpen(false); }}
-                          className="flex w-full items-center px-2 py-1 rounded text-xs text-gray-900 hover:bg-light text-left"
+                          className="flex w-full items-center px-2 py-1 rounded text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-700 text-left"
                         >
                           {yr}
                         </button>
@@ -310,35 +310,67 @@ export default function SalesDashboardPage() {
               </div>
 
               {/* Chart container */}
-              <div id="chart-container" className="h-[220px] flex items-center justify-center">
+              <div id="chart-container" className="h-[210px] flex items-center justify-center">
                 {isMounted ? (
-                  <Suspense fallback={<div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground animate-pulse">Loading regional distribution...</div>}>
+                  <Suspense fallback={<div className="h-[210px] flex items-center justify-center text-xs text-muted-foreground animate-pulse">Loading regional distribution...</div>}>
                     <Chart
                       type="donut"
-                      height={220}
+                      height={210}
                       options={regionalChartOptions}
                       series={[42, 28, 18, 12]}
                     />
                   </Suspense>
                 ) : (
-                  <div className="h-[220px] bg-slate-50 animate-pulse rounded" />
+                  <div className="h-[210px] bg-slate-50 animate-pulse rounded" />
                 )}
               </div>
             </div>
 
-            {/* Total bar */}
-            <div className="bg-gradient-to-br from-primary to-success text-white rounded-md p-3 mt-3 shadow-xs">
-              <div className="flex items-center gap-2 mb-2">
-                <h4 className="text-xl font-bold mb-0 text-white">{formatSystemAmount(totalRevenue)}</h4>
-                <span className="text-[11px] text-white/90">vs last month</span>
+            {/* Regional Performance Breakdown */}
+            <div className="mt-3 space-y-2 border-t border-border-color pt-3">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[#0F766E]"></span> Americas
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">42%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#0F766E] rounded-full" style={{ width: "42%" }}></div>
+                </div>
               </div>
-              <div className="h-1 bg-white/20 rounded-full mb-1 overflow-hidden">
-                <div className="h-full bg-white rounded-full" style={{ width: "60%" }}></div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[#059669]"></span> EMEA
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">28%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#059669] rounded-full" style={{ width: "28%" }}></div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-[10px] text-white/90">
-                <span>₹0</span>
-                <span>₹100K</span>
-                <span>₹500K</span>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[#E65100]"></span> APAC
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">18%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#E65100] rounded-full" style={{ width: "18%" }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                    <span className="size-2 rounded-full bg-[#6A1B9A]"></span> Domestic
+                  </span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">12%</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#6A1B9A] rounded-full" style={{ width: "12%" }}></div>
+                </div>
               </div>
             </div>
           </div>

@@ -27,14 +27,45 @@ export default function FinanceDashboardPage() {
   }), []);
   const headcountBarSeries = useMemo(() => [{ name: 'Headcount', data: [45, 52, 58, 65, 72, 78] }], []);
 
-  // Cost Donut (height: 200)
+  // Cost Semi-Donut (height: 200) matching SmartHR cost_chart
   const costDonutOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 200, type: 'donut' },
-    colors: ['#FF6F28', '#1B84FF', '#03C95A', '#E70D0D'],
-    labels: ['Operations', 'Salaries', 'Infrastructure', 'Marketing'],
-    legend: { position: 'bottom' }
+    chart: { height: 200, type: 'donut', toolbar: { show: false } },
+    plotOptions: {
+      pie: {
+        startAngle: -90,
+        endAngle: 90,
+        offsetY: 10,
+        donut: {
+          size: '75%',
+          labels: {
+            show: true,
+            total: {
+              show: true,
+              label: 'Total Cost',
+              fontSize: '12px',
+              fontWeight: 500,
+              color: '#6c757d',
+              formatter: () => '$2,458,900'
+            },
+            value: {
+              show: true,
+              fontSize: '20px',
+              fontWeight: 700,
+              color: '#111827',
+              offsetY: -5,
+              formatter: () => '$2,458,900'
+            }
+          }
+        }
+      }
+    },
+    colors: ['#0C4B5E', '#618B98', '#7298A4', '#84A5AF', '#95B2BB', '#A7BFC6'],
+    labels: ['Salaries', 'Benefits', 'Bonuses', 'Overtime', 'Training', 'Incentives'],
+    legend: { show: false },
+    dataLabels: { enabled: false },
+    stroke: { width: 3, colors: ['#ffffff'] }
   }), []);
-  const costDonutSeries = useMemo(() => [40, 30, 20, 10], []);
+  const costDonutSeries = useMemo(() => [40, 10, 10, 20, 10, 10], []);
 
   // Budget Area Chart (height: 280)
   const budgetAreaOptions: ApexCharts.ApexOptions = useMemo(() => ({
@@ -355,39 +386,39 @@ export default function FinanceDashboardPage() {
 
 								<div className="row g-3">
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary ps-2">
-											<p className="fs-12 mb-1">Salaries</p>
-											<h3 className="fs-14 mb-0">184K</h3>
+										<div className="border-start border-2 border-primary/60 ps-2">
+											<p className="fs-12 mb-1 text-muted">Salaries</p>
+											<h3 className="fs-14 mb-0 fw-semibold">184K</h3>
 										</div>
 									</div>
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary-800 ps-2">
-											<p className="fs-12 mb-1">Benefits</p>
-											<h3 className="fs-14 mb-0">89K</h3>
+										<div className="border-start border-2 border-secondary/60 ps-2">
+											<p className="fs-12 mb-1 text-muted">Benefits</p>
+											<h3 className="fs-14 mb-0 fw-semibold">89K</h3>
 										</div>
 									</div>
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary-700 ps-2">
-											<p className="fs-12 mb-1">Bonuses</p>
-											<h3 className="fs-14 mb-0">66K</h3>
+										<div className="border-start border-2 border-info/60 ps-2">
+											<p className="fs-12 mb-1 text-muted">Bonuses</p>
+											<h3 className="fs-14 mb-0 fw-semibold">66K</h3>
 										</div>
 									</div>
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary-600 ps-2">
-											<p className="fs-12 mb-1">Overtime</p>
-											<h3 className="fs-14 mb-0">96K</h3>
+										<div className="border-start border-2 border-warning/60 ps-2">
+											<p className="fs-12 mb-1 text-muted">Overtime</p>
+											<h3 className="fs-14 mb-0 fw-semibold">96K</h3>
 										</div>
 									</div>
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary-500 ps-2">
-											<p className="fs-12 mb-1">Training</p>
-											<h3 className="fs-14 mb-0">42K</h3>
+										<div className="border-start border-2 border-success/60 ps-2">
+											<p className="fs-12 mb-1 text-muted">Training</p>
+											<h3 className="fs-14 mb-0 fw-semibold">42K</h3>
 										</div>
 									</div>
 									<div className="col-6 col-sm-4">
-										<div className="border-start border-2 border-secondary-400 ps-2">
-											<p className="fs-12 mb-1">Incentives</p>
-											<h3 className="fs-14 mb-0">56K</h3>
+										<div className="border-start border-2 border-primary/40 ps-2">
+											<p className="fs-12 mb-1 text-muted">Incentives</p>
+											<h3 className="fs-14 mb-0 fw-semibold">56K</h3>
 										</div>
 									</div>
 								</div>

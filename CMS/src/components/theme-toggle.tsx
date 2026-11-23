@@ -43,15 +43,20 @@ export function ThemeToggle({
   function toggleTheme() {
     const nextDark = !isDark;
     setIsDark(nextDark);
+    const themeStr = nextDark ? "dark" : "light";
     if (nextDark) {
       document.documentElement.classList.add("dark");
-      document.documentElement.setAttribute("data-theme", "dark");
-      localStorage.setItem("theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      document.documentElement.setAttribute("data-theme", "light");
-      localStorage.setItem("theme", "light");
     }
+    document.documentElement.setAttribute("data-theme", themeStr);
+    document.documentElement.setAttribute("data-theme-mode", themeStr);
+    localStorage.setItem("theme", themeStr);
+    localStorage.setItem("theme-mode", themeStr);
+    document.querySelectorAll(".dashboard-scope").forEach((el) => {
+      el.setAttribute("data-theme", themeStr);
+      el.setAttribute("data-theme-mode", themeStr);
+    });
     window.dispatchEvent(new CustomEvent("theme-change", { detail: { isDark: nextDark } }));
   }
 

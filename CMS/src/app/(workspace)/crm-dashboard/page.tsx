@@ -305,11 +305,11 @@ export default function CrmDashboardPage() {
                 View All <i className="ph ph-caret-right text-[10px]"></i>
               </Link>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[340px] overflow-y-auto scrollbar-thin">
               <table className="w-full text-sm">
                 <tbody>
                   {recentOrders && recentOrders.length > 0 ? (
-                    recentOrders.slice(0, 5).map((order: any) => (
+                    recentOrders.slice(0, 15).map((order: any) => (
                       <tr key={order.id} className="border-b border-border-color last:border-0 hover:bg-light/20 transition-colors">
                         <td className="py-2.5 pe-3">
                           <div className="flex items-center gap-2 min-w-0">
@@ -378,6 +378,163 @@ export default function CrmDashboardPage() {
               <div className="flex items-center gap-1">
                 <span className="size-2 rounded-full bg-emerald-500"></span>
                 <span className="text-default">No of Leads Generated</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        
+        {/* Row 2.5: Deals Pipeline, Recent Deals & Recent Contacts */}
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 mb-3">
+          {/* Deals Pipeline */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Deals Pipeline</h3>
+              <Link to="/pipeline" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
+                Pipeline <i className="ph ph-caret-right text-[10px]"></i>
+              </Link>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">Qualitative Stage</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">$450,000 (35%)</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full" style={{ width: '35%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">Proposal Made</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">$315,000 (25%)</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-info rounded-full" style={{ width: '25%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">Negotiations</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">$210,000 (20%)</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-warning rounded-full" style={{ width: '20%' }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">Closed Won</span>
+                  <span className="font-semibold text-gray-900 dark:text-gray-100">$580,000 (45%)</span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-full bg-success rounded-full" style={{ width: '45%' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Deals Table */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Deals</h3>
+              <Link to="/deals-dashboard" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
+                View All <i className="ph ph-caret-right text-[10px]"></i>
+              </Link>
+            </div>
+            <div className="overflow-x-auto max-h-[220px] overflow-y-auto scrollbar-thin">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-border-color text-muted-foreground bg-light dark:bg-slate-800">
+                    <th className="py-2 px-2 text-start">Deal</th>
+                    <th className="py-2 px-2 text-start">Stage</th>
+                    <th className="py-2 px-2 text-end">Value</th>
+                    <th className="py-2 px-2 text-start">Owner</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Collins Enterprise</td>
+                    <td className="py-2 px-2"><span className="badge bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px]">Qualitative</span></td>
+                    <td className="py-2 px-2 text-end font-semibold">$450,000</td>
+                    <td className="py-2 px-2 text-muted-foreground">Anthony Lewis</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Konopelski Solutions</td>
+                    <td className="py-2 px-2"><span className="badge bg-info/10 text-info px-1.5 py-0.5 rounded text-[10px]">Proposal Made</span></td>
+                    <td className="py-2 px-2 text-end font-semibold">$315,000</td>
+                    <td className="py-2 px-2 text-muted-foreground">Brian Villalobos</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Adams ERP Expansion</td>
+                    <td className="py-2 px-2"><span className="badge bg-warning/10 text-warning px-1.5 py-0.5 rounded text-[10px]">Negotiation</span></td>
+                    <td className="py-2 px-2 text-end font-semibold">$210,000</td>
+                    <td className="py-2 px-2 text-muted-foreground">Harvey Smith</td>
+                  </tr>
+                  <tr className="border-b border-border-color/50">
+                    <td className="py-2 px-2 font-medium">Schumm Cloud Suite</td>
+                    <td className="py-2 px-2"><span className="badge bg-success/10 text-success px-1.5 py-0.5 rounded text-[10px]">Closed Won</span></td>
+                    <td className="py-2 px-2 text-end font-semibold">$580,000</td>
+                    <td className="py-2 px-2 text-muted-foreground">Stephan Peralt</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Recent Contacts */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-3">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg max-lg:text-[17px] font-bold text-title mb-0">Recent Contacts</h3>
+              <Link to="/contacts" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
+                Contacts <i className="ph ph-caret-right text-[10px]"></i>
+              </Link>
+            </div>
+            <div className="space-y-2.5 max-h-[220px] overflow-y-auto scrollbar-thin">
+              <div className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-light dark:hover:bg-slate-800 transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                    DM
+                  </div>
+                  <div className="min-w-0">
+                    <h6 className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-0 leading-tight">Doglas Martini</h6>
+                    <span className="text-[11px] text-muted-foreground truncate block leading-tight">Product Designer</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-phone text-xs"></i></button>
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-mail text-xs"></i></button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-light dark:hover:bg-slate-800 transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-8 rounded-full bg-info/10 text-info flex items-center justify-center font-bold text-xs shrink-0">
+                    DE
+                  </div>
+                  <div className="min-w-0">
+                    <h6 className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-0 leading-tight">Daniel Esbella</h6>
+                    <span className="text-[11px] text-muted-foreground truncate block leading-tight">Project Manager</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-phone text-xs"></i></button>
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-mail text-xs"></i></button>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-light dark:hover:bg-slate-800 transition-colors">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="size-8 rounded-full bg-success/10 text-success flex items-center justify-center font-bold text-xs shrink-0">
+                    BV
+                  </div>
+                  <div className="min-w-0">
+                    <h6 className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-0 leading-tight">Brian Villalobos</h6>
+                    <span className="text-[11px] text-muted-foreground truncate block leading-tight">Team Lead</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-phone text-xs"></i></button>
+                  <button type="button" className="p-1 rounded hover:bg-light text-muted-foreground hover:text-primary"><i className="ti ti-mail text-xs"></i></button>
+                </div>
               </div>
             </div>
           </div>

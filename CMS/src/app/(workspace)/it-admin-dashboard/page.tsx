@@ -32,14 +32,95 @@ export default function ItAdminDashboardPage() {
     plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
   }), []);
 
-  // Storage Horizontal Bar (height: 264)
+  // Storage Bar IT Dashboard (height: 264) matching SmartHR storages-chart
   const storagesOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    colors: ['#0C4B5E', '#0C4B5E', '#F26522', '#0C4B5E', '#0C4B5E', '#0C4B5E'],
     chart: { height: 264, type: 'bar', toolbar: { show: false } },
-    plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '40%' } },
-    colors: ['#1B84FF'],
-    xaxis: { categories: ['App Data', 'Database', 'Logs', 'Backups'] }
+    plotOptions: {
+      bar: {
+        columnWidth: '65%',
+        borderRadius: 10,
+        distributed: true,
+        colors: {
+          backgroundBarColors: ['#E5E7EB'],
+          backgroundBarOpacity: 0.4,
+          backgroundBarRadius: 10,
+        },
+        dataLabels: {
+          position: 'bottom',
+        },
+      },
+    },
+    dataLabels: {
+      enabled: true,
+      offsetY: 10,
+      style: {
+        fontSize: '14px',
+        colors: ['#FFFFFF'],
+        fontWeight: '500'
+      },
+      formatter: function (val: any) {
+        return val + " GB";
+      },
+    },
+    xaxis: {
+      categories: ['HR', 'Payroll', 'Attendance', 'Recruitment', 'Leaves', 'Document'],
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: {
+        offsetY: 5,
+        style: {
+          colors: '#6B7280',
+          fontSize: '13px',
+          fontWeight: 500,
+        }
+      }
+    },
+    yaxis: {
+      min: 0,
+      max: 320,
+      labels: {
+        formatter: (val: any) => `${val} GB`,
+        style: { colors: '#6B7280' }
+      }
+    },
+    legend: { show: false }
   }), []);
-  const storagesSeries = useMemo(() => [{ name: 'Usage (GB)', data: [120, 85, 45, 60] }], []);
+  const storagesSeries = useMemo(() => [{ name: 'Storage', data: [280, 260, 140, 68, 120, 260] }], []);
+
+  // Error Heatmap IT Dashboard (height: 310) matching SmartHR error-chart
+  const errorChartOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 310, type: 'heatmap', toolbar: { show: false } },
+    stroke: { width: 4, colors: ['#fff'] },
+    plotOptions: {
+      heatmap: {
+        radius: 8,
+        enableShades: false,
+        colorScale: {
+          ranges: [
+            { from: 0, to: 0, name: 'none', color: '#F1F3F4' },
+            { from: 1, to: 50, name: 'low', color: '#FFB38A' },
+            { from: 51, to: 100, name: 'high', color: '#F26522' }
+          ]
+        }
+      }
+    },
+    dataLabels: { enabled: false },
+    tooltip: { enabled: true, x: { show: false }, marker: { show: false } },
+    grid: { show: false, padding: { left: 2, right: 2, bottom: -20 } },
+    legend: { show: false }
+  }), []);
+  const errorChartSeries = useMemo(() => [
+    { name: 'M9', data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 80] },
+    { name: 'M8', data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 80, 80] },
+    { name: 'M7', data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 80] },
+    { name: 'M6', data: [0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 80, 80] },
+    { name: 'M5', data: [0, 0, 0, 40, 0, 80, 80, 0, 0, 0, 80, 80, 0, 0, 80, 0, 40, 80] },
+    { name: 'M4', data: [80, 80, 0, 80, 0, 0, 80, 0, 40, 80, 0, 0, 0, 0, 0, 40, 80, 80] },
+    { name: 'M3', data: [80, 80, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { name: 'M2', data: [80, 80, 80, 0, 0, 80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { name: 'M1', data: [80, 80, 80, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }
+  ], []);
 
   // MFA Status Progress (height: 24)
   const mfaOptions: ApexCharts.ApexOptions = useMemo(() => ({
@@ -918,7 +999,7 @@ export default function ItAdminDashboardPage() {
 								<div id="error-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "error-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "error-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={errorChartOptions} series={errorChartSeries} type="heatmap" height={310} width="100%" />
     </Suspense>
   )}
 </div>

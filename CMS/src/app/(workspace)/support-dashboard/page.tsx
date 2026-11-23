@@ -31,14 +31,31 @@ export default function SupportDashboardPage() {
   }), []);
   const ticketStatusSeries = useMemo(() => [{ name: 'Tickets', data: [28, 42, 18, 95] }], []);
 
-  // SLA Compliance Radial Gauge (height: 220)
+  // SLA Compliance Radial Gauge (height: 230) matching SmartHR
   const slaComplianceOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 220, type: 'radialBar' },
-    colors: ['#03C95A'],
-    plotOptions: { radialBar: { hollow: { size: '65%' }, dataLabels: { name: { show: true }, value: { fontSize: '20px', fontWeight: 'bold' } } } },
-    labels: ['SLA Achieved']
+    chart: { height: 230, type: 'radialBar', sparkline: { enabled: true } },
+    colors: ['#F26522'],
+    plotOptions: {
+      radialBar: {
+        startAngle: -110,
+        endAngle: 250,
+        hollow: { size: '62%' },
+        track: { background: '#E5E7EB', strokeWidth: '100%' },
+        dataLabels: {
+          name: { show: false },
+          value: {
+            fontSize: '24px',
+            fontWeight: 600,
+            color: '#1F2937',
+            offsetY: 0,
+            formatter: (val: any) => `${Number(val).toFixed(1)}%`
+          }
+        }
+      }
+    },
+    stroke: { lineCap: 'round' }
   }), []);
-  const slaComplianceSeries = useMemo(() => [94.5], []);
+  const slaComplianceSeries = useMemo(() => [80.5], []);
 
   // Backlog Growth Line (height: 220)
   const backlogGrowthOptions: ApexCharts.ApexOptions = useMemo(() => ({
@@ -49,14 +66,27 @@ export default function SupportDashboardPage() {
   }), []);
   const backlogGrowthSeries = useMemo(() => [{ name: 'Backlog', data: [14, 18, 12, 9] }], []);
 
-  // Tickets by Category Donut (height: 200)
+  // Tickets by Category Semi-Donut (height: 200) matching SmartHR ticket-category
   const ticketCategoryOptions: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { height: 200, type: 'donut' },
-    colors: ['#0d6efd', '#f59e0b', '#10b981', '#ef4444'],
-    labels: ['Hardware', 'Software', 'Network', 'Access'],
-    legend: { position: 'bottom' }
+    chart: { height: 200, type: 'donut', toolbar: { show: false } },
+    plotOptions: {
+      pie: {
+        startAngle: -90,
+        endAngle: 90,
+        offsetY: 10,
+        donut: {
+          size: '72%',
+          labels: { show: false }
+        }
+      }
+    },
+    colors: ['#F68B4A', '#6E8F99', '#45C676', '#F2BE1A', '#4C8DFF', '#E53935'],
+    labels: ['IT Support', 'HR', 'Payroll', 'Access', 'Hardware', 'Other'],
+    legend: { show: false },
+    dataLabels: { enabled: false },
+    stroke: { width: 3, colors: ['#ffffff'] }
   }), []);
-  const ticketCategorySeries = useMemo(() => [40, 25, 20, 15], []);
+  const ticketCategorySeries = useMemo(() => [30, 12, 10, 18, 8, 12], []);
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -414,7 +444,7 @@ export default function SupportDashboardPage() {
 									<div id="sla-compliance">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={slaComplianceOptions} series={slaComplianceSeries} type="radialBar" height={220} width="100%" />
+      <Chart options={slaComplianceOptions} series={slaComplianceSeries} type="radialBar" height={230} width="100%" />
     </Suspense>
   )}
 </div>
@@ -549,42 +579,42 @@ export default function SupportDashboardPage() {
 
 								<div className="row row-gap-4">
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-primary text-center">
+										<div className="border-start border-2 border-primary/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">IT Support</p>
 											<h4 className="fs-14">485</h4>
 										</div>
 									</div>
 
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-secondary text-center">
+										<div className="border-start border-2 border-secondary/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">HR</p>
 											<h4 className="fs-14">342</h4>
 										</div>
 									</div>
 
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-success text-center">
+										<div className="border-start border-2 border-success/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Payroll</p>
 											<h4 className="fs-14">268</h4>
 										</div>
 									</div>
 
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-warning text-center">
+										<div className="border-start border-2 border-warning/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Access</p>
 											<h4 className="fs-14">195</h4>
 										</div>
 									</div>
 
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-info text-center">
+										<div className="border-start border-2 border-info/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Hardware</p>
 											<h4 className="fs-14">412</h4>
 										</div>
 									</div>
 
 									<div className="col-lg-4 col-md-4">
-										<div className="border-5 border-start border-danger text-center">
+										<div className="border-start border-2 border-danger/60 ps-2 text-start">
 											<p className="fs-13 d-inline-flex align-items-center mb-1 fs-12">Other</p>
 											<h4 className="fs-14">145</h4>
 										</div>

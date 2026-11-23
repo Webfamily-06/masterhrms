@@ -40,15 +40,42 @@ export default function LeadsDashboardPage() {
   }), []);
   const donut2Series = useMemo(() => [60, 40], []);
 
-  // SmartHR donut-chart-3: Converted vs Lost
+  // SmartHR donut-chart-3: Top Countries Distribution
   const donut3Options: ApexCharts.ApexOptions = useMemo(() => ({
-    chart: { type: 'donut', height: 180 },
-    colors: ['#0C4B5E', '#F8F9FA'],
-    labels: ['Converted', 'Lost'],
+    chart: { type: 'donut', height: 270, toolbar: { show: false } },
+    colors: ['#0d6efd', '#0C4B5E', '#0dcaf0', '#dc3545', '#ffc107'],
+    labels: ['Singapore', 'France', 'Norway', 'USA', 'UAE'],
+    plotOptions: {
+      pie: {
+        donut: {
+          size: '65%',
+          labels: {
+            show: true,
+            total: {
+              show: true,
+              label: 'Total Leads',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: '#6c757d',
+              formatter: () => '1,617'
+            },
+            value: {
+              show: true,
+              fontSize: '22px',
+              fontWeight: 700,
+              color: '#111827',
+              offsetY: 4,
+              formatter: (val) => val
+            }
+          }
+        }
+      }
+    },
     legend: { show: false },
-    dataLabels: { enabled: false }
+    dataLabels: { enabled: false },
+    stroke: { width: 2, colors: ['#ffffff'] }
   }), []);
-  const donut3Series = useMemo(() => [45, 55], []);
+  const donut3Series = useMemo(() => [236, 589, 221, 350, 221], []);
 
   const revenueIncomeOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
@@ -930,7 +957,7 @@ export default function LeadsDashboardPage() {
 										<div id="donut-chart-3">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={donut3Options} series={donut3Series} type="donut" height={180} width="100%" />
+      <Chart options={donut3Options} series={donut3Series} type="donut" height={270} width="100%" />
     </Suspense>
   )}
 </div>

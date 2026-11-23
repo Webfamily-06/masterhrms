@@ -4,6 +4,38 @@ import { useEffect } from "react";
 
 export function DashboardDropdownHandler() {
   useEffect(() => {
+    // Synchronize dark/light theme attributes across html, body and all .dashboard-scope containers
+    function syncTheme() {
+      const isDark =
+        document.documentElement.classList.contains("dark") ||
+        document.documentElement.getAttribute("data-theme") === "dark" ||
+        localStorage.getItem("theme") === "dark";
+      const theme = isDark ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      document.documentElement.setAttribute("data-theme-mode", theme);
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+      document.querySelectorAll(".dashboard-scope").forEach((el) => {
+        el.setAttribute("data-theme", theme);
+        el.setAttribute("data-theme-mode", theme);
+      });
+    }
+
+    syncTheme();
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === "class" || mutation.attributeName === "data-theme") {
+          syncTheme();
+          break;
+        }
+      }
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+
     // Process any export items currently in DOM to inject SVG images if missing
     function injectSvgIcons() {
       document.querySelectorAll(".dropdown-menu").forEach((menu) => {
@@ -48,14 +80,47 @@ export function DashboardDropdownHandler() {
       });
     }
 
-    // Run icon injection once initially
     injectSvgIcons();
 
     function handleDocumentClick(e: MouseEvent) {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // Check if clicking inside a toggle button
+      // 1. Tab switching handler for pills, nav-tabs, and day-active-items
+      const tabLink = target.closest('[data-bs-toggle="tab"], .nav-tabs .nav-link, .day-active-item .day, .day-active-item button') as HTMLElement | null;
+      if (tabLink) {
+        const dayGroup = tabLink.closest(".day-active-item");
+        if (dayGroup) {
+          dayGroup.querySelectorAll(".day, button").forEach((b) => b.classList.remove("active"));
+          tabLink.classList.add("active");
+        }
+        const navTabs = tabLink.closest(".nav-tabs");
+        if (navTabs) {
+          e.preventDefault();
+          navTabs.querySelectorAll(".nav-link").forEach((link) => {
+            link.classList.remove("active");
+            link.setAttribute("aria-selected", "false");
+          });
+          tabLink.classList.add("active");
+          tabLink.setAttribute("aria-selected", "true");
+          const targetSelector = tabLink.getAttribute("data-bs-target") || tabLink.getAttribute("href");
+          if (targetSelector && targetSelector.startsWith("#")) {
+            const parentContainer = navTabs.closest(".card, .card-body") || document;
+            const targetPane = parentContainer.querySelector(targetSelector);
+            if (targetPane) {
+              const tabContent = targetPane.closest(".tab-content");
+              if (tabContent) {
+                tabContent.querySelectorAll(".tab-pane").forEach((pane) => {
+                  pane.classList.remove("show", "active");
+                });
+              }
+              targetPane.classList.add("show", "active");
+            }
+          }
+        }
+      }
+
+      // 2. Dropdown menu toggle button
       const toggleBtn = target.closest(
         '[data-bs-toggle="dropdown"], .dropdown-toggle'
       ) as HTMLElement | null;
@@ -71,7 +136,7 @@ export function DashboardDropdownHandler() {
           if (menu) {
             const isCurrentlyShown = menu.classList.contains("show");
 
-            // Close all open dropdowns first
+            // Close all other open dropdowns
             document.querySelectorAll(".dropdown-menu.show").forEach((openMenu) => {
               openMenu.classList.remove("show");
               (openMenu as HTMLElement).style.display = "";
@@ -79,21 +144,33 @@ export function DashboardDropdownHandler() {
               prevToggle?.classList.remove("show");
             });
 
-            // Toggle this menu if it wasn't open
+            // Toggle this menu
             if (!isCurrentlyShown) {
-              // Ensure icons are injected
               injectSvgIcons();
-
               menu.classList.add("show");
               toggleBtn.classList.add("show");
               menu.style.display = "block";
               menu.style.position = "absolute";
               menu.style.top = "100%";
               menu.style.zIndex = "1050";
+
               if (menu.classList.contains("dropdown-menu-end")) {
                 menu.style.right = "0";
                 menu.style.left = "auto";
               }
+
+              // Prevent screen overflow on mobile
+              requestAnimationFrame(() => {
+                const rect = menu.getBoundingClientRect();
+                if (rect.right > window.innerWidth - 10) {
+                  menu.style.right = "0";
+                  menu.style.left = "auto";
+                }
+                if (rect.left < 10) {
+                  menu.style.left = "0";
+                  menu.style.right = "auto";
+                }
+              });
             } else {
               menu.style.display = "";
             }
@@ -102,7 +179,7 @@ export function DashboardDropdownHandler() {
         }
       }
 
-      // Check if clicking on an export item inside a dropdown
+      // 3. Export items inside dropdowns
       const exportItem = target.closest(".dropdown-item") as HTMLElement | null;
       if (exportItem) {
         const text = exportItem.textContent?.trim().toLowerCase() || "";
@@ -131,7 +208,6 @@ export function DashboardDropdownHandler() {
           document.body.removeChild(link);
         }
 
-        // Close dropdown after selection
         const parentMenu = exportItem.closest(".dropdown-menu");
         if (parentMenu) {
           parentMenu.classList.remove("show");
@@ -168,6 +244,7 @@ export function DashboardDropdownHandler() {
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      observer.disconnect();
       document.removeEventListener("click", handleDocumentClick);
       document.removeEventListener("keydown", handleKeyDown);
     };
