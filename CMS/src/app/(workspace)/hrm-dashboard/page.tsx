@@ -30,8 +30,8 @@ export default function DashboardPage() {
     queryKey: ["dashboard-hrm-realtime-data"],
     queryFn: async () => {
       try {
-        const res = await api.get("/dashboard/hrm");
-        return res;
+        const res: any = await api.get("/dashboard/hrm");
+        return res?.data || res || {};
       } catch (err) {
         console.error("Failed to load dashboard metrics:", err);
         return null;

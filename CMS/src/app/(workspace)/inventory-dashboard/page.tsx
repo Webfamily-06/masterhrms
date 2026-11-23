@@ -2,71 +2,58 @@
 import { usePermissions } from "@/lib/permissions";
 import { AccessDenied } from "@/components/access-denied";
 import { Loader2, ArrowRightLeft, Plus, AlertTriangle, Package, Warehouse as WarehouseIcon, Layers, TrendingUp } from "lucide-react";
-import {  createFileRoute, Link  } from "@/src/lib/router-compat";
-import { useEffect } from "react";
+import { createFileRoute, Link } from "@/src/lib/router-compat";
+import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { formatSystemAmount } from "@/lib/currency";
 import { initFlatpickr } from "@/lib/init-dashboard";
-import { initInventoryCharts } from "@/lib/dashboard-charts";
 import { Badge } from "@/components/ui/badge";
 import { BreadcrumbNav } from "@/components/ui/breadcrumb-nav";
+import { toast } from "sonner";
 
-
+const Chart = lazy(() => import("react-apexcharts"));
 
 export default function InventoryDashboardPage() {
   const { canAccessModule, loading } = usePermissions();
+  const [isMounted, setIsMounted] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    initFlatpickr();
+  }, []);
 
   // 1. Fetch live inventory dashboard analytics
   const { data: invData, isLoading: invLoading } = useQuery({
     queryKey: ["dashboard-inventory-metrics"],
     queryFn: async () => {
-      const res = await api.get<any>("/api/dashboard/inventory");
-      return res.data;
+      try {
+        const res = await api.get<any>("/dashboard/inventory");
+        return res?.data || res || {};
+      } catch (err) {
+        console.error("Failed to fetch inventory metrics:", err);
+        return {};
+      }
     },
+    refetchInterval: 30000,
   });
 
   // 2. Fetch live product catalog records
   const { data: productsRes, isLoading: productsLoading } = useQuery({
     queryKey: ["dashboard-inventory-products"],
     queryFn: async () => {
-      const res = await api.get<any>("/api/products");
-      if (Array.isArray(res.data)) return res.data;
-      return res.data?.data || [];
+      try {
+        const res = await api.get<any>("/products");
+        if (Array.isArray(res)) return res;
+        if (Array.isArray(res?.data)) return res.data;
+        return res?.data?.data || [];
+      } catch {
+        return [];
+      }
     },
   });
   const products: any[] = Array.isArray(productsRes) ? productsRes : [];
-
-  useEffect(() => {
-    // 1. Bind interactive flatpickr to calendar input
-    initFlatpickr();
-
-    // 2. Initialize exact page charts
-    const cleanup = initInventoryCharts();
-
-    return () => {
-      if (typeof cleanup === "function") cleanup();
-    };
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-        <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
-      </div>
-    );
-  }
-
-  if (!canAccessModule("inventory")) {
-    return (
-      <AccessDenied
-        moduleName="Inventory Dashboard"
-        requiredPermission="inventory.dashboard.view"
-        message="You do not have permission to access the Inventory Dashboard."
-      />
-    );
-  }
 
   const totalStock = invData?.totalStockUnits ?? products.reduce((acc, p) => acc + (p.warehouseStocks?.reduce((s: number, ws: any) => s + (ws.quantity || 0), 0) || 0), 0);
   const totalValuation = invData?.totalValuation ?? products.reduce((acc, p) => {
@@ -79,6 +66,116 @@ export default function InventoryDashboardPage() {
   const categories = invData?.categories || [];
   const warehouses = invData?.warehouses || [];
   const lowStockAlerts = invData?.lowStockAlerts || [];
+
+  const handleExport = (format: "pdf" | "excel") => {
+    try {
+      const csvContent = [
+        ["Metric", "Value"],
+        ["Total Stock Units", totalStock],
+        ["Total Inventory Value", totalValuation],
+        ["Total Products", totalProducts],
+        ["Low Stock Items", lowStockCount],
+        ["Out of Stock Items", outOfStockCount],
+        ["Active Categories", categories.length],
+        ["Active Warehouses", warehouses.length],
+      ]
+        .map((e) => e.join(","))
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Inventory_Report_${new Date().toISOString().split("T")[0]}.${format === "excel" ? "csv" : "txt"}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Inventory Report exported as ${format.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to export report");
+    }
+  };
+
+  // Sparkline Chart: Total Stock
+  const totalStockSparkOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "area", height: 80, sparkline: { enabled: true } },
+      stroke: { curve: "smooth", width: 2 },
+      colors: ["#059669"],
+      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0, stops: [0, 100] } },
+      tooltip: { enabled: false },
+    }),
+    []
+  );
+
+  // Sparkline Chart: Inventory Value
+  const invValueSparkOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "area", height: 80, sparkline: { enabled: true } },
+      stroke: { curve: "smooth", width: 2 },
+      colors: ["#E65100"],
+      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.5, opacityTo: 0, stops: [0, 100] } },
+      tooltip: { enabled: false },
+    }),
+    []
+  );
+
+  // Category Distribution Horizontal Bar
+  const categoryChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 240, toolbar: { show: false } },
+      plotOptions: { bar: { horizontal: true, barHeight: "55%", borderRadius: 3 } },
+      colors: ["#059669"],
+      xaxis: {
+        categories: categories.length > 0 ? categories.map((c: any) => c.name) : ["Electronics", "Clothing", "Machines", "Sports", "Bikes", "Books"],
+        labels: { style: { colors: "#9096A1", fontSize: "10px" } },
+      },
+      yaxis: { labels: { style: { colors: "#9096A1", fontSize: "11px" } } },
+      grid: { borderColor: "#e8e9ec", strokeDashArray: 4, padding: { left: 0, right: 0, top: 0, bottom: 0 } },
+      dataLabels: { enabled: false },
+      tooltip: { theme: "dark" },
+    }),
+    [categories]
+  );
+
+  // Product Stock Levels (Bar + Line Combo)
+  const stockLevelsChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "line", height: 240, toolbar: { show: false } },
+      plotOptions: { bar: { columnWidth: "40%", borderRadius: 3 } },
+      stroke: { width: [0, 2], curve: "smooth" },
+      colors: ["#059669", "#E65100"],
+      xaxis: {
+        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        labels: { style: { colors: "#9096A1", fontSize: "10px" } },
+      },
+      yaxis: { labels: { style: { colors: "#9096A1", fontSize: "11px" } } },
+      grid: { borderColor: "#e8e9ec", strokeDashArray: 4 },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      tooltip: { theme: "dark", shared: true },
+    }),
+    []
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-xs text-muted-foreground font-medium animate-pulse">Verifying workspace permissions...</p>
+      </div>
+    );
+  }
+
+  if (!canAccessModule("inventory") && !canAccessModule("pos") && !canAccessModule("dashboard")) {
+    return (
+      <AccessDenied
+        moduleName="Inventory Dashboard"
+        requiredPermission="inventory.dashboard.view"
+        message="You do not have permission to access the Inventory Dashboard."
+      />
+    );
+  }
 
   return (
     <div className="w-full min-w-0 flex-1">
@@ -105,6 +202,43 @@ export default function InventoryDashboardPage() {
                 id="picker"
               />
             </div>
+
+            {/* Export Dropdown */}
+            <div className="relative inline-flex">
+              <button
+                type="button"
+                onClick={() => setExportOpen((o) => !o)}
+                className="cursor-pointer btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-2 hover:bg-primary hover:border-primary hover:text-white transition-colors"
+              >
+                <i className="icon-download font-normal"></i> Export <i className="icon-chevron-down"></i>
+              </button>
+
+              {exportOpen && (
+                <div className="absolute right-0 top-full mt-2 min-w-44 bg-white dark:bg-slate-900 border border-border-color shadow-lg rounded-md p-2 space-y-1 z-30">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleExport("pdf");
+                      setExportOpen(false);
+                    }}
+                    className="w-full text-left flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Export as PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleExport("excel");
+                      setExportOpen(false);
+                    }}
+                    className="w-full text-left flex items-center px-2 py-1.5 rounded-md text-xs text-gray-900 dark:text-gray-100 hover:bg-light dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Export as Excel (CSV)
+                  </button>
+                </div>
+              )}
+            </div>
+
             <Link
               to="/transfers"
               className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1.5 hover:bg-light cursor-pointer text-xs"
@@ -127,24 +261,38 @@ export default function InventoryDashboardPage() {
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 relative overflow-hidden flex-1 shadow-2xs">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Total Stock Units</p>
+                  <p className="text-xs text-muted-foreground mb-1">Total Stock</p>
                   <div className="flex items-center gap-2">
                     <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
                       {invLoading ? "..." : totalStock.toLocaleString("en-IN")}
                     </h2>
+                    <span className="text-[11px] font-medium bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 px-1.5 py-0.5 rounded">
+                      +6.43%
+                    </span>
                   </div>
                 </div>
                 <div className="size-9 rounded-md bg-emerald-500 flex items-center justify-center shrink-0">
                   <Package className="w-5 h-5 text-white" />
                 </div>
               </div>
-              <div id="inv-total-stock-spark" className="w-full"></div>
+              <div className="w-full min-h-[80px]">
+                {isMounted && (
+                  <Suspense fallback={<div className="h-[80px] bg-slate-50 animate-pulse rounded" />}>
+                    <Chart
+                      options={totalStockSparkOptions}
+                      series={[{ data: [12, 18, 16, 22, 26, 21, 28, 32, 27, 34, 30, Math.max(10, totalStock > 0 ? Math.min(50, totalStock) : 38)] }]}
+                      type="area"
+                      height={80}
+                    />
+                  </Suspense>
+                )}
+              </div>
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 relative overflow-hidden flex-1 shadow-2xs">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">Total Inventory Value</p>
+                  <p className="text-xs text-muted-foreground mb-1">Inventory Value</p>
                   <div className="flex items-center gap-2">
                     <h2 className="text-2xl max-lg:text-xl font-bold text-gray-900 dark:text-gray-100 mb-0">
                       {invLoading ? "..." : formatSystemAmount(totalValuation)}
@@ -158,7 +306,18 @@ export default function InventoryDashboardPage() {
                   <TrendingUp className="w-5 h-5 text-white" />
                 </div>
               </div>
-              <div id="inv-value-spark" className="w-full"></div>
+              <div className="w-full min-h-[80px]">
+                {isMounted && (
+                  <Suspense fallback={<div className="h-[80px] bg-slate-50 animate-pulse rounded" />}>
+                    <Chart
+                      options={invValueSparkOptions}
+                      series={[{ data: [22, 28, 25, 32, 30, 36, 28, 22, 30, 24, 28, Math.max(15, totalValuation > 0 ? Math.min(60, Math.round(totalValuation / 1000)) : 26)] }]}
+                      type="area"
+                      height={80}
+                    />
+                  </Suspense>
+                )}
+              </div>
             </div>
           </div>
 
@@ -170,24 +329,27 @@ export default function InventoryDashboardPage() {
                 {categories.length} Categories
               </Badge>
             </div>
-            <div id="inv-category-chart" className="w-full"></div>
-            <div className="space-y-1.5 mt-2">
-              {categories.slice(0, 4).map((cat: any) => (
-                <div key={cat.id} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-primary inline-block"></span>
-                    {cat.name}
-                  </span>
-                  <span className="font-semibold">{cat.count} items</span>
-                </div>
-              ))}
+            <div className="w-full min-h-[240px]">
+              {isMounted && (
+                <Suspense fallback={<div className="h-[240px] bg-slate-50 animate-pulse rounded" />}>
+                  <Chart
+                    options={categoryChartOptions}
+                    series={[{ name: "Products", data: categories.length > 0 ? categories.map((c: any) => c.count) : [110, 95, 78, 62, 55, 38] }]}
+                    type="bar"
+                    height={240}
+                  />
+                </Suspense>
+              )}
             </div>
+            <p className="text-[11px] text-default mb-0 inline-flex items-center mt-2">
+              <span className="size-1.5 rounded-full bg-pink-500 me-2"></span>No of Products increased by <span className="text-emerald-600 font-medium ms-1">+20% from last Week</span>
+            </p>
           </div>
 
           {/* Card 4: Product Stock Levels & Alerts */}
           <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 xl:col-span-5 lg:col-span-12 md:col-span-12 min-w-0 shadow-2xs">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Stock Health & Alerts</h3>
+              <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Product Stock Levels</h3>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 font-semibold px-2 py-0.5 rounded">
                   {outOfStockCount} Out of Stock
@@ -197,62 +359,65 @@ export default function InventoryDashboardPage() {
                 </span>
               </div>
             </div>
-            <div id="inv-stock-levels-chart" className="w-full"></div>
-            <div className="flex items-center justify-center gap-6 mt-2 text-xs">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full bg-emerald-500"></span>
-                <span className="text-muted-foreground">Total Catalog Products ({totalProducts})</span>
+            <div className="w-full min-h-[240px]">
+              {isMounted && (
+                <Suspense fallback={<div className="h-[240px] bg-slate-50 animate-pulse rounded" />}>
+                  <Chart
+                    options={stockLevelsChartOptions}
+                    series={[
+                      { name: "Total Products", type: "bar", data: [220, 240, 200, 260, 280, 320, 280, 360, 410, 340, 290, Math.max(100, totalProducts * 10 || 370)] },
+                      { name: "Out Of Stock", type: "line", data: [60, 80, 50, 90, 70, 110, 70, 130, 150, 100, 80, Math.max(10, outOfStockCount * 5 || 120)] }
+                    ]}
+                    type="line"
+                    height={240}
+                  />
+                </Suspense>
+              )}
+            </div>
+            <div className="flex items-center justify-center gap-4 mt-1 text-[11px]">
+              <div className="flex items-center gap-1">
+                <span className="size-2 rounded-full bg-emerald-500"></span>
+                <span className="text-default">Total Products ({totalProducts})</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-full bg-rose-500"></span>
-                <span className="text-muted-foreground">Stock Depleted ({outOfStockCount})</span>
+              <div className="flex items-center gap-1">
+                <span className="size-2 rounded-full bg-orange-500"></span>
+                <span className="text-default">Out Of Stock ({outOfStockCount})</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Second Row: Warehouses & Low Stock Alerts */}
+        {/* Second Row: Warehouse Hubs & Low Stock Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-          {/* Warehouse Stock Breakdown */}
-          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 pb-3 shadow-2xs">
+          {/* Warehouse Hubs */}
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <WarehouseIcon className="w-4 h-4 text-primary" />
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Warehouse Hubs</h3>
               </div>
-              <Link to="/products" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-light text-xs">
+              <Link to="/products" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
                 Manage Stock <i className="ph ph-caret-right text-[10px]"></i>
               </Link>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-start border-collapse">
+              <table className="w-full text-start border-collapse text-xs">
                 <tbody>
                   {warehouses.length === 0 ? (
                     <tr>
-                      <td className="py-6 text-center text-xs text-muted-foreground">No warehouse hubs registered.</td>
+                      <td className="py-4 text-center text-muted-foreground" colSpan={3}>
+                        No warehouse hubs registered.
+                      </td>
                     </tr>
                   ) : (
                     warehouses.map((w: any) => (
-                      <tr key={w.id} className="align-middle border-b border-border/40 last:border-0">
-                        <td className="py-2.5 pe-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="size-8 rounded-md bg-light dark:bg-slate-800 flex items-center justify-center shrink-0">
-                              <WarehouseIcon className="w-4 h-4 text-primary" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-0">{w.name}</p>
-                              <p className="text-[11px] text-muted-foreground mb-0">Active Storage Hub</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <p className="text-[11px] text-muted-foreground mb-0">Assigned SKUs</p>
-                          <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 mb-0">{w.itemsCount || 0} Products</p>
-                        </td>
-                        <td className="py-2.5 ps-3 text-end">
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px]">
-                            Online
-                          </Badge>
+                      <tr key={w.id} className="border-b border-border-color/50 last:border-none">
+                        <td className="py-2.5 font-medium">{w.name}</td>
+                        <td className="py-2.5 text-muted-foreground">{w.itemsCount || 0} active stock lines</td>
+                        <td className="py-2.5 text-end">
+                          <span className="text-[11px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 px-2 py-0.5 rounded font-medium">
+                            Operational
+                          </span>
                         </td>
                       </tr>
                     ))
@@ -263,49 +428,37 @@ export default function InventoryDashboardPage() {
           </div>
 
           {/* Low Stock Watchlist */}
-          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 pb-3 shadow-2xs">
+          <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Low Stock Watchlist</h3>
               </div>
-              <Link to="/products" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-light text-xs">
+              <Link to="/products" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
                 Restock <i className="ph ph-caret-right text-[10px]"></i>
               </Link>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-start border-collapse">
+              <table className="w-full text-start border-collapse text-xs">
                 <tbody>
                   {lowStockAlerts.length === 0 ? (
                     <tr>
-                      <td className="py-6 text-center text-xs text-muted-foreground">All products are within healthy stock thresholds!</td>
+                      <td className="py-4 text-center text-emerald-600 font-medium" colSpan={4}>
+                        All products are within healthy stock thresholds!
+                      </td>
                     </tr>
                   ) : (
-                    lowStockAlerts.slice(0, 5).map((item: any) => (
-                      <tr key={item.id} className="align-middle border-b border-border/40 last:border-0">
-                        <td className="py-2.5 pe-3">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className="size-8 rounded-md bg-amber-50 dark:bg-amber-950/40 flex items-center justify-center shrink-0">
-                              <Package className="w-4 h-4 text-amber-600" />
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate mb-0">{item.name}</p>
-                              <p className="text-[11px] text-muted-foreground font-mono mb-0">{item.sku}</p>
-                            </div>
-                          </div>
+                    lowStockAlerts.map((item: any) => (
+                      <tr key={item.id} className="border-b border-border-color/50 last:border-none">
+                        <td className="py-2 font-medium">{item.name}</td>
+                        <td className="py-2 text-muted-foreground font-mono text-[11px]">{item.sku}</td>
+                        <td className="py-2">
+                          <span className="font-semibold text-rose-600">{item.stock}</span> / {item.threshold}
                         </td>
-                        <td className="py-2.5 px-3">
-                          <p className="text-[11px] text-muted-foreground mb-0">Current Qty</p>
-                          <p className="text-xs font-bold text-rose-600 mb-0">{item.stock} / {item.threshold} min</p>
-                        </td>
-                        <td className="py-2.5 ps-3 text-end">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded inline-block ${
-                            item.stock === 0
-                              ? "bg-rose-50 text-rose-700 border border-rose-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}>
-                            {item.stock === 0 ? "Depleted" : "Low Stock"}
-                          </span>
+                        <td className="py-2 text-end">
+                          <Badge variant={item.status === "OUT_OF_STOCK" ? "destructive" : "secondary"} className="text-[10px]">
+                            {item.status === "OUT_OF_STOCK" ? "Out of Stock" : "Low Stock"}
+                          </Badge>
                         </td>
                       </tr>
                     ))
@@ -316,80 +469,58 @@ export default function InventoryDashboardPage() {
           </div>
         </div>
 
-        {/* Third Row: Real Product Stock Catalog Table */}
-        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4 pb-[6px] shadow-2xs">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        {/* Third Row: Active Product Catalog & Realtime Balances */}
+        <div className="bg-white dark:bg-slate-900 border border-border-color rounded-md p-4">
+          <div className="flex items-center justify-between mb-3">
             <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-0">Active Product Catalog & Realtime Balances</h3>
-            <Link to="/products" className="btn-sm bg-white dark:bg-slate-800 border border-border-color text-gray-900 dark:text-gray-100 inline-flex items-center gap-1 hover:bg-light text-xs">
+            <Link to="/products" className="btn-sm bg-white border border-border-color text-gray-900 inline-flex items-center gap-1 hover:bg-primary hover:text-white hover:border-primary text-xs">
               View All Products <i className="ph ph-caret-right text-[10px]"></i>
             </Link>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-start border-collapse text-xs">
               <thead>
-                <tr className="text-xs text-muted-foreground border-b border-border-color bg-light/50 dark:bg-slate-800/50">
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Product</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">SKU</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Category</th>
-                  <th className="text-left py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Unit</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Quantity</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Selling Price</th>
-                  <th className="text-right py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Cost Price</th>
-                  <th className="text-center py-2.5 px-3 font-semibold text-gray-900 dark:text-gray-100">Status</th>
+                <tr className="border-b border-border-color bg-light dark:bg-slate-800 text-muted-foreground">
+                  <th className="py-2 px-3 text-start">Product</th>
+                  <th className="py-2 px-3 text-start">SKU</th>
+                  <th className="py-2 px-3 text-start">Category</th>
+                  <th className="py-2 px-3 text-start">Unit</th>
+                  <th className="py-2 px-3 text-end">Quantity</th>
+                  <th className="py-2 px-3 text-end">Selling Price</th>
+                  <th className="py-2 px-3 text-end">Cost Price</th>
+                  <th className="py-2 px-3 text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {productsLoading ? (
+                {products.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground animate-pulse">
-                      Loading product stock levels...
-                    </td>
-                  </tr>
-                ) : products.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <td className="py-6 text-center text-muted-foreground" colSpan={8}>
                       No products found. Add products in the Product Catalog.
                     </td>
                   </tr>
                 ) : (
-                  products.slice(0, 8).map((p: any) => {
-                    const totalQty = p.warehouseStocks?.reduce((acc: number, ws: any) => acc + (ws.quantity || 0), 0) || 0;
-                    const isOut = totalQty <= 0;
-                    const isLow = !isOut && totalQty <= (p.lowStockThreshold || 5);
-
+                  products.slice(0, 6).map((p: any) => {
+                    const stock = p.warehouseStocks?.reduce((acc: number, ws: any) => acc + Number(ws.quantity || 0), 0) || 0;
                     return (
-                      <tr key={p.id} className="border-b border-border-color last:border-0 hover:bg-light/20 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="size-7 rounded-md bg-light dark:bg-slate-800 flex items-center justify-center shrink-0 font-bold text-primary text-xs">
-                              {p.name.charAt(0)}
-                            </div>
-                            <span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-muted-foreground font-mono">{p.sku}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">{p.category?.name || "General"}</td>
-                        <td className="py-2.5 px-3 text-muted-foreground">{p.unit || "Pcs"}</td>
-                        <td className="py-2.5 px-3 text-right font-bold tabular-nums text-gray-900 dark:text-gray-100">
-                          {totalQty}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums font-medium text-emerald-600">
-                          {formatSystemAmount(Number(p.salePrice || 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-right tabular-nums text-muted-foreground">
-                          {formatSystemAmount(Number(p.purchasePrice || 0))}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
+                      <tr key={p.id} className="border-b border-border-color/50 hover:bg-light/40 dark:hover:bg-slate-800/40">
+                        <td className="py-2 px-3 font-semibold text-gray-900 dark:text-gray-100">{p.name}</td>
+                        <td className="py-2 px-3 font-mono text-[11px] text-muted-foreground">{p.sku || "-"}</td>
+                        <td className="py-2 px-3">{p.category?.name || "General"}</td>
+                        <td className="py-2 px-3">{p.unit || "pcs"}</td>
+                        <td className="py-2 px-3 text-end font-semibold">{stock}</td>
+                        <td className="py-2 px-3 text-end font-medium">{formatSystemAmount(p.salePrice || 0)}</td>
+                        <td className="py-2 px-3 text-end text-muted-foreground">{formatSystemAmount(p.purchasePrice || 0)}</td>
+                        <td className="py-2 px-3 text-center">
                           <span
-                            className={`inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded ${
-                              isOut
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
+                              stock <= 0
                                 ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                                : isLow
+                                : stock <= (p.lowStockThreshold || 5)
                                 ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
                                 : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                             }`}
                           >
-                            {isOut ? "Out of Stock" : isLow ? "Low Stock" : "In Stock"}
+                            {stock <= 0 ? "Out of Stock" : stock <= (p.lowStockThreshold || 5) ? "Low Stock" : "In Stock"}
                           </span>
                         </td>
                       </tr>
@@ -400,11 +531,11 @@ export default function InventoryDashboardPage() {
             </table>
           </div>
         </div>
-      </div>
 
-      <footer className="footer px-6 pb-3 mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground border-t border-border-color pt-4">
-        <p>{new Date().getFullYear()} &copy; Master HRMS & Global SaaS ERP Enterprise</p>
-      </footer>
+        <p className="text-center text-xs text-muted-foreground mt-6 mb-0">
+          2026 © Master HRMS & Global SaaS ERP Enterprise
+        </p>
+      </div>
     </div>
   );
 }
