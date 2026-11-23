@@ -220,6 +220,32 @@ exports.addonsRouter.get("/entitlements", async (req, res) => {
                 }
             }
         }
+        // 2. Free system add-ons available to all tenants across every plan tier
+        const FREE_SYSTEM_ADDONS = [
+            "two-factor-auth",
+            "backup-restore",
+            "internal-reminders",
+            "public-api",
+            "outbound-webhooks",
+            "notice-board",
+        ];
+        for (const slug of FREE_SYSTEM_ADDONS) {
+            const related = getRelatedSlugs(slug);
+            const isExplicitlyDisabled = related.some((r) => entitlementMap[r]?.status === "disabled");
+            if (!entitlementMap[slug] && !isExplicitlyDisabled) {
+                entitlementMap[slug] = {
+                    id: `free-${slug}`,
+                    addonSlug: slug,
+                    status: "available_in_plan",
+                    plan: "free_tier",
+                    isPlanIncluded: true,
+                    isFree: true,
+                    isInstalled: false,
+                    isEnabled: false,
+                    isActive: false,
+                };
+            }
+        }
         return res.json({ entitlements: entitlementMap });
     }
     catch (err) {
@@ -324,8 +350,9 @@ exports.addonsRouter.post("/:addonSlug/install", async (req, res) => {
         const catalogItem = await db.addon.findUnique({
             where: { slug: cleanSlug },
         });
-        // Check price (defaults to 0 if free extension)
-        const publishedPrice = catalogItem?.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        // Check price (2FA is completely free, otherwise check catalog)
+        const isAlwaysFree = cleanSlug === "two-factor-auth" || cleanSlug === "2fa";
+        const publishedPrice = isAlwaysFree ? 0 : (catalogItem?.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0);
         // 2. Check if included in tenant plan
         const activeSub = await db.tenantSubscription.findFirst({
             where: {
@@ -487,9 +514,10 @@ exports.addonsRouter.post("/:addonSlug/checkout", async (req, res) => {
         if (!catalogItem) {
             return res.status(404).json({ error: `Add-on "${cleanSlug}" not found in catalog.` });
         }
-        const priceMonthly = catalogItem.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0;
+        const isAlwaysFree = cleanSlug === "two-factor-auth" || cleanSlug === "2fa";
+        const priceMonthly = isAlwaysFree ? 0 : (catalogItem.priceMonthly != null ? Number(catalogItem.priceMonthly) : 0);
         if (priceMonthly <= 0) {
-            return res.json({ requiresPayment: false, message: "Add-on is free." });
+            return res.json({ requiresPayment: false, isFree: true, message: "Add-on is completely free." });
         }
         const isAnnual = duration === "1_year";
         const amount = isAnnual ? Math.round(priceMonthly * 12 * 0.85) : priceMonthly; // 15% annual discount

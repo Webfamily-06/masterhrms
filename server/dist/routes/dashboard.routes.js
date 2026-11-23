@@ -196,7 +196,7 @@ exports.dashboardRouter.get("/hrm", async (req, res) => {
         const startOfMonth = attendance_service_1.AttendanceService.toPrismaDate(zoned.year, zoned.month, 1);
         const sevenDaysAgo = new Date(todayUtc);
         sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
-        const [totalWorkforce, activeEmployees, totalHeadcount, newEmployeesThisMonth, todayAttendanceList, onLeaveCount, pendingLeaveCount, allJobPostings, payrollRuns, departments, recentCandidates, candidateStages, topEmployees, weekAttendances, avgSalaryAgg, monthAttendances,] = await Promise.all([
+        const [totalWorkforce, activeEmployees, totalHeadcount, newEmployeesThisMonth, todayAttendanceList, onLeaveCount, pendingLeaveCount, allJobPostings, payrollRuns, departments, recentCandidates, candidateStages, topEmployees, weekAttendances, avgSalaryAgg, monthAttendances, probationCount, noticeCount,] = await Promise.all([
             // 1. Current active workforce (active + on_leave, excluding terminated)
             prisma_1.rawPrisma.employee.count({ where: { tenantId, status: { not: "terminated" } } }).catch(() => 0),
             // 2. Active employees on duty
@@ -285,6 +285,14 @@ exports.dashboardRouter.get("/hrm", async (req, res) => {
                 },
                 select: { date: true, checkIn: true, status: true },
             }).catch(() => []),
+            // 15. Probation employees count
+            prisma_1.rawPrisma.probationRecord.count({
+                where: { tenantId, status: { in: ["active", "extended"] } },
+            }).catch(() => 0),
+            // 16. Serving notice count
+            prisma_1.rawPrisma.employeeExit.count({
+                where: { tenantId, status: "serving_notice" },
+            }).catch(() => 0),
         ]);
         // Punch detection helpers
         const isPresentPunch = (a) => {
@@ -348,6 +356,8 @@ exports.dashboardRouter.get("/hrm", async (req, res) => {
             totalEmployees: totalWorkforce,
             totalHeadcount,
             activeEmployees,
+            probationEmployees: probationCount,
+            noticeEmployees: noticeCount,
             newThisMonth: newEmployeesThisMonth,
             onLeaveToday: onLeaveCount,
             attendanceRate: Number(attendanceRate),
@@ -1208,7 +1218,7 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
         return;
     try {
         const { resolveBranding } = await Promise.resolve().then(() => __importStar(require("../services/branding/branding-resolver.service")));
-        const [tenant, branding, userCount, employeeCount, subscription, activeAddonsCount, rolesCount, tenantMods,] = await Promise.all([
+        const [tenant, branding, userCount, employeeCount, activeEmployeeCount, salaryAgg, departmentCount, subscription, tenantAddons, rolesCount, tenantMods, recentAudits, recentAuditLogs,] = await Promise.all([
             withRetry(() => prisma_1.rawPrisma.tenant.findUnique({
                 where: { id: tenantId },
                 select: { id: true, name: true, slug: true, timezone: true, currency: true, createdAt: true },
@@ -1216,22 +1226,85 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             resolveBranding({ scope: "TENANT", tenantId }).catch(() => null),
             withRetry(() => prisma_1.rawPrisma.userRole.count({ where: { tenantId } })).catch(() => 0),
             withRetry(() => prisma_1.rawPrisma.employee.count({ where: { tenantId } })).catch(() => 0),
+            withRetry(() => prisma_1.rawPrisma.employee.count({ where: { tenantId, status: "active" } })).catch(() => 0),
+            withRetry(() => prisma_1.rawPrisma.employee.aggregate({
+                where: { tenantId, status: { not: "terminated" } },
+                _sum: { salary: true },
+            })).catch(() => ({ _sum: { salary: null } })),
+            withRetry(() => prisma_1.rawPrisma.department.count({ where: { tenantId } })).catch(() => 0),
             withRetry(() => prisma_1.rawPrisma.tenantSubscription.findFirst({
                 where: { tenantId },
                 orderBy: { createdAt: "desc" },
             })).catch(() => null),
-            withRetry(() => prisma_1.rawPrisma.tenantAddon.count({
+            withRetry(() => prisma_1.rawPrisma.tenantAddon.findMany({
                 where: { tenantId, status: "active" },
-            })).catch(() => 0),
+                orderBy: { createdAt: "desc" },
+                take: 12,
+            })).catch(() => []),
             withRetry(() => prisma_1.rawPrisma.workspaceRole.count({ where: { tenantId, isActive: true } })).catch(() => 0),
             withRetry(() => prisma_1.rawPrisma.tenantModule.findMany({ where: { tenantId } })).catch(() => []),
+            withRetry(() => prisma_1.rawPrisma.settingAudit.findMany({
+                where: { scope: "TENANT", scopeId: tenantId },
+                orderBy: { createdAt: "desc" },
+                take: 5,
+                select: { id: true, key: true, changedBy: true, createdAt: true },
+            })).catch(() => []),
+            withRetry(() => prisma_1.rawPrisma.auditLog.findMany({
+                where: { tenantId },
+                orderBy: { createdAt: "desc" },
+                take: 5,
+                select: { id: true, action: true, entityType: true, actorEmail: true, createdAt: true },
+            })).catch(() => []),
         ]);
-        const recentAudits = await withRetry(() => prisma_1.rawPrisma.settingAudit.findMany({
-            where: { scope: "TENANT", scopeId: tenantId },
-            orderBy: { createdAt: "desc" },
-            take: 6,
-            select: { id: true, key: true, changedBy: true, createdAt: true },
-        })).catch(() => []);
+        const addonSlugs = tenantAddons.map((a) => a.addonSlug);
+        const superAddons = addonSlugs.length > 0
+            ? await withRetry(() => prisma_1.rawPrisma.addon.findMany({
+                where: { slug: { in: addonSlugs } },
+                select: { slug: true, name: true, category: true, icon: true, priceMonthly: true },
+            })).catch(() => [])
+            : [];
+        const superAddonMap = new Map(superAddons.map((s) => [s.slug, s]));
+        const enrichedAddons = tenantAddons.map((ta) => {
+            const sa = superAddonMap.get(ta.addonSlug);
+            return {
+                id: ta.id,
+                addonSlug: ta.addonSlug,
+                name: sa?.name || ta.addonSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                category: sa?.category || "General",
+                icon: sa?.icon || null,
+                status: ta.status,
+                plan: ta.plan,
+                isFree: Number(sa?.priceMonthly || 0) === 0,
+                price: sa?.priceMonthly ? Number(sa.priceMonthly) : 0,
+                trialEndsAt: ta.trialEndsAt,
+                renewsAt: ta.renewsAt,
+                createdAt: ta.createdAt,
+            };
+        });
+        const combinedAudits = [
+            ...recentAudits.map((a) => ({
+                id: a.id,
+                key: a.key,
+                action: `Updated ${a.key} configuration`,
+                changedBy: a.changedBy || "Tenant Admin",
+                user: a.changedBy || "Tenant Admin",
+                createdAt: a.createdAt,
+                timestamp: a.createdAt,
+                type: "setting",
+            })),
+            ...recentAuditLogs.map((l) => ({
+                id: l.id,
+                key: l.entityType,
+                action: `${l.action.toUpperCase()} on ${l.entityType}`,
+                changedBy: l.actorEmail || "System",
+                user: l.actorEmail || "System",
+                createdAt: l.createdAt,
+                timestamp: l.createdAt,
+                type: "entity",
+            })),
+        ]
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 6);
         const totalStorageGb = subscription?.storageLimitGb ? Number(subscription.storageLimitGb) : 10;
         const usedGb = 0;
         const disabledModsCount = Array.isArray(tenantMods)
@@ -1241,6 +1314,9 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
         const resolvedTimezone = branding?.locale?.timezone || tenant?.timezone || "Asia/Kolkata";
         const resolvedCurrency = branding?.locale?.defaultCurrency || tenant?.currency || "INR";
         const resolvedCurrencySymbol = branding?.locale?.currencySymbol || "₹";
+        const maxEmps = subscription?.employeeLimit ? Number(subscription.employeeLimit) : 50;
+        const quotaPercentage = maxEmps > 0 ? Math.min(100, Math.round((employeeCount / maxEmps) * 100)) : 0;
+        const grossPayroll = Number(salaryAgg._sum?.salary || 0);
         return res.json({
             workspace: tenant
                 ? {
@@ -1259,14 +1335,20 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             planName: subscription?.planType || "Starter",
             subscriptionStatus: subscription?.status || "active",
             planType: subscription?.planType || "Starter",
+            billingCycle: subscription?.billingCycle || "monthly",
             userCount,
             activeUsers: userCount,
             employeeCount,
             totalEmployees: employeeCount,
-            maxEmployees: subscription?.employeeLimit ? Number(subscription.employeeLimit) : 50,
-            activeAddonsCount,
+            activeEmployees: activeEmployeeCount,
+            maxEmployees: maxEmps,
+            quotaPercentage,
+            grossPayroll,
+            departmentCount,
+            activeAddonsCount: tenantAddons.length,
             rolesCount,
             disabledModulesCount: disabledModsCount,
+            addons: enrichedAddons,
             storageUsage: {
                 usedGB: usedGb,
                 totalGB: totalStorageGb,
@@ -1274,15 +1356,7 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             },
             storageUsageFormatted: `${usedGb} GB / ${totalStorageGb} GB`,
             systemHealth: "100.0%",
-            recentAudits: recentAudits.map((a) => ({
-                id: a.id,
-                key: a.key,
-                action: `Updated ${a.key} configuration`,
-                changedBy: a.changedBy || "Tenant Admin",
-                user: a.changedBy || "Tenant Admin",
-                createdAt: a.createdAt,
-                timestamp: a.createdAt,
-            })),
+            recentAudits: combinedAudits,
         });
     }
     catch (err) {
@@ -1292,12 +1366,20 @@ exports.dashboardRouter.get("/tenant", async (req, res) => {
             planName: "Starter",
             subscriptionStatus: "active",
             planType: "Starter",
+            billingCycle: "monthly",
             userCount: 0,
             activeUsers: 0,
             employeeCount: 0,
             totalEmployees: 0,
+            activeEmployees: 0,
             maxEmployees: 50,
+            quotaPercentage: 0,
+            grossPayroll: 0,
+            departmentCount: 0,
             activeAddonsCount: 0,
+            rolesCount: 0,
+            disabledModulesCount: 0,
+            addons: [],
             storageUsage: { usedGB: 0, totalGB: 10, percentage: 0 },
             storageUsageFormatted: "0 GB / 10 GB",
             systemHealth: "100.0%",

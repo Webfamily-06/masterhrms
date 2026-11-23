@@ -8,7 +8,7 @@ export interface EntitlementCheckResult {
   entitled: boolean;
   type: EntitlementType;
   key: string;
-  source?: "plan" | "addon" | "module" | "super_admin_bypass" | "core_platform";
+  source?: "plan" | "addon" | "module" | "super_admin_bypass" | "core_platform" | "free_system_addon";
   status?: string;
   reason?: string;
 }

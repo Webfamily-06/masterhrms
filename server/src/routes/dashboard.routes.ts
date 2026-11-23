@@ -1380,26 +1380,26 @@ dashboardRouter.get("/tenant", async (req: AuthRequest, res: Response) => {
     const addonSlugs = tenantAddons.map((a) => a.addonSlug);
     const superAddons = addonSlugs.length > 0
       ? await withRetry(() =>
-          rawPrisma.superAdminAddon.findMany({
+          rawPrisma.addon.findMany({
             where: { slug: { in: addonSlugs } },
-            select: { slug: true, name: true, category: true, icon: true, isFree: true, monthlyPrice: true },
+            select: { slug: true, name: true, category: true, icon: true, priceMonthly: true },
           })
         ).catch(() => [])
       : [];
 
-    const superAddonMap = new Map(superAddons.map((s) => [s.slug, s]));
+    const superAddonMap = new Map((superAddons as any[]).map((s) => [s.slug, s]));
     const enrichedAddons = tenantAddons.map((ta) => {
-      const sa = superAddonMap.get(ta.addonSlug);
+      const sa: any = superAddonMap.get(ta.addonSlug);
       return {
         id: ta.id,
         addonSlug: ta.addonSlug,
-        name: sa?.name || ta.addonSlug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        name: sa?.name || ta.addonSlug.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
         category: sa?.category || "General",
         icon: sa?.icon || null,
         status: ta.status,
         plan: ta.plan,
-        isFree: sa?.isFree ?? false,
-        price: sa?.monthlyPrice ? Number(sa.monthlyPrice) : 0,
+        isFree: Number(sa?.priceMonthly || 0) === 0,
+        price: sa?.priceMonthly ? Number(sa.priceMonthly) : 0,
         trialEndsAt: ta.trialEndsAt,
         renewsAt: ta.renewsAt,
         createdAt: ta.createdAt,
