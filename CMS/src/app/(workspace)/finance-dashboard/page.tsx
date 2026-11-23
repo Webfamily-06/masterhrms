@@ -15,6 +15,35 @@ export default function FinanceDashboardPage() {
     setIsMounted(true);
   }, []);
 
+  
+  const payrollPaymentOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: 'bar',
+        height: 45,
+        stacked: true,
+        stackType: '100%',
+        toolbar: { show: false },
+        sparkline: { enabled: true }
+      },
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          barHeight: '100%',
+          borderRadius: 4,
+        },
+      },
+      colors: ['#FF6F28', '#E5E7EB'],
+      tooltip: { enabled: true },
+    }),
+    []
+  );
+
+  const payrollPaymentSeries = useMemo(() => [
+    { name: 'Payroll', data: [600] },
+    { name: 'Remaining', data: [1000] },
+  ], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -138,7 +167,13 @@ export default function FinanceDashboardPage() {
 													className="ti ti-caret-up-filled"></i></span></h2>
 									</div>
 								</div>
-								<div id="payroll-payment"></div>
+								<div id="payroll-payment">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 45 }} className="d-flex align-items-center justify-content-center text-muted">Loading...</div>}>
+        <Chart options={payrollPaymentOptions} series={payrollPaymentSeries} type="bar" height={45} />
+      </Suspense>
+    )}
+  </div>
 							</div> {/*  end card body  */}
 							<img src="/assets/img/bg/dashboard-bg.png" alt="bg"
 								className="img-fluid position-absolute top-0 start-0 z-n1 w-100" />

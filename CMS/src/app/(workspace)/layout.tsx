@@ -1,4 +1,5 @@
 import { WorkspaceShell } from '@/src/components/layout/WorkspaceShell';
+import { DashboardDropdownHandler } from '@/src/components/dashboard/dashboard-dropdown-handler';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -21,7 +22,9 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       <link rel="stylesheet" href="/assets/libs/@tabler/icons-webfont/tabler-icons.min.css" />
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
       <link rel="stylesheet" href="/assets/css/bootstrap-dashboard.css?v=2" />
+      <DashboardDropdownHandler />
       <WorkspaceShell>{children}</WorkspaceShell>
     </>
   );
 }
+

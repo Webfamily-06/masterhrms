@@ -497,7 +497,11 @@ export default function RecruitmentDashboardPage() {
 
 								{/*  Chart  */}
 								<div className="position-relative mx-auto recruitment-chart">
-									<canvas id="recruitment"></canvas>
+									{isMounted && (
+    <Suspense fallback={<div style={{ height: 220 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+      <Chart options={recruitmentChartOptions} series={[68]} type="radialBar" height={220} />
+    </Suspense>
+  )}
 
 									{/*  Center Text  */}
 									<div className="position-absolute text-center"
@@ -591,7 +595,11 @@ export default function RecruitmentDashboardPage() {
 										</div>
 									</div>
 									<div className="chartjs-wrapper-demo avghiretime-chart">
-										<canvas id="avghiretime"></canvas>
+										{isMounted && (
+    <Suspense fallback={<div style={{ height: 220 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+      <Chart options={avgHireTimeOptions} series={[{ name: "Applied", data: [2, 4, 3] }, { name: "Shortlisted", data: [5, 2, 4] }, { name: "Hired", data: [2, 3, 1] }]} type="bar" height={220} />
+    </Suspense>
+  )}
 									</div>
 
 									<div className="d-flex flex-column mb-3 gap-2">

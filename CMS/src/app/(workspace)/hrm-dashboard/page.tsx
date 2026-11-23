@@ -15,6 +15,42 @@ export default function HrmDashboardPage() {
     setIsMounted(true);
   }, []);
 
+  
+  const empDistributionOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 340,
+        type: 'bar',
+        toolbar: { show: false },
+      },
+      colors: ['#FF7129'],
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: '45%',
+          horizontal: false,
+        },
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        labels: {
+          style: { colors: '#6B7280', fontSize: '12px' }
+        }
+      },
+      grid: {
+        borderColor: '#E5E7EB',
+        strokeDashArray: 4,
+      }
+    }),
+    []
+  );
+
+  const empDistributionSeries = useMemo(() => [{
+    name: 'Employees',
+    data: [40, 50, 60, 70, 80, 90, 100, 80, 70, 60, 50, 40]
+  }], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -461,7 +497,13 @@ export default function HrmDashboardPage() {
 									<h2 className="card-title mb-0">Top Employee Distribution</h2>
 									<a href="https://smarthr.dreamstechnologies.com/hrm/html/employees.html" className="btn btn-md btn-light">View All</a>
 								</div>
-								<div id="employee-distribution"></div>
+								<div id="employee-distribution">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 340 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={empDistributionOptions} series={empDistributionSeries} type="bar" height={340} />
+      </Suspense>
+    )}
+  </div>
 							</div> {/*  end card body  */}
 						</div> {/*  end card  */}
 					</div> {/*  end col  */}

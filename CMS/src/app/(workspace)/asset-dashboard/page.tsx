@@ -15,6 +15,87 @@ export default function AssetDashboardPage() {
     setIsMounted(true);
   }, []);
 
+  
+  const assetDeptOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 296,
+        type: 'bar',
+        toolbar: { show: false },
+      },
+      colors: ['#0C4B5E'],
+      plotOptions: {
+        bar: {
+          borderRadius: 4,
+          horizontal: true,
+          barHeight: '35%',
+        }
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['UI/UX', 'Development', 'Management', 'HR', 'Testing', 'Marketing'],
+        labels: { style: { colors: '#6B7280', fontSize: '12px' } }
+      },
+      grid: { borderColor: '#E5E7EB', strokeDashArray: 4 }
+    }),
+    []
+  );
+
+  const assetDeptSeries = useMemo(() => [{
+    name: 'Assets',
+    data: [80, 110, 80, 20, 60, 100]
+  }], []);
+
+  const sparklineBarOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: 'bar',
+        height: 116,
+        toolbar: { show: false },
+        sparkline: { enabled: true },
+      },
+      plotOptions: {
+        bar: {
+          borderRadius: 4,
+          columnWidth: '70%',
+        }
+      },
+      colors: ['#FF6F28'],
+      tooltip: { enabled: true }
+    }),
+    []
+  );
+
+  const sparklineBarSeries = useMemo(() => [{
+    name: 'Assets',
+    data: [14, 18, 12, 22, 16, 24, 28, 15, 20, 14, 18, 11, 13, 23, 25, 26, 17, 14, 12, 24, 16, 12, 10, 20, 18, 15, 12, 18]
+  }], []);
+
+  const assetValueOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: 'bar',
+        height: 65,
+        toolbar: { show: false },
+        sparkline: { enabled: true }
+      },
+      plotOptions: {
+        bar: {
+          borderRadius: 3,
+          columnWidth: '55%',
+        }
+      },
+      colors: ['#0C4B5E'],
+      tooltip: { enabled: false }
+    }),
+    []
+  );
+
+  const assetValueSeries = useMemo(() => [{
+    name: 'Value',
+    data: [1, 1, 1, 1, 1, 1.6, 1, 1, 1, 1, 1, 1.2, 1, 1, 1.8, 1, 1, 1]
+  }], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -121,7 +202,13 @@ export default function AssetDashboardPage() {
 									<a href="#"><i className="ti ti-refresh fs-20 text-secondary"></i></a>
 								</div>
 
-								<div id="assets-department"></div>
+								<div id="assets-department">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 296 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={assetDeptOptions} series={assetDeptSeries} type="bar" height={296} />
+      </Suspense>
+    )}
+  </div>
 
 							</div>
 						</div>
@@ -144,7 +231,13 @@ export default function AssetDashboardPage() {
 											className="ti ti-square-rounded-chevron-up me-1"></i>9.25%</p>
 								</div>
 								<h2>1,247</h2>
-								<div id="total-assets"></div>
+								<div id="total-assets">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 116 }}>Loading...</div>}>
+        <Chart options={sparklineBarOptions} series={sparklineBarSeries} type="bar" height={116} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 					</div>
@@ -160,7 +253,13 @@ export default function AssetDashboardPage() {
 											className="ti ti-square-rounded-chevron-up me-1"></i>9.25%</p>
 								</div>
 								<h2>892</h2>
-								<div id="assets-assigned"></div>
+								<div id="assets-assigned">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 116 }}>Loading...</div>}>
+        <Chart options={sparklineBarOptions} series={sparklineBarSeries} type="bar" height={116} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 					</div>
@@ -176,7 +275,13 @@ export default function AssetDashboardPage() {
 											className="ti ti-square-rounded-chevron-down me-1"></i>9.25%</p>
 								</div>
 								<h2>287</h2>
-								<div id="assets-available"></div>
+								<div id="assets-available">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 116 }}>Loading...</div>}>
+        <Chart options={sparklineBarOptions} series={sparklineBarSeries} type="bar" height={116} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 					</div>
@@ -234,7 +339,13 @@ export default function AssetDashboardPage() {
 									<p className="fs-12 m-0 fw-semibold">2M</p>
 									<p className="fs-12 m-0 fw-semibold">4M</p>
 								</div>
-								<div id="asset-value"></div>
+								<div id="asset-value">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 65 }}>Loading...</div>}>
+        <Chart options={assetValueOptions} series={assetValueSeries} type="bar" height={65} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 
@@ -282,7 +393,13 @@ export default function AssetDashboardPage() {
 											<p className="mb-0 fs-14">vs last month</p>
 										</div>
 									</div>
-									<div id="depreciated-value"></div>
+									<div id="depreciated-value">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 60 }}>Loading...</div>}>
+        <Chart options={assetValueOptions} series={assetValueSeries} type="bar" height={60} />
+      </Suspense>
+    )}
+  </div>
 								</div>
 
 							</div>

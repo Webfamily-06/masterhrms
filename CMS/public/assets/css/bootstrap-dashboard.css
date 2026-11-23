@@ -31028,3 +31028,7 @@
 }
 
 /*# sourceMappingURL=style.css.map */
+
+.dashboard-scope .dropdown { position: relative !important; }
+.dashboard-scope .dropdown-menu.show { display: block !important; visibility: visible !important; opacity: 1 !important; z-index: 1050 !important; }
+.dashboard-scope .dropdown-menu-end { right: 0 !important; left: auto !important; }

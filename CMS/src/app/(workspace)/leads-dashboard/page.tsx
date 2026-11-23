@@ -15,6 +15,75 @@ export default function LeadsDashboardPage() {
     setIsMounted(true);
   }, []);
 
+  
+  const revenueIncomeOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 280,
+        type: 'bar',
+        stacked: true,
+        toolbar: { show: false }
+      },
+      colors: ['#f26522', '#0c4b5e', '#1b84ff', '#E5E7EB'],
+      plotOptions: {
+        bar: {
+          borderRadius: 5,
+          columnWidth: '55%',
+          horizontal: false,
+        },
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        labels: {
+          style: { colors: '#6B7280', fontSize: '12px' }
+        }
+      },
+      legend: { show: false },
+    }),
+    []
+  );
+
+  const revenueIncomeSeries = useMemo(() => [
+    { name: 'Step 1', data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25] },
+    { name: 'Step 2', data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25] },
+    { name: 'Step 3', data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25] },
+    { name: 'Step 4', data: [25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 20, 25] },
+  ], []);
+
+  const leadsStageOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 345,
+        type: 'bar',
+        stacked: true,
+        toolbar: { show: false },
+      },
+      colors: ['#FF6F28', '#E5E7EB'],
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: '55%',
+          horizontal: false,
+        },
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['Closed Won', 'Contacted', 'Qualified', 'Lost'],
+        labels: {
+          style: { colors: '#6B7280', fontSize: '13px' }
+        }
+      },
+      legend: { show: false },
+    }),
+    []
+  );
+
+  const leadsStageSeries = useMemo(() => [
+    { name: 'Income', data: [80, 40, 60, 40] },
+    { name: 'Expenses', data: [100, 100, 100, 100] }
+  ], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -213,7 +282,13 @@ export default function LeadsDashboardPage() {
 										</div>
 									</div>
 								</div>
-								<div id="revenue-income"></div>
+								<div id="revenue-income">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 280 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={revenueIncomeOptions} series={revenueIncomeSeries} type="bar" height={280} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 					</div>
@@ -288,7 +363,13 @@ export default function LeadsDashboardPage() {
 							</div>
 							<div className="card-body py-0">
 								<div>
-									<div id="leads_stage"></div>
+									<div id="leads_stage">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 345 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={leadsStageOptions} series={leadsStageSeries} type="bar" height={345} />
+      </Suspense>
+    )}
+  </div>
 								</div>
 							</div>
 						</div>

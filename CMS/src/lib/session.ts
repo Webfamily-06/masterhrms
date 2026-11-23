@@ -55,6 +55,7 @@ function useSessionQuery() {
     // gets data from the exact same cache slot. Zero duplicate network calls.
     queryKey: ["current-session-user", token],
     enabled: !!token,
+    retry: false,
     staleTime: 5 * 60 * 1000,  // Fresh for 5 min — no needless re-fetches on focus
     gcTime: 10 * 60 * 1000,    // Keep in memory 10 min after last subscriber unmounts
     queryFn: async () => {

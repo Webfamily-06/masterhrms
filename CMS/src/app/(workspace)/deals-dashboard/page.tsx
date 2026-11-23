@@ -15,6 +15,43 @@ export default function DealsDashboardPage() {
     setIsMounted(true);
   }, []);
 
+  
+  const dealsStageOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 310,
+        type: 'bar',
+        stacked: true,
+        toolbar: { show: false },
+      },
+      colors: ['#FF6F28', '#E5E7EB'],
+      plotOptions: {
+        bar: {
+          borderRadius: 8,
+          horizontal: false,
+          columnWidth: '55%',
+        },
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['Inpipeline', 'Follow Up', 'Schedule', 'Conversion'],
+        labels: {
+          style: {
+            colors: '#6B7280',
+            fontSize: '13px',
+          }
+        }
+      },
+      legend: { show: false },
+    }),
+    []
+  );
+
+  const dealsStageSeries = useMemo(() => [
+    { name: 'Income', data: [80, 40, 100, 20] },
+    { name: 'Expenses', data: [100, 100, 100, 100] }
+  ], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -320,7 +357,13 @@ export default function DealsDashboardPage() {
 												className="ti ti-arrow-up"></i>12%</span>
 										<span>vs last years</span>
 									</div>
-									<div id="deals_stage"></div>
+									<div id="deals_stage">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 310 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={dealsStageOptions} series={dealsStageSeries} type="bar" height={310} />
+      </Suspense>
+    )}
+  </div>
 								</div>
 							</div>
 						</div>

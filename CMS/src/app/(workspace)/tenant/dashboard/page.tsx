@@ -81,6 +81,86 @@ export default function TenantDashboardPage() {
 
   const projectChartSeries = useMemo(() => [20, 40, 20, 10], []);
 
+  
+  const salesIncomeChartOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 290,
+        type: 'bar',
+        stacked: true,
+        toolbar: { show: false }
+      },
+      colors: ['#FF6F28', '#E5E7EB'],
+      plotOptions: {
+        bar: {
+          columnWidth: '60%',
+          borderRadius: 5,
+          borderRadiusWhenStacked: 'all',
+          horizontal: false,
+        },
+      },
+      series: [
+        { name: 'Income', data: [40, 30, 45, 80, 85, 90, 80, 80, 80, 85, 20, 80] },
+        { name: 'Expenses', data: [60, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20] }
+      ],
+      xaxis: {
+        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        labels: {
+          style: {
+            colors: '#6B7280',
+            fontSize: '13px',
+          }
+        }
+      },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+    }),
+    []
+  );
+
+  const salesIncomeSeries = useMemo(() => [
+    { name: 'Income', data: [40, 30, 45, 80, 85, 90, 80, 80, 80, 85, 20, 80] },
+    { name: 'Expenses', data: [60, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20] }
+  ], []);
+
+  const empDepartmentOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        height: 220,
+        type: 'bar',
+        toolbar: { show: false }
+      },
+      colors: ['#FF6F28'],
+      plotOptions: {
+        bar: {
+          borderRadius: 5,
+          horizontal: true,
+          barHeight: '35%',
+        }
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: ['UI/UX', 'Development', 'Management', 'HR', 'Testing', 'Marketing'],
+        labels: {
+          style: {
+            colors: '#6B7280',
+            fontSize: '12px',
+          }
+        }
+      },
+      grid: {
+        borderColor: '#E5E7EB',
+        strokeDashArray: 4,
+      }
+    }),
+    []
+  );
+
+  const empDepartmentSeries = useMemo(() => [{
+    name: 'Employees',
+    data: [80, 110, 80, 20, 60, 100]
+  }], []);
+
   return (
     <div className="dashboard-scope w-full">
       {/*  Breadcrumb  */}
@@ -293,7 +373,13 @@ export default function TenantDashboardPage() {
 								</div>
 							</div>
 							<div className="card-body">
-								<div id="emp-department"></div>
+								<div id="emp-department">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 220 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={empDepartmentOptions} series={empDepartmentSeries} type="bar" height={220} />
+      </Suspense>
+    )}
+  </div>
 								<p className="fs-13"><i className="ti ti-circle-filled me-2 fs-8 text-primary"></i>No of
 									Employees increased by <span className="text-success fw-bold">+20%</span> from last Week
 								</p>
@@ -446,13 +532,17 @@ export default function TenantDashboardPage() {
 								</div>
 							</div>
 							<div className="card-body">
-								<div className="chartjs-wrapper-demo position-relative mb-4">
-									<canvas id="attendance" height="200"></canvas>
-									<div className="position-absolute text-center attendance-canvas">
-										<p className="fs-13 mb-1">Total Attendance</p>
-										<h3>120</h3>
-									</div>
-								</div>
+								<div className="position-relative mb-4 d-flex justify-content-center">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 200 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={attendanceChartOptions} series={attendanceChartSeries} type="donut" height={200} />
+      </Suspense>
+    )}
+    <div className="position-absolute text-center" style={{ top: '65px', left: 0, right: 0, pointerEvents: 'none' }}>
+      <p className="fs-13 mb-0 text-muted">Total Attendance</p>
+      <h3 className="mb-0 fw-bold">120</h3>
+    </div>
+  </div>
 								<h6 className="mb-3">Status</h6>
 								<div className="d-flex align-items-center justify-content-between">
 									<p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1"></i>Present
@@ -1090,7 +1180,13 @@ export default function TenantDashboardPage() {
 									</div>
 									<p className="fs-13 mb-1">Last Updated at 11:30PM</p>
 								</div>
-								<div id="sales-income"></div>
+								<div id="sales-income">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 290 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={salesIncomeChartOptions} series={salesIncomeSeries} type="bar" height={290} />
+      </Suspense>
+    )}
+  </div>
 							</div>
 						</div>
 					</div>
@@ -1635,13 +1731,17 @@ export default function TenantDashboardPage() {
 								</div>
 							</div>
 							<div className="card-body">
-								<div className="chartjs-wrapper-demo position-relative mb-4">
-									<canvas id="mySemiDonutChart" height="190"></canvas>
-									<div className="position-absolute text-center attendance-canvas">
-										<p className="fs-13 mb-1">Total Tasks</p>
-										<h3>124/165</h3>
-									</div>
-								</div>
+								<div className="position-relative mb-4 d-flex justify-content-center">
+    {isMounted && (
+      <Suspense fallback={<div style={{ height: 190 }} className="d-flex align-items-center justify-content-center text-muted">Loading chart...</div>}>
+        <Chart options={projectChartOptions} series={projectChartSeries} type="donut" height={190} />
+      </Suspense>
+    )}
+    <div className="position-absolute text-center" style={{ top: '60px', left: 0, right: 0, pointerEvents: 'none' }}>
+      <p className="fs-13 mb-0 text-muted">Total Projects</p>
+      <h3 className="mb-0 fw-bold">90</h3>
+    </div>
+  </div>
 								<div className="d-flex align-items-center flex-wrap">
 									<div className="border-end text-center me-2 pe-2 mb-3">
 										<p className="fs-13 d-inline-flex align-items-center mb-1"><i
