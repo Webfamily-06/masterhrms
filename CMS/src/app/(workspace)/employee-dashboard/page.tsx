@@ -1,5 +1,6 @@
 'use client';
 
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Link } from "@/src/lib/router-compat";
 import { useState, useEffect, lazy, Suspense, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -255,67 +256,7 @@ export default function EmployeeDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-5">
       {/* ── Breadcrumb & Actions Header ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 page-breadcrumb">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight mb-1">
-            Employee Dashboard
-          </h2>
-          <nav>
-            <ol className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <li>
-                <Link
-                  to="/tenant/dashboard"
-                  className="hover:text-primary inline-flex items-center"
-                >
-                  <i className="ti ti-smart-home text-sm mr-1"></i>
-                </Link>
-              </li>
-              <li>/</li>
-              <li>Dashboard</li>
-              <li>/</li>
-              <li className="text-slate-900 dark:text-white font-medium">
-                Employee Dashboard
-              </li>
-            </ol>
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Export Dropdown */}
-          <div className="relative group">
-            <button
-              type="button"
-              className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-card border border-border-color rounded-lg shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5 transition-colors"
-              onClick={() => toast.success("Exporting employee report...")}
-            >
-              <i className="ti ti-file-export text-slate-600 dark:text-slate-300"></i>
-              Export
-            </button>
-          </div>
-
-          {/* Date Picker Input */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500">
-              <i className="ti ti-calendar text-xs"></i>
-            </span>
-            <input
-              type="text"
-              readOnly
-              value="15-04-2025"
-              className="pl-8 pr-3 py-1.5 text-xs bg-white dark:bg-card border border-border-color rounded-lg focus:outline-none w-[120px] text-slate-700 dark:text-slate-200"
-            />
-          </div>
-
-          {/* Collapse icon */}
-          <button
-            type="button"
-            className="p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Collapse"
-          >
-            <i className="ti ti-chevrons-up text-base"></i>
-          </button>
-        </div>
-      </div>
+      <SmartHRHeader title="Employee Dashboard" dateValue="15-04-2025" />
 
       {/* ── Status Announcement Banner ── */}
       {!alertDismissed && (

@@ -3,7 +3,7 @@
 import { useState, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -86,28 +86,17 @@ export default function DealsDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* Page Header */}
-      <PageHeader
+      <SmartHRHeader
         title="Deals Dashboard"
-        description="Comprehensive sales pipeline stage conversion, deal volume valuation, regional revenue distribution and recent enterprise deals."
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Exporting Deals Analytics PDF...")}
-            >
-              <i className="ti ti-file-export mr-1.5 text-sm" />
-              Export
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info("Create deal dialog opened")}
-            >
-              <i className="ti ti-plus mr-1.5 text-sm" />
-              Create Deal
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => toast.info("Create deal dialog opened")}
+          >
+            <i className="ti ti-plus mr-1.5 text-sm" />
+            Create Deal
+          </Button>
         }
       />
 

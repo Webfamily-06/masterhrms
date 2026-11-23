@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -176,23 +176,9 @@ export default function FinanceDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
-      <PageHeader
+      <SmartHRHeader
         title="Finance Dashboard"
-        description="Comprehensive real-time overview of workforce compensation budgets, department allocations, and disbursements."
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs bg-muted text-muted-foreground border border-border px-3 py-1.5 rounded-md flex items-center gap-1.5">
-              <i className="ph ph-calendar"></i> FY 2025 - 2026
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Exporting financial ledger as CSV...")}
-            >
-              <i className="ph ph-file-arrow-down me-1.5"></i> Export CSV
-            </Button>
-          </div>
-        }
+        dateValue="2026"
       />
 
       {/* ── Row 1: Budget Remaining (6 cols), Total Payroll (3 cols), Reimbursement (3 cols) ── */}

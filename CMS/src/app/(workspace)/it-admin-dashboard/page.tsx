@@ -5,16 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
-import { Button } from "@/components/ui/button";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 const Chart = lazy(() => import("react-apexcharts"));
 
@@ -23,6 +15,7 @@ export default function ITAdminDashboardPage() {
   const [activeEnv, setActiveEnv] = useState<"production" | "staging" | "dev">("production");
   const [storageDay, setStorageDay] = useState<"1D" | "7D" | "1M" | "1Y">("1Y");
   const [usageRange, setUsageRange] = useState<"1H" | "1D" | "1W" | "1M">("1W");
+  const [accessRange, setAccessRange] = useState<"Today" | "Weekly" | "Monthly">("Today");
 
   useEffect(() => {
     setIsMounted(true);
@@ -48,6 +41,7 @@ export default function ITAdminDashboardPage() {
       colors: ["#10b981"],
       stroke: { curve: "smooth", width: 2 },
       fill: { opacity: 0.2 },
+      tooltip: { enabled: false },
     }),
     []
   );
@@ -58,6 +52,7 @@ export default function ITAdminDashboardPage() {
       series: [{ data: [12, 14, 18, 15, 16, 14] }],
       colors: ["#0d6efd"],
       plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
+      tooltip: { enabled: false },
     }),
     []
   );
@@ -68,6 +63,7 @@ export default function ITAdminDashboardPage() {
       series: [{ data: [24, 20, 22, 19, 21, 18] }],
       colors: ["#f59e0b"],
       stroke: { curve: "smooth", width: 2 },
+      tooltip: { enabled: false },
     }),
     []
   );
@@ -79,6 +75,7 @@ export default function ITAdminDashboardPage() {
       colors: ["#8b5cf6"],
       stroke: { curve: "smooth", width: 2 },
       fill: { opacity: 0.2 },
+      tooltip: { enabled: false },
     }),
     []
   );
@@ -102,27 +99,16 @@ export default function ITAdminDashboardPage() {
     []
   );
 
-  // MFA Radial / Donut Chart
+  // MFA Radial Bar
   const mfaChartOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: { type: "donut", height: 160 },
-      series: [2168, 268],
       labels: ["MFA Enforced", "Standard Login"],
-      colors: ["#10b981", "#e2e8f0"],
-      stroke: { width: 0 },
+      series: [89, 11],
+      colors: ["#10b981", "#E2E8F0"],
+      legend: { position: "bottom", fontSize: "11px" },
       dataLabels: { enabled: false },
-      legend: { show: false },
-      plotOptions: {
-        pie: {
-          donut: {
-            size: "75%",
-            labels: {
-              show: true,
-              total: { show: true, label: "MFA Active", fontSize: "11px", color: "#64748B", formatter: () => "89%" },
-            },
-          },
-        },
-      },
+      plotOptions: { pie: { donut: { size: "75%" } } },
     }),
     []
   );
@@ -131,51 +117,86 @@ export default function ITAdminDashboardPage() {
   const loginActivityOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: { type: "area", height: 180, toolbar: { show: false } },
-      series: [{ name: "Active Logins", data: [450, 720, 1150, 1850, 2140, 1680, 1420, 890, 520, 310] }],
+      series: [
+        { name: "Successful Logins", data: [450, 720, 1150, 980, 890, 640, 1280, 1420, 980, 420] },
+        { name: "Failed Attempts", data: [12, 18, 47, 24, 15, 8, 22, 35, 19, 7] },
+      ],
+      colors: ["#0d6efd", "#f43f5e"],
+      stroke: { curve: "smooth", width: 2 },
+      fill: { opacity: 0.15 },
       xaxis: {
-        categories: ["8 AM", "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM"],
+        categories: ["9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM"],
         labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
       },
       yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      colors: ["#0d6efd"],
-      stroke: { curve: "smooth", width: 2 },
-      fill: { type: "gradient", gradient: { shadeIntensity: 1, opacityFrom: 0.35, opacityTo: 0.05 } },
       grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
+      legend: { position: "top", horizontalAlign: "right", fontSize: "11px" },
       dataLabels: { enabled: false },
     }),
     []
   );
 
-  // HRMS Usage Trend
+  // HRMS Usage Trend Line Chart
   const usageTrendOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: { type: "line", height: 160, toolbar: { show: false } },
       series: [
-        { name: "Web App Traffic", data: [65, 82, 95, 88, 92, 104, 98] },
-        { name: "Mobile App Traffic", data: [42, 50, 68, 62, 70, 75, 71] },
+        { name: "Web App", data: [420, 680, 850, 920, 880, 520, 310] },
+        { name: "Mobile App", data: [310, 480, 620, 750, 690, 480, 260] },
       ],
+      colors: ["#0d6efd", "#10b981"],
+      stroke: { curve: "smooth", width: 2 },
       xaxis: {
         categories: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
       },
       yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
-      colors: ["#0d6efd", "#10b981"],
-      stroke: { curve: "smooth", width: 2 },
       grid: { borderColor: "#E2E8F0", strokeDashArray: 3 },
+      legend: { position: "top", horizontalAlign: "right", fontSize: "11px" },
       dataLabels: { enabled: false },
-      legend: { position: "top", horizontalAlign: "right" },
     }),
     []
   );
 
-  // Integration Errors Bar Chart
+  // Security mini charts
+  const failedSparkline: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
+      series: [{ data: [15, 22, 38, 47] }],
+      colors: ["#0d6efd"],
+      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
+    }),
+    []
+  );
+
+  const alertsSparkline: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
+      series: [{ data: [5, 8, 10, 12] }],
+      colors: ["#6366f1"],
+      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
+    }),
+    []
+  );
+
+  const blockedSparkline: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { type: "bar", height: 35, width: 70, sparkline: { enabled: true } },
+      series: [{ data: [12, 19, 21, 27] }],
+      colors: ["#f59e0b"],
+      plotOptions: { bar: { columnWidth: "50%", borderRadius: 2 } },
+    }),
+    []
+  );
+
+  // Integration Error Counts Bar Chart
   const integrationErrorOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: { type: "bar", height: 160, toolbar: { show: false } },
-      series: [{ name: "API Sync Errors", data: [2, 0, 1, 0, 3, 1, 0] }],
+      series: [{ name: "Errors", data: [4, 1, 8, 0, 2, 5] }],
       xaxis: {
-        categories: ["Biometrics", "Slack Webhook", "Stripe API", "AWS S3", "SendGrid", "Okta SSO", "Google WS"],
-        labels: { style: { colors: "#94A3B8", fontSize: "9px" } },
+        categories: ["Slack Bot", "Zoom Meet", "Stripe API", "Google Auth", "Biometric ZK", "Email SMTP"],
+        labels: { style: { colors: "#94A3B8", fontSize: "10px" } },
       },
       yaxis: { labels: { style: { colors: "#94A3B8", fontSize: "10px" } } },
       colors: ["#f43f5e"],
@@ -187,24 +208,35 @@ export default function ITAdminDashboardPage() {
   );
 
   return (
-    <div className="w-full min-w-0 space-y-6">
-      {/* ── Page Header ── */}
-      <PageHeader
+    <div className="w-full min-w-0 space-y-5">
+      {/* ── Breadcrumb & Actions Header ── */}
+      <SmartHRHeader
         title="IT Admin Dashboard"
-        description="Comprehensive real-time infrastructure telemetry, security compliance, user sessions, and service operations."
         actions={
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 p-1.5 border border-border rounded-lg bg-card text-xs">
-              <span className="flex items-center gap-1.5 font-semibold text-emerald-600">
-                <span className="size-2 rounded-full bg-emerald-600 animate-pulse"></span> 248 Active Users
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-card border border-border-color rounded-lg text-xs shadow-2xs">
+              <span className="size-6 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                <i className="ti ti-server text-sm"></i>
               </span>
-              <span className="text-muted-foreground">•</span>
-              <span className="flex items-center gap-1.5 font-semibold text-rose-600">
-                <i className="ph-bold ph-shield-warning"></i> 3 Security Alerts
+              <span className="text-slate-500">
+                Active Users{" "}
+                <strong className="text-slate-900 dark:text-white font-bold ml-1">
+                  248
+                </strong>
               </span>
             </div>
-
-            <div className="flex items-center bg-muted rounded-lg p-0.5 border border-border">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-card border border-border-color rounded-lg text-xs shadow-2xs">
+              <span className="size-6 rounded bg-rose-500/10 text-rose-600 flex items-center justify-center font-bold">
+                <i className="ti ti-info-octagon text-sm"></i>
+              </span>
+              <span className="text-slate-500">
+                Security Alerts{" "}
+                <strong className="text-slate-900 dark:text-white font-bold ml-1">
+                  3
+                </strong>
+              </span>
+            </div>
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-border-color">
               {(["production", "staging", "dev"] as const).map((env) => (
                 <button
                   key={env}
@@ -213,8 +245,10 @@ export default function ITAdminDashboardPage() {
                     setActiveEnv(env);
                     toast.info(`Switched environment view to ${env.toUpperCase()}`);
                   }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md capitalize transition-colors ${
-                    activeEnv === env ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  className={`px-3 py-1 text-xs font-semibold rounded-md capitalize transition-colors ${
+                    activeEnv === env
+                      ? "bg-white dark:bg-card text-primary shadow-2xs font-bold"
+                      : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                   }`}
                 >
                   {env}
@@ -223,93 +257,117 @@ export default function ITAdminDashboardPage() {
             </div>
           </div>
         }
+        showExport={false}
+        showDatePicker={false}
       />
 
       {/* ── Row 1: 4 System Health Metrics with Sparklines ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* System Uptime */}
-        <Card className="p-4 flex items-center justify-between shadow-xs">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">HRMS System Uptime</p>
-            <h3 className="text-2xl font-bold text-foreground">99.9%</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Last 30 days rolling</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs text-slate-500 font-medium">HRMS System Uptime</p>
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-0.5">99.9%</h3>
+            <p className="text-[11px] text-slate-400">Last 30 days</p>
           </div>
-          <div>
+          <div className="text-end">
+            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
+              <i className="ti ti-clock-share text-base"></i>
+            </div>
             {isMounted && (
               <Suspense fallback={<div className="h-10 w-20"></div>}>
                 <Chart options={uptimeSparkline} series={uptimeSparkline.series} type="area" height={40} width={80} />
               </Suspense>
             )}
           </div>
-        </Card>
+        </div>
 
         {/* API Status */}
-        <Card className="p-4 flex items-center justify-between shadow-xs">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">API Cluster Status</p>
-            <h3 className="text-2xl font-bold text-emerald-600">Healthy</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">All 14 endpoints live</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs text-slate-500 font-medium">API Status</p>
+            </div>
+            <h3 className="text-2xl font-bold text-emerald-600 mb-0.5">Healthy</h3>
+            <p className="text-[11px] text-slate-400">All operational</p>
           </div>
-          <div>
+          <div className="text-end">
+            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
+              <i className="ti ti-api-app text-base"></i>
+            </div>
             {isMounted && (
               <Suspense fallback={<div className="h-10 w-20"></div>}>
                 <Chart options={apiSparkline} series={apiSparkline.series} type="bar" height={40} width={80} />
               </Suspense>
             )}
           </div>
-        </Card>
+        </div>
 
         {/* Open IT Tickets */}
-        <Card className="p-4 flex items-center justify-between shadow-xs">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Open IT Tickets</p>
-            <h3 className="text-2xl font-bold text-foreground">18</h3>
-            <p className="text-[11px] text-rose-600 font-semibold mt-0.5">5 high priority</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs text-slate-500 font-medium">Open IT Tickets</p>
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-0.5">18</h3>
+            <p className="text-[11px] text-rose-500 font-semibold">5 high priority</p>
           </div>
-          <div>
+          <div className="text-end">
+            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
+              <i className="ti ti-badge text-base"></i>
+            </div>
             {isMounted && (
               <Suspense fallback={<div className="h-10 w-20"></div>}>
                 <Chart options={ticketsSparkline} series={ticketsSparkline.series} type="line" height={40} width={80} />
               </Suspense>
             )}
           </div>
-        </Card>
+        </div>
 
         {/* Background Jobs */}
-        <Card className="p-4 flex items-center justify-between shadow-xs">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-4 flex items-center justify-between shadow-2xs">
           <div>
-            <p className="text-xs text-muted-foreground mb-1">Background Jobs</p>
-            <h3 className="text-2xl font-bold text-purple-600">Running</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">12/12 workers active</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-xs text-slate-500 font-medium">Background Jobs</p>
+            </div>
+            <h3 className="text-2xl font-bold text-purple-600 mb-0.5">Running</h3>
+            <p className="text-[11px] text-slate-400">12/12 jobs healthy</p>
           </div>
-          <div>
+          <div className="text-end">
+            <div className="size-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 mb-1 ml-auto">
+              <i className="ti ti-briefcase-2 text-base"></i>
+            </div>
             {isMounted && (
               <Suspense fallback={<div className="h-10 w-20"></div>}>
                 <Chart options={jobsSparkline} series={jobsSparkline.series} type="area" height={40} width={80} />
               </Suspense>
             )}
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* ── Row 2: Storage Usage by Module (8 cols) & MFA + Quick Actions (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Storage Usage by Module */}
-        <Card className="p-5 lg:col-span-8 flex flex-col justify-between">
+        <div className="lg:col-span-8 bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-base font-bold text-foreground">Storage Usage by Module (GB)</h3>
-                <p className="text-xs text-muted-foreground">Database tables, uploaded media attachments, and biometric logs</p>
-              </div>
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i className="ti ti-server text-primary text-base"></i>
+                Storage Usage by Module (GB)
+              </h2>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-border-color">
                 {(["1D", "7D", "1M", "1Y"] as const).map((range) => (
                   <button
                     key={range}
                     type="button"
                     onClick={() => setStorageDay(range)}
                     className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors ${
-                      storageDay === range ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                      storageDay === range
+                        ? "bg-white dark:bg-card text-primary shadow-2xs font-bold"
+                        : "text-slate-600 dark:text-slate-300 hover:text-slate-900"
                     }`}
                   >
                     {range}
@@ -325,39 +383,41 @@ export default function ITAdminDashboardPage() {
             )}
 
             {/* 6 Module Uptime Badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-border/50 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-border-color mt-4">
               {[
-                { name: "Core HR", uptime: "99.9%", ok: true },
-                { name: "Payroll Engine", uptime: "96.9%", ok: true },
-                { name: "Attendance Sync", uptime: "99.9%", ok: true },
-                { name: "Recruitment Module", uptime: "19.9% Downtime", ok: false },
-                { name: "Leave Management", uptime: "91.9%", ok: true },
-                { name: "Document Storage", uptime: "95.9%", ok: true },
+                { name: "Hr", uptime: "Uptime: 99.9%", ok: true },
+                { name: "Payroll Engine", uptime: "Uptime: 96.9%", ok: true },
+                { name: "Attendance Sync", uptime: "Uptime: 99.9%", ok: true },
+                { name: "Recruitment Module", uptime: "Downtime: 19.9%", ok: false },
+                { name: "Leave Management", uptime: "Uptime: 91.9%", ok: true },
+                { name: "Document Storage", uptime: "Uptime: 95.9%", ok: true },
               ].map((m, idx) => (
-                <div key={idx} className="p-2.5 rounded-lg border border-border/50 bg-muted/20 flex items-center justify-between">
+                <div key={idx} className="p-3 rounded-lg border border-border-color bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
                   <div>
-                    <p className="text-[11px] text-muted-foreground">{m.name}</p>
-                    <p className="text-xs font-bold text-foreground">{m.uptime}</p>
+                    <p className="text-[11px] text-slate-500 mb-0.5">{m.name}</p>
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200">{m.uptime}</p>
                   </div>
-                  <i className={`ph-fill ${m.ok ? "ph-check-circle text-emerald-600" : "ph-warning text-rose-600"} text-base`}></i>
+                  <i className={`ti ${m.ok ? "ti-shield-check-filled text-emerald-500" : "ti-settings-filled text-rose-500"} text-lg`}></i>
                 </div>
               ))}
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* MFA Enabled Users & Quick IT Actions (4 cols) */}
-        <div className="lg:col-span-4 space-y-4 flex flex-col justify-between">
+        <div className="lg:col-span-4 space-y-5 flex flex-col justify-between">
           {/* MFA Card */}
-          <Card className="p-4 flex flex-col justify-between">
+          <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-2">
-              <div className="border-l-2 border-primary pl-2.5">
-                <h3 className="text-sm font-bold text-foreground">MFA Enabled Users</h3>
-                <p className="text-xs text-muted-foreground">Security authentication posture</p>
-              </div>
-              <Badge variant="soft" className="bg-emerald-500/10 text-emerald-600">89%</Badge>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i className="ti ti-shield text-primary text-base"></i>
+                MFA Enabled Users
+              </h2>
             </div>
-            <p className="text-xs text-muted-foreground mb-2">2,168 out of 2,436 active accounts enforced</p>
+            <p className="text-xs text-slate-500 mb-2 flex items-center justify-between">
+              <span>2,168 out of 2,436 users</span>
+              <strong className="text-slate-900 dark:text-white font-bold">89%</strong>
+            </p>
             <div className="py-1">
               {isMounted && (
                 <Suspense fallback={<div className="h-36"></div>}>
@@ -365,73 +425,86 @@ export default function ITAdminDashboardPage() {
                 </Suspense>
               )}
             </div>
-          </Card>
+          </div>
 
           {/* Quick IT Actions */}
-          <Card className="p-4">
-            <div className="border-l-2 border-primary pl-2.5 mb-3">
-              <h3 className="text-sm font-bold text-foreground">Quick IT Actions</h3>
-              <p className="text-xs text-muted-foreground">One-click operational triggers</p>
-            </div>
+          <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+              <i className="ti ti-settings-2 text-primary text-base"></i>
+              Quick IT Actions
+            </h2>
 
-            <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-3 text-center">
               {[
-                { title: "Restart Services", icon: "ph-arrow-clockwise", action: () => toast.success("Restarting HRMS container services...") },
-                { title: "Sync Biometric", icon: "ph-fingerprint", action: () => toast.success("Biometric hardware sync triggered!") },
-                { title: "Clear Cache", icon: "ph-trash", action: () => toast.success("Redis & application cache purged!") },
-                { title: "Maintenance", icon: "ph-wrench", action: () => toast.info("Opening maintenance window scheduler...") },
-                { title: "Stop Jobs", icon: "ph-stop-circle", action: () => toast.error("Background workers paused.") },
-                { title: "Re-run Payroll", icon: "ph-play", action: () => toast.success("Dispatched payroll batch job retry.") },
+                { title: "Restart Services", icon: "ti-refresh", action: () => toast.success("Restarting HRMS container services...") },
+                { title: "Sync Biometric", icon: "ti-fingerprint", action: () => toast.success("Biometric hardware sync triggered!") },
+                { title: "Clear Cache", icon: "ti-trash", action: () => toast.success("Redis & application cache purged!") },
+                { title: "Schedule Maint", icon: "ti-calendar-event", action: () => toast.info("Opening maintenance window scheduler...") },
+                { title: "Stop Jobs", icon: "ti-player-stop", action: () => toast.error("Background workers paused.") },
+                { title: "Re-run Payroll", icon: "ti-player-play", action: () => toast.success("Dispatched payroll batch job retry.") },
               ].map((act, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={act.action}
-                  className="p-2.5 rounded-lg bg-muted/40 hover:bg-muted border border-border/50 text-foreground transition-colors flex flex-col items-center justify-center gap-1 cursor-pointer"
+                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 border border-border-color text-slate-700 dark:text-slate-200 transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <div className="size-8 rounded-full bg-card border border-border flex items-center justify-center text-primary text-base">
-                    <i className={`ph ${act.icon}`}></i>
+                  <div className="size-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm">
+                    <i className={`ti ${act.icon}`}></i>
                   </div>
-                  <span className="text-[10px] font-semibold leading-tight">{act.title}</span>
+                  <span className="text-[11px] font-semibold leading-tight">{act.title}</span>
                 </button>
               ))}
             </div>
-          </Card>
+          </div>
         </div>
       </div>
 
       {/* ── Row 3: User Access & Peak Hours ── */}
-      <Card className="p-5">
+      <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="border-l-2 border-primary pl-2.5">
-            <h3 className="text-base font-bold text-foreground">User Access & Peak Hourly Load</h3>
-            <p className="text-xs text-muted-foreground">Real-time concurrency utilization throughout the day</p>
-          </div>
-          <div className="flex items-center gap-3 text-xs font-medium">
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-primary"></span> Low (0-50%)</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-600"></span> Medium (50-70%)</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-500"></span> High (70-90%)</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-rose-600"></span> Peak (90-100%)</span>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            User Access & Role Management
+          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 font-medium">Peak Hours (Today)</span>
+            <div className="flex items-center gap-2.5 text-xs">
+              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <i className="ti ti-square-rounded-filled text-primary text-xs"></i> Low (0-50%)
+              </span>
+              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <i className="ti ti-square-rounded-filled text-emerald-500 text-xs"></i> Medium (50-70%)
+              </span>
+              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <i className="ti ti-square-rounded-filled text-amber-500 text-xs"></i> High (70-90%)
+              </span>
+              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <i className="ti ti-square-rounded-filled text-rose-500 text-xs"></i> Peak (90-100%)
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-2.5 mb-5">
           {[
-            { hour: "9 AM", load: 85, color: "bg-amber-500" },
-            { hour: "10 AM", load: 92, color: "bg-rose-600" },
-            { hour: "11 AM", load: 78, color: "bg-amber-500" },
-            { hour: "12 PM", load: 45, color: "bg-primary" },
-            { hour: "1 PM", load: 38, color: "bg-primary" },
-            { hour: "2 PM", load: 68, color: "bg-emerald-600" },
-            { hour: "3 PM", load: 82, color: "bg-amber-500" },
-            { hour: "4 PM", load: 85, color: "bg-amber-500" },
-            { hour: "5 PM", load: 88, color: "bg-amber-500" },
-            { hour: "6 PM", load: 52, color: "bg-emerald-600" },
+            { hour: "9 AM", load: 85, color: "bg-primary" },
+            { hour: "10 AM", load: 92, color: "bg-rose-500" },
+            { hour: "11 AM", load: 78, color: "bg-primary" },
+            { hour: "12 AM", load: 45, color: "bg-emerald-500" },
+            { hour: "1 AM", load: 38, color: "bg-emerald-500" },
+            { hour: "2 AM", load: 68, color: "bg-amber-500" },
+            { hour: "3 AM", load: 82, color: "bg-primary" },
+            { hour: "4 AM", load: 85, color: "bg-rose-500" },
+            { hour: "5 AM", load: 88, color: "bg-primary" },
+            { hour: "6 AM", load: 52, color: "bg-amber-500" },
           ].map((item, idx) => (
-            <div key={idx} className="p-2.5 bg-muted/40 rounded-lg border border-border/50 text-center">
-              <p className="text-[11px] text-muted-foreground mb-1">{item.hour}</p>
-              <h5 className="text-sm font-bold text-foreground mb-1">{item.load}%</h5>
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div key={idx} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-border-color text-center">
+              <p className="text-[11px] text-slate-500 mb-1 flex items-center justify-between">
+                <span>{item.hour}</span>
+                <i className={`ti ti-circle-filled text-[7px] ${item.load > 90 ? "text-rose-500" : item.load > 70 ? "text-primary" : "text-emerald-500"}`}></i>
+              </p>
+              <h5 className="text-base font-bold text-slate-900 dark:text-white mb-1.5">{item.load}%</h5>
+              <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                 <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.load}%` }}></div>
               </div>
             </div>
@@ -439,26 +512,39 @@ export default function ITAdminDashboardPage() {
         </div>
 
         <div>
-          <h4 className="text-xs font-bold text-foreground mb-2">Hourly Login Count Analysis</h4>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white mb-2">Login Count Analysis</h2>
           {isMounted && (
             <Suspense fallback={<div className="h-44 flex items-center justify-center text-xs text-muted-foreground">Loading chart...</div>}>
               <Chart options={loginActivityOptions} series={loginActivityOptions.series} type="area" height={180} />
             </Suspense>
           )}
         </div>
-      </Card>
+      </div>
 
       {/* ── Row 4: Usage Trend, Security & Compliance, User Roles, Integration Errors ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5">
         {/* HRMS Usage Trend & Security (5 cols) */}
-        <Card className="p-5 lg:col-span-5 flex flex-col justify-between space-y-4">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs lg:col-span-5 flex flex-col justify-between space-y-4">
           <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">HRMS Usage Trend</h3>
-                <p className="text-xs text-muted-foreground">Web Portal vs Mobile App traffic</p>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i className="ti ti-script text-primary text-base"></i>
+                HRMS Usage Trend
+              </h2>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-md border border-border-color text-[11px]">
+                {(["1H", "1D", "1W", "1M"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setUsageRange(r)}
+                    className={`px-2 py-0.5 rounded font-semibold transition-colors ${
+                      usageRange === r ? "bg-white dark:bg-card text-primary shadow-2xs font-bold" : "text-slate-500"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
               </div>
-              <span className="text-[11px] text-muted-foreground">Rolling 7 Days</span>
             </div>
             {isMounted && (
               <Suspense fallback={<div className="h-36"></div>}>
@@ -467,32 +553,67 @@ export default function ITAdminDashboardPage() {
             )}
           </div>
 
-          <div className="pt-3 border-t border-border/50 space-y-2">
-            <h4 className="text-xs font-bold text-foreground">Security & Compliance Log (24h)</h4>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 bg-muted/40 rounded-lg border border-border/50">
-                <h5 className="text-lg font-bold text-foreground">47</h5>
-                <p className="text-[10px] text-muted-foreground">Failed Logins</p>
+          <div className="pt-4 border-t border-border-color space-y-3">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-white">Security & Compliance</h4>
+            <div className="space-y-3">
+              {/* Failed Logins */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">47</h3>
+                  <div className="border-l border-border-color pl-3">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Failed Logins</p>
+                    <p className="text-[10px] text-slate-400 mb-0">Last 24h</p>
+                  </div>
+                </div>
+                {isMounted && (
+                  <Suspense fallback={<div className="h-8 w-16"></div>}>
+                    <Chart options={failedSparkline} series={failedSparkline.series} type="bar" height={35} width={70} />
+                  </Suspense>
+                )}
               </div>
-              <div className="p-2 bg-muted/40 rounded-lg border border-border/50">
-                <h5 className="text-lg font-bold text-amber-500">12</h5>
-                <p className="text-[10px] text-muted-foreground">Suspicious Alerts</p>
+
+              {/* Suspicious Alerts */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">12</h3>
+                  <div className="border-l border-border-color pl-3">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Suspicious Alerts</p>
+                    <p className="text-[10px] text-slate-400 mb-0">Active</p>
+                  </div>
+                </div>
+                {isMounted && (
+                  <Suspense fallback={<div className="h-8 w-16"></div>}>
+                    <Chart options={alertsSparkline} series={alertsSparkline.series} type="bar" height={35} width={70} />
+                  </Suspense>
+                )}
               </div>
-              <div className="p-2 bg-muted/40 rounded-lg border border-border/50">
-                <h5 className="text-lg font-bold text-rose-600">27</h5>
-                <p className="text-[10px] text-muted-foreground">Blocked IPs</p>
+
+              {/* Blocked IPs */}
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-border-color">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-0">27</h3>
+                  <div className="border-l border-border-color pl-3">
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 mb-0">Blocked IPs</p>
+                    <p className="text-[10px] text-slate-400 mb-0">Currently blocked</p>
+                  </div>
+                </div>
+                {isMounted && (
+                  <Suspense fallback={<div className="h-8 w-16"></div>}>
+                    <Chart options={blockedSparkline} series={blockedSparkline.series} type="bar" height={35} width={70} />
+                  </Suspense>
+                )}
               </div>
             </div>
           </div>
-        </Card>
+        </div>
 
         {/* User Roles & Integration Errors (7 cols) */}
-        <Card className="p-5 lg:col-span-7 flex flex-col justify-between space-y-4">
+        <div className="bg-white dark:bg-card border border-border-color rounded-xl p-5 shadow-2xs lg:col-span-7 flex flex-col justify-between space-y-4">
           <div>
-            <div className="border-l-2 border-primary pl-2.5 mb-3">
-              <h3 className="text-sm font-bold text-foreground">User Roles Distribution</h3>
-              <p className="text-xs text-muted-foreground">Access tier assignments across workforce</p>
-            </div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+              <i className="ti ti-script text-primary text-base"></i>
+              User Roles Distribution
+            </h2>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
@@ -501,21 +622,26 @@ export default function ITAdminDashboardPage() {
                 { role: "HR Operations", count: 45, pct: "1.8%", color: "bg-slate-700" },
                 { role: "Admins", count: 12, pct: "0.5%", color: "bg-amber-500" },
               ].map((item, idx) => (
-                <div key={idx} className="p-3 bg-muted/40 rounded-lg border border-border/50">
-                  <p className="text-[11px] text-muted-foreground">{item.role}</p>
-                  <h4 className="text-xl font-bold text-foreground my-1">{item.count}</h4>
-                  <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full ${item.color} rounded-full`} style={{ width: item.pct }}></div>
+                <div key={idx} className="p-3 bg-slate-50/70 dark:bg-slate-800/40 rounded-xl border border-border-color">
+                  <p className="text-[11px] text-slate-500 mb-0.5">{item.role}</p>
+                  <div className="h-2 rounded my-1.5 bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div className={`h-full ${item.color} rounded`} style={{ width: item.pct }}></div>
                   </div>
+                  <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 mb-0">{item.count}</h4>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="pt-3 border-t border-border/50">
+          <div className="pt-4 border-t border-border-color">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-bold text-foreground">Integration Error Counts (24h)</h4>
-              <Badge variant="soft" className="bg-emerald-500/10 text-emerald-600 text-[10px]">Healthy SLA</Badge>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <i className="ti ti-sparkles text-primary text-base"></i>
+                Integration Error Counts (24h)
+              </h2>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold border border-emerald-500/20">
+                Healthy SLA
+              </span>
             </div>
             {isMounted && (
               <Suspense fallback={<div className="h-36"></div>}>
@@ -523,7 +649,7 @@ export default function ITAdminDashboardPage() {
               </Suspense>
             )}
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );

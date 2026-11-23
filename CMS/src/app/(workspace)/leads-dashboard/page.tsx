@@ -3,7 +3,7 @@
 import { useState, useMemo, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { Link } from "@/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -101,28 +101,17 @@ export default function LeadsDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* Page Header */}
-      <PageHeader
+      <SmartHRHeader
         title="Leads Dashboard"
-        description="Monitor inbound lead volumes, stage conversion rates, lead sources, and outreach follow-ups."
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Exporting Leads Analytics PDF...")}
-            >
-              <i className="ti ti-file-export mr-1.5 text-sm" />
-              Export
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info("Add new lead dialog opened")}
-            >
-              <i className="ti ti-plus mr-1.5 text-sm" />
-              Add Lead
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => toast.info("Add new lead dialog opened")}
+          >
+            <i className="ti ti-plus mr-1.5 text-sm" />
+            Add Lead
+          </Button>
         }
       />
 

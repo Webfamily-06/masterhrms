@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -209,9 +209,8 @@ export default function PayrollDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
-      <PageHeader
+      <SmartHRHeader
         title="Payroll Dashboard"
-        description="Comprehensive real-time workforce compensation, tax withholdings, and pay run execution."
         actions={
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center bg-muted rounded-lg p-0.5 border border-border">
@@ -234,14 +233,6 @@ export default function PayrollDashboardPage() {
                 Payroll Register ({records.length})
               </button>
             </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Exporting payroll report as CSV...")}
-            >
-              <i className="ph ph-file-arrow-down me-1.5"></i> Export Report
-            </Button>
 
             <Button
               variant="primary"

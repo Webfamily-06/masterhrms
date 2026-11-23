@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -108,26 +108,16 @@ export default function RecruitmentDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
-      <PageHeader
+      <SmartHRHeader
         title="Recruitment Dashboard"
-        description="Monitor job requisitions, candidate pipeline conversions, interviews, and hiring velocity."
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Downloading Recruitment Funnel Report...")}
-            >
-              <i className="ph ph-file-arrow-down me-1.5"></i> Download Report
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setNewJobOpen(true)}
-            >
-              <i className="ph-bold ph-plus me-1.5"></i> Add New Job
-            </Button>
-          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setNewJobOpen(true)}
+          >
+            <i className="ph-bold ph-plus me-1.5"></i> Add New Job
+          </Button>
         }
       />
 

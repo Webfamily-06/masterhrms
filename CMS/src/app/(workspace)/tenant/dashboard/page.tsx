@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useTenantBranding } from "@/lib/useTenantBranding";
 import { useCurrentProfile } from "@/lib/session";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -138,30 +139,7 @@ export default function TenantDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* Page Header */}
-      <PageHeader
-        title="Admin Dashboard"
-        description="Comprehensive workspace telemetry, department capacity, workforce attendance and enterprise deliverables."
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast.success("Exporting Dashboard Metrics PDF...")}
-            >
-              <i className="ti ti-file-export mr-1.5 text-sm" />
-              Export
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info("Opening schedule manager...")}
-            >
-              <i className="ti ti-plus mr-1.5 text-sm" />
-              Add Schedule
-            </Button>
-          </div>
-        }
-      />
+      <SmartHRHeader title="Admin Dashboard" dateValue="2026" />
 
       {/* Welcome Banner Card */}
       <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">

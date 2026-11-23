@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -137,29 +137,28 @@ export default function AttendanceDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
-      <PageHeader
+      <SmartHRHeader
         title="Attendance Dashboard"
-        description="Real-time daily workforce presence, punctuality telemetry, time-tracking, and regularization."
         actions={
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2 p-1.5 border border-border rounded-lg bg-card text-xs">
-              <span className="flex items-center gap-1 font-semibold text-foreground">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-card border border-border-color rounded-lg text-xs shadow-2xs">
+              <span className="flex items-center gap-1 font-semibold text-slate-800 dark:text-slate-200">
                 <span className="size-2 rounded-full bg-primary"></span> 06 Total Leaves Today
               </span>
-              <div className="flex -space-x-1.5 ms-2">
-                {["/ui-assets/avatar-02.jpg", "/ui-assets/avatar-03.jpg", "/ui-assets/avatar-04.jpg"].map((src, i) => (
-                  <img key={i} src={src} className="size-6 rounded-full border border-card object-cover" alt="leave" />
+              <div className="flex -space-x-1.5 ms-1">
+                {["/assets/img/users/user-02.jpg", "/assets/img/users/user-03.jpg", "/assets/img/users/user-04.jpg"].map((src, i) => (
+                  <img key={i} src={src} className="size-5 rounded-full border border-white object-cover" alt="leave" />
                 ))}
               </div>
             </div>
 
-            <Button
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
               onClick={() => setApplyLeaveOpen(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg shadow-2xs hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
             >
-              <i className="ph-bold ph-plus me-1.5"></i> Apply Leave
-            </Button>
+              <i className="ti ti-plus"></i> Apply Leave
+            </button>
           </div>
         }
       />

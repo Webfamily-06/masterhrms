@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, unwrapArray, unwrapData } from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "@/src/lib/router-compat";
-import { PageHeader } from "@/components/ui/page-header";
+import { SmartHRHeader } from "@/components/ui/smarthr-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -185,17 +185,24 @@ export default function AssetDashboardPage() {
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* ── Page Header ── */}
-      <PageHeader
-        title="Asset Management Dashboard"
-        description="Lifecycle tracking, hardware procurement trends, warranty coverage, and departmental assignments."
+      <SmartHRHeader
+        title="Asset Management"
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => setScheduleMaintOpen(true)}>
-              <i className="ph ph-calendar-plus me-1.5"></i> Schedule Maintenance
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => setAddAssetOpen(true)}>
-              <i className="ph-bold ph-plus me-1.5"></i> Add New Asset
-            </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setScheduleMaintOpen(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-white dark:bg-card border border-border-color rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <i className="ti ti-calendar-plus text-slate-500"></i> Schedule Maintenance
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddAssetOpen(true)}
+              className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg shadow-2xs hover:bg-primary/90 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            >
+              <i className="ti ti-plus"></i> Add New Asset
+            </button>
           </div>
         }
       />
