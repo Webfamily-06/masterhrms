@@ -9,6 +9,54 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function PayrollDashboardPage() {
+
+  // Distribution Bar Chart (height: 240)
+  const distributionBarOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 240, type: 'bar', stacked: true, toolbar: { show: false } },
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 4 } },
+    colors: ['#0d6efd', '#10b981'],
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] }
+  }), []);
+  const distributionBarSeries = useMemo(() => [
+    { name: 'Base Salary', data: [120, 130, 125, 140, 135, 150] },
+    { name: 'Allowances', data: [20, 25, 20, 30, 25, 35] }
+  ], []);
+
+  // Process Radial Gauge (height: 250)
+  const processRadialOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 250, type: 'radialBar' },
+    colors: ['#03C95A'],
+    plotOptions: { radialBar: { hollow: { size: '65%' }, dataLabels: { name: { show: true }, value: { fontSize: '22px', fontWeight: 'bold' } } } },
+    labels: ['Processed']
+  }), []);
+  const processRadialSeries = useMemo(() => [85], []);
+
+  // Trend Line Chart (height: 305)
+  const trendLineOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 305, type: 'line', toolbar: { show: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    colors: ['#FF6F28'],
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] }
+  }), []);
+  const trendLineSeries = useMemo(() => [{ name: 'Payroll Total', data: [45, 52, 58, 65, 72, 78, 85, 90, 88, 92, 95, 100] }], []);
+
+  // Mini KPI Sparklines (45x100)
+  const insurenceSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#0d6efd'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const contributionSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#10b981'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const healthSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#f59e0b'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -364,7 +412,7 @@ export default function PayrollDashboardPage() {
 									<div id="distribution-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "distribution-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "distribution-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={distributionBarOptions} series={distributionBarSeries} type="bar" height={240} width="100%" />
     </Suspense>
   )}
 </div>
@@ -542,13 +590,13 @@ export default function PayrollDashboardPage() {
 										</h3>
 										<div className="graph"></div>
 									</div>
-									{/*  <div id="process-chart">
+									<div id="process-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "process-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "process-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={processRadialOptions} series={processRadialSeries} type="radialBar" height={250} width="100%" />
     </Suspense>
   )}
-</div>  */}
+</div>
 								</div>
 
 								<div className="d-flex align-items-center gap-3 mt-3 flex-wrap">
@@ -575,7 +623,7 @@ export default function PayrollDashboardPage() {
 								<div id="chart-trend">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "chart-trend", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "chart-trend", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={trendLineOptions} series={trendLineSeries} type="line" height={305} width="100%" />
     </Suspense>
   )}
 </div>
@@ -614,7 +662,7 @@ export default function PayrollDashboardPage() {
 												<div id="insurence-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "insurence-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "insurence-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={insurenceSparkOptions} series={[{ data: [25, 35, 45, 30, 40, 55, 60] }]} type="bar" height={45} width={100} />
     </Suspense>
   )}
 </div>
@@ -639,7 +687,7 @@ export default function PayrollDashboardPage() {
 												<div id="contribution-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "contribution-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "contribution-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={contributionSparkOptions} series={[{ data: [30, 40, 35, 50, 45, 60, 65] }]} type="bar" height={45} width={100} />
     </Suspense>
   )}
 </div>
@@ -664,7 +712,7 @@ export default function PayrollDashboardPage() {
 												<div id="health-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "health-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "health-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={healthSparkOptions} series={[{ data: [20, 25, 30, 35, 40, 45, 50] }]} type="bar" height={45} width={100} />
     </Suspense>
   )}
 </div>

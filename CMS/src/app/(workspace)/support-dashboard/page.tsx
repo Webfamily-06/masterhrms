@@ -9,6 +9,55 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function SupportDashboardPage() {
+
+  // Support Ticket Trends (height: 220)
+  const ticketTrendsOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 220, type: 'area', toolbar: { show: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    colors: ['#0d6efd', '#10b981'],
+    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+  }), []);
+  const ticketTrendsSeries = useMemo(() => [
+    { name: 'Opened', data: [35, 45, 40, 55, 60, 48, 52] },
+    { name: 'Resolved', data: [30, 40, 42, 50, 58, 45, 50] }
+  ], []);
+
+  // Ticket Status Bar (height: 220)
+  const ticketStatusOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 220, type: 'bar', toolbar: { show: false } },
+    plotOptions: { bar: { columnWidth: '45%', borderRadius: 4 } },
+    colors: ['#03C95A'],
+    xaxis: { categories: ['Open', 'In Progress', 'Pending', 'Closed'] }
+  }), []);
+  const ticketStatusSeries = useMemo(() => [{ name: 'Tickets', data: [28, 42, 18, 95] }], []);
+
+  // SLA Compliance Radial Gauge (height: 220)
+  const slaComplianceOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 220, type: 'radialBar' },
+    colors: ['#03C95A'],
+    plotOptions: { radialBar: { hollow: { size: '65%' }, dataLabels: { name: { show: true }, value: { fontSize: '20px', fontWeight: 'bold' } } } },
+    labels: ['SLA Achieved']
+  }), []);
+  const slaComplianceSeries = useMemo(() => [94.5], []);
+
+  // Backlog Growth Line (height: 220)
+  const backlogGrowthOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 220, type: 'line', toolbar: { show: false } },
+    stroke: { curve: 'straight', width: 2 },
+    colors: ['#FF6F28'],
+    xaxis: { categories: ['Week 1', 'Week 2', 'Week 3', 'Week 4'] }
+  }), []);
+  const backlogGrowthSeries = useMemo(() => [{ name: 'Backlog', data: [14, 18, 12, 9] }], []);
+
+  // Tickets by Category Donut (height: 200)
+  const ticketCategoryOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 200, type: 'donut' },
+    colors: ['#0d6efd', '#f59e0b', '#10b981', '#ef4444'],
+    labels: ['Hardware', 'Software', 'Network', 'Access'],
+    legend: { position: 'bottom' }
+  }), []);
+  const ticketCategorySeries = useMemo(() => [40, 25, 20, 15], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -234,7 +283,7 @@ export default function SupportDashboardPage() {
 									<div id="ticket-trends">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "ticket-trends", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "ticket-trends", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={ticketTrendsOptions} series={ticketTrendsSeries} type="area" height={220} width="100%" />
     </Suspense>
   )}
 </div>
@@ -285,7 +334,7 @@ export default function SupportDashboardPage() {
 										<div id="ticket-status">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "ticket-status", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "ticket-status", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={ticketStatusOptions} series={ticketStatusSeries} type="bar" height={220} width="100%" />
     </Suspense>
   )}
 </div>
@@ -365,7 +414,7 @@ export default function SupportDashboardPage() {
 									<div id="sla-compliance">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "sla-compliance", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "sla-compliance", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={slaComplianceOptions} series={slaComplianceSeries} type="radialBar" height={220} width="100%" />
     </Suspense>
   )}
 </div>
@@ -440,7 +489,7 @@ export default function SupportDashboardPage() {
 								<div id="backlog-growth">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "backlog-growth", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "backlog-growth", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={backlogGrowthOptions} series={backlogGrowthSeries} type="line" height={220} width="100%" />
     </Suspense>
   )}
 </div>
@@ -491,7 +540,7 @@ export default function SupportDashboardPage() {
 									<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "ticket-category", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+      <Chart options={ticketCategoryOptions} series={ticketCategorySeries} type="donut" height={200} width="100%" />
     </Suspense>
   )}
 </div>

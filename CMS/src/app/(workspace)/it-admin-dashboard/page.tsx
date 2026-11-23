@@ -9,6 +9,87 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function ItAdminDashboardPage() {
+
+  // IT Micro Sparklines (50x80 & 60x80)
+  const uptimeSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 50, width: 80, type: 'area', sparkline: { enabled: true } },
+    colors: ['#03C95A'],
+    stroke: { curve: 'smooth', width: 2 }
+  }), []);
+  const apiSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 60, width: 80, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#1B84FF'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const ticketsSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 50, width: 80, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#FF6F28'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const jobsSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 50, width: 80, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#664dc9'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+
+  // Storage Horizontal Bar (height: 264)
+  const storagesOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 264, type: 'bar', toolbar: { show: false } },
+    plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '40%' } },
+    colors: ['#1B84FF'],
+    xaxis: { categories: ['App Data', 'Database', 'Logs', 'Backups'] }
+  }), []);
+  const storagesSeries = useMemo(() => [{ name: 'Usage (GB)', data: [120, 85, 45, 60] }], []);
+
+  // MFA Status Progress (height: 24)
+  const mfaOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 24, type: 'bar', sparkline: { enabled: true } },
+    plotOptions: { bar: { horizontal: true, borderRadius: 3 } },
+    colors: ['#03C95A']
+  }), []);
+  const mfaSeries = useMemo(() => [{ name: 'Enrolled', data: [94] }], []);
+
+  // Mountain Style Sparklines (45x100)
+  const failedSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'area', sparkline: { enabled: true } },
+    colors: ['#E70D0D'],
+    stroke: { curve: 'straight', width: 2 },
+    fill: { opacity: 0.3 }
+  }), []);
+  const alertsSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'area', sparkline: { enabled: true } },
+    colors: ['#FFC107'],
+    stroke: { curve: 'straight', width: 2 },
+    fill: { opacity: 0.3 }
+  }), []);
+  const blockedSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, width: 100, type: 'area', sparkline: { enabled: true } },
+    colors: ['#6B7280'],
+    stroke: { curve: 'straight', width: 2 },
+    fill: { opacity: 0.3 }
+  }), []);
+
+  // Main Activity Telemetry (height: 310)
+  const logactivityOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 310, type: 'area', toolbar: { show: false } },
+    colors: ['#FF6F28', '#1B84FF'],
+    stroke: { curve: 'smooth', width: 2 },
+    xaxis: { categories: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'] }
+  }), []);
+  const logactivitySeries = useMemo(() => [
+    { name: 'Auth Events', data: [45, 30, 85, 120, 110, 60] },
+    { name: 'API Calls', data: [110, 80, 240, 310, 280, 150] }
+  ], []);
+
+  // Usage Telemetry (height: 220)
+  const usageOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 220, type: 'area', toolbar: { show: false } },
+    colors: ['#03C95A'],
+    stroke: { curve: 'smooth', width: 2 },
+    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+  }), []);
+  const usageSeries = useMemo(() => [{ name: 'Bandwidth (TB)', data: [12, 14, 18, 22, 20, 15, 13] }], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -86,7 +167,7 @@ export default function ItAdminDashboardPage() {
 										<div id="uptime-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "uptime-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "uptime-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={uptimeSparkOptions} series={[{ data: [98, 99, 99.5, 99.8, 99.9] }]} type="area" height={50} width={80} />
     </Suspense>
   )}
 </div>
@@ -115,7 +196,7 @@ export default function ItAdminDashboardPage() {
 										<div id="api-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "api-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "api-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={apiSparkOptions} series={[{ data: [45, 60, 55, 70, 85] }]} type="bar" height={60} width={80} />
     </Suspense>
   )}
 </div>
@@ -144,7 +225,7 @@ export default function ItAdminDashboardPage() {
 										<div id="tickets-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "tickets-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "tickets-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={ticketsSparkOptions} series={[{ data: [12, 18, 15, 22, 14] }]} type="bar" height={50} width={80} />
     </Suspense>
   )}
 </div>
@@ -173,7 +254,7 @@ export default function ItAdminDashboardPage() {
 										<div id="jobs-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "jobs-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "jobs-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={jobsSparkOptions} series={[{ data: [35, 42, 38, 48, 55] }]} type="bar" height={50} width={80} />
     </Suspense>
   )}
 </div>
@@ -204,7 +285,7 @@ export default function ItAdminDashboardPage() {
 								<div id="storages-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "storages-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "storages-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={storagesOptions} series={storagesSeries} type="bar" height={264} width="100%" />
     </Suspense>
   )}
 </div>
@@ -308,7 +389,7 @@ export default function ItAdminDashboardPage() {
 								<div id="mfa-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "mfa-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "mfa-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={mfaOptions} series={mfaSeries} type="bar" height={24} width="100%" />
     </Suspense>
   )}
 </div>
@@ -601,7 +682,7 @@ export default function ItAdminDashboardPage() {
 						<div id="logactivity-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "logactivity-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "logactivity-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={logactivityOptions} series={logactivitySeries} type="area" height={310} width="100%" />
     </Suspense>
   )}
 </div>
@@ -627,7 +708,7 @@ export default function ItAdminDashboardPage() {
 									<div id="Usage-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "Usage-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "Usage-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={usageOptions} series={usageSeries} type="area" height={220} width="100%" />
     </Suspense>
   )}
 </div>
@@ -676,7 +757,7 @@ export default function ItAdminDashboardPage() {
 										<div id="failed-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "failed-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "failed-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={failedSparkOptions} series={[{ data: [4, 8, 5, 12, 6] }]} type="area" height={45} width={100} />
     </Suspense>
   )}
 </div>
@@ -695,7 +776,7 @@ export default function ItAdminDashboardPage() {
 										<div id="alerts-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "alerts-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "alerts-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={alertsSparkOptions} series={[{ data: [15, 22, 18, 30, 25] }]} type="area" height={45} width={100} />
     </Suspense>
   )}
 </div>
@@ -715,7 +796,7 @@ export default function ItAdminDashboardPage() {
 										<div id="blocked-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "blocked-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "blocked-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={blockedSparkOptions} series={[{ data: [8, 12, 10, 16, 14] }]} type="area" height={45} width={100} />
     </Suspense>
   )}
 </div>

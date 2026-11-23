@@ -24,7 +24,7 @@ export default function DealsDashboardPage() {
         stacked: true,
         toolbar: { show: false },
       },
-      colors: ['#FF6F28', '#E5E7EB'],
+      colors: ['#FF6F28', '#F8F9FA'],
       plotOptions: {
         bar: {
           borderRadius: 8,
@@ -50,6 +50,61 @@ export default function DealsDashboardPage() {
   const dealsStageSeries = useMemo(() => [
     { name: 'Income', data: [80, 40, 100, 20] },
     { name: 'Expenses', data: [100, 100, 100, 100] }
+  ], []);
+
+  // SmartHR pipeline_chart: Horizontal Funnel Bar Chart
+  const pipelineOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: {
+        type: 'bar',
+        height: 300,
+        toolbar: { show: false },
+        sparkline: { enabled: true }
+      },
+      plotOptions: {
+        bar: {
+          horizontal: true,
+          distributed: true,
+          barHeight: '85%',
+          borderRadius: 8,
+        },
+      },
+      colors: ['#F26522', '#F37438', '#F5844E', '#F69364', '#F7A37A', '#F9B291'],
+      dataLabels: {
+        enabled: true,
+        textAnchor: 'middle',
+        formatter: (val, opt) => opt.w.globals.labels[opt.dataPointIndex] || '',
+        style: { fontSize: '13px', fontWeight: 500, colors: ['#fff'] }
+      },
+      xaxis: {
+        categories: [
+          'Marketing : 7,898', 'Sales : 4,658', 'Email : 2,898',
+          'Chat : 789', 'Operational : 655', 'Calls : 454'
+        ]
+      },
+      tooltip: { enabled: false }
+    }),
+    []
+  );
+  const pipelineSeries = useMemo(() => [{ name: 'Pipeline', data: [130, 110, 90, 70, 50, 40] }], []);
+
+  // SmartHR top_deal_chart / deal_chart: Radar Chart
+  const topDealOptions: ApexCharts.ApexOptions = useMemo(
+    () => ({
+      chart: { height: 200, type: 'radar', toolbar: { show: false } },
+      colors: ['#F37438', '#B359C3', '#1CCE6B'],
+      stroke: { width: 2, curve: 'smooth' },
+      fill: { opacity: 0.3 },
+      markers: { size: 0 },
+      legend: { show: false },
+      xaxis: { categories: ['Mar', 'Feb', 'Jan', 'Aug', 'Jul', 'Jun', 'May', 'Apr'] }
+    }),
+    []
+  );
+  const topDealSeries = useMemo(() => [
+    { name: 'Series 1', data: [80, 50, 30, 40, 100, 20] },
+    { name: 'Series 2', data: [20, 30, 40, 80, 20, 80] },
+    { name: 'Series 3', data: [44, 76, 78, 13, 43, 10] }
   ], []);
 
   return (
@@ -140,7 +195,7 @@ export default function DealsDashboardPage() {
 								<div id="pipeline_chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "pipeline_chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "pipeline_chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={pipelineOptions} series={pipelineSeries} type="bar" height={300} width="100%" />
     </Suspense>
   )}
 </div>
@@ -525,7 +580,7 @@ export default function DealsDashboardPage() {
 									<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "deal_chart", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+      <Chart options={topDealOptions} series={topDealSeries} type="radar" height={200} width="100%" />
     </Suspense>
   )}
 </div>

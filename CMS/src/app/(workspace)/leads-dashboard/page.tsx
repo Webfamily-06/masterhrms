@@ -16,6 +16,40 @@ export default function LeadsDashboardPage() {
   }, []);
 
   
+  
+  // SmartHR heat_chart: Weekly activity heatmap
+  const heatChartOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { type: 'heatmap', height: 300, toolbar: { show: false } },
+    colors: ["#9CA3AF", "#F37438"],
+    dataLabels: { enabled: false },
+    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+  }), []);
+  const heatChartSeries = useMemo(() => [
+    { name: "0", data: [{ x: 'Mon', y: 22 }, { x: 'Tue', y: 29 }, { x: 'Wed', y: 13 }, { x: 'Thu', y: 32 }, { x: 'Fri', y: 32 }, { x: 'Sat', y: 12 }, { x: 'Sun', y: 15 }] },
+    { name: "20", data: [{ x: 'Mon', y: 28 }, { x: 'Tue', y: 15 }, { x: 'Wed', y: 32 }, { x: 'Thu', y: 18 }, { x: 'Fri', y: 24 }, { x: 'Sat', y: 20 }, { x: 'Sun', y: 25 }] },
+    { name: "40", data: [{ x: 'Mon', y: 14 }, { x: 'Tue', y: 38 }, { x: 'Wed', y: 25 }, { x: 'Thu', y: 30 }, { x: 'Fri', y: 22 }, { x: 'Sat', y: 18 }, { x: 'Sun', y: 16 }] }
+  ], []);
+
+  // SmartHR donut-chart-2: Sent vs Pending
+  const donut2Options: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { type: 'donut', height: 180 },
+    colors: ['#F26522', '#F8F9FA'],
+    labels: ['Sent', 'Pending'],
+    legend: { show: false },
+    dataLabels: { enabled: false }
+  }), []);
+  const donut2Series = useMemo(() => [60, 40], []);
+
+  // SmartHR donut-chart-3: Converted vs Lost
+  const donut3Options: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { type: 'donut', height: 180 },
+    colors: ['#0C4B5E', '#F8F9FA'],
+    labels: ['Converted', 'Lost'],
+    legend: { show: false },
+    dataLabels: { enabled: false }
+  }), []);
+  const donut3Series = useMemo(() => [45, 55], []);
+
   const revenueIncomeOptions: ApexCharts.ApexOptions = useMemo(
     () => ({
       chart: {
@@ -324,7 +358,7 @@ export default function LeadsDashboardPage() {
 								<div id="heat_chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "heat_chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "heat_chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={heatChartOptions} series={heatChartSeries} type="heatmap" height={300} width="100%" />
     </Suspense>
   )}
 </div>
@@ -530,7 +564,7 @@ export default function LeadsDashboardPage() {
 								<div id="donut-chart-2">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "donut-chart-2", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "donut-chart-2", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={donut2Options} series={donut2Series} type="donut" height={180} width="100%" />
     </Suspense>
   )}
 </div>
@@ -896,7 +930,7 @@ export default function LeadsDashboardPage() {
 										<div id="donut-chart-3">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "donut-chart-3", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "donut-chart-3", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={donut3Options} series={donut3Series} type="donut" height={180} width="100%" />
     </Suspense>
   )}
 </div>

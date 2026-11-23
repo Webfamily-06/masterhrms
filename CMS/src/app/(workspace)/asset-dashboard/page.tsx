@@ -9,6 +9,25 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function AssetDashboardPage() {
+
+  // SmartHR Purchase Trend Area Chart (height: 253)
+  const purchaseTrendOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 253, type: 'area', toolbar: { show: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    colors: ['#03C95A'],
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] }
+  }), []);
+  const purchaseTrendSeries = useMemo(() => [{ name: 'Purchased', data: [25, 30, 45, 50, 60, 55, 65, 75, 70, 85, 90, 95] }], []);
+
+  // SmartHR Asset Categories Donut Chart (height: 290)
+  const assetCategoriesOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 290, type: 'donut' },
+    colors: ['#FF6F28', '#1B84FF', '#03C95A', '#FFC107', '#E70D0D'],
+    labels: ['Laptops', 'Servers', 'Peripherals', 'Mobile Devices', 'Vehicles'],
+    legend: { position: 'bottom' }
+  }), []);
+  const assetCategoriesSeries = useMemo(() => [45, 25, 20, 15, 5], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -184,7 +203,7 @@ export default function AssetDashboardPage() {
 								<div id="purchase-trend" style={{ position: "relative" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "purchase-trend", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "purchase-trend", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={purchaseTrendOptions} series={purchaseTrendSeries} type="area" height={253} width="100%" />
     </Suspense>
   )}
 </div>
@@ -441,7 +460,7 @@ export default function AssetDashboardPage() {
 										<div id="asset-categories-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "asset-categories-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "asset-categories-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={assetCategoriesOptions} series={assetCategoriesSeries} type="donut" height={290} width="100%" />
     </Suspense>
   )}
 </div>

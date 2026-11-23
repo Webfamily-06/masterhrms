@@ -9,6 +9,48 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function AttendanceDashboardPage() {
+
+  // SmartHR Attendance Trend Bar Chart
+  const trendOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 375, type: 'bar', toolbar: { show: false } },
+    plotOptions: { bar: { columnWidth: '55%', borderRadius: 6 } },
+    colors: ['#03C95A'],
+    dataLabels: { enabled: false },
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] }
+  }), []);
+  const trendSeries = useMemo(() => [{ name: 'Attendance', data: [40, 22, 53, 25, 56, 90, 43, 25, 68, 80, 35, 20] }], []);
+
+  // SmartHR Office Scatter Chart
+  const officeScatterOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 310, type: 'scatter', toolbar: { show: false } },
+    colors: ['#0C4B5E', '#F26522'],
+    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] }
+  }), []);
+  const officeScatterSeries = useMemo(() => [
+    { name: "In-Office", data: [[1, 220], [1.5, 280], [2, 270], [2.5, 340], [3, 250], [4, 310], [5, 280], [6, 360], [7, 240]] },
+    { name: "Remote", data: [[1, 120], [1.5, 140], [2, 110], [2.5, 160], [3, 130], [4, 150], [5, 140], [6, 180], [7, 100]] }
+  ], []);
+
+  // SmartHR Violation Mini Bar Chart (120x150)
+  const violationOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 120, width: 150, type: 'bar', toolbar: { show: false }, sparkline: { enabled: true } },
+    colors: ['#FF5504', '#47BCB2', '#EFCE6B'],
+    plotOptions: { bar: { distributed: true, borderRadius: 4, columnWidth: '55%' } },
+    dataLabels: { enabled: false }
+  }), []);
+  const violationSeries = useMemo(() => [{ name: 'Violations', data: [35, 20, 15] }], []);
+
+  // SmartHR Arrival Positive/Negative Mini Sparkline (35x70)
+  const arrivalSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { width: 70, height: 35, type: 'bar', stacked: true, toolbar: { show: false }, sparkline: { enabled: true } },
+    plotOptions: { bar: { columnWidth: '35%', borderRadius: 2 } },
+    colors: ['#03C95A', '#E70D0D']
+  }), []);
+  const arrivalSparkSeries = useMemo(() => [
+    { name: 'Positive', data: [30, 30, 30, 30, 30, 30, 30, 30] },
+    { name: 'Negative', data: [-30, -30, -30, -30, -30, -30, -30, -30] }
+  ], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -279,7 +321,7 @@ export default function AttendanceDashboardPage() {
 								<div id="attendancetrend-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "attendancetrend-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "attendancetrend-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={trendOptions} series={trendSeries} type="bar" height={375} width="100%" />
     </Suspense>
   )}
 </div>
@@ -395,7 +437,7 @@ export default function AttendanceDashboardPage() {
 								<div id="office-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "office-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "office-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={officeScatterOptions} series={officeScatterSeries} type="scatter" height={310} width="100%" />
     </Suspense>
   )}
 </div>
@@ -682,7 +724,7 @@ export default function AttendanceDashboardPage() {
 										<div id="violation-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "violation-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "violation-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={violationOptions} series={violationSeries} type="bar" height={120} width={150} />
     </Suspense>
   )}
 </div>
@@ -751,7 +793,7 @@ export default function AttendanceDashboardPage() {
 											<div id="arrival-chart-1">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "arrival-chart-1", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "arrival-chart-1", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={arrivalSparkOptions} series={arrivalSparkSeries} type="bar" height={35} width={70} />
     </Suspense>
   )}
 </div>
@@ -780,7 +822,7 @@ export default function AttendanceDashboardPage() {
 											<div id="arrival-chart-2">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "arrival-chart-2", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "arrival-chart-2", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={arrivalSparkOptions} series={arrivalSparkSeries} type="bar" height={35} width={70} />
     </Suspense>
   )}
 </div>
@@ -810,7 +852,7 @@ export default function AttendanceDashboardPage() {
 											<div id="arrival-chart-3">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "arrival-chart-3", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "arrival-chart-3", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={arrivalSparkOptions} series={arrivalSparkSeries} type="bar" height={35} width={70} />
     </Suspense>
   )}
 </div>
@@ -839,7 +881,7 @@ export default function AttendanceDashboardPage() {
 											<div id="arrival-chart-4">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "arrival-chart-4", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "arrival-chart-4", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={arrivalSparkOptions} series={arrivalSparkSeries} type="bar" height={35} width={70} />
     </Suspense>
   )}
 </div>

@@ -9,6 +9,57 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function FinanceDashboardPage() {
+
+  // Reimbursement Mini Sparkline (height: 45)
+  const reimbursementSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#FF6F28'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const reimbursementSparkSeries = useMemo(() => [{ name: 'Reimbursement', data: [15, 22, 18, 25, 30, 22, 28] }], []);
+
+  // Headcount Bar (height: 240)
+  const headcountBarOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 240, type: 'bar', toolbar: { show: false } },
+    colors: ['#1B84FF'],
+    plotOptions: { bar: { columnWidth: '45%', borderRadius: 3 } },
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] }
+  }), []);
+  const headcountBarSeries = useMemo(() => [{ name: 'Headcount', data: [45, 52, 58, 65, 72, 78] }], []);
+
+  // Cost Donut (height: 200)
+  const costDonutOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 200, type: 'donut' },
+    colors: ['#FF6F28', '#1B84FF', '#03C95A', '#E70D0D'],
+    labels: ['Operations', 'Salaries', 'Infrastructure', 'Marketing'],
+    legend: { position: 'bottom' }
+  }), []);
+  const costDonutSeries = useMemo(() => [40, 30, 20, 10], []);
+
+  // Budget Area Chart (height: 280)
+  const budgetAreaOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 280, type: 'area', toolbar: { show: false } },
+    stroke: { curve: 'smooth', width: 2 },
+    colors: ['#03C95A', '#FF6F28'],
+    xaxis: { categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'] }
+  }), []);
+  const budgetAreaSeries = useMemo(() => [
+    { name: 'Allocated', data: [50, 60, 70, 80, 75, 85] },
+    { name: 'Spent', data: [40, 45, 55, 65, 60, 70] }
+  ], []);
+
+  // Finance Stacked Bar (height: 140)
+  const financeStackedOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 140, type: 'bar', stacked: true, toolbar: { show: false } },
+    colors: ['#0d6efd', '#f59e0b'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } },
+    xaxis: { categories: ['Q1', 'Q2', 'Q3', 'Q4'] }
+  }), []);
+  const financeStackedSeries = useMemo(() => [
+    { name: 'Revenue', data: [120, 150, 180, 210] },
+    { name: 'Expenses', data: [80, 95, 110, 130] }
+  ], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -205,7 +256,7 @@ export default function FinanceDashboardPage() {
 								<div id="reimbrusement-chart" className="mt-auto">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "reimbrusement-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "reimbrusement-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={reimbursementSparkOptions} series={reimbursementSparkSeries} type="bar" height={45} width="100%" />
     </Suspense>
   )}
 </div>
@@ -275,7 +326,7 @@ export default function FinanceDashboardPage() {
 								<div id="headcount-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "headcount-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "headcount-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={headcountBarOptions} series={headcountBarSeries} type="bar" height={240} width="100%" />
     </Suspense>
   )}
 </div>
@@ -296,7 +347,7 @@ export default function FinanceDashboardPage() {
 									<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "cost_chart", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+      <Chart options={costDonutOptions} series={costDonutSeries} type="donut" height={200} width="100%" />
     </Suspense>
   )}
 </div>
@@ -404,7 +455,7 @@ export default function FinanceDashboardPage() {
 								<div id="budget-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "budget-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "budget-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={budgetAreaOptions} series={budgetAreaSeries} type="area" height={280} width="100%" />
     </Suspense>
   )}
 </div>
@@ -456,7 +507,7 @@ export default function FinanceDashboardPage() {
 									<div id="finance-chart" className="w-100 mb-sm-0 mb-2">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "finance-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "finance-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={financeStackedOptions} series={financeStackedSeries} type="bar" height={140} width="100%" />
     </Suspense>
   )}
 </div>

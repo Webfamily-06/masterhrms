@@ -9,6 +9,61 @@ import { Link } from "@/src/lib/router-compat";
 const Chart = lazy(() => import("react-apexcharts"));
 
 export default function HrmDashboardPage() {
+
+  // Status Bar Chart (Single row height: 45)
+  const statusGaugeOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 45, type: 'bar', sparkline: { enabled: true } },
+    plotOptions: { bar: { horizontal: true, borderRadius: 4, barHeight: '50%' } },
+    colors: ['#03C95A'],
+    xaxis: { categories: ['Total'] }
+  }), []);
+  const statusGaugeSeries = useMemo(() => [{ name: 'Active', data: [80] }], []);
+
+  // Leave RadialBar (150x150)
+  const leaveRadialOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 150, width: 150, type: 'radialBar' },
+    colors: ['#03C95A'],
+    plotOptions: { radialBar: { hollow: { size: '60%' }, dataLabels: { name: { show: false }, value: { fontSize: '18px', fontWeight: 'bold' } } } }
+  }), []);
+  const leaveRadialSeries = useMemo(() => [70], []);
+
+  // Attendance Comparison Bar (height: 260)
+  const attendanceBarOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 260, type: 'bar', stacked: true, toolbar: { show: false } },
+    plotOptions: { bar: { columnWidth: '45%', borderRadius: 4 } },
+    colors: ['#03C95A', '#E70D0D'],
+    xaxis: { categories: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] }
+  }), []);
+  const attendanceBarSeries = useMemo(() => [
+    { name: 'Present', data: [80, 85, 90, 88, 92] },
+    { name: 'Absent', data: [20, 15, 10, 12, 8] }
+  ], []);
+
+  // Training Donut Chart (height: 180)
+  const trainingDonutOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 180, type: 'donut' },
+    colors: ['#664dc9', '#44c4fa'],
+    labels: ['Completed', 'In Progress'],
+    legend: { position: 'bottom' }
+  }), []);
+  const trainingDonutSeries = useMemo(() => [65, 35], []);
+
+  // Mini Sparkline Payroll Bar (height: 40)
+  const payrollSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 40, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#03C95A'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const payrollSparkSeries = useMemo(() => [{ name: 'Payroll', data: [30, 45, 60, 75, 90, 80, 100] }], []);
+
+  // Mini Sparkline Deduction Bar (height: 70)
+  const deductionSparkOptions: ApexCharts.ApexOptions = useMemo(() => ({
+    chart: { height: 70, type: 'bar', sparkline: { enabled: true } },
+    colors: ['#E70D0D'],
+    plotOptions: { bar: { columnWidth: '50%', borderRadius: 2 } }
+  }), []);
+  const deductionSparkSeries = useMemo(() => [{ name: 'Deduction', data: [20, 35, 40, 30, 45, 50, 40] }], []);
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -151,7 +206,7 @@ export default function HrmDashboardPage() {
 								<div id="status-chart" className="mb-3">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "status-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "status-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={statusGaugeOptions} series={statusGaugeSeries} type="bar" height={45} width="100%" />
     </Suspense>
   )}
 </div>
@@ -215,7 +270,7 @@ export default function HrmDashboardPage() {
 										<div id="leave-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "leave-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "leave-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={leaveRadialOptions} series={leaveRadialSeries} type="radialBar" height={150} width={150} />
     </Suspense>
   )}
 </div>
@@ -465,7 +520,7 @@ export default function HrmDashboardPage() {
 									<div id="attendance-chart" className="w-100">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "attendance-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "attendance-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={attendanceBarOptions} series={attendanceBarSeries} type="bar" height={260} width="100%" />
     </Suspense>
   )}
 </div>
@@ -769,7 +824,7 @@ export default function HrmDashboardPage() {
 										<div className="chart-canvas-wrapper" style={{ minHeight: "200px" }}>
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "training-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#f59e0b", "#10b981", "#ef4444"], labels: ["A", "B", "C", "D"], dataLabels: { enabled: false } }} series={[44, 55, 13, 33]} type="donut" height={200} width="100%" />
+      <Chart options={trainingDonutOptions} series={trainingDonutSeries} type="donut" height={180} width="100%" />
     </Suspense>
   )}
 </div>
@@ -929,7 +984,7 @@ export default function HrmDashboardPage() {
 												<div id="deduction-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "deduction-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "deduction-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={deductionSparkOptions} series={deductionSparkSeries} type="bar" height={70} width="100%" />
     </Suspense>
   )}
 </div>
@@ -981,7 +1036,7 @@ export default function HrmDashboardPage() {
 												<div id="payroll-chart">
   {isMounted && (
     <Suspense fallback={<div className="h-48 flex items-center justify-center text-muted-foreground text-xs">Loading chart...</div>}>
-      <Chart options={{ chart: { id: "payroll-chart", toolbar: { show: false } }, colors: ["#0d6efd", "#10b981", "#f59e0b", "#6366f1"], dataLabels: { enabled: false } }} series={[{ name: "payroll-chart", data: [30, 40, 35, 50, 49, 60, 70, 91, 125] }]} type="area" height={220} width="100%" />
+      <Chart options={payrollSparkOptions} series={payrollSparkSeries} type="bar" height={40} width="100%" />
     </Suspense>
   )}
 </div>
