@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 
 export type Environment = 'development' | 'staging' | 'production';
 
 export const PRODUCTION_API_URL = 'https://www.masterhrms.com';
 export const DEFAULT_BACKEND_PORT = 4000;
-export const DEFAULT_DEV_LAN_IP = '192.168.1.176'; // Verified active developer machine LAN IPv4
+export const DEFAULT_DEV_LAN_IP = '10.98.19.209'; // Verified active developer machine LAN IPv4
 
 /**
  * Normalizes an API origin string:
@@ -67,19 +68,38 @@ export function setRuntimeApiBaseUrl(customUrl: string | null): void {
  * - Never use old hardcoded IP 10.215.212.209.
  */
 export function resolveDevelopmentApiUrl(): string {
-  // 1. Explicit API base URL from environment
+  // 1. Explicit API base URL from environment (ignoring stale historical dead IPs)
   const envUrl = process.env['EXPO_PUBLIC_API_BASE_URL'];
   if (envUrl && envUrl.trim()) {
-    return normalizeApiOrigin(envUrl);
+    const normalized = normalizeApiOrigin(envUrl);
+    if (!normalized.includes('10.215.212.209') && !normalized.includes('192.168.1.176')) {
+      return normalized;
+    }
   }
 
-  // 2. Explicit LAN IP from environment
+  // 2. Explicit LAN IP from environment (ignoring stale dead IPs)
   const envLanIp = process.env['EXPO_PUBLIC_DEV_LAN_IP'];
   if (envLanIp && envLanIp.trim()) {
-    return `http://${envLanIp.trim()}:${DEFAULT_BACKEND_PORT}`;
+    const cleanLan = envLanIp.trim();
+    if (cleanLan !== '10.215.212.209' && cleanLan !== '192.168.1.176') {
+      return `http://${cleanLan}:${DEFAULT_BACKEND_PORT}`;
+    }
   }
 
-  // 3. Simulators and Emulators
+  // 3. Dynamic Packager Host IP discovery (detects computer's actual active LAN IP across Wi-Fi networks)
+  try {
+    const hostUri = Constants?.expoConfig?.hostUri || (Constants?.manifest2 as any)?.extra?.expoGo?.debuggerHost;
+    if (hostUri) {
+      const host = hostUri.split(':')[0];
+      if (host && host !== 'localhost' && host !== '127.0.0.1') {
+        return `http://${host}:${DEFAULT_BACKEND_PORT}`;
+      }
+    }
+  } catch {
+    // Ignore fallback errors
+  }
+
+  // 4. Simulators and Emulators
   const isPhysical = Device && typeof Device.isDevice === 'boolean' ? Device.isDevice : false;
   if (!isPhysical) {
     if (Platform.OS === 'android') {
@@ -88,7 +108,7 @@ export function resolveDevelopmentApiUrl(): string {
     return `http://localhost:${DEFAULT_BACKEND_PORT}`;
   }
 
-  // 4. Physical Android / iOS devices on local Wi-Fi
+  // 5. Physical Android / iOS devices on local Wi-Fi
   return `http://${DEFAULT_DEV_LAN_IP}:${DEFAULT_BACKEND_PORT}`;
 }
 

@@ -14,6 +14,7 @@ import { Text } from '../../../components/common/Text';
 import { AlertCircle } from 'lucide-react-native';
 import { AuthService } from '../../../core/auth/authService';
 import { Config } from '../../../config/environment';
+import { apiClient, updateApiClientBaseUrl } from '../../../core/api/apiClient';
 import { NavigationProp } from '../../../types/navigation.types';
 import { useNavigation } from '@react-navigation/native';
 
@@ -36,6 +37,35 @@ export const LoginScreen: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeApiUrl, setActiveApiUrl] = useState<string>(Config.API_BASE_URL);
+  const [pingStatus, setPingStatus] = useState<'idle' | 'checking' | 'online' | 'offline'>('idle');
+  const [pingLatency, setPingLatency] = useState<number | null>(null);
+
+  const testConnection = async (targetUrl?: string) => {
+    const url = targetUrl || activeApiUrl;
+    setPingStatus('checking');
+    const start = Date.now();
+    try {
+      await apiClient.post('/api/v1/auth/login', {}, { baseURL: url, timeout: 3500, skipAuth: true } as any);
+      setPingStatus('online');
+      setPingLatency(Date.now() - start);
+    } catch (err: any) {
+      if (err?.status === 400 || err?.response?.status === 400) {
+        setPingStatus('online');
+        setPingLatency(Date.now() - start);
+      } else {
+        setPingStatus('offline');
+        setPingLatency(null);
+      }
+    }
+  };
+
+  const handleSwitchBackend = (url: string) => {
+    updateApiClientBaseUrl(url);
+    setActiveApiUrl(url);
+    if (error) setError(null);
+    void testConnection(url);
+  };
 
   const handleLogin = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -69,7 +99,7 @@ export const LoginScreen: React.FC = () => {
         );
       } else if (err?.isNetworkError || err?.message?.toLowerCase().includes('network')) {
         setError(
-          `Unable to reach backend server (${Config.API_BASE_URL}). Please ensure backend is running on port 4000 and device is on the same network.`
+          `Unable to reach backend server (${activeApiUrl}). Please ensure backend is running on port 4000 and device is on the same network.`
         );
       } else {
         setError(err?.message || 'Invalid email or password.');
@@ -266,8 +296,77 @@ export const LoginScreen: React.FC = () => {
                   <Text style={styles.quickFillChipText}>Employee</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.devApiBadge}>
-                <Text style={styles.devApiBadgeText}>Backend: {Config.API_BASE_URL}</Text>
+
+              {/* Dev API Server Switcher */}
+              <View style={styles.devApiBox}>
+                <View style={styles.devApiHeaderRow}>
+                  <Text style={styles.devApiBoxTitle}>Server: {activeApiUrl}</Text>
+                  <TouchableOpacity
+                    onPress={() => testConnection()}
+                    style={styles.pingButton}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.pingButtonText}>
+                      {pingStatus === 'checking'
+                        ? 'Testing...'
+                        : pingStatus === 'online'
+                        ? `✓ Online (${pingLatency}ms)`
+                        : pingStatus === 'offline'
+                        ? '✗ Unreachable'
+                        : 'Ping'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.devApiSwitchRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.apiSwitchChip,
+                      activeApiUrl.includes('10.98.19.209') && styles.apiSwitchChipActive,
+                    ]}
+                    onPress={() => handleSwitchBackend('http://10.98.19.209:4000')}
+                  >
+                    <Text
+                      style={[
+                        styles.apiSwitchText,
+                        activeApiUrl.includes('10.98.19.209') && styles.apiSwitchTextActive,
+                      ]}
+                    >
+                      LAN (10.98.19.209)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.apiSwitchChip,
+                      activeApiUrl.includes('10.0.2.2') && styles.apiSwitchChipActive,
+                    ]}
+                    onPress={() => handleSwitchBackend('http://10.0.2.2:4000')}
+                  >
+                    <Text
+                      style={[
+                        styles.apiSwitchText,
+                        activeApiUrl.includes('10.0.2.2') && styles.apiSwitchTextActive,
+                      ]}
+                    >
+                      Android Emu
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.apiSwitchChip,
+                      activeApiUrl.includes('localhost') && styles.apiSwitchChipActive,
+                    ]}
+                    onPress={() => handleSwitchBackend('http://localhost:4000')}
+                  >
+                    <Text
+                      style={[
+                        styles.apiSwitchText,
+                        activeApiUrl.includes('localhost') && styles.apiSwitchTextActive,
+                      ]}
+                    >
+                      iOS Sim
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           )}
@@ -622,5 +721,65 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  devApiBox: {
+    marginTop: 10,
+    width: '100%',
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  devApiHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  devApiBoxTitle: {
+    fontSize: 10.5,
+    color: '#64748B',
+    fontWeight: '500',
+    flex: 1,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  pingButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 6,
+    marginLeft: 6,
+  },
+  pingButtonText: {
+    fontSize: 10,
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  devApiSwitchRow: {
+    flexDirection: 'row',
+    gap: 6,
+    justifyContent: 'center',
+  },
+  apiSwitchChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  apiSwitchChipActive: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4338CA',
+  },
+  apiSwitchText: {
+    fontSize: 10.5,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  apiSwitchTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
