@@ -456,7 +456,7 @@ export default function PayrollDashboardPage() {
 											</div>
 											<div className="progress progress-pill-gradient">
 												<div className="progress-bar" role="progressbar" style={{ width: "75%" }}
-													aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+													aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 											</div>
 										</div>
 
@@ -469,7 +469,7 @@ export default function PayrollDashboardPage() {
 											</div>
 											<div className="progress progress-pill-gradient">
 												<div className="progress-bar" role="progressbar" style={{ width: "85%" }}
-													aria-valuenow="85" aria-valuemin="0" aria-valuemax="100"></div>
+													aria-valuenow={85} aria-valuemin={0} aria-valuemax={100}></div>
 											</div>
 										</div>
 
@@ -482,7 +482,7 @@ export default function PayrollDashboardPage() {
 											</div>
 											<div className="progress progress-pill-gradient">
 												<div className="progress-bar" role="progressbar" style={{ width: "72%" }}
-													aria-valuenow="72" aria-valuemin="0" aria-valuemax="100"></div>
+													aria-valuenow={72} aria-valuemin={0} aria-valuemax={100}></div>
 											</div>
 										</div>
 
@@ -495,7 +495,7 @@ export default function PayrollDashboardPage() {
 											</div>
 											<div className="progress progress-pill-gradient">
 												<div className="progress-bar" role="progressbar" style={{ width: "79%" }}
-													aria-valuenow="79" aria-valuemin="0" aria-valuemax="100"></div>
+													aria-valuenow={79} aria-valuemin={0} aria-valuemax={100}></div>
 											</div>
 										</div>
 
@@ -508,7 +508,7 @@ export default function PayrollDashboardPage() {
 											</div>
 											<div className="progress progress-pill-gradient">
 												<div className="progress-bar" role="progressbar" style={{ width: "40%" }}
-													aria-valuenow="40" aria-valuemin="0" aria-valuemax="100"></div>
+													aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}></div>
 											</div>
 										</div>
 
@@ -766,7 +766,7 @@ export default function PayrollDashboardPage() {
 										Progress <span className="fs-13 fw-normal text-muted">(40%)</span> </h3>
 									<div className="progress progress-pill-secondary">
 										<div className="progress-bar" role="progressbar" style={{ width: "75%" }}
-											aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+											aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 									</div>
 								</div>
 

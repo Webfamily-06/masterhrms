@@ -65,7 +65,7 @@ export default function LeadsDashboardPage() {
 							fontWeight: 700,
 							color: '#f8fafc',
 							offsetY: 4,
-							formatter: (val) => val
+							formatter: (val) => String(val)
 						}
 					}
 				}

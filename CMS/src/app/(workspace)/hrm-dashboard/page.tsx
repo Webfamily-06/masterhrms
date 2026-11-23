@@ -744,19 +744,19 @@ export default function HrmDashboardPage() {
 								</div>
 								<div className="progress-stacked bg-white statistic-progress mb-4">
 									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment one"
-										aria-valuenow="15" aria-valuemin="0" aria-valuemax="100" style={{ width: "45%" }}>
+										aria-valuenow={15} aria-valuemin={0} aria-valuemax={100} style={{ width: "45%" }}>
 										<div className="progress-bar bg-primary"></div>
 									</div>
 									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment two"
-										aria-valuenow="30" aria-valuemin="0" aria-valuemax="100" style={{ width: "25%" }}>
+										aria-valuenow={30} aria-valuemin={0} aria-valuemax={100} style={{ width: "25%" }}>
 										<div className="progress-bar bg-secondary"></div>
 									</div>
 									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment three"
-										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "23%" }}>
+										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "23%" }}>
 										<div className="progress-bar bg-pink"></div>
 									</div>
 									<div className="progress overflow-hidden" role="progressbar" aria-label="Segment four"
-										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "20%" }}>
+										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "20%" }}>
 										<div className="progress-bar bg-success"></div>
 									</div>
 								</div>

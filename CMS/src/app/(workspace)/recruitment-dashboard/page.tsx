@@ -790,7 +790,7 @@ export default function RecruitmentDashboardPage() {
 													Overall Progress <span className="fs-13 fw-normal">36.3%</span> </p>
 												<div className="progress progress-pill-primary">
 													<div className="progress-bar" role="progressbar" style={{ width: "36.3%" }}
-														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+														aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 												</div>
 											</div>
 										</div>
@@ -816,7 +816,7 @@ export default function RecruitmentDashboardPage() {
 													Conversion rate <span className="fs-13 fw-normal">37.4%</span> </p>
 												<div className="progress progress-pill-secondary">
 													<div className="progress-bar" role="progressbar" style={{ width: "37.4%" }}
-														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+														aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 												</div>
 											</div>
 										</div>
@@ -841,8 +841,8 @@ export default function RecruitmentDashboardPage() {
 													Conversion rate <span className="fs-13 fw-normal">36.3%</span> </p>
 												<div className="progress progress-pill-dark">
 													<div className="progress-bar dark-progress" role="progressbar"
-														style={{ width: "36.3%" }} aria-valuenow="75" aria-valuemin="0"
-														aria-valuemax="100"></div>
+														style={{ width: "36.3%" }} aria-valuenow={75} aria-valuemin={0}
+														aria-valuemax={100}></div>
 												</div>
 											</div>
 										</div>
@@ -867,7 +867,7 @@ export default function RecruitmentDashboardPage() {
 													Conversion rate <span className="fs-13 fw-normal">26.5%</span> </p>
 												<div className="progress progress-pill-info">
 													<div className="progress-bar" role="progressbar" style={{ width: "26.5%" }}
-														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+														aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 												</div>
 											</div>
 										</div>
@@ -893,7 +893,7 @@ export default function RecruitmentDashboardPage() {
 													Conversion rate <span className="fs-13 fw-normal">41.2%</span> </p>
 												<div className="progress progress-pill-success">
 													<div className="progress-bar" role="progressbar" style={{ width: "41.2%" }}
-														aria-valuenow="75" aria-valuemin="0" aria-valuemax="100"></div>
+														aria-valuenow={75} aria-valuemin={0} aria-valuemax={100}></div>
 												</div>
 											</div>
 										</div>

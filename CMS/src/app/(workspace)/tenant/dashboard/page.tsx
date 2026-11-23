@@ -422,20 +422,20 @@ export default function TenantDashboardPage() {
 									<h3 className="mb-3">154</h3>
 								</div>
 								<div className="progress-stacked emp-stack mb-3">
-									<div className="progress" role="progressbar" aria-label="Segment one" aria-valuenow="15"
-										aria-valuemin="0" aria-valuemax="100" style={{ width: "40%" }}>
+									<div className="progress" role="progressbar" aria-label="Segment one" aria-valuenow={15}
+										aria-valuemin={0} aria-valuemax={100} style={{ width: "40%" }}>
 										<div className="progress-bar bg-warning"></div>
 									</div>
-									<div className="progress" role="progressbar" aria-label="Segment two" aria-valuenow="30"
-										aria-valuemin="0" aria-valuemax="100" style={{ width: "20%" }}>
+									<div className="progress" role="progressbar" aria-label="Segment two" aria-valuenow={30}
+										aria-valuemin={0} aria-valuemax={100} style={{ width: "20%" }}>
 										<div className="progress-bar bg-secondary"></div>
 									</div>
 									<div className="progress" role="progressbar" aria-label="Segment three"
-										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "10%" }}>
+										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "10%" }}>
 										<div className="progress-bar bg-danger"></div>
 									</div>
 									<div className="progress" role="progressbar" aria-label="Segment four"
-										aria-valuenow="20" aria-valuemin="0" aria-valuemax="100" style={{ width: "30%" }}>
+										aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{ width: "30%" }}>
 										<div className="progress-bar bg-pink"></div>
 									</div>
 								</div>
@@ -1458,7 +1458,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">15/255 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "40%" }}></div>
 													</div>
 												</td>
@@ -1498,7 +1498,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">15/255 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "40%" }}></div>
 													</div>
 												</td>
@@ -1534,7 +1534,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">40/255 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={50} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
 													</div>
 												</td>
@@ -1570,7 +1570,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">35/155 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={50} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
 													</div>
 												</td>
@@ -1606,7 +1606,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">50/235 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={50} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
 													</div>
 												</td>
@@ -1642,7 +1642,7 @@ export default function TenantDashboardPage() {
 												<td>
 													<p className="mb-1">40/255 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="50" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={50} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "50%" }}></div>
 													</div>
 												</td>
@@ -1683,7 +1683,7 @@ export default function TenantDashboardPage() {
 												<td className="border-0">
 													<p className="mb-1">15/255 Hrs</p>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="45" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={45} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary" style={{ width: "45%" }}></div>
 													</div>
 												</td>

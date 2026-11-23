@@ -74,6 +74,12 @@ function MyTeamPage() {
           description="Manage and review your direct reports, attendance statuses, and performance overview."
         />
         <div className="flex items-center gap-2">
+          <Link to="/me/team/hub">
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 font-semibold text-xs">
+              <Users className="size-3.5" />
+              Manager Hub
+            </Button>
+          </Link>
           <Link to="/me/approvals">
             <Button size="sm" className="gap-1.5 h-8 font-semibold text-xs">
               <CheckCircle2 className="size-3.5" />

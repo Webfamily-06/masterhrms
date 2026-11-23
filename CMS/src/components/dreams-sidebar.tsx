@@ -762,6 +762,18 @@ export function DreamsSidebar({
                   </li>
                   <li>
                     <Link
+                      to="/me/team/hub"
+                      onClick={onCloseMobile}
+                      className={cn(
+                        (currentPath === "/me/team/hub" || currentPath === "/manager-hub") && "active"
+                      )}
+                    >
+                      <i className="ph-duotone ph-gauge"></i>
+                      <span>Manager Hub</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
                       to="/me/team"
                       onClick={onCloseMobile}
                       className={cn(currentPath === "/me/team" && "active")}

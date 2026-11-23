@@ -930,7 +930,7 @@ export default function EmployeeDashboardPage() {
 													className="todo-inbox-check d-flex align-items-center todo-strike-content">
 													<span><i className="ti ti-grid-dots me-2"></i></span>
 													<div className="form-check">
-														<input className="form-check-input" type="checkbox" checked="" />
+														<input className="form-check-input" type="checkbox" defaultChecked={false} />
 													</div>
 													<span className="me-2 rating-select d-flex align-items-center"><i
 															className="ti ti-star"></i></span>

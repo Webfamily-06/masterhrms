@@ -197,8 +197,8 @@ export default function FinanceDashboardPage() {
 							<div className="row g-2">
 								<div className="col-5">
 									<p className="fs-12 text-dark mb-1">Salary Budget</p>
-									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
-										aria-valuemin="0" aria-valuemax="100">
+									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow={10}
+										aria-valuemin={0} aria-valuemax={100}>
 										<div className="progress-bar progress-bar-striped" style={{ width: "100%" }}>
 										</div>
 									</div>
@@ -206,8 +206,8 @@ export default function FinanceDashboardPage() {
 								</div>
 								<div className="col-3">
 									<p className="fs-12 text-dark mb-1">Benefits</p>
-									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
-										aria-valuemin="0" aria-valuemax="100">
+									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow={10}
+										aria-valuemin={0} aria-valuemax={100}>
 										<div className="progress-bar progress-bar-striped bg-secondary"
 											style={{ width: "100%" }}>
 										</div>
@@ -216,8 +216,8 @@ export default function FinanceDashboardPage() {
 								</div>
 								<div className="col-4">
 									<p className="fs-12 text-dark mb-1">HR Operations</p>
-									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow="10"
-										aria-valuemin="0" aria-valuemax="100">
+									<div className="progress progress-xl mb-1" role="progressbar" aria-valuenow={10}
+										aria-valuemin={0} aria-valuemax={100}>
 										<div className="progress-bar progress-bar-striped bg-dark" style={{ width: "100%" }}>
 										</div>
 									</div>

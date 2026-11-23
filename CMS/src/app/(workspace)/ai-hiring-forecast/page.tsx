@@ -537,7 +537,7 @@ export default function AIHiringForecastPage() {
 												<td>2</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary progress-bar-striped" style={{"width":"90%"}}></div>
 													</div>
 												</td>
@@ -556,7 +556,7 @@ export default function AIHiringForecastPage() {
 												<td>5</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-purple progress-bar-striped" style={{"width":"60%"}}></div>
 													</div>
 												</td>
@@ -575,7 +575,7 @@ export default function AIHiringForecastPage() {
 												<td>3</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-info progress-bar-striped" style={{"width":"78%"}}></div>
 													</div>
 												</td>
@@ -594,7 +594,7 @@ export default function AIHiringForecastPage() {
 												<td>6</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-purple progress-bar-striped" style={{"width":"85%"}}></div>
 													</div>
 												</td>
@@ -613,7 +613,7 @@ export default function AIHiringForecastPage() {
 												<td>3</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-success progress-bar-striped" style={{"width":"95%"}}></div>
 													</div>
 												</td>
@@ -632,7 +632,7 @@ export default function AIHiringForecastPage() {
 												<td>2</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-primary progress-bar-striped" style={{"width":"90%"}}></div>
 													</div>
 												</td>
@@ -650,7 +650,7 @@ export default function AIHiringForecastPage() {
 												<td>5</td>
 												<td>
 													<div className="progress progress-xs w-100" role="progressbar"
-														aria-valuenow="40" aria-valuemin="0" aria-valuemax="100">
+														aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
 														<div className="progress-bar bg-info progress-bar-striped" style={{"width":"95%"}}></div>
 													</div>
 												</td>

@@ -606,7 +606,7 @@ export default function AIPayrollForecastPage() {
 										<p className="fs-16 fw-semibold text-dark mb-1">$105000</p>
 										<p className="fs-12 mb-5">Development</p>
 										<p className="fs-13 text-success mb-4"><i className="ti ti-circle-arrow-up me-1"></i>32.1%</p>
-										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
 											<div className="progress-bar progress-bar-striped bg-primary" style={{"width":"100%"}}></div>
 										</div>
 									</div>
@@ -615,7 +615,7 @@ export default function AIPayrollForecastPage() {
 										<p className="fs-16 fw-semibold text-dark mb-1">$70000</p>
 										<p className="fs-12 mb-5">Sales</p>
 										<p className="fs-13 text-danger mb-4"><i className="ti ti-circle-arrow-down me-1"></i>16%</p>
-										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
 											<div className="progress-bar progress-bar-striped bg-secondary" style={{"width":"100%"}}></div>
 										</div>
 									</div>
@@ -624,7 +624,7 @@ export default function AIPayrollForecastPage() {
 										<p className="fs-16 fw-semibold text-dark mb-1">$35000</p>
 										<p className="fs-12 mb-5">Marketing</p>
 										<p className="fs-13 text-success mb-4"><i className="ti ti-circle-arrow-up me-1"></i>15.3%</p>
-										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
 											<div className="progress-bar progress-bar-striped bg-warning" style={{"width":"100%"}}></div>
 										</div>
 									</div>
@@ -633,7 +633,7 @@ export default function AIPayrollForecastPage() {
 										<p className="fs-16 fw-semibold text-dark mb-1">$12000</p>
 										<p className="fs-12 mb-5">Support</p>
 										<p className="fs-13 text-success mb-4"><i className="ti ti-circle-arrow-up me-1"></i>12.1%</p>
-										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
 											<div className="progress-bar progress-bar-striped bg-info" style={{"width":"100%"}}></div>
 										</div>
 									</div>
@@ -642,7 +642,7 @@ export default function AIPayrollForecastPage() {
 										<p className="fs-16 fw-semibold text-dark mb-1">$8000</p>
 										<p className="fs-12 mb-5">Operations</p>
 										<p className="fs-13 text-success mb-4"><i className="ti ti-circle-arrow-up me-1"></i>8.4%</p>
-										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+										<div className="progress progress-xl rounded mb-2 mb-sm-0" role="progressbar" aria-valuenow={100} aria-valuemin={0} aria-valuemax={100}>
 											<div className="progress-bar progress-bar-striped bg-purple" style={{"width":"100%"}}></div>
 										</div>
 									</div>
