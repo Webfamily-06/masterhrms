@@ -183,6 +183,24 @@ export const CalendarMainScreen: React.FC = () => {
   const [detailShareQuery, setDetailShareQuery] = useState('');
   const [detailSharePerm, setDetailSharePerm] = useState<'view' | 'edit'>('view');
 
+  // Meeting UI Parity States (Homepage_Full Screen, Pop Up Success, Bookings - Cancel-1)
+  const [fullScreenMode, setFullScreenMode] = useState(false);
+  const [successPopup, setSuccessPopup] = useState<{
+    title: string;
+    subtitle: string;
+    dateLabel?: string;
+  } | null>(null);
+  const [cancelReasonModalOpen, setCancelReasonModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Schedule conflict');
+  const [cancelNote, setCancelNote] = useState('');
+  const CANCEL_REASONS = [
+    'Schedule conflict',
+    'Rescheduling to another slot',
+    'No longer required',
+    'Attendee unavailable',
+    'Other',
+  ];
+
   // Determine composite projection scope from authoritative permissions (not role string guessing alone)
   const useHrCompositeScope =
     activeRole !== 'employee' &&
@@ -411,11 +429,17 @@ export const CalendarMainScreen: React.FC = () => {
       }
       return CalendarService.createEvent(payload);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      const wasEditing = Boolean(editingEvent);
       setFormModalOpen(false);
       setConflictPrompt(null);
       setRecurrencePrompt(null);
       setEditingEvent(null);
+      setSuccessPopup({
+        title: wasEditing ? 'Meeting Updated' : 'Meeting Scheduled',
+        subtitle: variables.title || 'Calendar event saved successfully.',
+        dateLabel: `${startDateStr} • ${allDay ? 'All Day' : `${startTimeStr} - ${endTimeStr}`}`,
+      });
       void queryClient.invalidateQueries({ queryKey: createTenantQueryKey(['calendar']) });
     },
     onError: (err: any, variables) => {
@@ -490,10 +514,14 @@ export const CalendarMainScreen: React.FC = () => {
       id: string;
       recurrenceScope?: 'this_occurrence' | 'all';
       occurrenceDate?: string;
+      reason?: string;
+      note?: string;
     }) =>
       CalendarService.cancelEvent(params.id, {
         recurrenceScope: params.recurrenceScope,
         occurrenceDate: params.occurrenceDate,
+        reason: params.reason,
+        note: params.note,
       }),
     onSuccess: () => {
       setRecurrencePrompt(null);
@@ -666,6 +694,14 @@ export const CalendarMainScreen: React.FC = () => {
             <Text style={styles.icsBtnText}>ICS</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.icsBtn}
+            onPress={() => setFullScreenMode((prev) => !prev)}
+            accessibilityRole="button"
+            accessibilityLabel={fullScreenMode ? 'Exit full screen calendar' : 'Full screen calendar'}
+          >
+            <Text style={styles.icsBtnText}>{fullScreenMode ? 'Compact' : 'Full'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.createBtn}
             onPress={() => openCreateModal(currentDate)}
             accessibilityRole="button"
@@ -676,6 +712,7 @@ export const CalendarMainScreen: React.FC = () => {
         </View>
       }
       subHeader={
+        fullScreenMode ? undefined : (
         <View style={styles.controlsWrap}>
           {/* Search Bar */}
           <View style={styles.searchBar}>
@@ -786,6 +823,7 @@ export const CalendarMainScreen: React.FC = () => {
             </TouchableOpacity>
           </ScrollView>
         </View>
+        )
       }
     >
       <ScrollView
@@ -1450,11 +1488,9 @@ export const CalendarMainScreen: React.FC = () => {
                       <TouchableOpacity
                         style={styles.warnBtnSmall}
                         onPress={() => {
-                          if (selectedEvent.recurrenceRule || selectedEvent.recurrenceParentId) {
-                            setRecurrencePrompt({ mode: 'cancel' });
-                          } else {
-                            cancelMutation.mutate({ id: selectedEvent.id });
-                          }
+                          setCancelReason(CANCEL_REASONS[0]);
+                          setCancelNote('');
+                          setCancelReasonModalOpen(true);
                         }}
                       >
                         <Text style={styles.warnBtnText}>Cancel Event</Text>
@@ -1978,6 +2014,114 @@ export const CalendarMainScreen: React.FC = () => {
               onPress={() => setRecurrencePrompt(null)}
             >
               <Text style={styles.eventMetaSmall}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bookings - Cancel Reason Sheet (Matches meeting/Bookings - Cancel-1.png) */}
+      <Modal
+        visible={cancelReasonModalOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCancelReasonModalOpen(false)}
+      >
+        <View style={styles.backdrop}>
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>Cancel Booking / Meeting</Text>
+            <Text style={styles.detailMeta}>
+              Select a cancellation reason to notify attendees before cancelling.
+            </Text>
+            <View style={{ gap: 8, marginTop: 12, marginBottom: 12 }}>
+              {CANCEL_REASONS.map((reason) => {
+                const active = cancelReason === reason;
+                return (
+                  <TouchableOpacity
+                    key={reason}
+                    style={[
+                      styles.cancelReasonPill,
+                      active && styles.cancelReasonPillActive,
+                    ]}
+                    onPress={() => setCancelReason(reason)}
+                  >
+                    <Text
+                      style={[
+                        styles.cancelReasonText,
+                        active && styles.cancelReasonTextActive,
+                      ]}
+                    >
+                      {reason}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput
+              style={styles.cancelNoteInput}
+              placeholder="Optional note for attendees..."
+              placeholderTextColor="#94A3B8"
+              value={cancelNote}
+              onChangeText={setCancelNote}
+              multiline
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { flex: 1 }]}
+                onPress={() => setCancelReasonModalOpen(false)}
+              >
+                <Text style={styles.secondaryBtnText}>Keep Meeting</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dangerBtnSmall, { flex: 1 }]}
+                onPress={() => {
+                  setCancelReasonModalOpen(false);
+                  if (!selectedEvent) return;
+                  if (selectedEvent.recurrenceRule || selectedEvent.recurrenceParentId) {
+                    setRecurrencePrompt({ mode: 'cancel' });
+                  } else {
+                    cancelMutation.mutate({
+                      id: selectedEvent.id,
+                      reason: cancelReason,
+                      note: cancelNote.trim() || undefined,
+                    });
+                  }
+                }}
+              >
+                <Text style={styles.dangerBtnText}>Confirm Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pop Up Success Modal (Matches meeting/Pop Up Success.png) */}
+      <Modal
+        visible={!!successPopup}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSuccessPopup(null)}
+      >
+        <View style={styles.backdrop}>
+          <View style={[styles.sheet, { alignItems: 'center', paddingVertical: 26 }]}>
+            <View style={styles.successIconCircle}>
+              <Text style={styles.successCheckMark}>✓</Text>
+            </View>
+            <Text style={[styles.sheetTitle, { textAlign: 'center', marginTop: 12 }]}>
+              {successPopup?.title}
+            </Text>
+            <Text style={[styles.detailMeta, { textAlign: 'center', marginTop: 4 }]}>
+              {successPopup?.subtitle}
+            </Text>
+            {!!successPopup?.dateLabel && (
+              <View style={styles.successDateBadge}>
+                <Text style={styles.successDateBadgeText}>{successPopup.dateLabel}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.primaryBtn, { width: '100%', marginTop: 18 }]}
+              onPress={() => setSuccessPopup(null)}
+            >
+              <Text style={styles.primaryBtnText}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2589,5 +2733,63 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  cancelReasonPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  cancelReasonPillActive: {
+    borderColor: '#DC2626',
+    backgroundColor: '#FEF2F2',
+  },
+  cancelReasonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  cancelReasonTextActive: {
+    color: '#DC2626',
+    fontWeight: '700',
+  },
+  cancelNoteInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 72,
+    fontSize: 13,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+    textAlignVertical: 'top',
+  },
+  successIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  successCheckMark: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#16A34A',
+  },
+  successDateBadge: {
+    marginTop: 12,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  successDateBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4F46E5',
   },
 });

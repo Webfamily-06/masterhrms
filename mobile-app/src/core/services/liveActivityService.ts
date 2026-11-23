@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from 'react-native';
+import { apiClient } from '../api/apiClient';
 
 const { LiveActivityModule } = NativeModules;
 
@@ -81,5 +82,26 @@ export class LiveActivityService {
       }
     }
     return true;
+  }
+
+  /**
+   * Sync Dynamic Island / Live Activity state with backend telemetry & push registry.
+   */
+  static async syncDynamicIsland(payload: {
+    activityId: string;
+    type: string;
+    mode: 'minimal' | 'compact' | 'expanded';
+    title: string;
+    pushToken?: string;
+  }): Promise<boolean> {
+    try {
+      await apiClient.post('/api/v1/me/live-activities/sync', {
+        ...payload,
+        platform: Platform.OS,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

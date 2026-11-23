@@ -1791,7 +1791,9 @@ exports.calendarRouter.post("/events/:id/cancel", async (req, res) => {
         const tenantId = req.user.tenantId;
         const userId = req.user.userId || req.user.id;
         const { id } = req.params;
-        const { recurrenceScope, occurrenceDate } = req.body;
+        const { recurrenceScope, occurrenceDate, reason, note } = req.body || {};
+        const cancelReasonText = typeof reason === "string" ? reason.trim() : "";
+        const cancelNoteText = typeof note === "string" ? note.trim() : "";
         let masterId = id;
         let derivedOccurrenceDate;
         if (id.startsWith("rec-")) {
@@ -1875,7 +1877,13 @@ exports.calendarRouter.post("/events/:id/cancel", async (req, res) => {
                 action: "OCCURRENCE_CANCEL",
                 entityId: cancelledException.id,
                 beforeJson: { seriesId: existing.id, originalStartTime: origDate.toISOString(), status: "confirmed" },
-                afterJson: { seriesId: existing.id, originalStartTime: origDate.toISOString(), status: "cancelled" },
+                afterJson: {
+                    seriesId: existing.id,
+                    originalStartTime: origDate.toISOString(),
+                    status: "cancelled",
+                    ...(cancelReasonText ? { reason: cancelReasonText } : {}),
+                    ...(cancelNoteText ? { note: cancelNoteText } : {}),
+                },
                 ipAddress: req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip,
                 userAgent: req.headers["user-agent"],
             });
@@ -1883,11 +1891,16 @@ exports.calendarRouter.post("/events/:id/cancel", async (req, res) => {
                 success: true,
                 message: "Occurrence cancelled successfully",
                 data: cancelledException,
+                cancelReason: cancelReasonText || null,
+                cancelNote: cancelNoteText || null,
             });
         }
         if (existing.status === "cancelled") {
             return res.status(400).json({ error: "Event is already cancelled." });
         }
+        const cancelDescriptionSuffix = cancelReasonText
+            ? `\n\n[Cancelled: ${cancelReasonText}${cancelNoteText ? ` — ${cancelNoteText}` : ""}]`
+            : "";
         const cancelledEvent = await prisma_1.prisma.$transaction(async (tx) => {
             const updated = await tx.calendarEvent.update({
                 where: { id: existing.id },
@@ -1895,6 +1908,9 @@ exports.calendarRouter.post("/events/:id/cancel", async (req, res) => {
                     status: "cancelled",
                     cancelledAt: new Date(),
                     cancelledById: userId,
+                    ...(cancelDescriptionSuffix
+                        ? { description: `${existing.description || ""}${cancelDescriptionSuffix}`.trim() }
+                        : {}),
                 },
             });
             // Invalidate pending reminders so scheduler does not dispatch alerts for cancelled event

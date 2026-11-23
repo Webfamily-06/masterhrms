@@ -251,4 +251,46 @@ export class EmployeeService {
       return [];
     }
   }
+
+  /**
+   * Fetch Finance Widgets data (Small, Medium, Large) for PaymentCardsScreen
+   */
+  static async getFinanceWidgets(period: 'month' | 'quarter' | 'year' = 'month'): Promise<{
+    netPay: string;
+    delta: string;
+    taxSaved: string;
+    reimbursements: string;
+    loanEmi: string;
+    bars: number[];
+    labels: string[];
+    utilization: number;
+  } | null> {
+    try {
+      const response = await apiClient.get<any>('/api/v1/me/finance-widgets', {
+        params: { period },
+      });
+      return response.data?.data || response.data || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetch Home Dashboard Live Widgets summary (streak, net pay, OKR progress)
+   */
+  static async getHomeWidgetsSummary(): Promise<{
+    attendanceStreakDays: number;
+    streakDelta: string;
+    netPayFormatted: string;
+    financeDelta: string;
+    okrProgress: number;
+    okrRemainingMilestones: number;
+  } | null> {
+    try {
+      const response = await apiClient.get<any>('/api/v1/me/widgets/summary');
+      return response.data?.data || response.data || null;
+    } catch {
+      return null;
+    }
+  }
 }

@@ -74,9 +74,9 @@ export type PushTokenType = 'expo' | 'fcm' | 'apns' | 'none';
 
 export const BACKGROUND_NOTIFICATION_TASK = 'MASTERHRMS_BACKGROUND_NOTIFICATION';
 
-// Define background notification task safely
+// Define background notification task safely (custom native builds only; unsupported in Expo Go)
 try {
-  if (TaskManager && typeof TaskManager.defineTask === 'function') {
+  if (!isExpoGoEnvironment() && TaskManager && typeof TaskManager.defineTask === 'function') {
     if (!TaskManager.isTaskDefined(BACKGROUND_NOTIFICATION_TASK)) {
       TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }: any) => {
         if (error) {
@@ -90,7 +90,7 @@ try {
     }
   }
 } catch (taskErr) {
-  console.warn('[Push] Could not define background notification task:', taskErr);
+  // Gracefully silence background task registration warning in Expo Go
 }
 
 export interface PushCapabilityStatus {
@@ -529,17 +529,29 @@ export class PushNotificationService {
     if (this.isInitialized) return;
     this.isInitialized = true;
 
-    // Triggered when a notification is received while app is in foreground
-    Notifications.addNotificationReceivedListener((notification) => {
-      console.log('[Push] Notification received in foreground:', notification.request.content);
-    });
-
-    // Triggered when a user interacts with a notification (taps it)
-    Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data;
-      if (onNotificationClick && data) {
-        onNotificationClick(data);
+    try {
+      if (typeof Notifications.addNotificationReceivedListener === 'function') {
+        // Triggered when a notification is received while app is in foreground
+        Notifications.addNotificationReceivedListener((notification) => {
+          console.log('[Push] Notification received in foreground:', notification.request.content);
+        });
       }
-    });
+    } catch (e) {
+      // Ignored in unsupported environments
+    }
+
+    try {
+      if (typeof Notifications.addNotificationResponseReceivedListener === 'function') {
+        // Triggered when a user interacts with a notification (taps it)
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          const data = response.notification?.request?.content?.data;
+          if (onNotificationClick && data) {
+            onNotificationClick(data);
+          }
+        });
+      }
+    } catch (e) {
+      // Ignored in unsupported environments
+    }
   }
 }

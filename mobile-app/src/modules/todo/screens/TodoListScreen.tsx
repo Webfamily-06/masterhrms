@@ -7,6 +7,7 @@ import {
   TextInput,
   RefreshControl,
   Alert,
+  Modal,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +21,15 @@ import {
   Calendar,
   CheckSquare,
   MessageSquare,
+  SlidersHorizontal,
+  Share2,
+  MoreHorizontal,
+  User,
+  Users,
+  Sparkles,
+  X,
 } from 'lucide-react-native';
+import { useCallStore } from '../../../store/callStore';
 import {
   WorkspaceModuleShell,
   WorkspaceLoadingBlock,
@@ -67,6 +76,7 @@ export const TodoListScreen: React.FC = () => {
 
   // Filter & Sort state
   const [search, setSearch] = useState('');
+  const [taskScope, setTaskScope] = useState<'all' | 'personal' | 'team'>('all');
   const [statusTab, setStatusTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -78,6 +88,11 @@ export const TodoListScreen: React.FC = () => {
   const [formVisible, setFormVisible] = useState(false);
   const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [createChooserVisible, setCreateChooserVisible] = useState(false);
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [actionTodo, setActionTodo] = useState<TodoItem | null>(null);
+  const [shareTodo, setShareTodo] = useState<TodoItem | null>(null);
+  const [shareEmail, setShareEmail] = useState('');
 
   // Queries
   const todosQuery = useQuery({
@@ -136,6 +151,8 @@ export const TodoListScreen: React.FC = () => {
   const filteredTodos = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = todos.filter((t) => {
+      if (taskScope === 'personal' && t.assignees.length > 1) return false;
+      if (taskScope === 'team' && t.assignees.length <= 1) return false;
       if (statusTab === 'pending' && t.completed) return false;
       if (statusTab === 'completed' && !t.completed) return false;
       if (starredOnly && !t.starred) return false;
@@ -166,7 +183,7 @@ export const TodoListScreen: React.FC = () => {
       }
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [todos, statusTab, starredOnly, priorityFilter, categoryFilter, search, sortBy]);
+  }, [todos, taskScope, statusTab, starredOnly, priorityFilter, categoryFilter, search, sortBy]);
 
   const handleToggleComplete = async (item: TodoItem) => {
     try {
@@ -226,10 +243,7 @@ export const TodoListScreen: React.FC = () => {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.createBtn}
-            onPress={() => {
-              setEditingTodo(null);
-              setFormVisible(true);
-            }}
+            onPress={() => setCreateChooserVisible(true)}
             accessibilityRole="button"
             accessibilityLabel="Create task"
           >
@@ -239,7 +253,28 @@ export const TodoListScreen: React.FC = () => {
       }
       subHeader={
         <View style={styles.toolbar}>
-          {/* Search + Starred + Sort Row */}
+          {/* Personal vs Team Task Scope Switcher (Matches task/Tasks Screen - Personal / Team Task.png) */}
+          <View style={styles.scopeTabsRow}>
+            {(
+              [
+                { k: 'all', label: 'All Tasks' },
+                { k: 'personal', label: 'Personal Task' },
+                { k: 'team', label: 'Team Task' },
+              ] as const
+            ).map((sc) => (
+              <TouchableOpacity
+                key={sc.k}
+                style={[styles.scopeTabBtn, taskScope === sc.k && styles.scopeTabBtnActive]}
+                onPress={() => setTaskScope(sc.k)}
+              >
+                <Text style={[styles.scopeTabText, taskScope === sc.k && styles.scopeTabTextActive]}>
+                  {sc.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Search + Starred + Filter Sheet + Sort Row */}
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
               <Search size={15} color="#94A3B8" strokeWidth={2.2} style={{ marginLeft: 8, marginRight: 6 }} />
@@ -251,6 +286,15 @@ export const TodoListScreen: React.FC = () => {
                 onChangeText={setSearch}
               />
             </View>
+
+            <TouchableOpacity
+              style={[styles.iconFilterBtn, filterSheetVisible && styles.iconFilterBtnActive]}
+              onPress={() => setFilterSheetVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Open task filters"
+            >
+              <SlidersHorizontal size={15} color="#4F46E5" />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.iconFilterBtn, starredOnly && styles.iconFilterBtnActive]}
@@ -550,6 +594,14 @@ export const TodoListScreen: React.FC = () => {
                         />
                       </View>
                       <Text style={styles.progressMiniLabel}>{item.progress}%</Text>
+                      <TouchableOpacity
+                        style={styles.cardMoreTrigger}
+                        onPress={() => setActionTodo(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Task options"
+                      >
+                        <MoreHorizontal size={15} color="#64748B" />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
@@ -613,6 +665,231 @@ export const TodoListScreen: React.FC = () => {
           invalidateTodoAndCalendar();
         }}
       />
+
+      {/* Create New Chooser Sheet (Matches task/Homepage - Create New.png) */}
+      <Modal
+        visible={createChooserVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCreateChooserVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setCreateChooserVisible(false)}
+        >
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Create New</Text>
+              <TouchableOpacity onPress={() => setCreateChooserVisible(false)}>
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={styles.sheetOptionRow}
+              onPress={() => {
+                setCreateChooserVisible(false);
+                setTaskScope('personal');
+                setEditingTodo(null);
+                setFormVisible(true);
+              }}
+            >
+              <User size={18} color="#4F46E5" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetOptionTitle}>Personal Task</Text>
+                <Text style={styles.sheetOptionSub}>Private deliverable tracked in your personal list</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetOptionRow}
+              onPress={() => {
+                setCreateChooserVisible(false);
+                setTaskScope('team');
+                setEditingTodo(null);
+                setFormVisible(true);
+              }}
+            >
+              <Users size={18} color="#10B981" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetOptionTitle}>Team Task</Text>
+                <Text style={styles.sheetOptionSub}>Assign teammates, subtasks & shared progress</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Open Filter Bottom Sheet (Matches task/Tasks Screen - Team Task - Open Filter.png) */}
+      <Modal
+        visible={filterSheetVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setFilterSheetVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.sheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setFilterSheetVisible(false)}
+        >
+          <View style={styles.sheetCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Filter Tasks</Text>
+              <TouchableOpacity onPress={() => setFilterSheetVisible(false)}>
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.sheetLabel}>Workspace Scope</Text>
+            <View style={styles.sheetChipRow}>
+              {(['all', 'personal', 'team'] as const).map((sc) => (
+                <TouchableOpacity
+                  key={sc}
+                  style={[styles.sheetChip, taskScope === sc && styles.sheetChipActive]}
+                  onPress={() => setTaskScope(sc)}
+                >
+                  <Text style={[styles.sheetChipText, taskScope === sc && styles.sheetChipTextActive]}>
+                    {sc.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.sheetLabel}>Priority</Text>
+            <View style={styles.sheetChipRow}>
+              {(['all', 'urgent', 'high', 'medium', 'low'] as const).map((p) => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.sheetChip, priorityFilter === p && styles.sheetChipActive]}
+                  onPress={() => setPriorityFilter(p)}
+                >
+                  <Text style={[styles.sheetChipText, priorityFilter === p && styles.sheetChipTextActive]}>
+                    {p.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={styles.sheetPrimaryBtn}
+              onPress={() => setFilterSheetVisible(false)}
+            >
+              <Text style={styles.sheetPrimaryBtnText}>Apply Filters</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Task Options Action Sheet (Matches task/Task View - Option.png & Open Action.png) */}
+      <Modal
+        visible={!!actionTodo}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setActionTodo(null)}
+      >
+        <TouchableOpacity
+          style={styles.sheetBackdrop}
+          activeOpacity={1}
+          onPress={() => setActionTodo(null)}
+        >
+          <View style={styles.sheetCard}>
+            <Text style={styles.sheetTitle} numberOfLines={1}>
+              {actionTodo?.title}
+            </Text>
+            <TouchableOpacity
+              style={styles.sheetOptionRow}
+              onPress={() => {
+                const target = actionTodo;
+                setActionTodo(null);
+                if (target) {
+                  setEditingTodo(target);
+                  setFormVisible(true);
+                }
+              }}
+            >
+              <CheckSquare size={17} color="#4F46E5" />
+              <Text style={styles.sheetOptionTitle}>Edit Task Details</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetOptionRow}
+              onPress={() => {
+                const target = actionTodo;
+                setActionTodo(null);
+                if (target) setShareTodo(target);
+              }}
+            >
+              <Share2 size={17} color="#0EA5E9" />
+              <Text style={styles.sheetOptionTitle}>Share Task</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sheetOptionRow}
+              onPress={() => {
+                const target = actionTodo;
+                setActionTodo(null);
+                if (target) {
+                  useCallStore.getState().showDynamicIsland({
+                    type: 'goal_progress',
+                    title: target.title,
+                    subtitle: `${target.priority.toUpperCase()} Priority • ${target.progress}%`,
+                    metricValue: `${target.progress}%`,
+                    progress: target.progress,
+                    mode: 'expanded',
+                    targetRoute: 'TodoList',
+                  });
+                }
+              }}
+            >
+              <Sparkles size={17} color="#F59E0B" />
+              <Text style={styles.sheetOptionTitle}>Pin Progress to Dynamic Island</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Task Share Modal (Matches task/Task View - Share.png) */}
+      <Modal
+        visible={!!shareTodo}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShareTodo(null)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Share Task</Text>
+              <TouchableOpacity onPress={() => setShareTodo(null)}>
+                <X size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.sheetOptionSub} numberOfLines={2}>
+              Invite teammates to collaborate on "{shareTodo?.title}".
+            </Text>
+            <TextInput
+              style={styles.shareInput}
+              placeholder="Enter teammate email or @username..."
+              placeholderTextColor="#94A3B8"
+              value={shareEmail}
+              onChangeText={setShareEmail}
+            />
+            <TouchableOpacity
+              style={styles.sheetPrimaryBtn}
+              onPress={async () => {
+                if (!shareTodo) return;
+                try {
+                  const res = await TodoService.shareTodo(shareTodo.id, {
+                    recipientEmail: shareEmail.trim() || undefined,
+                  });
+                  Alert.alert('Task Shared', `Shared with ${res.sharedWith} (${res.shareLink})`);
+                  invalidateTodoAndCalendar();
+                } catch (err: any) {
+                  Alert.alert('Share Error', err?.message || 'Unable to share task.');
+                } finally {
+                  setShareEmail('');
+                  setShareTodo(null);
+                }
+              }}
+            >
+              <Text style={styles.sheetPrimaryBtnText}>Send Invite / Copy Link</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </WorkspaceModuleShell>
   );
 };
@@ -931,5 +1208,132 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#334155',
+  },
+  scopeTabsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 3,
+    gap: 4,
+    marginBottom: 8,
+  },
+  scopeTabBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  scopeTabBtnActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  scopeTabText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  scopeTabTextActive: {
+    color: '#0F172A',
+    fontWeight: '700',
+  },
+  cardMoreTrigger: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    marginLeft: 4,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheetCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 32,
+    gap: 10,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  sheetLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 4,
+  },
+  sheetOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  sheetOptionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  sheetOptionSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sheetChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  sheetChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+  },
+  sheetChipActive: {
+    backgroundColor: '#4F46E5',
+  },
+  sheetChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  sheetChipTextActive: {
+    color: '#FFFFFF',
+  },
+  sheetPrimaryBtn: {
+    backgroundColor: '#4F46E5',
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  sheetPrimaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  shareInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13.5,
+    color: '#0F172A',
+    backgroundColor: '#F8FAFC',
+    marginTop: 4,
   },
 });

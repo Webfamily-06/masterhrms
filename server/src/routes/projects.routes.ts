@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
 import { prisma } from "../prisma";
 import { requireAuth, AuthRequest } from "../middleware/auth";
 import { resolveTenantContext } from "../middleware/tenant-context.middleware";
@@ -657,7 +657,8 @@ projectsRouter.post("/tasks", requireAuth, enforceIdempotency, async (req: AuthR
 });
 
 // GET /api/projects/:id - Retrieve project details by ID with tasks, team, stats
-projectsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+projectsRouter.get("/:id", requireAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.params.id === "teams") return next();
   try {
     const tenantId = req.user?.tenantId || "default";
     const { id } = req.params;
@@ -1383,6 +1384,289 @@ projectsRouter.delete("/:id/milestones/:mid", requireAuth, async (req: AuthReque
   } catch (err: any) {
     console.error("Milestone DELETE error:", err);
     return res.status(500).json({ error: err.message || "Failed to delete milestone" });
+  }
+});
+
+// ==========================================
+// TEAMS & PROJECTS HUB API (Tenant-scoped)
+// ==========================================
+
+const getTeamsSlug = (tenantId: string) => `system-teams-hub-${tenantId}`;
+
+async function loadTenantTeams(tenantId: string): Promise<any[]> {
+  const slug = getTeamsSlug(tenantId);
+  const page = await prisma.cmsPage.findUnique({ where: { slug } }).catch(() => null);
+  const stored = (page?.content as any)?.teams;
+  if (Array.isArray(stored) && stored.length > 0) {
+    return stored;
+  }
+
+  // Bootstrap initial teams from relational Prisma projects & departments
+  const [projects, departments] = await Promise.all([
+    prisma.project.findMany({ where: { tenantId }, take: 12, orderBy: { createdAt: "desc" } }).catch(() => []),
+    prisma.department.findMany({ where: { tenantId }, take: 6 }).catch(() => []),
+  ]);
+
+  const colors = ["#4F46E5", "#10B981", "#F59E0B", "#0EA5E9", "#EC4899", "#8B5CF6"];
+  const seeded =
+    departments.length > 0
+      ? departments.map((dept: any, idx: number) => ({
+          id: `team-${dept.id}`,
+          name: dept.name,
+          department: dept.name,
+          description: dept.description || `${dept.name} collaborative workspace team.`,
+          color: colors[idx % colors.length],
+          inviteCode: `${dept.name.slice(0, 3).toUpperCase()}-${1000 + idx * 111}`,
+          memberUserIds: [],
+          members: [],
+          projects:
+            idx === 0
+              ? projects.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  client: p.clientName || "Internal",
+                  priority: p.priority || "High",
+                  progress: Number(p.progress || 0),
+                  tasksCount: 0,
+                }))
+              : [],
+        }))
+      : [
+          {
+            id: `team-core-${tenantId}`,
+            name: "Core Workspace Team",
+            department: "Engineering",
+            description: "Default cross-functional team for projects & deliverables.",
+            color: "#4F46E5",
+            inviteCode: "CORE-2026",
+            memberUserIds: [],
+            members: [],
+            projects: projects.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              client: p.clientName || "Internal",
+              priority: p.priority || "High",
+              progress: Number(p.progress || 0),
+              tasksCount: 0,
+            })),
+          },
+        ];
+
+  return seeded;
+}
+
+async function saveTenantTeams(tenantId: string, teams: any[]) {
+  const slug = getTeamsSlug(tenantId);
+  await prisma.cmsPage.upsert({
+    where: { slug },
+    create: {
+      slug,
+      title: `Teams Hub (${tenantId})`,
+      content: { teams } as any,
+    },
+    update: {
+      content: { teams } as any,
+    },
+  });
+}
+
+// GET /api/projects/teams
+projectsRouter.get("/teams", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || (req.user as any)?.id || "";
+    const teams = await loadTenantTeams(tenantId);
+    const enriched = teams.map((t: any) => ({
+      ...t,
+      isJoined:
+        Array.isArray(t.memberUserIds) && t.memberUserIds.length > 0
+          ? t.memberUserIds.includes(userId)
+          : true,
+    }));
+    return res.json({ success: true, data: enriched, teams: enriched });
+  } catch (err: any) {
+    console.error("GET /projects/teams error:", err);
+    return res.status(500).json({ error: err.message || "Failed to load teams" });
+  }
+});
+
+// POST /api/projects/teams
+projectsRouter.post("/teams", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || (req.user as any)?.id || "";
+    const userEmail = req.user?.email || "Team Lead";
+    const { name, department, description, color } = req.body || {};
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Team name is required" });
+    }
+
+    const teams = await loadTenantTeams(tenantId);
+    const code = `${String(name).trim().slice(0, 3).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const created = {
+      id: `team-${Date.now()}`,
+      name: String(name).trim(),
+      department: String(department || "General").trim(),
+      description: String(description || "Collaborative workspace team.").trim(),
+      color: String(color || "#4F46E5"),
+      inviteCode: code,
+      isJoined: true,
+      memberUserIds: [userId],
+      members: [
+        {
+          id: userId || `mem-${Date.now()}`,
+          name: userEmail.split("@")[0],
+          role: "Lead",
+          designation: "Team Creator",
+          online: true,
+        },
+      ],
+      projects: [],
+    };
+
+    await saveTenantTeams(tenantId, [created, ...teams]);
+    return res.status(201).json({ success: true, data: created });
+  } catch (err: any) {
+    console.error("POST /projects/teams error:", err);
+    return res.status(500).json({ error: err.message || "Failed to create team" });
+  }
+});
+
+// POST /api/projects/teams/join
+projectsRouter.post("/teams/join", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const userId = req.user?.userId || (req.user as any)?.id || "";
+    const userEmail = req.user?.email || "Member";
+    const code = String(req.body?.inviteCode || "").trim().toUpperCase();
+
+    if (!code) {
+      return res.status(400).json({ error: "Invite code is required" });
+    }
+
+    const teams = await loadTenantTeams(tenantId);
+    const idx = teams.findIndex((t: any) => String(t.inviteCode || "").toUpperCase() === code);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Invalid team invite code" });
+    }
+
+    const target = teams[idx];
+    const memberUserIds: string[] = Array.isArray(target.memberUserIds) ? target.memberUserIds : [];
+    if (userId && !memberUserIds.includes(userId)) {
+      memberUserIds.push(userId);
+    }
+    const members: any[] = Array.isArray(target.members) ? target.members : [];
+    if (!members.some((m: any) => m.id === userId)) {
+      members.push({
+        id: userId || `mem-${Date.now()}`,
+        name: userEmail.split("@")[0],
+        role: "Member",
+        designation: "Team Member",
+        online: true,
+      });
+    }
+
+    teams[idx] = { ...target, memberUserIds, members, isJoined: true };
+    await saveTenantTeams(tenantId, teams);
+    return res.json({ success: true, data: teams[idx] });
+  } catch (err: any) {
+    console.error("POST /projects/teams/join error:", err);
+    return res.status(500).json({ error: err.message || "Failed to join team" });
+  }
+});
+
+// POST /api/projects/teams/:teamId/members
+projectsRouter.post("/teams/:teamId/members", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { teamId } = req.params;
+    const { name, role, designation } = req.body || {};
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Member name or email is required" });
+    }
+
+    const teams = await loadTenantTeams(tenantId);
+    const idx = teams.findIndex((t: any) => t.id === teamId);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Team not found" });
+    }
+
+    const member = {
+      id: `mem-${Date.now()}`,
+      name: String(name).trim(),
+      role: role === "Lead" || role === "Reviewer" ? role : "Member",
+      designation: String(designation || "Workspace Contributor"),
+      online: true,
+    };
+
+    const members = Array.isArray(teams[idx].members) ? [...teams[idx].members, member] : [member];
+    teams[idx] = { ...teams[idx], members };
+    await saveTenantTeams(tenantId, teams);
+    return res.status(201).json({ success: true, data: member, team: teams[idx] });
+  } catch (err: any) {
+    console.error("POST /projects/teams/:teamId/members error:", err);
+    return res.status(500).json({ error: err.message || "Failed to invite team member" });
+  }
+});
+
+// PATCH /api/projects/:id - Update project progress cleanly
+projectsRouter.patch("/:id", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+    const progress = req.body?.progress !== undefined ? Math.max(0, Math.min(100, Number(req.body.progress))) : undefined;
+
+    if (progress !== undefined) {
+      await prisma.project
+        .updateMany({
+          where: { id, tenantId },
+          data: { progress },
+        })
+        .catch(() => {});
+
+      const teams = await loadTenantTeams(tenantId);
+      const updatedTeams = teams.map((t: any) => ({
+        ...t,
+        projects: Array.isArray(t.projects)
+          ? t.projects.map((p: any) => (p.id === id ? { ...p, progress } : p))
+          : [],
+      }));
+      await saveTenantTeams(tenantId, updatedTeams);
+    }
+
+    return res.json({ success: true, projectId: id, progress });
+  } catch (err: any) {
+    console.error("PATCH /projects/:id error:", err);
+    return res.status(500).json({ error: err.message || "Failed to update project" });
+  }
+});
+
+// PATCH /api/projects/:id/archive - Archive project cleanly
+projectsRouter.patch("/:id/archive", requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const tenantId = req.user?.tenantId || "default";
+    const { id } = req.params;
+
+    await prisma.project
+      .updateMany({
+        where: { id, tenantId },
+        data: { status: "archived" },
+      })
+      .catch(() => {});
+
+    const teams = await loadTenantTeams(tenantId);
+    const updatedTeams = teams.map((t: any) => ({
+      ...t,
+      projects: Array.isArray(t.projects) ? t.projects.filter((p: any) => p.id !== id) : [],
+    }));
+    await saveTenantTeams(tenantId, updatedTeams);
+
+    return res.json({ success: true, message: "Project archived", projectId: id });
+  } catch (err: any) {
+    console.error("PATCH /projects/:id/archive error:", err);
+    return res.status(500).json({ error: err.message || "Failed to archive project" });
   }
 });
 

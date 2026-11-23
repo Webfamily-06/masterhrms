@@ -116,4 +116,58 @@ export class ManagerService {
       return [];
     }
   }
+
+  /**
+   * Fetch Teams & Projects Hub workspaces
+   */
+  static async getTeams(): Promise<any[]> {
+    try {
+      const response = await apiClient.get<any>('/api/projects/teams');
+      const list = response.data?.data || response.data?.teams || response.data;
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  static async createTeam(payload: {
+    name: string;
+    department?: string;
+    description?: string;
+    color?: string;
+  }): Promise<any> {
+    const response = await apiClient.post<any>('/api/projects/teams', payload);
+    return response.data?.data || response.data;
+  }
+
+  static async joinTeam(inviteCode: string): Promise<any> {
+    const response = await apiClient.post<any>('/api/projects/teams/join', { inviteCode });
+    return response.data?.data || response.data;
+  }
+
+  static async inviteTeamMember(
+    teamId: string,
+    payload: { name: string; role?: 'Lead' | 'Member' | 'Reviewer'; designation?: string }
+  ): Promise<any> {
+    const response = await apiClient.post<any>(
+      `/api/projects/teams/${encodeURIComponent(teamId)}/members`,
+      payload
+    );
+    return response.data?.data || response.data;
+  }
+
+  static async updateProjectProgress(projectId: string, progress: number): Promise<any> {
+    const response = await apiClient.patch<any>(
+      `/api/projects/${encodeURIComponent(projectId)}`,
+      { progress }
+    );
+    return response.data;
+  }
+
+  static async archiveProject(projectId: string): Promise<any> {
+    const response = await apiClient.patch<any>(
+      `/api/projects/${encodeURIComponent(projectId)}/archive`
+    );
+    return response.data;
+  }
 }

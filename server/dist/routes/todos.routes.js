@@ -1175,6 +1175,64 @@ exports.todosRouter.post("/:id/comments", async (req, res) => {
         res.status(500).json({ error: error.message || "Failed to add comment" });
     }
 });
+// POST /api/todos/:id/share - Share task with a teammate by email or userId
+exports.todosRouter.post("/:id/share", async (req, res) => {
+    try {
+        const tenantId = req.user.tenantId;
+        const userId = req.user.userId || req.user.id;
+        const { id } = req.params;
+        const { recipientEmail, recipientId, message } = req.body || {};
+        const existing = await prisma_1.prisma.workspaceTodo.findFirst({
+            where: { id, tenantId },
+        });
+        if (!existing) {
+            return res.status(404).json({ error: "Todo not found" });
+        }
+        const meta = parseTodoMeta(existing.description);
+        let targetLabel = String(recipientEmail || recipientId || "Workspace Link").trim();
+        if (recipientEmail || recipientId) {
+            const matchedEmp = await prisma_1.prisma.employee
+                .findFirst({
+                where: {
+                    tenantId,
+                    ...(recipientId
+                        ? { OR: [{ id: String(recipientId) }, { userId: String(recipientId) }] }
+                        : { email: String(recipientEmail).trim() }),
+                },
+                select: { id: true, userId: true, firstName: true, lastName: true, email: true },
+            })
+                .catch(() => null);
+            if (matchedEmp) {
+                const assigneeId = matchedEmp.userId || matchedEmp.id;
+                const fullName = `${matchedEmp.firstName} ${matchedEmp.lastName}`.trim() || matchedEmp.email;
+                targetLabel = fullName;
+                const alreadyAssigned = meta.assignees.some((a) => a.id === assigneeId);
+                if (!alreadyAssigned) {
+                    const nextAssignees = [...meta.assignees, { id: assigneeId, name: fullName }];
+                    const desc = serializeTodoMeta(meta.cleanDescription, {
+                        ...meta,
+                        assignees: nextAssignees,
+                    });
+                    await prisma_1.prisma.workspaceTodo.update({
+                        where: { id },
+                        data: { description: desc },
+                    });
+                }
+            }
+        }
+        return res.json({
+            success: true,
+            sharedWith: targetLabel,
+            shareLink: `/me/todo?taskId=${encodeURIComponent(id)}`,
+            message: message || `Task shared with ${targetLabel}`,
+            sharedBy: userId,
+        });
+    }
+    catch (error) {
+        console.error("Error sharing todo:", error);
+        return res.status(500).json({ error: error.message || "Failed to share task" });
+    }
+});
 // DELETE /api/todos/:id - Delete todo with strict object-level authorization (Owner or Admin only)
 exports.todosRouter.delete("/:id", async (req, res) => {
     try {

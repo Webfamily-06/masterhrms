@@ -320,7 +320,12 @@ export class CalendarService {
 
   public static async cancelEvent(
     id: string,
-    options?: { recurrenceScope?: 'this_occurrence' | 'all'; occurrenceDate?: string }
+    options?: {
+      recurrenceScope?: 'this_occurrence' | 'all';
+      occurrenceDate?: string;
+      reason?: string;
+      note?: string;
+    }
   ): Promise<CalendarEvent> {
     const res = await apiClient.post(
       `/api/calendar/events/${encodeURIComponent(id)}/cancel`,

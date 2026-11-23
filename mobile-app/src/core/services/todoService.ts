@@ -409,4 +409,15 @@ export class TodoService {
       createdAt: c?.createdAt || new Date().toISOString(),
     };
   }
+
+  public static async shareTodo(
+    todoId: string,
+    payload: { recipientEmail?: string; recipientId?: string; message?: string }
+  ): Promise<{ sharedWith: string; shareLink: string }> {
+    const res = await apiClient.post(`/api/todos/${encodeURIComponent(todoId)}/share`, payload);
+    return {
+      sharedWith: String(res.data?.sharedWith || payload.recipientEmail || 'Team'),
+      shareLink: String(res.data?.shareLink || `/me/todo?taskId=${todoId}`),
+    };
+  }
 }

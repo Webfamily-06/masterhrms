@@ -32,10 +32,15 @@ import {
   Bell,
   Hourglass,
   Moon,
+  Flame,
+  Target,
+  Sparkles,
+  TrendingUp,
 } from 'lucide-react-native';
 import { AppBottomNav } from '../../../components/common/AppBottomNav';
 import { useAuthStore } from '../../../store/authStore';
 import { useTenantStore } from '../../../store/tenantStore';
+import { useCallStore } from '../../../store/callStore';
 import { PersonaSwitcher } from '../../navigation/PersonaSwitcher';
 import { AttendanceService, DashboardSummaryResponse } from '../../../core/services/attendanceService';
 import { LeaveService, LeaveRequest } from '../../../core/services/leaveService';
@@ -73,6 +78,14 @@ export const EmployeeDashboardScreen: React.FC = () => {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [punchLoading, setPunchLoading] = useState(false);
+  const [widgetsSummary, setWidgetsSummary] = useState({
+    attendanceStreakDays: 12,
+    streakDelta: '+2 vs last wk',
+    netPayFormatted: '₹85,000',
+    financeDelta: '+4.2%',
+    okrProgress: 78,
+    okrRemainingMilestones: 2,
+  });
 
   // Live timer for current clock
   const [currentTimeStr, setCurrentTimeStr] = useState<string>('');
@@ -82,14 +95,16 @@ export const EmployeeDashboardScreen: React.FC = () => {
   // Load dashboard, announcements, and recent leaves
   const loadData = useCallback(async () => {
     try {
-      const [sumData, annData, leaveData] = await Promise.all([
+      const [sumData, annData, leaveData, widData] = await Promise.all([
         AttendanceService.getDashboardSummary(),
         EmployeeService.getAnnouncements(),
         LeaveService.getMyRequests(),
+        EmployeeService.getHomeWidgetsSummary(),
       ]);
       setSummary(sumData || {});
       setAnnouncements(annData || []);
       setLeaveRequests(leaveData || []);
+      if (widData) setWidgetsSummary(widData);
     } catch {
       // Handled gracefully
     } finally {
@@ -443,6 +458,103 @@ export const EmployeeDashboardScreen: React.FC = () => {
             </View>
             <Text style={styles.quickActionLabel}>More</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Smart Widgets & Dynamic Island Hub (Matches Widget/Finance & Dynamic Iland/) */}
+        <View style={[styles.sectionHeaderRow, { marginTop: 22 }]}>
+          <Text style={styles.sectionTitle}>Live Widgets & Dynamic Island</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('PaymentCards')}>
+            <Text style={styles.viewAllLink}>All Widgets</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.widgetsRow}>
+          <TouchableOpacity
+            style={styles.smallHomeWidget}
+            activeOpacity={0.85}
+            onPress={() =>
+              useCallStore.getState().showDynamicIsland({
+                type: 'daily_streak',
+                title: 'Daily Streak',
+                subtitle: `${widgetsSummary.attendanceStreakDays} Days On-Time Attendance`,
+                metricValue: `${widgetsSummary.attendanceStreakDays}d`,
+                metricDelta: widgetsSummary.streakDelta,
+                progress: Math.min(100, widgetsSummary.attendanceStreakDays * 7),
+                mode: 'expanded',
+                targetRoute: 'AttendanceDetail',
+              })
+            }
+          >
+            <View style={styles.widgetTopMeta}>
+              <View style={[styles.widgetMiniIcon, { backgroundColor: '#FFF7ED' }]}>
+                <Flame size={15} color="#EA580C" />
+              </View>
+              <Text style={styles.widgetPinText}>Pin</Text>
+            </View>
+            <Text style={styles.widgetBigNum}>{widgetsSummary.attendanceStreakDays} Days</Text>
+            <Text style={styles.widgetSubLabel}>Attendance Streak</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.smallHomeWidget, { backgroundColor: '#0F172A', borderColor: '#1E293B' }]}
+            activeOpacity={0.85}
+            onPress={() =>
+              useCallStore.getState().showDynamicIsland({
+                type: 'finance_statistic',
+                title: 'Finance Statistic',
+                subtitle: 'Latest Net Pay & Claims',
+                metricValue: widgetsSummary.netPayFormatted,
+                metricDelta: widgetsSummary.financeDelta,
+                progress: 74,
+                mode: 'expanded',
+                targetRoute: 'PaymentCards',
+              })
+            }
+          >
+            <View style={styles.widgetTopMeta}>
+              <View style={[styles.widgetMiniIcon, { backgroundColor: 'rgba(52,211,153,0.16)' }]}>
+                <TrendingUp size={15} color="#34D399" />
+              </View>
+              <Text style={[styles.widgetPinText, { color: '#34D399' }]}>{widgetsSummary.financeDelta}</Text>
+            </View>
+            <Text style={[styles.widgetBigNum, { color: '#FFFFFF' }]}>{widgetsSummary.netPayFormatted}</Text>
+            <Text style={[styles.widgetSubLabel, { color: '#94A3B8' }]}>Finance Widget</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.mediumGoalWidget}>
+          <View style={styles.mediumGoalTop}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={[styles.widgetMiniIcon, { backgroundColor: '#EEF2FF' }]}>
+                <Target size={15} color="#4F46E5" />
+              </View>
+              <View>
+                <Text style={styles.mediumGoalTitle}>Q4 OKR Goal Progress</Text>
+                <Text style={styles.widgetSubLabel}>
+                  {widgetsSummary.okrProgress}% completed • {widgetsSummary.okrRemainingMilestones} milestones left
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.islandQuickBtn}
+              onPress={() =>
+                useCallStore.getState().showDynamicIsland({
+                  type: 'timer',
+                  title: 'Shift Focus Timer',
+                  subtitle: 'Active Work Session',
+                  progress: widgetsSummary.okrProgress,
+                  mode: 'compact',
+                  targetRoute: 'Timesheet',
+                })
+              }
+            >
+              <Sparkles size={12} color="#FBBF24" />
+              <Text style={styles.islandQuickBtnText}>Start Island</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.goalBarTrack}>
+            <View style={[styles.goalBarFill, { width: `${widgetsSummary.okrProgress}%` }]} />
+          </View>
         </View>
 
         {/* Recent Updates (Matches 13. Home - Default.png and 18. Home – Notification Preview.png) */}
@@ -1184,5 +1296,90 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#475569',
     textAlign: 'center',
+  },
+  widgetsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  smallHomeWidget: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+  },
+  widgetTopMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  widgetMiniIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  widgetPinText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  widgetBigNum: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  widgetSubLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  mediumGoalWidget: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 10,
+  },
+  mediumGoalTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mediumGoalTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  islandQuickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#020617',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  islandQuickBtnText: {
+    color: '#FFFFFF',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  goalBarTrack: {
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  goalBarFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#4F46E5',
   },
 });
